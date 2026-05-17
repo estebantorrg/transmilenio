@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TransMilenio Explorer — Mapa de Rutas en Tiempo Real</title>
+  <meta name="description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <!-- Loading Overlay -->
+  <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-content">
+      <div class="loading-spinner"></div>
+      <h2 class="loading-title">TransMilenio Explorer</h2>
+      <p class="loading-subtitle" id="loading-status">Conectando con Bogotá...</p>
+    </div>
+  </div>
+
+  <!-- Map Container -->
+  <div id="map"></div>
+
+  <!-- Sidebar -->
+  <aside id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/>
+            <circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">TransMilenio</h1>
+          <p class="brand-subtitle">Explorer</p>
+        </div>
+      </div>
+      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      </button>
+    </div>
+
+    <!-- Search -->
+    <div class="search-container">
+      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="text" id="search-input" class="search-input" placeholder="Buscar ruta... (ej: G47, B12, 661)" autocomplete="off" />
+      <button id="search-clear" class="search-clear hidden" aria-label="Clear search">✕</button>
+    </div>
+
+    <!-- Layer Toggles -->
+    <div class="layer-toggles">
+      <label class="toggle-item" id="toggle-troncal">
+        <input type="checkbox" checked data-layer="troncal" />
+        <span class="toggle-marker toggle-troncal"></span>
+        <span class="toggle-label">Troncales</span>
+        <span class="toggle-count" id="count-troncal">—</span>
+      </label>
+      <label class="toggle-item" id="toggle-zonal">
+        <input type="checkbox" checked data-layer="zonal" />
+        <span class="toggle-marker toggle-zonal"></span>
+        <span class="toggle-label">Zonales</span>
+        <span class="toggle-count" id="count-zonal">—</span>
+      </label>
+      <label class="toggle-item" id="toggle-stations">
+        <input type="checkbox" checked data-layer="stations" />
+        <span class="toggle-marker toggle-stations"></span>
+        <span class="toggle-label">Estaciones (Troncales)</span>
+        <span class="toggle-count" id="count-stations">—</span>
+      </label>
+      <label class="toggle-item" id="toggle-stops">
+        <input type="checkbox" checked data-layer="stops" />
+        <span class="toggle-marker toggle-stops"></span>
+        <span class="toggle-label">Paraderos (Zonales)</span>
+        <span class="toggle-count" id="count-stops">—</span>
+      </label>
+    </div>
+
+    <!-- Route List -->
+    <div class="route-list-header">
+      <h3>Rutas</h3>
+      <span class="route-list-count" id="route-list-count"></span>
+    </div>
+    <div id="route-list" class="route-list"></div>
+
+    <!-- Route Detail Panel (shown when a route is selected) -->
+    <div id="route-detail" class="route-detail hidden">
+      <button id="route-detail-close" class="route-detail-close">← Volver</button>
+      <div id="route-detail-content"></div>
+    </div>
+  </aside>
+
+  <!-- Map Stats Bar -->
+  <div id="stats-bar" class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-value" id="stat-routes">—</span>
+      <span class="stat-label">Rutas</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-stations">—</span>
+      <span class="stat-label">Estaciones</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-stops">—</span>
+      <span class="stat-label">Paraderos</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-value" id="stat-zoom">12</span>
+      <span class="stat-label">Zoom</span>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
