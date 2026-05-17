@@ -13,13 +13,18 @@ interface ArcGISQueryOptions {
   outFields?: string;
   outSR?: number;
   resultRecordCount?: number;
+  returnGeometry?: boolean;
 }
 
 interface ArcGISResponse {
-  features: any[];
+  features?: any[];
   exceededTransferLimit?: boolean;
   fields?: any[];
   geometryType?: string;
+  error?: {
+    message?: string;
+    details?: string[];
+  };
 }
 
 export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<any[]> {
@@ -31,6 +36,7 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
     outFields = '*',
     outSR = 4326,
     resultRecordCount = 2000,
+    returnGeometry = true,
   } = options;
 
   const baseUrl = `${BASE_URL}/${folder}/${service}/FeatureServer/${layerIndex}/query`;
@@ -46,6 +52,7 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
       f: 'json',
       resultRecordCount: resultRecordCount.toString(),
       resultOffset: offset.toString(),
+      returnGeometry: returnGeometry.toString(),
     });
 
     const url = `${baseUrl}?${params.toString()}`;
@@ -58,13 +65,18 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
       }
 
       const data: ArcGISResponse = await response.json();
-
-      if (data.features && data.features.length > 0) {
-        allFeatures = allFeatures.concat(data.features);
-        offset += data.features.length;
+      if (data.error) {
+        const details = data.error.details?.length ? ` ${data.error.details.join(' ')}` : '';
+        throw new Error(`${data.error.message ?? 'ArcGIS query failed'}${details}`);
       }
 
-      hasMore = data.exceededTransferLimit === true && data.features.length > 0;
+      const features = data.features ?? [];
+      if (features.length > 0) {
+        allFeatures = allFeatures.concat(features);
+        offset += features.length;
+      }
+
+      hasMore = data.exceededTransferLimit === true && features.length > 0;
     } catch (error) {
       console.error(`[ArcGIS] Error fetching ${folder}/${service}:`, error);
       throw error;
@@ -118,5 +130,7 @@ export const queries = {
     queryFeatureLayer({
       folder: 'Zonal',
       service: 'consulta_paraderos_rutas',
+      outFields: 'cenefa,ruta',
+      returnGeometry: false,
     }),
 };

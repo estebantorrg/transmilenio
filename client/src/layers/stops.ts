@@ -1,17 +1,14 @@
 /**
- * Zonal stop markers layer.
- * Renders zonal bus stops with actual names, addresses, and route info.
+ * Zonal stop marker layer.
  */
 
 import maplibregl from 'maplibre-gl';
 import { markClickHandled } from './routes';
 
-/** Map from cenefa code → list of route codes that serve this stop */
 export type StopRoutesMap = Map<string, string[]>;
 
-/**
- * Build a cenefa→routes lookup map from the paraderos_rutas API response.
- */
+const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
+
 export function buildStopRoutesMap(stopRoutes: any[]): StopRoutesMap {
   const map = new Map<string, string[]>();
 
@@ -22,16 +19,59 @@ export function buildStopRoutesMap(stopRoutes: any[]): StopRoutesMap {
 
     const existing = map.get(cenefa);
     if (existing) {
-      // Avoid duplicates
-      if (!existing.includes(route)) {
-        existing.push(route);
-      }
+      if (!existing.includes(route)) existing.push(route);
     } else {
       map.set(cenefa, [route]);
     }
   }
 
+  for (const routes of map.values()) {
+    routes.sort();
+  }
+
   return map;
+}
+
+function routeTags(routes: string[]): string {
+  return routes
+    .map(
+      (route) =>
+        `<span class="route-tag zonal-route-tag">${route}</span>`
+    )
+    .join('');
+}
+
+function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
+  markClickHandled(e);
+  const feature = e.features?.[0];
+  if (!feature || !feature.properties) return;
+
+  const p = feature.properties;
+  const coords = (feature.geometry as GeoJSON.Point).coordinates;
+  let routes: string[] = [];
+  try {
+    routes = JSON.parse(p.routes || '[]');
+  } catch {
+    routes = [];
+  }
+
+  const html = `
+    <div class="popup-station">
+      <div class="popup-station-name">${p.name}</div>
+      <div class="popup-station-corridor" style="color: #34D399">Paradero Zonal</div>
+      <div class="popup-station-meta">
+        ${p.cenefa ? `<span># ${p.cenefa}</span>` : ''}
+        ${p.address ? `<span>${p.address}</span>` : ''}
+        ${p.locality ? `<span>${p.locality}</span>` : ''}
+      </div>
+      ${routes.length ? `<div class="popup-station-routes">${routeTags(routes)}</div>` : ''}
+    </div>
+  `;
+
+  new maplibregl.Popup({ offset: 6, maxWidth: '280px' })
+    .setLngLat(coords as [number, number])
+    .setHTML(html)
+    .addTo(map);
 }
 
 export function addStopsLayer(
@@ -39,16 +79,13 @@ export function addStopsLayer(
   stops: any[],
   stopRoutesMap?: StopRoutesMap
 ): void {
-  // Filter out features with no geometry
-  const validStops = stops.filter(s => s.geometry && s.geometry.x && s.geometry.y);
+  const validStops = stops.filter((s) => s.geometry && s.geometry.x && s.geometry.y);
 
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: validStops.map((s) => {
       const a = s.attributes;
       const cenefa: string = a.cenefa || '';
-
-      // Look up routes for this stop
       const routes = stopRoutesMap?.get(cenefa) ?? [];
 
       return {
@@ -72,7 +109,6 @@ export function addStopsLayer(
 
   map.addSource('stops', { type: 'geojson', data: geojson });
 
-  // Only show stops starting from zoom level 14 to avoid cluttering the map at city-level
   map.addLayer({
     id: 'stops-circle',
     type: 'circle',
@@ -80,14 +116,25 @@ export function addStopsLayer(
     minzoom: 14,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 2, 17, 5, 20, 8],
-      'circle-color': '#34D399', // tm-green
+      'circle-color': '#34D399',
       'circle-stroke-color': '#0A0E17',
       'circle-stroke-width': 1,
-      'circle-opacity': 0.8,
+      'circle-opacity': 0.86,
     },
   });
 
-  // Stop labels (visible at higher zoom)
+  map.addLayer({
+    id: 'stops-hitbox',
+    type: 'circle',
+    source: 'stops',
+    minzoom: 13,
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 9, 17, 15, 20, 20],
+      'circle-color': '#34D399',
+      'circle-opacity': 0.01,
+    },
+  });
+
   map.addLayer({
     id: 'stops-labels',
     type: 'symbol',
@@ -109,58 +156,30 @@ export function addStopsLayer(
     },
   });
 
-  // Click popup
-  map.on('click', 'stops-circle', (e) => {
-    markClickHandled(e);
-    const feature = e.features?.[0];
-    if (!feature || !feature.properties) return;
-
-    const p = feature.properties;
-    const coords = (feature.geometry as GeoJSON.Point).coordinates;
-
-    // Parse routes list
-    let routes: string[] = [];
-    try {
-      routes = JSON.parse(p.routes || '[]');
-    } catch { /* empty */ }
-
-    const routeTags = routes
-      .map(r => `<span class="route-tag" style="background: rgba(56,189,248,0.2); color: #38BDF8; border: 1px solid rgba(56,189,248,0.3); font-size: 0.65rem; padding: 2px 6px; border-radius: 4px; font-weight: 600;">${r}</span>`)
-      .join('');
-
-    const html = `
-      <div class="popup-station">
-        <div class="popup-station-name">${p.name}</div>
-        <div class="popup-station-corridor" style="color: #34D399">Paradero Zonal</div>
-        <div class="popup-station-meta">
-          ${p.cenefa ? `<span># ${p.cenefa}</span>` : ''}
-          ${p.address ? `<span>📍 ${p.address}</span>` : ''}
-          ${p.locality ? `<span>🏘️ ${p.locality}</span>` : ''}
-        </div>
-        ${routeTags ? `<div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;">${routeTags}</div>` : ''}
-      </div>
-    `;
-
-    new maplibregl.Popup({ offset: 6, maxWidth: '280px' })
-      .setLngLat(coords as [number, number])
-      .setHTML(html)
-      .addTo(map);
-  });
-
-  // Cursor
-  map.on('mouseenter', 'stops-circle', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'stops-circle', () => {
-    map.getCanvas().style.cursor = '';
+  ['stops-circle', 'stops-hitbox'].forEach((layer) => {
+    map.on('click', layer, (e) => showStopPopup(map, e));
+    map.on('mouseenter', layer, () => {
+      map.getCanvas().style.cursor = 'pointer';
+    });
+    map.on('mouseleave', layer, () => {
+      map.getCanvas().style.cursor = '';
+    });
   });
 }
 
 export function toggleStopsLayer(map: maplibregl.Map, visible: boolean): void {
   const visibility = visible ? 'visible' : 'none';
-  ['stops-circle', 'stops-labels'].forEach((id) => {
+  STOP_LAYERS.forEach((id) => {
     if (map.getLayer(id)) {
       map.setLayoutProperty(id, 'visibility', visibility);
+    }
+  });
+}
+
+export function bringStopsLayerToFront(map: maplibregl.Map): void {
+  STOP_LAYERS.forEach((id) => {
+    if (map.getLayer(id)) {
+      map.moveLayer(id);
     }
   });
 }

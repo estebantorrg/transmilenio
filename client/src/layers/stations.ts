@@ -1,19 +1,171 @@
 /**
- * Station markers layer.
- * Renders Troncal stations as interactive markers on the map.
+ * Troncal station and wagon layers.
  */
 
 import maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
-import type { TroncalStationFeature, TroncalRouteFeature } from '../types/transmilenio';
-import { markClickHandled } from './routes';
+import type { TroncalRouteFeature, TroncalStationFeature, TroncalWagonFeature } from '../types/transmilenio';
+import { getTroncalColor, markClickHandled } from './routes';
+
+type WagonRouteSides = {
+  left: string[];
+  right: string[];
+};
+
+const STATION_LAYERS = [
+  'wagons-fill',
+  'wagons-line',
+  'wagons-route-labels',
+  'stations-glow',
+  'stations-circle',
+  'stations-hitbox',
+  'stations-labels',
+];
+
+function formatRouteTags(routes: string[]): string {
+  return routes
+    .map((route) => {
+      const color = getTroncalColor(route);
+      return `<span class="route-tag" style="background:${color};">${route}</span>`;
+    })
+    .join('');
+}
+
+function shortRouteList(routes: string[], limit = 5): string {
+  if (routes.length === 0) return '-';
+  const visible = routes.slice(0, limit).join(' ');
+  return routes.length > limit ? `${visible} +${routes.length - limit}` : visible;
+}
+
+function getWagonRouteSides(
+  wagon: GeoJSON.Feature<GeoJSON.Polygon>,
+  routes: TroncalRouteFeature[]
+): WagonRouteSides {
+  const polygon = turf.polygon(wagon.geometry.coordinates);
+  const center = turf.centerOfMass(polygon);
+  const leftRoutes = new Set<string>();
+  const rightRoutes = new Set<string>();
+
+  routes.forEach((route) => {
+    const routeCode = route.attributes.route_name_ruta_troncal;
+    const paths = route.geometry?.paths;
+    if (!paths) return;
+
+    for (const path of paths) {
+      if (path.length < 2) continue;
+      const line = turf.lineString(path);
+      const distance = turf.pointToLineDistance(center, line, { units: 'meters' });
+
+      if (distance < 24) {
+        const nearest = turf.nearestPointOnLine(line, center);
+        const angle = turf.bearing(center, nearest);
+        if (angle >= 0 && angle <= 180) {
+          rightRoutes.add(routeCode);
+        } else {
+          leftRoutes.add(routeCode);
+        }
+        break;
+      }
+    }
+  });
+
+  return {
+    left: Array.from(leftRoutes).sort(),
+    right: Array.from(rightRoutes).sort(),
+  };
+}
+
+function showStationPopup(
+  map: maplibregl.Map,
+  e: maplibregl.MapLayerMouseEvent,
+  routes: TroncalRouteFeature[]
+): void {
+  markClickHandled(e);
+  const feature = e.features?.[0];
+  if (!feature || !feature.properties) return;
+
+  const p = feature.properties;
+  const coords = (feature.geometry as GeoJSON.Point).coordinates;
+  const bikeInfo = p.bike ? `<span>Biciparqueo (${p.bikeCapacity})</span>` : '';
+  const wifiInfo = p.wifi === 'SI' ? '<span>WiFi</span>' : '';
+  const wagonsInfo = p.wagons ? `<span>${p.wagons} vagones</span>` : '';
+  const stationPoint = turf.point(coords as [number, number]);
+  const passingRoutes = new Set<string>();
+
+  routes.forEach((route) => {
+    const paths = route.geometry?.paths;
+    if (!paths) return;
+
+    for (const path of paths) {
+      if (path.length < 2) continue;
+      const line = turf.lineString(path);
+      const distance = turf.pointToLineDistance(stationPoint, line, { units: 'meters' });
+      if (distance < 40) {
+        passingRoutes.add(route.attributes.route_name_ruta_troncal);
+        break;
+      }
+    }
+  });
+
+  const routeTags = formatRouteTags(Array.from(passingRoutes).sort());
+  const html = `
+    <div class="popup-station">
+      <div class="popup-station-name">${p.name}</div>
+      <div class="popup-station-corridor">${p.corridor}</div>
+      <div class="popup-station-meta">
+        <span>${p.location}</span>
+        ${wagonsInfo}
+        ${bikeInfo}
+        ${wifiInfo}
+      </div>
+      ${routeTags ? `<div class="popup-station-routes">${routeTags}</div>` : ''}
+    </div>
+  `;
+
+  new maplibregl.Popup({ offset: 12, maxWidth: '280px' })
+    .setLngLat(coords as [number, number])
+    .setHTML(html)
+    .addTo(map);
+}
+
+function showWagonPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
+  markClickHandled(e);
+  const feature = e.features?.[0];
+  if (!feature || !feature.properties) return;
+
+  const p = feature.properties;
+  const leftRoutes = JSON.parse(p.leftRoutes || '[]') as string[];
+  const rightRoutes = JSON.parse(p.rightRoutes || '[]') as string[];
+  const leftHTML = leftRoutes.length ? formatRouteTags(leftRoutes) : '<i>-</i>';
+  const rightHTML = rightRoutes.length ? formatRouteTags(rightRoutes) : '<i>-</i>';
+  const html = `
+    <div class="popup-station">
+      <div class="popup-station-name" style="font-size: 1rem;">${p.estacion}</div>
+      <div class="popup-station-corridor" style="color: #9CA3AF; margin-bottom: 8px;">${p.nombre}</div>
+      <div class="wagon-route-grid">
+        <div>
+          <div class="wagon-side-title">Sur/Occ.</div>
+          <div class="wagon-route-tags">${leftHTML}</div>
+        </div>
+        <div>
+          <div class="wagon-side-title">Norte/Ori.</div>
+          <div class="wagon-route-tags">${rightHTML}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  new maplibregl.Popup({ offset: 0, maxWidth: '340px' })
+    .setLngLat(e.lngLat)
+    .setHTML(html)
+    .addTo(map);
+}
 
 export function addStationsLayer(
   map: maplibregl.Map,
   stations: TroncalStationFeature[],
   routes: TroncalRouteFeature[] = []
 ): void {
-  // Convert to GeoJSON
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: stations.map((s) => ({
@@ -35,10 +187,8 @@ export function addStationsLayer(
     })),
   };
 
-  // Add source
   map.addSource('stations', { type: 'geojson', data: geojson });
 
-  // Outer glow ring
   map.addLayer({
     id: 'stations-glow',
     type: 'circle',
@@ -51,7 +201,6 @@ export function addStationsLayer(
     },
   });
 
-  // Main circle
   map.addLayer({
     id: 'stations-circle',
     type: 'circle',
@@ -61,11 +210,21 @@ export function addStationsLayer(
       'circle-color': '#FBBF24',
       'circle-stroke-color': '#0A0E17',
       'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2],
-      'circle-opacity': 0.9,
+      'circle-opacity': 0.92,
     },
   });
 
-  // Station labels (visible at higher zoom)
+  map.addLayer({
+    id: 'stations-hitbox',
+    type: 'circle',
+    source: 'stations',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 26],
+      'circle-color': '#FBBF24',
+      'circle-opacity': 0.01,
+    },
+  });
+
   map.addLayer({
     id: 'stations-labels',
     type: 'symbol',
@@ -87,104 +246,53 @@ export function addStationsLayer(
     },
   });
 
-  // Click popup
-  map.on('click', 'stations-circle', (e) => {
-    markClickHandled(e);
-    const feature = e.features?.[0];
-    if (!feature || !feature.properties) return;
-
-    const p = feature.properties;
-    const coords = (feature.geometry as GeoJSON.Point).coordinates;
-
-    const bikeInfo = p.bike
-      ? `<span>🚲 Biciparqueo (${p.bikeCapacity})</span>`
-      : '';
-    const wifiInfo = p.wifi === 'SI' ? '<span>📶 WiFi</span>' : '';
-    const wagonsInfo = p.wagons ? `<span>🚉 ${p.wagons} Vagones</span>` : '';
-
-    // Calculate intersecting routes
-    const stationPoint = turf.point(coords as [number, number]);
-    const passingRoutes = new Set<string>();
-
-    routes.forEach(route => {
-      const paths = route.geometry?.paths;
-      if (!paths) return;
-
-      for (const path of paths) {
-        if (path.length < 2) continue;
-        const line = turf.lineString(path);
-        // Measure distance in meters
-        const distance = turf.pointToLineDistance(stationPoint, line, { units: 'meters' });
-        // If route passes within 40 meters of station point, it likely stops or passes there
-        if (distance < 40) {
-          passingRoutes.add(route.attributes.route_name_ruta_troncal);
-          break;
-        }
-      }
+  ['stations-circle', 'stations-hitbox'].forEach((layer) => {
+    map.on('click', layer, (e) => showStationPopup(map, e, routes));
+    map.on('mouseenter', layer, () => {
+      map.getCanvas().style.cursor = 'pointer';
     });
-
-    const routeTags = Array.from(passingRoutes)
-      .map(r => `<span class="route-tag" style="background: var(--tm-red); font-size: 0.65rem; padding: 2px 6px;">${r}</span>`)
-      .join('');
-
-    const html = `
-      <div class="popup-station">
-        <div class="popup-station-name">${p.name}</div>
-        <div class="popup-station-corridor">${p.corridor}</div>
-        <div class="popup-station-meta">
-          <span>📍 ${p.location}</span>
-          ${wagonsInfo}
-          ${bikeInfo}
-          ${wifiInfo}
-        </div>
-        ${routeTags ? `<div class="popup-station-routes" style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 4px;">${routeTags}</div>` : ''}
-      </div>
-    `;
-
-    new maplibregl.Popup({ offset: 12, maxWidth: '280px' })
-      .setLngLat(coords as [number, number])
-      .setHTML(html)
-      .addTo(map);
-  });
-
-  // Cursor
-  map.on('mouseenter', 'stations-circle', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'stations-circle', () => {
-    map.getCanvas().style.cursor = '';
-  });
-}
-
-export function toggleStationsLayer(map: maplibregl.Map, visible: boolean): void {
-  const visibility = visible ? 'visible' : 'none';
-  ['stations-glow', 'stations-circle', 'stations-labels', 'wagons-fill', 'wagons-line'].forEach((id) => {
-    if (map.getLayer(id)) {
-      map.setLayoutProperty(id, 'visibility', visibility);
-    }
+    map.on('mouseleave', layer, () => {
+      map.getCanvas().style.cursor = '';
+    });
   });
 }
 
 export function addWagonsLayer(
   map: maplibregl.Map,
-  wagons: import('../types/transmilenio').TroncalWagonFeature[],
+  wagons: TroncalWagonFeature[],
   routes: TroncalRouteFeature[] = []
 ): void {
+  const wagonFeatures: GeoJSON.Feature<GeoJSON.Polygon>[] = wagons.map((w) => ({
+    type: 'Feature',
+    properties: {
+      id: w.attributes.objectid,
+      tipo: w.attributes.tipo,
+      troncal: w.attributes.troncal,
+      estacion: w.attributes.estacion,
+      nombre: w.attributes.nombre,
+      idVagon: w.attributes.id_vagon,
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: w.geometry.rings.map((ring) => [...ring].reverse()),
+    },
+  }));
+
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: wagons.map((w) => ({
-      type: 'Feature',
-      properties: {
-        id: w.attributes.objectid,
-        tipo: w.attributes.tipo,
-        estacion: w.attributes.estacion,
-        nombre: w.attributes.nombre,
-      },
-      geometry: {
-        type: 'Polygon',
-        coordinates: w.geometry.rings.map(ring => [...ring].reverse()),
-      },
-    })),
+    features: wagonFeatures.map((feature) => {
+      const sides = getWagonRouteSides(feature, routes);
+      const label = `${feature.properties?.nombre ?? 'Vagon'}\nSO: ${shortRouteList(sides.left)}\nNE: ${shortRouteList(sides.right)}`;
+      return {
+        ...feature,
+        properties: {
+          ...feature.properties,
+          leftRoutes: JSON.stringify(sides.left),
+          rightRoutes: JSON.stringify(sides.right),
+          label,
+        },
+      };
+    }),
   };
 
   map.addSource('wagons', { type: 'geojson', data: geojson });
@@ -195,8 +303,8 @@ export function addWagonsLayer(
     source: 'wagons',
     minzoom: 15,
     paint: {
-      'fill-color': '#4B5563',
-      'fill-opacity': 0.6,
+      'fill-color': '#2F3B4C',
+      'fill-opacity': 0.7,
       'fill-outline-color': '#FBBF24',
     },
   });
@@ -212,75 +320,48 @@ export function addWagonsLayer(
     },
   });
 
-  map.on('click', 'wagons-fill', (e) => {
-    markClickHandled(e);
-    const feature = e.features?.[0];
-    if (!feature || !feature.properties) return;
-
-    // Convert coordinates safely to Turf polygon
-    const coords = feature.geometry.type === 'Polygon' ? feature.geometry.coordinates : JSON.parse(feature.geometry as any).coordinates;
-    const polygon = turf.polygon(coords);
-    const center = turf.centerOfMass(polygon);
-    
-    const leftRoutes = new Set<string>();
-    const rightRoutes = new Set<string>();
-
-    routes.forEach(route => {
-      const paths = route.geometry?.paths;
-      if (!paths) return;
-      
-      for (const path of paths) {
-        if (path.length < 2) continue;
-        const line = turf.lineString(path);
-        const distance = turf.pointToLineDistance(center, line, { units: 'meters' });
-        
-        if (distance < 20) {
-           const nearest = turf.nearestPointOnLine(line, center);
-           const angle = turf.bearing(center, nearest);
-           
-           if (angle >= 0 && angle <= 180) {
-             rightRoutes.add(route.attributes.route_name_ruta_troncal);
-           } else {
-             leftRoutes.add(route.attributes.route_name_ruta_troncal);
-           }
-           break;
-        }
-      }
-    });
-
-    const p = feature.properties;
-    const formatTags = (rSet: Set<string>) => Array.from(rSet).map(r => `<span class="route-tag" style="background: var(--tm-red); font-size: 0.65rem; padding: 2px 6px;">${r}</span>`).join('');
-
-    const leftHTML = leftRoutes.size > 0 ? formatTags(leftRoutes) : '<i>-</i>';
-    const rightHTML = rightRoutes.size > 0 ? formatTags(rightRoutes) : '<i>-</i>';
-
-    const html = `
-      <div class="popup-station">
-        <div class="popup-station-name" style="font-size: 1rem;">${p.estacion}</div>
-        <div class="popup-station-corridor" style="color: #9CA3AF; margin-bottom: 8px;">${p.nombre}</div>
-        <div class="popup-station-meta" style="margin-top: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-          <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px; min-width: 120px;">
-            <div style="font-size: 0.65rem; color: #9CA3AF; margin-bottom: 6px; text-align: center; text-transform: uppercase;">Puerta Sur/Occ.</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">${leftHTML}</div>
-          </div>
-          <div style="background: rgba(255,255,255,0.05); padding: 8px; border-radius: 4px; min-width: 120px;">
-            <div style="font-size: 0.65rem; color: #9CA3AF; margin-bottom: 6px; text-align: center; text-transform: uppercase;">Puerta Norte/Ori.</div>
-            <div style="display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;">${rightHTML}</div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    new maplibregl.Popup({ offset: 0, maxWidth: '340px' })
-      .setLngLat(e.lngLat)
-      .setHTML(html)
-      .addTo(map);
+  map.addLayer({
+    id: 'wagons-route-labels',
+    type: 'symbol',
+    source: 'wagons',
+    minzoom: 15,
+    layout: {
+      'text-field': ['get', 'label'],
+      'text-font': ['Open Sans Bold'],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 15, 8, 17, 10],
+      'text-max-width': 12,
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
+    },
+    paint: {
+      'text-color': '#FFFFFF',
+      'text-halo-color': '#0A0E17',
+      'text-halo-width': 1.3,
+    },
   });
 
+  map.on('click', 'wagons-fill', (e) => showWagonPopup(map, e));
   map.on('mouseenter', 'wagons-fill', () => {
     map.getCanvas().style.cursor = 'pointer';
   });
   map.on('mouseleave', 'wagons-fill', () => {
     map.getCanvas().style.cursor = '';
+  });
+}
+
+export function toggleStationsLayer(map: maplibregl.Map, visible: boolean): void {
+  const visibility = visible ? 'visible' : 'none';
+  STATION_LAYERS.forEach((id) => {
+    if (map.getLayer(id)) {
+      map.setLayoutProperty(id, 'visibility', visibility);
+    }
+  });
+}
+
+export function bringStationsLayerToFront(map: maplibregl.Map): void {
+  STATION_LAYERS.forEach((id) => {
+    if (map.getLayer(id)) {
+      map.moveLayer(id);
+    }
   });
 }

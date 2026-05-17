@@ -8,11 +8,13 @@
 import maplibregl from 'maplibre-gl';
 import { createMap } from './map';
 import { api } from './services/api';
-import { addStationsLayer, addWagonsLayer, toggleStationsLayer } from './layers/stations';
-import { addStopsLayer, toggleStopsLayer, buildStopRoutesMap } from './layers/stops';
+import { addStationsLayer, addWagonsLayer, bringStationsLayerToFront, toggleStationsLayer } from './layers/stations';
+import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap } from './layers/stops';
 import {
+  addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
+  getRouteColor,
   toggleTroncalRoutes,
   toggleZonalRoutes,
   highlightRoute,
@@ -36,6 +38,10 @@ function hideLoading(): void {
   }
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 // ─── Build Route List Items ───────────────────────────────
 
 function buildRouteList(
@@ -52,8 +58,9 @@ function buildRouteList(
     busType: r.attributes.desc_tipo_bus_ruta_troncal,
     schedule: r.attributes.horario_lunes_viernes,
     length: r.attributes.longitud_ruta_troncal
-      ? r.attributes.longitud_ruta_troncal / 1000
+      ? r.attributes.longitud_ruta_troncal
       : undefined,
+    color: getRouteColor(r.attributes.route_name_ruta_troncal, 'troncal'),
   }));
 
   const zonalItems: RouteListItem[] = zonalRoutes.map((r) => ({
@@ -65,6 +72,7 @@ function buildRouteList(
     type: 'zonal',
     operator: r.attributes.operador_ruta_zonal,
     length: r.attributes.longitud_ruta_zonal,
+    color: getRouteColor(r.attributes.codigo_definitivo_ruta_zonal, 'zonal', r.attributes.tipo_ruta_zonal),
   }));
 
   return [...troncalItems, ...zonalItems];
@@ -78,6 +86,9 @@ async function main(): Promise<void> {
   // 1. Initialize map
   setLoadingStatus('Cargando mapa...');
   const map = createMap('map');
+  if (import.meta.env.DEV) {
+    (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
+  }
 
   // Wait for map to load
   await new Promise<void>((resolve) => {
@@ -100,8 +111,9 @@ async function main(): Promise<void> {
 
   try {
     // Fetch troncal data
-    const [troncalRoutesRes, stationsRes, wagonsRes] = await Promise.all([
+    const [troncalRoutesRes, corridorsRes, stationsRes, wagonsRes] = await Promise.all([
       api.getTroncalRoutes(),
+      api.getTroncalCorridors(),
       api.getTroncalStations(),
       api.getTroncalWagons(),
     ]);
@@ -109,10 +121,14 @@ async function main(): Promise<void> {
     troncalRoutes = troncalRoutesRes.features;
     const wagons = wagonsRes.features;
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
+    console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stationsRes.features.length}`);
     console.log(`✅ Wagons: ${wagons.length}`);
 
-    // Add layers to map (routes first, then stations on top)
+    // Add route/corridor layers first; stops and stations are moved on top after all routes load.
+    setLoadingStatus('Dibujando troncales...');
+    addTroncalCorridorsLayer(map, corridorsRes.features);
+
     setLoadingStatus('Dibujando rutas troncales...');
     addTroncalRoutesLayer(map, troncalRoutes);
 
@@ -144,9 +160,12 @@ async function main(): Promise<void> {
     setLoadingStatus('Colocando paraderos...');
     addStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
     stopsCount = zonalStopsRes.features.length;
+
+    bringStationsLayerToFront(map);
+    bringStopsLayerToFront(map);
   } catch (error) {
     console.error('❌ Error loading data:', error);
-    setLoadingStatus('Error al cargar datos. ¿Está el servidor corriendo en puerto 3001?');
+    setLoadingStatus(`Error al cargar datos. ${getErrorMessage(error)}`);
     return;
   }
 

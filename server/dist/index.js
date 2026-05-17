@@ -3,9 +3,16 @@ import cors from 'cors';
 import apiRoutes from './routes/api.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
-// Enable CORS for the Vite dev server
+const configuredOrigins = process.env.CLIENT_ORIGINS
+    ?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+const allowedOrigins = configuredOrigins?.length
+    ? configuredOrigins
+    : [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
+// Enable CORS for local Vite dev/preview servers.
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:4173'],
+    origin: allowedOrigins,
     methods: ['GET'],
 }));
 app.use(express.json());

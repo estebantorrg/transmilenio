@@ -4,7 +4,7 @@
  */
 const BASE_URL = 'https://gis.transmilenio.gov.co/arcgis/rest/services';
 export async function queryFeatureLayer(options) {
-    const { folder, service, layerIndex = 0, where = '1=1', outFields = '*', outSR = 4326, resultRecordCount = 2000, } = options;
+    const { folder, service, layerIndex = 0, where = '1=1', outFields = '*', outSR = 4326, resultRecordCount = 2000, returnGeometry = true, } = options;
     const baseUrl = `${BASE_URL}/${folder}/${service}/FeatureServer/${layerIndex}/query`;
     let allFeatures = [];
     let offset = 0;
@@ -17,6 +17,7 @@ export async function queryFeatureLayer(options) {
             f: 'json',
             resultRecordCount: resultRecordCount.toString(),
             resultOffset: offset.toString(),
+            returnGeometry: returnGeometry.toString(),
         });
         const url = `${baseUrl}?${params.toString()}`;
         console.log(`[ArcGIS] Fetching: offset=${offset}, limit=${resultRecordCount}`);
@@ -26,11 +27,16 @@ export async function queryFeatureLayer(options) {
                 throw new Error(`ArcGIS returned ${response.status}: ${response.statusText}`);
             }
             const data = await response.json();
-            if (data.features && data.features.length > 0) {
-                allFeatures = allFeatures.concat(data.features);
-                offset += data.features.length;
+            if (data.error) {
+                const details = data.error.details?.length ? ` ${data.error.details.join(' ')}` : '';
+                throw new Error(`${data.error.message ?? 'ArcGIS query failed'}${details}`);
             }
-            hasMore = data.exceededTransferLimit === true && data.features.length > 0;
+            const features = data.features ?? [];
+            if (features.length > 0) {
+                allFeatures = allFeatures.concat(features);
+                offset += features.length;
+            }
+            hasMore = data.exceededTransferLimit === true && features.length > 0;
         }
         catch (error) {
             console.error(`[ArcGIS] Error fetching ${folder}/${service}:`, error);
@@ -70,5 +76,7 @@ export const queries = {
     zonalStopRoutes: () => queryFeatureLayer({
         folder: 'Zonal',
         service: 'consulta_paraderos_rutas',
+        outFields: 'cenefa,ruta',
+        returnGeometry: false,
     }),
 };

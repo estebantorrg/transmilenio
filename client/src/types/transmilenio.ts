@@ -18,6 +18,7 @@ export interface TroncalRoute {
   estado_ruta_troncal: string;
   longitud_comercial: number;
   longitud_ruta_troncal: number;
+  Shape__Length?: number;
 }
 
 export interface TroncalRouteFeature {
@@ -50,13 +51,32 @@ export interface TroncalWagonFeature {
   attributes: {
     objectid: number;
     tipo: string;
+    troncal: string;
     estacion: string;
     secciontipo: string;
     nombre: string;
+    id_vagon: number;
   };
   geometry: {
     rings: number[][][];
   };
+}
+
+export interface TroncalCorridor {
+  objectid: number;
+  id_trazado: string;
+  inicio_trazado: string;
+  fin_trazado: string;
+  tipo_trazado: string;
+  letra_trazado_troncal: string;
+  troncal: string;
+  fase_trazado_troncal: string;
+  Shape__Length?: number;
+}
+
+export interface TroncalCorridorFeature {
+  attributes: TroncalCorridor;
+  geometry: { paths: number[][][] };
 }
 
 // ─── Zonal ────────────────────────────────────────────────
@@ -70,6 +90,7 @@ export interface ZonalRoute {
   operador_ruta_zonal: string;
   route_name_ruta_zonal: string;
   tipo_operacion: string;
+  tipo_ruta_zonal: number;
   longitud_ruta_zonal: number;
   zona_origen_ruta_zonal: number;
   zona_destino_ruta_zonal: number;
@@ -102,4 +123,5 @@ export interface RouteListItem {
   schedule?: string;
   operator?: string;
   length?: number;
+  color?: string;
 }

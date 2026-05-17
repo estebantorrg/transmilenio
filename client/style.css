@@ -790,6 +790,60 @@ html, body {
   border-radius: 50%;
 }
 
+.popup-station-routes,
+.wagon-route-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.route-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.zonal-route-tag {
+  background: rgba(0, 97, 142, 0.22);
+  border: 1px solid rgba(0, 97, 142, 0.42);
+  color: #7dd3fc;
+}
+
+.wagon-route-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.wagon-route-grid > div {
+  min-width: 120px;
+  padding: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.wagon-side-title {
+  margin-bottom: 6px;
+  color: var(--text-tertiary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.wagon-route-tags {
+  justify-content: center;
+  margin-top: 0;
+}
+
 /* ─── Utility ─────────────────────────────────────────── */
 
 .hidden { display: none !important; }

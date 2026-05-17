@@ -117,7 +117,7 @@ function renderRouteList(routes: RouteListItem[]): void {
       (r) => `
     <div class="route-item ${selectedRouteCode === r.code ? 'active' : ''}"
          data-code="${r.code}" data-type="${r.type}" data-id="${r.id}">
-      <span class="route-item-badge ${r.type}">${r.code}</span>
+      <span class="route-item-badge ${r.type}" style="${r.color ? `background:${r.color};border-color:${r.color};color:#fff;` : ''}">${r.code}</span>
       <div class="route-item-info">
         <div class="route-item-name">${r.origin} → ${r.destination}</div>
         <div class="route-item-meta">${r.busType || r.operator || r.type}</div>
@@ -169,7 +169,7 @@ function showRouteDetail(route: RouteListItem): void {
 
   content.innerHTML = `
     <div class="detail-header">
-      <div class="detail-badge ${route.type}">${route.code}</div>
+      <div class="detail-badge ${route.type}" style="${route.color ? `background:${route.color};color:#fff;` : ''}">${route.code}</div>
       <div class="detail-name">${route.origin} → ${route.destination}</div>
       <div class="detail-subtitle">${isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP'}</div>
     </div>
