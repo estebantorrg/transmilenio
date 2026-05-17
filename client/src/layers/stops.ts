@@ -3,52 +3,94 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { markClickHandled } from './routes';
+import type { ZonalRouteFeature } from '../types/transmilenio';
+import { getRouteColor, markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
+import { showPopup } from './popup';
+import { escapeHTML, safeColor } from '../utils/html';
 
-export type StopRoutesMap = Map<string, string[]>;
+export type StopRouteTag = {
+  code: string;
+  color: string;
+};
+
+export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 
-export function buildStopRoutesMap(stopRoutes: any[]): StopRoutesMap {
-  const map = new Map<string, string[]>();
+export function buildStopRouteCodeSet(stopRoutes: any[]): Set<string> {
+  const codes = new Set<string>();
+
+  for (const sr of stopRoutes) {
+    const route = sr.attributes?.ruta;
+    if (route) codes.add(normalizeRouteCodeForMatch(route));
+  }
+
+  return codes;
+}
+
+export function filterZonalRoutesWithStops(
+  routes: ZonalRouteFeature[],
+  stopRoutes: any[]
+): ZonalRouteFeature[] {
+  const routeCodesWithStops = buildStopRouteCodeSet(stopRoutes);
+  return routes.filter((route) =>
+    routeCodesWithStops.has(normalizeRouteCodeForMatch(route.attributes.codigo_definitivo_ruta_zonal))
+  );
+}
+
+export function buildStopRoutesMap(stopRoutes: any[], zonalRoutes: ZonalRouteFeature[] = []): StopRoutesMap {
+  const routeTypeByCode = new Map<string, number>();
+  zonalRoutes.forEach((route) => {
+    routeTypeByCode.set(
+      normalizeRouteCodeForMatch(route.attributes.codigo_definitivo_ruta_zonal),
+      route.attributes.tipo_ruta_zonal
+    );
+  });
+
+  const map = new Map<string, StopRouteTag[]>();
 
   for (const sr of stopRoutes) {
     const cenefa: string = sr.attributes?.cenefa;
     const route: string = sr.attributes?.ruta;
     if (!cenefa || !route) continue;
+    const code = normalizeRouteCodeForMatch(route);
+    const routeTag = {
+      code: route,
+      color: getRouteColor(route, 'zonal', routeTypeByCode.get(code)),
+    };
 
     const existing = map.get(cenefa);
     if (existing) {
-      if (!existing.includes(route)) existing.push(route);
+      if (!existing.some((item) => normalizeRouteCodeForMatch(item.code) === code)) existing.push(routeTag);
     } else {
-      map.set(cenefa, [route]);
+      map.set(cenefa, [routeTag]);
     }
   }
 
   for (const routes of map.values()) {
-    routes.sort();
+    routes.sort((a, b) => normalizeRouteCode(a.code).localeCompare(normalizeRouteCode(b.code), undefined, { numeric: true }));
   }
 
   return map;
 }
 
-function routeTags(routes: string[]): string {
+function routeTags(routes: StopRouteTag[]): string {
   return routes
     .map(
       (route) =>
-        `<span class="route-tag zonal-route-tag">${route}</span>`
+        `<span class="route-tag" style="background:${safeColor(route.color)};">${escapeHTML(route.code)}</span>`
     )
     .join('');
 }
 
 function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
-  markClickHandled(e);
+  if (!markClickHandled(e)) return;
   const feature = e.features?.[0];
   if (!feature || !feature.properties) return;
 
   const p = feature.properties;
   const coords = (feature.geometry as GeoJSON.Point).coordinates;
-  let routes: string[] = [];
+  let routes: StopRouteTag[] = [];
   try {
     routes = JSON.parse(p.routes || '[]');
   } catch {
@@ -56,22 +98,19 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
   }
 
   const html = `
-    <div class="popup-station">
-      <div class="popup-station-name">${p.name}</div>
-      <div class="popup-station-corridor" style="color: #34D399">Paradero Zonal</div>
-      <div class="popup-station-meta">
-        ${p.cenefa ? `<span># ${p.cenefa}</span>` : ''}
-        ${p.address ? `<span>${p.address}</span>` : ''}
-        ${p.locality ? `<span>${p.locality}</span>` : ''}
+    <div class="popup-card">
+      <div class="popup-eyebrow" style="color:#34D399">Paradero zonal</div>
+      <div class="popup-title">${escapeHTML(p.name)}</div>
+      <div class="popup-meta">
+        ${p.cenefa ? `<span># ${escapeHTML(p.cenefa)}</span>` : ''}
+        ${p.address ? `<span>${escapeHTML(p.address)}</span>` : ''}
+        ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
-      ${routes.length ? `<div class="popup-station-routes">${routeTags(routes)}</div>` : ''}
+      ${routes.length ? `<div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
     </div>
   `;
 
-  new maplibregl.Popup({ offset: 6, maxWidth: '280px' })
-    .setLngLat(coords as [number, number])
-    .setHTML(html)
-    .addTo(map);
+  showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
 }
 
 export function addStopsLayer(
@@ -156,14 +195,12 @@ export function addStopsLayer(
     },
   });
 
-  ['stops-circle', 'stops-hitbox'].forEach((layer) => {
-    map.on('click', layer, (e) => showStopPopup(map, e));
-    map.on('mouseenter', layer, () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', layer, () => {
-      map.getCanvas().style.cursor = '';
-    });
+  map.on('click', 'stops-hitbox', (e) => showStopPopup(map, e));
+  map.on('mouseenter', 'stops-hitbox', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'stops-hitbox', () => {
+    map.getCanvas().style.cursor = '';
   });
 }
 

@@ -8,8 +8,8 @@
 import maplibregl from 'maplibre-gl';
 import { createMap } from './map';
 import { api } from './services/api';
-import { addStationsLayer, addWagonsLayer, bringStationsLayerToFront, toggleStationsLayer } from './layers/stations';
-import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap } from './layers/stops';
+import { addStationsLayer, addWagonsLayer, bringStationsLayerToFront, isVisibleTroncalStation, toggleStationsLayer } from './layers/stations';
+import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, filterZonalRoutesWithStops } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -75,7 +75,13 @@ function buildRouteList(
     color: getRouteColor(r.attributes.codigo_definitivo_ruta_zonal, 'zonal', r.attributes.tipo_ruta_zonal),
   }));
 
-  return [...troncalItems, ...zonalItems];
+  const uniqueRoutes = new Map<string, RouteListItem>();
+  [...troncalItems, ...zonalItems].forEach((route) => {
+    const key = `${route.type}:${route.code.trim().toUpperCase()}`;
+    if (!uniqueRoutes.has(key)) uniqueRoutes.set(key, route);
+  });
+
+  return Array.from(uniqueRoutes.values());
 }
 
 // ─── Main ─────────────────────────────────────────────────
@@ -93,12 +99,6 @@ async function main(): Promise<void> {
   // Wait for map to load
   await new Promise<void>((resolve) => {
     map.on('load', resolve);
-  });
-
-  // Track zoom in stats bar
-  map.on('zoom', () => {
-    const zoomEl = document.getElementById('stat-zoom');
-    if (zoomEl) zoomEl.textContent = map.getZoom().toFixed(1);
   });
 
   // 2. Fetch data from backend
@@ -119,6 +119,7 @@ async function main(): Promise<void> {
     ]);
 
     troncalRoutes = troncalRoutesRes.features;
+    const stations = stationsRes.features.filter(isVisibleTroncalStation);
     const wagons = wagonsRes.features;
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
@@ -133,8 +134,8 @@ async function main(): Promise<void> {
     addTroncalRoutesLayer(map, troncalRoutes);
 
     setLoadingStatus('Colocando estaciones...');
-    addStationsLayer(map, stationsRes.features, troncalRoutes);
-    stationCount = stationsRes.features.length;
+    addStationsLayer(map, stations, troncalRoutes);
+    stationCount = stations.length;
 
     // Add wagon layer (visible at zoom 15+)
     setLoadingStatus('Dibujando vagones...');
@@ -148,9 +149,9 @@ async function main(): Promise<void> {
       api.getZonalStopRoutes(),
     ]);
 
-    zonalRoutes = zonalRoutesRes.features;
-    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features);
-    console.log(`✅ Zonal routes: ${zonalRoutes.length}`);
+    zonalRoutes = filterZonalRoutesWithStops(zonalRoutesRes.features, zonalStopRoutesRes.features);
+    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, zonalRoutes);
+    console.log(`✅ Zonal routes: ${zonalRoutes.length} of ${zonalRoutesRes.features.length} with paradero mappings`);
     console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
 

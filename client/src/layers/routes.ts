@@ -6,18 +6,21 @@ import maplibregl from 'maplibre-gl';
 import type { TroncalCorridorFeature, TroncalRouteFeature, ZonalRouteFeature } from '../types/transmilenio';
 
 export const TRONCAL_COLORS: Record<string, string> = {
-  A: '#20419A',
-  B: '#7AC143',
-  C: '#FDBB30',
-  D: '#7A68AE',
-  E: '#AB650D',
-  F: '#E31B23',
-  G: '#00A4E4',
-  H: '#F6891F',
-  J: '#DD9BA5',
-  K: '#CFAB7A',
-  L: '#00AAA6',
-  M: '#A21984',
+  A: '#0C3A95',
+  B: '#75C347',
+  C: '#FFB741',
+  D: '#6867B4',
+  E: '#B76416',
+  F: '#FB2C17',
+  G: '#00B0E8',
+  H: '#FF8525',
+  J: '#E49DAA',
+  K: '#D3AA78',
+  L: '#00B0A9',
+  M: '#852D89',
+  P: '#25206F',
+  T: '#808000',
+  RF: '#000000',
 };
 
 const ZONAL_TYPE_COLORS: Record<number, string> = {
@@ -29,17 +32,68 @@ const ZONAL_TYPE_COLORS: Record<number, string> = {
   7: '#64748B',
 };
 
-const DEFAULT_TRONCAL_COLOR = '#C60C30';
+const DEFAULT_TRONCAL_COLOR = '#FB2C17';
 const DEFAULT_ZONAL_COLOR = '#00618E';
-const PRIORITY_LAYERS = ['stations-hitbox', 'stations-circle', 'stops-hitbox', 'stops-circle', 'wagons-fill'];
+const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 
-export function markClickHandled(e: maplibregl.MapMouseEvent): void {
+let claimedClickEvent: Event | null = null;
+
+export function markClickHandled(e: maplibregl.MapMouseEvent): boolean {
+  const originalEvent = e.originalEvent as Event | undefined;
+  if (originalEvent && claimedClickEvent === originalEvent) return false;
+
   e.preventDefault();
+  originalEvent?.stopPropagation();
+
+  if (originalEvent) {
+    claimedClickEvent = originalEvent;
+    window.setTimeout(() => {
+      if (claimedClickEvent === originalEvent) claimedClickEvent = null;
+    }, 0);
+  }
+
+  return true;
+}
+
+export function normalizeRouteCode(value: string | null | undefined): string {
+  return (value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+export function normalizeRouteCodeForMatch(value: string | null | undefined): string {
+  return normalizeRouteCode(value)
+    .replace(/\s*\([^)]*\)\s*$/g, '')
+    .replace(/\s+/g, '');
+}
+
+export function getRouteZoneLetters(value: string | null | undefined): string[] {
+  const normalized = normalizeRouteCodeForMatch(value);
+  if (!normalized) return [];
+  if (normalized.includes('RUTAFACIL')) return ['RF'];
+
+  const prefix = normalized.match(ROUTE_ZONE_PREFIX_RE)?.[1];
+  if (!prefix) return [];
+  if (prefix === 'RF') return ['RF'];
+  if (prefix === 'MP') return ['M', 'P'];
+
+  return Array.from(prefix).filter((letter) => letter in TRONCAL_COLORS);
 }
 
 export function getTroncalLetter(value: string | null | undefined): string | null {
-  const match = value?.trim().match(/[A-HJ-M]/i);
-  return match ? match[0].toUpperCase() : null;
+  const normalized = normalizeRouteCode(value);
+  if (!normalized) return null;
+  if (/^\d+\s*-\s*\d+/.test(normalized) || normalized.includes('RUTA FACIL')) return 'RF';
+
+  // AV. 1 de Mayo belongs visually to the Carrera 10 trunk, not to the
+  // first "A" in "AV."; keep it light blue when the corridor name is used.
+  if (/(^|\b)(AV\.?\s*)?1(\s+DE)?\s+MAYO\b/.test(normalized) || /\b(CARRERA|CRA|KR)\s*10\b/.test(normalized)) {
+    return 'G';
+  }
+
+  const routeLetters = getRouteZoneLetters(normalized);
+  if (routeLetters.length > 0) return routeLetters[routeLetters.length - 1];
+
+  const letter = normalized.match(/\b(RF|[A-HJ-MPT])\b/);
+  return letter ? letter[1] : null;
 }
 
 export function getTroncalColor(value: string | null | undefined): string {
@@ -47,18 +101,15 @@ export function getTroncalColor(value: string | null | undefined): string {
   return letter ? TRONCAL_COLORS[letter] ?? DEFAULT_TRONCAL_COLOR : DEFAULT_TRONCAL_COLOR;
 }
 
-export function getZonalRouteColor(routeType?: number): string {
+export function getZonalRouteColor(code?: string | null, routeType?: number): string {
+  const letters = getRouteZoneLetters(code);
+  const destinationLetter = letters[letters.length - 1];
+  if (destinationLetter) return TRONCAL_COLORS[destinationLetter] ?? DEFAULT_ZONAL_COLOR;
   return routeType ? ZONAL_TYPE_COLORS[routeType] ?? DEFAULT_ZONAL_COLOR : DEFAULT_ZONAL_COLOR;
 }
 
 export function getRouteColor(code: string, type: 'troncal' | 'zonal', zonalRouteType?: number): string {
-  return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(zonalRouteType);
-}
-
-function hasHigherPriorityFeature(map: maplibregl.Map, e: maplibregl.MapMouseEvent): boolean {
-  const existing = PRIORITY_LAYERS.filter((id) => map.getLayer(id));
-  if (existing.length === 0) return false;
-  return map.queryRenderedFeatures(e.point, { layers: existing }).length > 0;
+  return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code, zonalRouteType);
 }
 
 function routesToGeoJSON(
@@ -73,7 +124,7 @@ function routesToGeoJSON(
       const code = isTroncal
         ? attrs.route_name_ruta_troncal
         : attrs.codigo_definitivo_ruta_zonal;
-      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(attrs.tipo_ruta_zonal);
+      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(code, attrs.tipo_ruta_zonal);
 
       return {
         type: 'Feature' as const,
@@ -189,7 +240,7 @@ export function addTroncalRoutesLayer(
     id: 'troncal-routes-glow',
     type: 'line',
     source: 'troncal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 10, 17, 18],
@@ -202,26 +253,12 @@ export function addTroncalRoutesLayer(
     id: 'troncal-routes-line',
     type: 'line',
     source: 'troncal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 3, 17, 5],
       'line-opacity': 0.82,
     },
-  });
-
-  map.on('click', 'troncal-routes-line', (e) => {
-    if (e.defaultPrevented || hasHigherPriorityFeature(map, e)) return;
-    const feature = e.features?.[0];
-    if (!feature?.properties) return;
-    showRoutePopup(map, feature, e.lngLat);
-  });
-
-  map.on('mouseenter', 'troncal-routes-line', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'troncal-routes-line', () => {
-    map.getCanvas().style.cursor = '';
   });
 }
 
@@ -253,55 +290,9 @@ export function addZonalRoutesLayer(
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 14, 2, 17, 3.5],
-      'line-opacity': 0.55,
+      'line-opacity': 0.58,
     },
   });
-
-  map.on('click', 'zonal-routes-line', (e) => {
-    if (e.defaultPrevented || hasHigherPriorityFeature(map, e)) return;
-    const feature = e.features?.[0];
-    if (!feature?.properties) return;
-    showRoutePopup(map, feature, e.lngLat);
-  });
-
-  map.on('mouseenter', 'zonal-routes-line', () => {
-    map.getCanvas().style.cursor = 'pointer';
-  });
-  map.on('mouseleave', 'zonal-routes-line', () => {
-    map.getCanvas().style.cursor = '';
-  });
-}
-
-function showRoutePopup(
-  map: maplibregl.Map,
-  feature: maplibregl.MapGeoJSONFeature,
-  lngLat: maplibregl.LngLat
-): void {
-  const p = feature.properties!;
-  const color = p.color || (p.type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR);
-
-  const html = `
-    <div class="popup-route">
-      <div class="popup-route-code" style="color: ${color}">${p.code}</div>
-      <div class="popup-route-name">${p.name}</div>
-      <div class="popup-route-endpoints">
-        <span class="dot" style="background: #34D399"></span>
-        ${p.origin}
-        <span style="color: #4B5563">-></span>
-        <span class="dot" style="background: #E3342F"></span>
-        ${p.destination}
-      </div>
-      ${p.busType ? `<div style="margin-top:8px;font-size:11px;color:#9CA3AF">${p.busType}</div>` : ''}
-      ${p.schedule ? `<div style="font-size:11px;color:#9CA3AF">${p.schedule}</div>` : ''}
-      ${p.operator ? `<div style="font-size:11px;color:#9CA3AF">${p.operator}</div>` : ''}
-      ${p.length ? `<div style="font-size:11px;color:#9CA3AF">${Number(p.length).toFixed(1)} km</div>` : ''}
-    </div>
-  `;
-
-  new maplibregl.Popup({ offset: 8, maxWidth: '300px' })
-    .setLngLat(lngLat)
-    .setHTML(html)
-    .addTo(map);
 }
 
 export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void {
@@ -310,8 +301,6 @@ export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void
     'troncal-corridors-casing',
     'troncal-corridors-line',
     'troncal-corridors-labels',
-    'troncal-routes-glow',
-    'troncal-routes-line',
   ].forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });

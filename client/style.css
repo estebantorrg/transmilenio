@@ -194,9 +194,9 @@ html, body {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   color: var(--text-primary) !important;
-  padding: 16px !important;
+  padding: 12px !important;
   font-family: var(--font-family) !important;
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .maplibregl-popup-close-button {
@@ -539,6 +539,20 @@ html, body {
   margin-top: 2px;
 }
 
+.empty-state,
+.route-list-overflow {
+  padding: 18px 14px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  text-align: center;
+}
+
+.empty-state-title {
+  color: var(--text-secondary);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
 /* ─── Route Detail Panel ──────────────────────────────── */
 
 .route-detail {
@@ -692,104 +706,49 @@ html, body {
   color: var(--text-tertiary);
 }
 
-/* ─── Stats Bar ───────────────────────────────────────── */
-
-.stats-bar {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 50;
-  display: flex;
-  gap: 1px;
-  background: var(--border-subtle);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(16px);
-}
-
-.stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px 20px;
-  background: var(--bg-card);
-  min-width: 80px;
-}
-
-.stat-value {
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.stat-label {
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-  font-weight: 500;
-}
-
 /* ─── Popup Content Styles ────────────────────────────── */
 
-.popup-station {
+.popup-card {
   font-family: var(--font-family);
 }
 
+.popup-title,
 .popup-station-name {
   font-size: var(--font-size-md);
   font-weight: 700;
   margin-bottom: 4px;
 }
 
+.popup-eyebrow,
 .popup-station-corridor {
   font-size: var(--font-size-sm);
   color: var(--tm-red-light);
   font-weight: 500;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
+.popup-subtitle {
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.popup-meta,
 .popup-station-meta {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin-top: 8px;
 }
 
+.popup-meta span,
 .popup-station-meta span {
   font-size: var(--font-size-xs);
   color: var(--text-secondary);
 }
 
-.popup-route {
-  font-family: var(--font-family);
-}
-
-.popup-route-code {
-  font-size: var(--font-size-lg);
-  font-weight: 800;
-  margin-bottom: 2px;
-}
-
-.popup-route-name {
-  font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  margin-bottom: 8px;
-}
-
-.popup-route-endpoints {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
-}
-
-.popup-route-endpoints .dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-}
-
+.popup-route-tags,
 .popup-station-routes,
 .wagon-route-tags {
   display: flex;
@@ -810,10 +769,19 @@ html, body {
   line-height: 1;
 }
 
-.zonal-route-tag {
-  background: rgba(0, 97, 142, 0.22);
-  border: 1px solid rgba(0, 97, 142, 0.42);
-  color: #7dd3fc;
+.route-tag.muted,
+.popup-empty {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .wagon-route-grid {
@@ -870,9 +838,4 @@ html, body {
     transform: translateY(calc(100% - 60px));
   }
 
-  .stats-bar {
-    bottom: auto;
-    top: 12px;
-    left: 50%;
-  }
 }

@@ -4,14 +4,13 @@
  */
 
 import type { RouteListItem } from '../types/transmilenio';
+import { escapeHTML, safeColor } from '../utils/html';
 
 let allRoutes: RouteListItem[] = [];
-let selectedRouteCode: string | null = null;
+let selectedRouteId: string | null = null;
 let onRouteSelect: ((route: RouteListItem) => void) | null = null;
 let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
-
-// ─── Initialize ───────────────────────────────────────────
 
 export function initSidebar(options: {
   onRouteSelect: (route: RouteListItem) => void;
@@ -22,14 +21,12 @@ export function initSidebar(options: {
   onRouteDeselect = options.onRouteDeselect;
   onLayerToggle = options.onLayerToggle;
 
-  // Sidebar toggle
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
   toggleBtn.addEventListener('click', () => {
     sidebar.classList.toggle('collapsed');
   });
 
-  // Search
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const searchClear = document.getElementById('search-clear')!;
 
@@ -45,7 +42,6 @@ export function initSidebar(options: {
     filterRoutes('');
   });
 
-  // Layer toggles
   document.querySelectorAll('.toggle-item input[type="checkbox"]').forEach((cb) => {
     cb.addEventListener('change', (e) => {
       const checkbox = e.target as HTMLInputElement;
@@ -54,7 +50,6 @@ export function initSidebar(options: {
     });
   });
 
-  // Detail panel close
   const detailClose = document.getElementById('route-detail-close')!;
   detailClose.addEventListener('click', () => {
     closeRouteDetail();
@@ -62,13 +57,10 @@ export function initSidebar(options: {
   });
 }
 
-// ─── Populate Route List ──────────────────────────────────
-
 export function setRoutes(routes: RouteListItem[]): void {
   allRoutes = routes.sort((a, b) => {
-    // Troncal first, then by code
     if (a.type !== b.type) return a.type === 'troncal' ? -1 : 1;
-    return a.code.localeCompare(b.code);
+    return a.code.localeCompare(b.code, undefined, { numeric: true });
   });
 
   renderRouteList(allRoutes);
@@ -101,76 +93,72 @@ function renderRouteList(routes: RouteListItem[]): void {
 
   if (routes.length === 0) {
     container.innerHTML = `
-      <div style="text-align:center;padding:40px 16px;color:var(--text-tertiary)">
-        <div style="font-size:32px;margin-bottom:8px">🔍</div>
-        <div style="font-size:var(--font-size-sm)">No se encontraron rutas</div>
+      <div class="empty-state">
+        <div class="empty-state-title">Sin rutas</div>
+        <div class="empty-state-text">Prueba con otro codigo, estacion o destino.</div>
       </div>
     `;
     return;
   }
 
-  // Only render first 200 for performance
   const visible = routes.slice(0, 200);
 
   container.innerHTML = visible
-    .map(
-      (r) => `
-    <div class="route-item ${selectedRouteCode === r.code ? 'active' : ''}"
-         data-code="${r.code}" data-type="${r.type}" data-id="${r.id}">
-      <span class="route-item-badge ${r.type}" style="${r.color ? `background:${r.color};border-color:${r.color};color:#fff;` : ''}">${r.code}</span>
-      <div class="route-item-info">
-        <div class="route-item-name">${r.origin} → ${r.destination}</div>
-        <div class="route-item-meta">${r.busType || r.operator || r.type}</div>
-      </div>
-    </div>
-  `
-    )
+    .map((route) => {
+      const badgeColor = route.color ? safeColor(route.color) : '';
+      const badgeStyle = badgeColor ? `background:${badgeColor};border-color:${badgeColor};color:#fff;` : '';
+
+      return `
+        <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
+             data-type="${route.type}"
+             data-id="${escapeHTML(route.id)}">
+          <span class="route-item-badge ${route.type}" style="${badgeStyle}">${escapeHTML(route.code)}</span>
+          <div class="route-item-info">
+            <div class="route-item-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
+            <div class="route-item-meta">${escapeHTML(route.busType || route.operator || route.type)}</div>
+          </div>
+        </div>
+      `;
+    })
     .join('');
 
   if (routes.length > 200) {
     container.innerHTML += `
-      <div style="text-align:center;padding:16px;color:var(--text-tertiary);font-size:var(--font-size-xs)">
-        Mostrando 200 de ${routes.length} rutas. Usa la búsqueda para filtrar.
+      <div class="route-list-overflow">
+        Mostrando 200 de ${routes.length} rutas. Usa la busqueda para filtrar.
       </div>
     `;
   }
 
-  // Attach click handlers
   container.querySelectorAll('.route-item').forEach((el) => {
     el.addEventListener('click', () => {
-      const code = (el as HTMLElement).dataset.code!;
       const id = (el as HTMLElement).dataset.id!;
-      const route = allRoutes.find((r) => r.id === id);
+      const route = allRoutes.find((item) => item.id === id);
       if (route) selectRoute(route);
     });
   });
 }
 
-// ─── Route Selection ──────────────────────────────────────
-
 function selectRoute(route: RouteListItem): void {
-  selectedRouteCode = route.code;
+  selectedRouteId = route.id;
   showRouteDetail(route);
   onRouteSelect?.(route);
 
-  // Update active state in list
   document.querySelectorAll('.route-item').forEach((el) => {
-    el.classList.toggle('active', (el as HTMLElement).dataset.code === route.code);
+    el.classList.toggle('active', (el as HTMLElement).dataset.id === route.id);
   });
 }
-
-// ─── Route Detail Panel ──────────────────────────────────
 
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
-
   const isTroncal = route.type === 'troncal';
+  const badgeColor = route.color ? safeColor(route.color) : '';
 
   content.innerHTML = `
     <div class="detail-header">
-      <div class="detail-badge ${route.type}" style="${route.color ? `background:${route.color};color:#fff;` : ''}">${route.code}</div>
-      <div class="detail-name">${route.origin} → ${route.destination}</div>
+      <div class="detail-badge ${route.type}" style="${badgeColor ? `background:${badgeColor};color:#fff;` : ''}">${escapeHTML(route.code)}</div>
+      <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP'}</div>
     </div>
 
@@ -180,14 +168,14 @@ function showRouteDetail(route: RouteListItem): void {
         <div class="detail-endpoint">
           <div class="detail-endpoint-dot origin"></div>
           <div>
-            <div class="detail-endpoint-text">${route.origin}</div>
+            <div class="detail-endpoint-text">${escapeHTML(route.origin)}</div>
             <div class="detail-endpoint-label">Origen</div>
           </div>
         </div>
         <div class="detail-endpoint">
           <div class="detail-endpoint-dot destination"></div>
           <div>
-            <div class="detail-endpoint-text">${route.destination}</div>
+            <div class="detail-endpoint-text">${escapeHTML(route.destination)}</div>
             <div class="detail-endpoint-label">Destino</div>
           </div>
         </div>
@@ -196,9 +184,9 @@ function showRouteDetail(route: RouteListItem): void {
 
     <div class="detail-section">
       <div class="detail-section-title">Detalles</div>
-      ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${route.busType}</span></div>` : ''}
-      ${route.schedule ? `<div class="detail-row"><span class="detail-row-label">Horario L-V</span><span class="detail-row-value">${route.schedule}</span></div>` : ''}
-      ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${route.operator}</span></div>` : ''}
+      ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
+      ${route.schedule ? `<div class="detail-row"><span class="detail-row-label">Horario L-V</span><span class="detail-row-value">${escapeHTML(route.schedule)}</span></div>` : ''}
+      ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
       ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
       <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
     </div>
@@ -210,14 +198,12 @@ function showRouteDetail(route: RouteListItem): void {
 function closeRouteDetail(): void {
   const panel = document.getElementById('route-detail')!;
   panel.classList.add('hidden');
-  selectedRouteCode = null;
+  selectedRouteId = null;
 
   document.querySelectorAll('.route-item').forEach((el) => {
     el.classList.remove('active');
   });
 }
-
-// ─── Update Counts ────────────────────────────────────────
 
 export function updateCounts(counts: {
   troncal: number;
@@ -229,7 +215,4 @@ export function updateCounts(counts: {
   document.getElementById('count-zonal')!.textContent = counts.zonal.toString();
   document.getElementById('count-stations')!.textContent = counts.stations.toString();
   document.getElementById('count-stops')!.textContent = counts.stops.toString();
-  document.getElementById('stat-routes')!.textContent = (counts.troncal + counts.zonal).toString();
-  document.getElementById('stat-stations')!.textContent = counts.stations.toString();
-  document.getElementById('stat-stops')!.textContent = counts.stops.toString();
 }

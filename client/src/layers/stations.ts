@@ -5,12 +5,9 @@
 import maplibregl from 'maplibre-gl';
 import * as turf from '@turf/turf';
 import type { TroncalRouteFeature, TroncalStationFeature, TroncalWagonFeature } from '../types/transmilenio';
-import { getTroncalColor, markClickHandled } from './routes';
-
-type WagonRouteSides = {
-  left: string[];
-  right: string[];
-};
+import { getTroncalColor, markClickHandled, normalizeRouteCode } from './routes';
+import { showPopup } from './popup';
+import { escapeHTML, safeColor } from '../utils/html';
 
 const STATION_LAYERS = [
   'wagons-fill',
@@ -22,57 +19,504 @@ const STATION_LAYERS = [
   'stations-labels',
 ];
 
-function formatRouteTags(routes: string[]): string {
-  return routes
-    .map((route) => {
-      const color = getTroncalColor(route);
-      return `<span class="route-tag" style="background:${color};">${route}</span>`;
-    })
-    .join('');
+const UNUSED_TRONCAL_STATIONS = new Set([
+  'ISLANDIA',
+  'LOS LAURELES',
+  'TIBANICA - PRIMAVERA',
+  'TIBANICA PRIMAVERA',
+]);
+
+const ROUTE_TO_WAGON_DISTANCE_METERS = 34;
+const ROUTE_TO_STATION_DISTANCE_METERS = 75;
+const ROUTE_DIRECTION_TOLERANCE_DEGREES = 80;
+const WAGON_LABEL_OFFSET_METERS = 8;
+
+type Coordinate = [number, number];
+
+type WagonDirection = {
+  label: string;
+  bearing: number;
+};
+
+type WagonMeta = {
+  center: GeoJSON.Feature<GeoJSON.Point>;
+  centerCoord: Coordinate;
+  bearing: number;
+  readableBearing: number;
+  direction: WagonDirection | null;
+};
+
+type WagonProperties = {
+  id: number;
+  stationId: number;
+  stationKey: string;
+  stationName: string;
+  rawName: string;
+  displayName: string;
+  directionLabel: string;
+  routes: string;
+};
+
+type WagonFeature = GeoJSON.Feature<GeoJSON.Polygon, WagonProperties>;
+
+type WagonCandidate = {
+  feature: WagonFeature;
+  meta: WagonMeta;
+  routes: Set<string>;
+};
+
+type RouteObservation = {
+  code: string;
+  offset: number;
+};
+
+type WagonLabelFeature = GeoJSON.Feature<
+  GeoJSON.Point,
+  {
+    label: string;
+    bearing: number;
+  }
+>;
+
+function normalizeName(value: string | null | undefined): string {
+  return (value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
 }
 
-function shortRouteList(routes: string[], limit = 5): string {
-  if (routes.length === 0) return '-';
+export function isVisibleTroncalStation(station: TroncalStationFeature): boolean {
+  return !UNUSED_TRONCAL_STATIONS.has(normalizeName(station.attributes.nombre_estacion));
+}
+
+function formatRouteTags(routes: string[], limit = 28): string {
+  const visibleRoutes = routes.slice(0, limit);
+  const hiddenCount = routes.length - visibleRoutes.length;
+  const tags = visibleRoutes
+    .map((route) => {
+      const color = safeColor(getTroncalColor(route), '#FB2C17');
+      return `<span class="route-tag" style="background:${color};">${escapeHTML(route)}</span>`;
+    })
+    .join('');
+
+  return hiddenCount > 0
+    ? `${tags}<span class="route-tag muted">+${hiddenCount}</span>`
+    : tags;
+}
+
+function shortRouteList(routes: string[], limit = 7): string {
+  if (routes.length === 0) return 'Sin rutas';
   const visible = routes.slice(0, limit).join(' ');
   return routes.length > limit ? `${visible} +${routes.length - limit}` : visible;
 }
 
-function getWagonRouteSides(
-  wagon: GeoJSON.Feature<GeoJSON.Polygon>,
-  routes: TroncalRouteFeature[]
-): WagonRouteSides {
-  const polygon = turf.polygon(wagon.geometry.coordinates);
-  const center = turf.centerOfMass(polygon);
-  const leftRoutes = new Set<string>();
-  const rightRoutes = new Set<string>();
+function sortRoutes(routes: Iterable<string>): string[] {
+  return Array.from(routes).sort((a, b) =>
+    normalizeRouteCode(a).localeCompare(normalizeRouteCode(b), undefined, { numeric: true })
+  );
+}
 
-  routes.forEach((route) => {
-    const routeCode = route.attributes.route_name_ruta_troncal;
-    const paths = route.geometry?.paths;
-    if (!paths) return;
+function normalizeBearing(bearing: number): number {
+  return (bearing + 360) % 360;
+}
 
-    for (const path of paths) {
-      if (path.length < 2) continue;
-      const line = turf.lineString(path);
-      const distance = turf.pointToLineDistance(center, line, { units: 'meters' });
+function bearingDifference(a: number, b: number): number {
+  return Math.abs(((normalizeBearing(a) - normalizeBearing(b) + 540) % 360) - 180);
+}
 
-      if (distance < 24) {
-        const nearest = turf.nearestPointOnLine(line, center);
-        const angle = turf.bearing(center, nearest);
-        if (angle >= 0 && angle <= 180) {
-          rightRoutes.add(routeCode);
-        } else {
-          leftRoutes.add(routeCode);
-        }
-        break;
-      }
+function bearingAxisDifference(a: number, b: number): number {
+  return Math.min(bearingDifference(a, b), bearingDifference(a, normalizeBearing(b + 180)));
+}
+
+function readableMapBearing(bearing: number): number {
+  const normalized = normalizeBearing(bearing);
+  return normalized > 90 && normalized < 270 ? normalizeBearing(normalized + 180) : normalized;
+}
+
+function getLongestEdgeBearing(polygon: GeoJSON.Feature<GeoJSON.Polygon>): number {
+  const ring = polygon.geometry.coordinates[0] as Coordinate[] | undefined;
+  if (!ring || ring.length < 2) return 0;
+
+  let longestDistance = 0;
+  let bearing = 0;
+
+  for (let i = 1; i < ring.length; i += 1) {
+    const start = ring[i - 1];
+    const end = ring[i];
+    const distance = turf.distance(start, end, { units: 'meters' });
+    if (distance > longestDistance) {
+      longestDistance = distance;
+      bearing = turf.bearing(start, end);
+    }
+  }
+
+  return normalizeBearing(bearing);
+}
+
+function parseDirection(...values: Array<string | null | undefined>): WagonDirection | null {
+  const directionBearings: Record<string, number> = {
+    'N-S': 180,
+    'S-N': 0,
+    'W-E': 90,
+    'E-W': 270,
+    'O-E': 90,
+    'E-O': 270,
+  };
+
+  for (const value of values) {
+    const normalized = normalizeName(value).replace(/\s+/g, '');
+    const match = normalized.match(/(N-S|S-N|W-E|E-W|O-E|E-O)/);
+    if (match) {
+      const label = match[1].replace('O', 'W');
+      return { label, bearing: directionBearings[match[1]] };
+    }
+  }
+
+  return null;
+}
+
+function getDirectionCandidates(...values: Array<string | null | undefined>): WagonDirection[] {
+  const candidates: WagonDirection[] = [];
+
+  values.forEach((value) => {
+    const direction = parseDirection(value);
+    if (direction && !candidates.some((candidate) => candidate.label === direction.label)) {
+      candidates.push(direction);
     }
   });
 
+  return candidates;
+}
+
+function pickDirectionForBearing(
+  bearing: number,
+  ...values: Array<string | null | undefined>
+): WagonDirection | null {
+  const candidates = getDirectionCandidates(...values);
+  if (candidates.length === 0) return null;
+
+  return candidates.sort(
+    (a, b) => bearingAxisDifference(bearing, a.bearing) - bearingAxisDifference(bearing, b.bearing)
+  )[0];
+}
+
+function isActiveWagon(wagon: TroncalWagonFeature): boolean {
+  const attrs = wagon.attributes;
+  const name = normalizeName(attrs.nombre);
+  const type = normalizeName(attrs.tipo);
+  const section = normalizeName(attrs.secciontipo);
+  const id = Number(attrs.id_vagon ?? 0);
+
+  if (id <= 0) return false;
+  if (!name.startsWith('VAGON') && !type.startsWith('VAGON') && section !== 'VAGON') return false;
+  return !/(CONEX|CONEXION|CONEXA|TRANSIC|PLATAFORMA|ENTRADA)/.test(`${name} ${type}`);
+}
+
+function getStationKey(wagon: TroncalWagonFeature): string {
+  const stationId = Number(wagon.attributes.idestacion ?? 0);
+  return stationId > 0
+    ? `id:${stationId}`
+    : `name:${normalizeName(wagon.attributes.estacion)}`;
+}
+
+function extractWagonNumber(name: string): number | null {
+  const match = normalizeName(name).match(/\bVAGON\s+(\d+)\b/);
+  return match ? Number(match[1]) : null;
+}
+
+function cleanWagonDisplayName(rawName: string, fallbackNumber: number): string {
+  const number = extractWagonNumber(rawName) ?? fallbackNumber;
+  return `Vagon ${number}`;
+}
+
+function getWagonMeta(feature: WagonFeature, source: TroncalWagonFeature): WagonMeta {
+  const polygon = turf.polygon(feature.geometry.coordinates);
+  const center = turf.centerOfMass(polygon);
+  const bearing = getLongestEdgeBearing(polygon);
+
   return {
-    left: Array.from(leftRoutes).sort(),
-    right: Array.from(rightRoutes).sort(),
+    center,
+    centerCoord: center.geometry.coordinates as Coordinate,
+    bearing,
+    readableBearing: readableMapBearing(bearing),
+    direction: pickDirectionForBearing(bearing, source.attributes.nombre, source.attributes.tipo),
   };
+}
+
+function makeWagonFeature(wagon: TroncalWagonFeature, ordinal: number): WagonFeature {
+  const displayName = cleanWagonDisplayName(wagon.attributes.nombre, ordinal);
+
+  return {
+    type: 'Feature',
+    properties: {
+      id: wagon.attributes.objectid,
+      stationId: Number(wagon.attributes.idestacion ?? 0),
+      stationKey: getStationKey(wagon),
+      stationName: wagon.attributes.estacion,
+      rawName: wagon.attributes.nombre,
+      displayName,
+      directionLabel: '',
+      routes: '[]',
+    },
+    geometry: {
+      type: 'Polygon',
+      coordinates: wagon.geometry.rings.map((ring) => [...ring].reverse()),
+    },
+  };
+}
+
+function getStationLocalOrdinals(wagons: TroncalWagonFeature[]): Map<number, number> {
+  const ordinals = new Map<number, number>();
+  const groups = new Map<string, TroncalWagonFeature[]>();
+
+  wagons.forEach((wagon) => {
+    const key = getStationKey(wagon);
+    groups.set(key, [...(groups.get(key) ?? []), wagon]);
+  });
+
+  groups.forEach((group) => {
+    const explicitNumbers = group.map((wagon) => extractWagonNumber(wagon.attributes.nombre));
+    const uniqueExplicitNumbers = new Set(explicitNumbers.filter((number): number is number => number !== null));
+    const canUseExplicitNumbers = explicitNumbers.every((number) => number !== null)
+      && uniqueExplicitNumbers.size === group.length;
+
+    if (canUseExplicitNumbers) {
+      group.forEach((wagon, index) => {
+        ordinals.set(wagon.attributes.objectid, explicitNumbers[index] ?? index + 1);
+      });
+      return;
+    }
+
+    const sorted = [...group].sort((a, b) => {
+      const aCenter = turf.centerOfMass(turf.polygon(a.geometry.rings.map((ring) => [...ring].reverse()))).geometry.coordinates;
+      const bCenter = turf.centerOfMass(turf.polygon(b.geometry.rings.map((ring) => [...ring].reverse()))).geometry.coordinates;
+      const lngDiff = aCenter[0] - bCenter[0];
+      return Math.abs(lngDiff) > 0.00001
+        ? lngDiff
+        : aCenter[1] - bCenter[1];
+    });
+
+    sorted.forEach((wagon, index) => {
+      ordinals.set(wagon.attributes.objectid, index + 1);
+    });
+  });
+
+  return ordinals;
+}
+
+function getRouteSegmentCandidate(
+  wagon: WagonCandidate,
+  start: Coordinate,
+  end: Coordinate,
+  useDeclaredDirection: boolean
+): { distance: number; score: number } | null {
+  const line = turf.lineString([start, end]);
+  const distance = turf.pointToLineDistance(wagon.meta.center, line, { units: 'meters' });
+  if (distance > ROUTE_TO_WAGON_DISTANCE_METERS) return null;
+
+  const segmentBearing = normalizeBearing(turf.bearing(start, end));
+  const directionBearing = useDeclaredDirection ? wagon.meta.direction?.bearing : undefined;
+  const directionDifference = directionBearing === undefined
+    ? bearingDifference(segmentBearing, wagon.meta.bearing)
+    : bearingDifference(segmentBearing, directionBearing);
+
+  if (directionBearing !== undefined && directionDifference > ROUTE_DIRECTION_TOLERANCE_DEGREES) {
+    return null;
+  }
+
+  return {
+    distance,
+    score: distance + directionDifference / 10,
+  };
+}
+
+function getStationCenter(wagons: WagonCandidate[]): GeoJSON.Feature<GeoJSON.Point> {
+  return turf.center(turf.featureCollection(wagons.map((wagon) => wagon.meta.center)));
+}
+
+function routeOffsetFromStationCenter(
+  stationCenter: GeoJSON.Feature<GeoJSON.Point>,
+  route: TroncalRouteFeature
+): RouteObservation | null {
+  let best:
+    | {
+      distance: number;
+      point: GeoJSON.Feature<GeoJSON.Point>;
+    }
+    | null = null;
+
+  for (const path of route.geometry?.paths ?? []) {
+    if (path.length < 2) continue;
+    const line = turf.lineString(path);
+    const nearest = turf.nearestPointOnLine(line, stationCenter);
+    const distance = turf.distance(stationCenter, nearest, { units: 'meters' });
+    if (!best || distance < best.distance) {
+      best = {
+        distance,
+        point: nearest,
+      };
+    }
+  }
+
+  if (!best || best.distance > ROUTE_TO_STATION_DISTANCE_METERS) return null;
+
+  const bearing = turf.bearing(stationCenter, best.point);
+  const radians = (bearing * Math.PI) / 180;
+  return {
+    code: route.attributes.route_name_ruta_troncal,
+    offset: Math.cos(radians) * best.distance,
+  };
+}
+
+function clusterRouteObservations(observations: RouteObservation[], clusterCount: number): RouteObservation[][] {
+  const count = Math.min(clusterCount, observations.length);
+  if (count <= 1) return [observations];
+
+  const sorted = [...observations].sort((a, b) => b.offset - a.offset);
+  let centroids = Array.from({ length: count }, (_, index) => {
+    const sampleIndex = Math.round((index * (sorted.length - 1)) / (count - 1));
+    return sorted[sampleIndex].offset;
+  });
+
+  let clusters: RouteObservation[][] = [];
+  for (let iteration = 0; iteration < 8; iteration += 1) {
+    clusters = Array.from({ length: count }, () => []);
+
+    sorted.forEach((observation) => {
+      let bestIndex = 0;
+      let bestDistance = Number.POSITIVE_INFINITY;
+      centroids.forEach((centroid, index) => {
+        const distance = Math.abs(observation.offset - centroid);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestIndex = index;
+        }
+      });
+      clusters[bestIndex].push(observation);
+    });
+
+    centroids = centroids.map((centroid, index) => {
+      const cluster = clusters[index];
+      return cluster.length
+        ? cluster.reduce((sum, observation) => sum + observation.offset, 0) / cluster.length
+        : centroid;
+    });
+  }
+
+  return clusters
+    .filter((cluster) => cluster.length > 0)
+    .sort((a, b) => {
+      const aMean = a.reduce((sum, observation) => sum + observation.offset, 0) / a.length;
+      const bMean = b.reduce((sum, observation) => sum + observation.offset, 0) / b.length;
+      return bMean - aMean;
+    });
+}
+
+function redistributeEmptyWagonRoutes(stationWagons: WagonCandidate[], routes: TroncalRouteFeature[]): void {
+  if (stationWagons.length < 2) return;
+  if (!stationWagons.some((wagon) => wagon.routes.size === 0)) return;
+
+  const stationCenter = getStationCenter(stationWagons);
+  const observationsByRoute = new Map<string, RouteObservation>();
+
+  routes.forEach((route) => {
+    const observation = routeOffsetFromStationCenter(stationCenter, route);
+    if (!observation) return;
+
+    const existing = observationsByRoute.get(observation.code);
+    if (!existing || Math.abs(observation.offset) > Math.abs(existing.offset)) {
+      observationsByRoute.set(observation.code, observation);
+    }
+  });
+
+  const observations = Array.from(observationsByRoute.values());
+  if (observations.length < stationWagons.length) return;
+
+  const clusters = clusterRouteObservations(observations, stationWagons.length);
+  if (clusters.length < 2) return;
+
+  const orderedWagons = [...stationWagons].sort((a, b) =>
+    normalizeRouteCode(a.feature.properties.displayName)
+      .localeCompare(normalizeRouteCode(b.feature.properties.displayName), undefined, { numeric: true })
+  );
+
+  orderedWagons.forEach((wagon) => wagon.routes.clear());
+  clusters.forEach((cluster, index) => {
+    const wagon = orderedWagons[Math.min(index, orderedWagons.length - 1)];
+    cluster.forEach((observation) => wagon.routes.add(observation.code));
+  });
+}
+
+function assignRoutesToWagons(wagons: WagonCandidate[], routes: TroncalRouteFeature[]): void {
+  const wagonsByStation = new Map<string, WagonCandidate[]>();
+  wagons.forEach((wagon) => {
+    const key = wagon.feature.properties.stationKey;
+    wagonsByStation.set(key, [...(wagonsByStation.get(key) ?? []), wagon]);
+  });
+
+  wagonsByStation.forEach((stationWagons) => {
+    const declaredDirections = new Set(
+      stationWagons
+        .map((wagon) => wagon.meta.direction?.bearing)
+        .filter((bearing): bearing is number => bearing !== undefined)
+    );
+    const useDeclaredDirection = declaredDirections.size > 1;
+
+    routes.forEach((route) => {
+      const routeCode = route.attributes.route_name_ruta_troncal;
+      let best:
+        | {
+          wagon: WagonCandidate;
+          score: number;
+          distance: number;
+        }
+        | null = null;
+
+      for (const path of route.geometry?.paths ?? []) {
+        for (let i = 1; i < path.length; i += 1) {
+          const start = path[i - 1] as Coordinate;
+          const end = path[i] as Coordinate;
+
+          for (const wagon of stationWagons) {
+            const candidate = getRouteSegmentCandidate(wagon, start, end, useDeclaredDirection);
+            if (!candidate) continue;
+            if (
+              !best
+              || candidate.score < best.score
+              || (candidate.score === best.score && candidate.distance < best.distance)
+            ) {
+              best = { wagon, score: candidate.score, distance: candidate.distance };
+            }
+          }
+        }
+      }
+
+      if (best) {
+        best.wagon.routes.add(routeCode);
+      }
+    });
+
+    redistributeEmptyWagonRoutes(stationWagons, routes);
+  });
+}
+
+function getLabelPoint(wagon: WagonCandidate, stationWagons: WagonCandidate[]): GeoJSON.Point {
+  if (stationWagons.length < 2) return wagon.meta.center.geometry;
+
+  const stationCenter = turf.center(turf.featureCollection(stationWagons.map((item) => item.meta.center)));
+  const fromStation = turf.bearing(stationCenter, wagon.meta.center);
+  return turf.destination(wagon.meta.center, WAGON_LABEL_OFFSET_METERS, fromStation, { units: 'meters' }).geometry;
+}
+
+function hasRenderedFeatureAtPoint(
+  map: maplibregl.Map,
+  e: maplibregl.MapLayerMouseEvent,
+  layerIds: string[]
+): boolean {
+  const existingLayers = layerIds.filter((layerId) => map.getLayer(layerId));
+  return existingLayers.length > 0 && map.queryRenderedFeatures(e.point, { layers: existingLayers }).length > 0;
 }
 
 function showStationPopup(
@@ -80,23 +524,18 @@ function showStationPopup(
   e: maplibregl.MapLayerMouseEvent,
   routes: TroncalRouteFeature[]
 ): void {
-  markClickHandled(e);
+  if (hasRenderedFeatureAtPoint(map, e, ['stops-hitbox', 'wagons-fill'])) return;
+  if (!markClickHandled(e)) return;
   const feature = e.features?.[0];
   if (!feature || !feature.properties) return;
 
   const p = feature.properties;
   const coords = (feature.geometry as GeoJSON.Point).coordinates;
-  const bikeInfo = p.bike ? `<span>Biciparqueo (${p.bikeCapacity})</span>` : '';
-  const wifiInfo = p.wifi === 'SI' ? '<span>WiFi</span>' : '';
-  const wagonsInfo = p.wagons ? `<span>${p.wagons} vagones</span>` : '';
-  const stationPoint = turf.point(coords as [number, number]);
+  const stationPoint = turf.point(coords as Coordinate);
   const passingRoutes = new Set<string>();
 
   routes.forEach((route) => {
-    const paths = route.geometry?.paths;
-    if (!paths) return;
-
-    for (const path of paths) {
+    for (const path of route.geometry?.paths ?? []) {
       if (path.length < 2) continue;
       const line = turf.lineString(path);
       const distance = turf.pointToLineDistance(stationPoint, line, { units: 'meters' });
@@ -107,58 +546,47 @@ function showStationPopup(
     }
   });
 
-  const routeTags = formatRouteTags(Array.from(passingRoutes).sort());
+  const routeList = sortRoutes(passingRoutes);
+  const routeTags = formatRouteTags(routeList);
+  const meta = [
+    p.location,
+    p.wagons ? `${p.wagons} vagones` : '',
+    p.bike ? `Biciparqueo (${p.bikeCapacity})` : '',
+    p.wifi === 'SI' ? 'WiFi' : '',
+  ].filter(Boolean);
+
   const html = `
-    <div class="popup-station">
-      <div class="popup-station-name">${p.name}</div>
-      <div class="popup-station-corridor">${p.corridor}</div>
-      <div class="popup-station-meta">
-        <span>${p.location}</span>
-        ${wagonsInfo}
-        ${bikeInfo}
-        ${wifiInfo}
-      </div>
-      ${routeTags ? `<div class="popup-station-routes">${routeTags}</div>` : ''}
+    <div class="popup-card">
+      <div class="popup-eyebrow">${escapeHTML(p.corridor)}</div>
+      <div class="popup-title">${escapeHTML(p.name)}</div>
+      ${meta.length ? `<div class="popup-meta">${meta.map((item) => `<span>${escapeHTML(item)}</span>`).join('')}</div>` : ''}
+      ${routeTags ? `<div class="popup-route-tags">${routeTags}</div>` : ''}
     </div>
   `;
 
-  new maplibregl.Popup({ offset: 12, maxWidth: '280px' })
-    .setLngLat(coords as [number, number])
-    .setHTML(html)
-    .addTo(map);
+  showPopup(map, coords as Coordinate, html, { offset: 12, maxWidth: '300px' });
 }
 
 function showWagonPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
-  markClickHandled(e);
+  if (hasRenderedFeatureAtPoint(map, e, ['stops-hitbox'])) return;
+  if (!markClickHandled(e)) return;
   const feature = e.features?.[0];
   if (!feature || !feature.properties) return;
 
   const p = feature.properties;
-  const leftRoutes = JSON.parse(p.leftRoutes || '[]') as string[];
-  const rightRoutes = JSON.parse(p.rightRoutes || '[]') as string[];
-  const leftHTML = leftRoutes.length ? formatRouteTags(leftRoutes) : '<i>-</i>';
-  const rightHTML = rightRoutes.length ? formatRouteTags(rightRoutes) : '<i>-</i>';
+  const routes = JSON.parse(p.routes || '[]') as string[];
+  const routeTags = routes.length ? formatRouteTags(routes) : '<span class="popup-empty">Sin rutas asociadas</span>';
+  const subtitle = [p.displayName, p.directionLabel].filter(Boolean).join(' ');
   const html = `
-    <div class="popup-station">
-      <div class="popup-station-name" style="font-size: 1rem;">${p.estacion}</div>
-      <div class="popup-station-corridor" style="color: #9CA3AF; margin-bottom: 8px;">${p.nombre}</div>
-      <div class="wagon-route-grid">
-        <div>
-          <div class="wagon-side-title">Sur/Occ.</div>
-          <div class="wagon-route-tags">${leftHTML}</div>
-        </div>
-        <div>
-          <div class="wagon-side-title">Norte/Ori.</div>
-          <div class="wagon-route-tags">${rightHTML}</div>
-        </div>
-      </div>
+    <div class="popup-card popup-card-compact">
+      <div class="popup-eyebrow">Vagon troncal</div>
+      <div class="popup-title">${escapeHTML(p.stationName)}</div>
+      <div class="popup-subtitle">${escapeHTML(subtitle)}</div>
+      <div class="popup-route-tags">${routeTags}</div>
     </div>
   `;
 
-  new maplibregl.Popup({ offset: 0, maxWidth: '340px' })
-    .setLngLat(e.lngLat)
-    .setHTML(html)
-    .addTo(map);
+  showPopup(map, e.lngLat, html, { offset: 8, maxWidth: '280px' });
 }
 
 export function addStationsLayer(
@@ -166,9 +594,10 @@ export function addStationsLayer(
   stations: TroncalStationFeature[],
   routes: TroncalRouteFeature[] = []
 ): void {
+  const visibleStations = stations.filter(isVisibleTroncalStation);
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: stations.map((s) => ({
+    features: visibleStations.map((s) => ({
       type: 'Feature',
       properties: {
         name: s.attributes.nombre_estacion,
@@ -246,14 +675,12 @@ export function addStationsLayer(
     },
   });
 
-  ['stations-circle', 'stations-hitbox'].forEach((layer) => {
-    map.on('click', layer, (e) => showStationPopup(map, e, routes));
-    map.on('mouseenter', layer, () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', layer, () => {
-      map.getCanvas().style.cursor = '';
-    });
+  map.on('click', 'stations-hitbox', (e) => showStationPopup(map, e, routes));
+  map.on('mouseenter', 'stations-hitbox', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'stations-hitbox', () => {
+    map.getCanvas().style.cursor = '';
   });
 }
 
@@ -262,40 +689,68 @@ export function addWagonsLayer(
   wagons: TroncalWagonFeature[],
   routes: TroncalRouteFeature[] = []
 ): void {
-  const wagonFeatures: GeoJSON.Feature<GeoJSON.Polygon>[] = wagons.map((w) => ({
-    type: 'Feature',
-    properties: {
-      id: w.attributes.objectid,
-      tipo: w.attributes.tipo,
-      troncal: w.attributes.troncal,
-      estacion: w.attributes.estacion,
-      nombre: w.attributes.nombre,
-      idVagon: w.attributes.id_vagon,
-    },
-    geometry: {
-      type: 'Polygon',
-      coordinates: w.geometry.rings.map((ring) => [...ring].reverse()),
-    },
-  }));
+  const activeWagons = wagons.filter(isActiveWagon);
+  const ordinals = getStationLocalOrdinals(activeWagons);
+  const candidates = activeWagons.map((wagon) => {
+    const feature = makeWagonFeature(wagon, ordinals.get(wagon.attributes.objectid) ?? 1);
+    const meta = getWagonMeta(feature, wagon);
+    feature.properties.directionLabel = meta.direction?.label ?? '';
+    return {
+      feature,
+      meta,
+      routes: new Set<string>(),
+    };
+  });
 
-  const geojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: wagonFeatures.map((feature) => {
-      const sides = getWagonRouteSides(feature, routes);
-      const label = `${feature.properties?.nombre ?? 'Vagon'}\nSO: ${shortRouteList(sides.left)}\nNE: ${shortRouteList(sides.right)}`;
-      return {
-        ...feature,
-        properties: {
-          ...feature.properties,
-          leftRoutes: JSON.stringify(sides.left),
-          rightRoutes: JSON.stringify(sides.right),
-          label,
-        },
-      };
-    }),
-  };
+  assignRoutesToWagons(candidates, routes);
 
-  map.addSource('wagons', { type: 'geojson', data: geojson });
+  const candidatesByStation = new Map<string, WagonCandidate[]>();
+  candidates.forEach((candidate) => {
+    const key = candidate.feature.properties.stationKey;
+    candidatesByStation.set(key, [...(candidatesByStation.get(key) ?? []), candidate]);
+  });
+
+  const labelFeatures: WagonLabelFeature[] = [];
+  const wagonFeatures = candidates.map((candidate) => {
+    const routesForWagon = sortRoutes(candidate.routes);
+    const label = [
+      [candidate.feature.properties.displayName, candidate.feature.properties.directionLabel].filter(Boolean).join(' '),
+      shortRouteList(routesForWagon),
+    ].join('\n');
+
+    labelFeatures.push({
+      type: 'Feature',
+      properties: {
+        label,
+        bearing: candidate.meta.readableBearing,
+      },
+      geometry: getLabelPoint(candidate, candidatesByStation.get(candidate.feature.properties.stationKey) ?? [candidate]),
+    });
+
+    return {
+      ...candidate.feature,
+      properties: {
+        ...candidate.feature.properties,
+        routes: JSON.stringify(routesForWagon),
+      },
+    };
+  });
+
+  map.addSource('wagons', {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: wagonFeatures,
+    },
+  });
+
+  map.addSource('wagon-route-labels', {
+    type: 'geojson',
+    data: {
+      type: 'FeatureCollection',
+      features: labelFeatures,
+    },
+  });
 
   map.addLayer({
     id: 'wagons-fill',
@@ -303,8 +758,8 @@ export function addWagonsLayer(
     source: 'wagons',
     minzoom: 15,
     paint: {
-      'fill-color': '#2F3B4C',
-      'fill-opacity': 0.7,
+      'fill-color': '#182235',
+      'fill-opacity': 0.58,
       'fill-outline-color': '#FBBF24',
     },
   });
@@ -316,22 +771,25 @@ export function addWagonsLayer(
     minzoom: 15,
     paint: {
       'line-color': '#FBBF24',
-      'line-width': 1.5,
+      'line-width': 1.4,
     },
   });
 
   map.addLayer({
     id: 'wagons-route-labels',
     type: 'symbol',
-    source: 'wagons',
+    source: 'wagon-route-labels',
     minzoom: 15,
     layout: {
       'text-field': ['get', 'label'],
       'text-font': ['Open Sans Bold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 15, 8, 17, 10],
       'text-max-width': 12,
-      'text-allow-overlap': true,
-      'text-ignore-placement': true,
+      'text-rotate': ['get', 'bearing'],
+      'text-rotation-alignment': 'map',
+      'text-pitch-alignment': 'map',
+      'text-allow-overlap': false,
+      'text-ignore-placement': false,
     },
     paint: {
       'text-color': '#FFFFFF',

@@ -105,7 +105,7 @@ export const queries = {
     queryFeatureLayer({
       folder: 'Troncal',
       service: 'consulta_esquemas_estaciones',
-      where: "secciontipo LIKE '%Vagon%' OR tipo LIKE '%Vagon%'",
+      where: "secciontipo = 'Vagon' AND id_vagon > 0 AND nombre LIKE 'Vagon%'",
     }),
 
   troncalCorridors: () =>

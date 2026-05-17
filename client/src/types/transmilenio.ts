@@ -54,8 +54,11 @@ export interface TroncalWagonFeature {
     troncal: string;
     estacion: string;
     secciontipo: string;
+    idestacion: number;
     nombre: string;
     id_vagon: number;
+    Shape__Area?: number;
+    area_m2?: number;
   };
   geometry: {
     rings: number[][][];
