@@ -84,7 +84,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         source: 'catalog',
         busType: route.tipoServicio,
         schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
-        color: route.color || getRouteColor(code, type),
+        color: type === 'troncal' ? getRouteColor(code, 'troncal') : getZonalRouteColor(code),
         geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
         stops: stops.map((s) => {
           const [lat, lng] = s.coordenada.split(',').map(Number);
@@ -108,21 +108,29 @@ function buildRouteList(
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
 
-  // Add all catalog items keyed by code
+  // Add all catalog items keyed by id to avoid squashing variants with the same code (e.g. 1, 2, C149)
   catalogItems.forEach((catRoute) => {
-    mergedRoutes.set(catRoute.code, catRoute);
+    mergedRoutes.set(catRoute.id, catRoute);
   });
 
   // 2. Process Troncal geometries
   troncalRoutes.forEach((r) => {
     const code = r.attributes.route_name_ruta_troncal;
-    const existing = mergedRoutes.get(code);
-    if (existing) {
-      if (r.geometry) existing.geometry = r.geometry;
-      if (!existing.length && r.attributes.longitud_ruta_troncal) {
-        existing.length = r.attributes.longitud_ruta_troncal;
+
+    // Look for a matching catalog item. We find the FIRST one that matches the code.
+    // (Geometry mapping for multiple variants of a troncal isn't split by ArcGIS, so we apply it to all)
+    let foundAny = false;
+    for (const [id, activeRoute] of mergedRoutes.entries()) {
+      if (activeRoute.code === code && activeRoute.source === 'catalog') {
+        foundAny = true;
+        if (r.geometry) activeRoute.geometry = r.geometry;
+        if (!activeRoute.length && r.attributes.longitud_ruta_troncal) {
+          activeRoute.length = r.attributes.longitud_ruta_troncal;
+        }
       }
-    } else {
+    }
+
+    if (!foundAny) {
       // Existing in ArcGIS but not catalog
       mergedRoutes.set(code, {
         id: `t-${r.attributes.objectid}`,
@@ -183,8 +191,9 @@ function buildRouteList(
         if (!bestMatch.length && r.attributes.longitud_ruta_zonal) bestMatch.length = r.attributes.longitud_ruta_zonal;
       });
     } else {
+      // Fallback
       const fallbackCode = rawCode;
-      mergedRoutes.set(fallbackCode, {
+      mergedRoutes.set(`fallback-${r.attributes.objectid}`, {
         id: `z-${r.attributes.objectid}`,
         code: fallbackCode,
         name: r.attributes.denominacion_ruta_zonal,
