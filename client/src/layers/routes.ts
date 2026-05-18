@@ -23,17 +23,10 @@ export const TRONCAL_COLORS: Record<string, string> = {
   RF: '#000000',
 };
 
-const ZONAL_TYPE_COLORS: Record<number, string> = {
-  2: '#C8102E',
-  3: '#00618E',
-  4: '#5EB130',
-  5: '#F59E0B',
-  6: '#7C3AED',
-  7: '#64748B',
-};
+
 
 const DEFAULT_TRONCAL_COLOR = '#FB2C17';
-const DEFAULT_ZONAL_COLOR = '#00618E';
+const DEFAULT_ZONAL_COLOR = '#38BDF8';
 const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 
 let claimedClickEvent: Event | null = null;
@@ -106,10 +99,9 @@ export function getTroncalColor(value: string | null | undefined): string {
 }
 
 export function getZonalRouteColor(code?: string | null, routeType?: number): string {
-  const letters = getRouteZoneLetters(code);
-  const destinationLetter = letters[letters.length - 1];
-  if (destinationLetter) return TRONCAL_COLORS[destinationLetter] ?? DEFAULT_ZONAL_COLOR;
-  return routeType ? ZONAL_TYPE_COLORS[routeType] ?? DEFAULT_ZONAL_COLOR : DEFAULT_ZONAL_COLOR;
+  // Always return SITP Blue for zonales to avoid the 'rainbow' mess
+  // while keeping troncales color-coded by corridor.
+  return DEFAULT_ZONAL_COLOR;
 }
 
 export function getRouteColor(code: string, type: 'troncal' | 'zonal', zonalRouteType?: number): string {
@@ -279,9 +271,9 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': DEFAULT_ZONAL_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
-      'line-opacity': 0.1,
+      'line-opacity': 0.08,
       'line-blur': 3,
     },
   });
@@ -292,9 +284,9 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 14, 2, 17, 3.5],
-      'line-opacity': 0.58,
+      'line-color': DEFAULT_ZONAL_COLOR,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],
+      'line-opacity': 0.45,
     },
   });
 }
