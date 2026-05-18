@@ -3,8 +3,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import type { TroncalCorridorFeature, TroncalRouteFeature, ZonalRouteFeature } from '../types/transmilenio';
-import type { MasterCatalog } from '../types/catalog';
+import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, ZonalRouteFeature } from '../types/transmilenio';
 
 export const TRONCAL_COLORS: Record<string, string> = {
   A: '#0C3A95',
@@ -135,176 +134,40 @@ export function getZonalRouteColor(code?: string | null): string {
   return DEFAULT_ZONAL_COLOR;
 }
 
-export function getZonalDisplayCode(
-  code: string,
-  destinationZone?: number,
-  destinationName?: string,
-  originName?: string,
-  routeName?: string,
-  catalog?: MasterCatalog
-): string {
-  const normalized = normalizeRouteCode(code);
-  if (normalized.length <= 4) return normalized; // Already short like F408
-
-  const match = normalized.match(/^([A-Z]{2,})(\d+)$/);
-  if (!match) return normalized;
-
-  const letters = match[1];
-  const numberPart = match[2];
-
-  // 1. Definitively lookup using the Master Catalog if provided
-  if (catalog && catalog.routes) {
-    const rawArcgisName = normalizeRouteCodeForMatch(routeName || '');
-    let bestLetter = letters[0];
-    let bestScore = -1;
-
-    for (const letter of letters) {
-      const candidateCode = `${letter}${numberPart}`;
-      const catalogVariants = catalog.routes[candidateCode] || [];
-      
-      for (const variant of catalogVariants) {
-        const rawCatalogName = normalizeRouteCodeForMatch(variant.nombre || '');
-        let score = 0;
-        
-        // Exact name match
-        if (rawArcgisName && rawCatalogName && rawArcgisName === rawCatalogName) {
-           score += 100;
-        } else if (rawArcgisName && rawCatalogName && (rawArcgisName.includes(rawCatalogName) || rawCatalogName.includes(rawArcgisName))) {
-           score += 50;
-        }
-
-        const dest = normalizeRouteCodeForMatch(destinationName || '');
-        const orig = normalizeRouteCodeForMatch(originName || '');
-        
-        if (dest && rawCatalogName.includes(dest)) score += 10;
-        if (orig && rawCatalogName.includes(orig)) score += 5;
-
-        // Try against stops
-        if (variant.stops && variant.stops.length > 0) {
-          const firstStop = normalizeRouteCodeForMatch(variant.stops[0].nombre);
-          const lastStop = normalizeRouteCodeForMatch(variant.stops[variant.stops.length - 1].nombre);
-          if (dest && lastStop && (dest.includes(lastStop) || lastStop.includes(dest))) score += 20;
-          if (orig && firstStop && (orig.includes(firstStop) || firstStop.includes(orig))) score += 20;
-        }
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestLetter = letter;
-        }
-      }
-    }
-
-    if (bestScore > 0) {
-      return `${bestLetter}${numberPart}`;
-    }
-  }
-
-  // 2. Keyword fallback for tricky combined routes when catalog is unavailable
-  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
-    const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
-    if (letters.includes(targetLetter)) {
-      return `${targetLetter}${numberPart}`;
-    }
-  }
-
-  // 2. Keyword fallback for tricky combined routes where ArcGis destZone is corrupted
-  const dest = (destinationName || '').toUpperCase();
-  const orig = (originName || '').toUpperCase();
-  if (dest || orig) {
-    const ZONE_KEYWORDS: Record<string, string[]> = {
-      A: ['CHAPINERO', 'CENTRO', 'TEUSAQUILLO', 'MARTIRES', 'PUENTE ARANDA', 'BARRIOS UNIDOS', 'ANTONIO NARINO', 'BOGOTA', 'GERMANIA', 'LAS NIEVES', 'SAN DIEGO'],
-      B: ['USAQUEN', 'CODITO', 'SAN CRISTOBAL NORTE', 'TOBERIN', 'VERBENAL', 'LIJA', 'CERRO NORTE', 'SANTA BÁRBARA'],
-      C: ['SUBA', 'BILBAO', 'TIBABUYES', 'RINCON', 'LOMBARDIA', 'LISBOA', 'GAITANA', 'CORTIJO'],
-      D: ['ENGATIVA', 'CALLE 80', 'BACHUE', 'VILLA CINDY', 'GARCES NAVAS', 'ALAMOS'],
-      K: ['FONTIBON', 'HAYUELOS', 'MODELIA', 'AEROPUERTO', 'RECODO', 'ZONA FRANCA'],
-      F: ['KENNEDY', 'AMERICAS', 'BANDERAS', 'PATIO BONITO', 'TINTAL', 'CORABASTOS'],
-      G: ['BOSA', 'SUR', 'PERDOMO', 'TERREROS', 'SAN MATEO', 'SOACHA', 'PORVENIR'],
-      H: ['USME', 'CIUDAD BOLIVAR', 'TUNAL', 'LUCERO', 'MEISSEN', 'JUAN JOSE RONDON', 'CANDELARIA', 'SAN FRANCISCO'],
-      L: ['SAN CRISTOBAL', '20 DE JULIO', 'GAVIOTAS', 'VICTORIA', 'LIBERTADORES', 'GUACAMAYAS', 'BELLAVISTA', 'ALPES'],
-    };
-
-    // Forward check: Destination text
-    for (const letter of letters) {
-      if (ZONE_KEYWORDS[letter]?.some((kw) => dest.includes(kw))) {
-        return `${letter}${numberPart}`;
-      }
-    }
-    // Reverse check: Origin text implies destination is the OTHER letter
-    for (const letter of letters) {
-      if (ZONE_KEYWORDS[letter]?.some((kw) => orig.includes(kw))) {
-        const remaining = letters.replace(letter, '');
-        if (remaining.length === 1) {
-          return `${remaining}${numberPart}`;
-        }
-      }
-    }
-  }
-
-  // 3. Fallback: Destination Zone mapping (last resort, highly unreliable in ArcGIS)
-  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
-    const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
-    if (letters.includes(targetLetter)) {
-      return `${targetLetter}${numberPart}`;
-    }
-  }
-
-  return `${letters[0]}${numberPart}`; // Return the very first letter if ALL else fails
-}
-
 export function getRouteColor(code: string, type: 'troncal' | 'zonal'): string {
   return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code);
 }
 
-function routesToGeoJSON(
-  features: (TroncalRouteFeature | ZonalRouteFeature)[],
-  type: 'troncal' | 'zonal',
-  catalog?: MasterCatalog
+function routeItemsToGeoJSON(
+  routes: RouteListItem[]
 ): GeoJSON.FeatureCollection {
+  // We only draw routes that actually have a geometry
+  const featuresWithGeom = routes.filter((r) => r.geometry && r.geometry.paths && r.geometry.paths.length > 0);
+  
   return {
     type: 'FeatureCollection',
-    features: features.map((f) => {
-      const isTroncal = type === 'troncal';
-      const attrs = f.attributes as any;
-      const code = isTroncal
-        ? attrs.route_name_ruta_troncal
-        : attrs.codigo_definitivo_ruta_zonal;
-      const displayCode = isTroncal 
-        ? code 
-        : getZonalDisplayCode(
-            code, 
-            attrs.zona_destino_ruta_zonal, 
-            attrs.destino_ruta_zonal, 
-            attrs.origen_ruta_zonal,
-            attrs.denominacion_ruta_zonal,
-            catalog
-          );
-      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(displayCode);
-
-      return {
-        type: 'Feature' as const,
-        properties: {
-          id: attrs.objectid,
-          code: displayCode,
-          originalCode: code,
-          letter: isTroncal ? getTroncalLetter(code) : undefined,
-          color,
-          name: isTroncal
-            ? `${attrs.origen_ruta_troncal} -> ${attrs.destino_ruta_troncal}`
-            : attrs.denominacion_ruta_zonal,
-          type,
-          origin: isTroncal ? attrs.origen_ruta_troncal : attrs.origen_ruta_zonal,
-          destination: isTroncal ? attrs.destino_ruta_troncal : attrs.destino_ruta_zonal,
-          busType: isTroncal ? attrs.desc_tipo_bus_ruta_troncal : undefined,
-          schedule: isTroncal ? attrs.horario_lunes_viernes : undefined,
-          operator: !isTroncal ? attrs.operador_ruta_zonal : undefined,
-          length: isTroncal ? attrs.longitud_ruta_troncal : attrs.longitud_ruta_zonal,
-        },
-        geometry: {
-          type: 'MultiLineString' as const,
-          coordinates: f.geometry.paths,
-        },
-      };
-    }),
+    features: featuresWithGeom.map((r) => ({
+      type: 'Feature' as const,
+      properties: {
+        id: r.id, 
+        code: r.code,
+        originalCode: r.code, 
+        letter: r.type === 'troncal' ? getTroncalLetter(r.code) : undefined,
+        color: r.color,
+        name: r.name,
+        type: r.type,
+        origin: r.origin,
+        destination: r.destination,
+        busType: r.busType,
+        schedule: r.schedule,
+        operator: r.operator,
+        length: r.length,
+      },
+      geometry: {
+        type: 'MultiLineString' as const,
+        coordinates: r.geometry!.paths, 
+      },
+    })),
   };
 }
 
@@ -390,18 +253,17 @@ export function addTroncalCorridorsLayer(
 
 export function addTroncalRoutesLayer(
   map: maplibregl.Map,
-  routes: TroncalRouteFeature[]
+  routes: RouteListItem[]
 ): void {
-  const geojson = routesToGeoJSON(routes, 'troncal');
+  const geojson = routeItemsToGeoJSON(routes);
   map.addSource('troncal-routes', { type: 'geojson', data: geojson });
 }
 
 export function addZonalRoutesLayer(
   map: maplibregl.Map,
-  routes: ZonalRouteFeature[],
-  catalog: MasterCatalog
+  routes: RouteListItem[]
 ): void {
-  const geojson = routesToGeoJSON(routes, 'zonal', catalog);
+  const geojson = routeItemsToGeoJSON(routes);
   map.addSource('zonal-routes', { type: 'geojson', data: geojson });
 
   // Insert zonal layers BEFORE any troncal layers if they exist

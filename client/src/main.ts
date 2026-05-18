@@ -15,7 +15,6 @@ import {
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
   getRouteColor,
-  getZonalDisplayCode,
   getZonalRouteColor,
   toggleTroncalRoutes,
   toggleZonalRoutes,
@@ -105,76 +104,116 @@ function buildRouteList(
   zonalRoutes: ZonalRouteFeature[],
   catalog: MasterCatalog
 ): RouteListItem[] {
-  const troncalItems: RouteListItem[] = troncalRoutes.map((r) => {
-    const code = r.attributes.route_name_ruta_troncal;
-    return {
-      id: `t-${r.attributes.objectid}`,
-      code,
-      name: `${r.attributes.origen_ruta_troncal} → ${r.attributes.destino_ruta_troncal}`,
-      origin: r.attributes.origen_ruta_troncal,
-      destination: r.attributes.destino_ruta_troncal,
-      type: 'troncal',
-      source: 'arcgis',
-      busType: r.attributes.desc_tipo_bus_ruta_troncal,
-      schedule: r.attributes.horario_lunes_viernes,
-      length: r.attributes.longitud_ruta_troncal || undefined,
-      color: getRouteColor(code, 'troncal'),
-      geometry: r.geometry,
-    };
-  });
-
-  const zonalItems: RouteListItem[] = zonalRoutes.map((r) => {
-    const rawCode = r.attributes.codigo_definitivo_ruta_zonal;
-    const destZone = r.attributes.zona_destino_ruta_zonal;
-    const code = getZonalDisplayCode(
-      rawCode, 
-      destZone, 
-      r.attributes.destino_ruta_zonal, 
-      r.attributes.origen_ruta_zonal,
-      r.attributes.denominacion_ruta_zonal,
-      catalog
-    );
-    
-    return {
-      id: `z-${r.attributes.objectid}`,
-      code,
-      name: r.attributes.denominacion_ruta_zonal,
-      origin: r.attributes.origen_ruta_zonal,
-      destination: r.attributes.destino_ruta_zonal,
-      type: 'zonal',
-      source: 'arcgis',
-      operator: r.attributes.operador_ruta_zonal,
-      length: r.attributes.longitud_ruta_zonal,
-      color: getZonalRouteColor(code),
-      geometry: r.geometry,
-    };
-  });
-
+  // 1. Build authoritative catalog items
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
 
-  // 1. Base on ArcGIS data (better geometry)
-  [...troncalItems, ...zonalItems].forEach((route) => {
-    const key = `${route.type}|${normalizeRouteText(route.code)}|${normalizeRouteText(route.origin)}|${normalizeRouteText(route.destination)}`;
-    mergedRoutes.set(key, route);
+  // Add all catalog items keyed by code
+  catalogItems.forEach((catRoute) => {
+    mergedRoutes.set(catRoute.code, catRoute);
   });
 
-  // 2. Merge Catalog data (better metadata, fallback geometry)
-  catalogItems.forEach((catRoute) => {
-    const key = `${catRoute.type}|${normalizeRouteText(catRoute.code)}|${normalizeRouteText(catRoute.origin)}|${normalizeRouteText(catRoute.destination)}`;
-    const existing = mergedRoutes.get(key);
-
+  // 2. Process Troncal geometries
+  troncalRoutes.forEach((r) => {
+    const code = r.attributes.route_name_ruta_troncal;
+    const existing = mergedRoutes.get(code);
     if (existing) {
-      // Merge metadata
-      if (catRoute.busType && catRoute.busType !== 'Catalogo oficial app') {
-        existing.busType = catRoute.busType;
+      if (r.geometry) existing.geometry = r.geometry;
+      if (!existing.length && r.attributes.longitud_ruta_troncal) {
+        existing.length = r.attributes.longitud_ruta_troncal;
       }
-      if (catRoute.schedule) existing.schedule = catRoute.schedule;
-      if (catRoute.color) existing.color = catRoute.color;
-      if (catRoute.stops) existing.stops = catRoute.stops;
     } else {
-      // Add new route from catalog
-      mergedRoutes.set(key, catRoute);
+      // Existing in ArcGIS but not catalog
+      mergedRoutes.set(code, {
+        id: `t-${r.attributes.objectid}`,
+        code,
+        name: `${r.attributes.origen_ruta_troncal} → ${r.attributes.destino_ruta_troncal}`,
+        origin: r.attributes.origen_ruta_troncal,
+        destination: r.attributes.destino_ruta_troncal,
+        type: 'troncal',
+        source: 'arcgis',
+        busType: r.attributes.desc_tipo_bus_ruta_troncal,
+        schedule: r.attributes.horario_lunes_viernes,
+        length: r.attributes.longitud_ruta_troncal || undefined,
+        color: getRouteColor(code, 'troncal'),
+        geometry: r.geometry,
+      });
+    }
+  });
+
+  // 3. Process Zonal geometries
+  zonalRoutes.forEach((r) => {
+    const rawCode = r.attributes.codigo_definitivo_ruta_zonal;
+    const arcgisName = normalizeRouteText(r.attributes.denominacion_ruta_zonal);
+    const arcgisDest = normalizeRouteText(r.attributes.destino_ruta_zonal);
+
+    let bestMatch: RouteListItem | null = null;
+    let bestScore = -1;
+
+    for (const catRoute of catalogItems) {
+      if (catRoute.type !== 'zonal') continue;
+      const catCode = catRoute.code;
+      
+      const match = rawCode.match(/^([A-Z]+)(\d+)$/);
+      if (!match) {
+         if (rawCode === catCode) {
+           bestScore = 1000;
+           bestMatch = catRoute;
+         }
+         continue;
+      }
+
+      const rawLetters = match[1];
+      const rawNumbers = match[2];
+
+      const catMatch = catCode.match(/^([A-Z])(\d+)$/);
+      if (!catMatch) {
+         if (rawCode === catCode) {
+           bestScore = 1000;
+           bestMatch = catRoute;
+         }
+         continue;
+      }
+      
+      const catLetter = catMatch[1];
+      const catNumbers = catMatch[2];
+
+      if (rawNumbers === catNumbers && rawLetters.includes(catLetter)) {
+        let score = 50; 
+        const catName = normalizeRouteText(catRoute.name);
+        if (arcgisName && arcgisName === catName) score += 100;
+        else if (arcgisName && catName && (arcgisName.includes(catName) || catName.includes(arcgisName))) score += 50;
+        if (catRoute.destination && arcgisDest && catRoute.destination.includes(arcgisDest)) score += 20;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = catRoute;
+        }
+      } else if (rawCode === catCode) {
+        bestScore = 1000;
+        bestMatch = catRoute;
+      }
+    }
+
+    if (bestMatch) {
+      if (r.geometry) bestMatch.geometry = r.geometry;
+      if (!bestMatch.operator && r.attributes.operador_ruta_zonal) bestMatch.operator = r.attributes.operador_ruta_zonal;
+      if (!bestMatch.length && r.attributes.longitud_ruta_zonal) bestMatch.length = r.attributes.longitud_ruta_zonal;
+    } else {
+      const fallbackCode = rawCode;
+      mergedRoutes.set(fallbackCode, {
+        id: `z-${r.attributes.objectid}`,
+        code: fallbackCode,
+        name: r.attributes.denominacion_ruta_zonal,
+        origin: r.attributes.origen_ruta_zonal,
+        destination: r.attributes.destino_ruta_zonal,
+        type: 'zonal',
+        source: 'arcgis',
+        operator: r.attributes.operador_ruta_zonal,
+        length: r.attributes.longitud_ruta_zonal,
+        color: getZonalRouteColor(fallbackCode),
+        geometry: r.geometry,
+      });
     }
   });
 
@@ -204,56 +243,68 @@ async function main(): Promise<void> {
   let troncalRoutes: TroncalRouteFeature[] = [];
   let zonalRoutes: ZonalRouteFeature[] = [];
   let catalog: MasterCatalog = { stations: {}, routes: {} };
+  let routeList: RouteListItem[] = [];
   let stationCount = 0;
   let stopsCount = 0;
 
   try {
-    // Fetch troncal data (no more wagons or layouts!)
-    const [troncalRoutesRes, corridorsRes, stationsRes, catalogRes] = await Promise.all([
+    // 1. Fetch EVERYTHING in parallel
+    const [
+      troncalRoutesRes, 
+      corridorsRes, 
+      stationsRes, 
+      catalogRes,
+      zonalRoutesRes,
+      zonalStopsRes,
+      zonalStopRoutesRes
+    ] = await Promise.all([
       api.getTroncalRoutes(),
       api.getTroncalCorridors(),
       api.getTroncalStations(),
       api.getMasterCatalog(),
-    ]);
-
-    troncalRoutes = troncalRoutesRes.features;
-    const stations = stationsRes.features.filter(isVisibleTroncalStation);
-    catalog = catalogRes.data || { stations: {}, routes: {} };
-    console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
-    console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
-    console.log(`✅ Stations: ${stationsRes.features.length}`);
-    console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
-
-    // Set catalog for station popups
-    setCatalog(catalog);
-
-    // Add route/corridor layers
-    setLoadingStatus('Dibujando troncales...');
-    addTroncalCorridorsLayer(map, corridorsRes.features);
-
-    setLoadingStatus('Dibujando rutas troncales...');
-    addTroncalRoutesLayer(map, troncalRoutes);
-
-    setLoadingStatus('Colocando estaciones...');
-    addStationsLayer(map, stations);
-    stationCount = stations.length;
-
-    // Fetch zonal routes, stops, and stop-route mappings
-    setLoadingStatus('Descargando rutas y paraderos zonales...');
-    const [zonalRoutesRes, zonalStopsRes, zonalStopRoutesRes] = await Promise.all([
       api.getZonalRoutes(),
       api.getZonalStops(),
       api.getZonalStopRoutes(),
     ]);
 
+    troncalRoutes = troncalRoutesRes.features;
     zonalRoutes = zonalRoutesRes.features;
+    const stations = stationsRes.features.filter(isVisibleTroncalStation);
+    catalog = catalogRes.data || { stations: {}, routes: {} };
+    
+    console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
+    console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
+    console.log(`✅ Stations: ${stations.length}`);
+    console.log(`✅ Zonal routes: ${zonalRoutes.length}`);
+    console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
+
+    // Set catalog for station popups
+    setCatalog(catalog);
+
+    // 2. Pre-calculate unified route list from API
+    setLoadingStatus('Procesando datos de rutas...');
+    routeList = buildRouteList(troncalRoutes, zonalRoutes, catalog);
+    const troncalListItems = routeList.filter(r => r.type === 'troncal');
+    const zonalListItems = routeList.filter(r => r.type === 'zonal');
+
+    // 3. Add route/corridor layers
+    setLoadingStatus('Dibujando troncales...');
+    addTroncalCorridorsLayer(map, corridorsRes.features);
+
+    setLoadingStatus('Dibujando rutas troncales...');
+    addTroncalRoutesLayer(map, troncalListItems);
+
+    setLoadingStatus('Colocando estaciones...');
+    addStationsLayer(map, stations);
+    stationCount = stations.length;
+
+    // 4. Mappings and Stops
     const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, catalog);
-    console.log(`✅ Zonal routes: ${zonalRoutes.length} indexed`);
     console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
 
     setLoadingStatus('Dibujando rutas zonales...');
-    addZonalRoutesLayer(map, zonalRoutes, catalog);
+    addZonalRoutesLayer(map, zonalListItems);
 
     setLoadingStatus('Colocando paraderos...');
     addStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
@@ -269,7 +320,6 @@ async function main(): Promise<void> {
   }
 
   // 3. Initialize sidebar
-  const routeList = buildRouteList(troncalRoutes, zonalRoutes, catalog);
   const routeCounts = routeList.reduce(
     (counts, route) => {
       counts[route.type]++;
@@ -283,33 +333,9 @@ async function main(): Promise<void> {
 
       highlightRoute(map, route.code, route.type, route.geometry);
 
-      // Find the route feature to get its bounds
-      const source = route.type === 'troncal' ? troncalRoutes : zonalRoutes;
-      const feature = source.find((f) => {
-        const attrs = f.attributes as any;
-        const code = route.type === 'troncal'
-          ? attrs.route_name_ruta_troncal
-          : getZonalDisplayCode(
-              attrs.codigo_definitivo_ruta_zonal, 
-              attrs.zona_destino_ruta_zonal, 
-              attrs.destino_ruta_zonal, 
-              attrs.origen_ruta_zonal,
-              attrs.denominacion_ruta_zonal,
-              catalog
-            );
-        const origin = route.type === 'troncal'
-          ? attrs.origen_ruta_troncal
-          : attrs.origen_ruta_zonal;
-        const destination = route.type === 'troncal'
-          ? attrs.destino_ruta_troncal
-          : attrs.destino_ruta_zonal;
-        return code === route.code && origin === route.origin && destination === route.destination;
-      });
-
-      if (feature) {
-        // Calculate bounds from the route geometry
+      if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
-        feature.geometry.paths.forEach((path) => {
+        route.geometry.paths.forEach((path) => {
           path.forEach(([lng, lat]) => {
             bounds.extend([lng, lat]);
           });
