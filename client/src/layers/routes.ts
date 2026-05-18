@@ -301,13 +301,14 @@ export function addZonalRoutesLayer(
 
 export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void {
   const v = visible ? 'visible' : 'none';
-  [
+  const layers = [
     'troncal-corridors-casing',
     'troncal-corridors-line',
     'troncal-corridors-labels',
     'troncal-routes-glow',
     'troncal-routes-line',
-  ].forEach((id) => {
+  ];
+  layers.forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });
 }
@@ -328,49 +329,54 @@ export function highlightRoute(
   clearHighlight(map);
 
   let sourceId = `${type}-routes`;
-  let filter: maplibregl.FilterSpecification | undefined = ['==', ['get', 'code'], routeCode];
+  let filter: any[] = ['==', ['get', 'code'], routeCode];
 
-  // If we have custom geometry (e.g. from catalog), use a temporary source
   if (customGeometry) {
     sourceId = 'highlight-temp-source';
-    const geojson: GeoJSON.Feature = {
-      type: 'Feature',
-      properties: { code: routeCode, color: getRouteColor(routeCode, type) },
-      geometry: { type: 'MultiLineString', coordinates: customGeometry.paths },
+    const geojson: GeoJSON.FeatureCollection = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        properties: { code: routeCode, color: getRouteColor(routeCode, type) },
+        geometry: { type: 'MultiLineString', coordinates: customGeometry.paths },
+      }],
     };
     map.addSource(sourceId, { type: 'geojson', data: geojson });
-    filter = undefined; // Show everything in this temp source
+    filter = ['all'];
   }
 
   const source = map.getSource(sourceId);
   if (!source) return;
 
-  map.addLayer({
-    id: 'highlight-route-glow',
-    type: 'line',
-    source: sourceId,
-    ...(filter ? { filter } : {}),
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 20, 17, 30],
-      'line-opacity': 0.26,
-      'line-blur': 6,
-    },
-  });
+  const glowId = 'highlight-route-glow';
+  const lineId = 'highlight-route';
 
   map.addLayer({
-    id: 'highlight-route',
+    id: glowId,
     type: 'line',
     source: sourceId,
-    ...(filter ? { filter } : {}),
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    filter,
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
-      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10],
+      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR] as any,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 20, 17, 30] as any,
+      'line-opacity': 0.35,
+      'line-blur': 6,
+    },
+  } as any);
+
+  map.addLayer({
+    id: lineId,
+    type: 'line',
+    source: sourceId,
+    filter,
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
+    paint: {
+      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR] as any,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10] as any,
       'line-opacity': 1,
     },
-  });
+  } as any);
 }
 
 export function clearHighlight(map: maplibregl.Map): void {
