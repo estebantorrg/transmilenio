@@ -205,7 +205,7 @@ function distanceMeters(a: LngLat | null, b: LngLat | null): number | null {
 }
 
 function buildIndexes(catalog: MasterCatalog): ResolverIndexes {
-  const stations = Object.values(catalog) as CatalogStation[];
+  const stations = Object.values(catalog.stations || {}) as CatalogStation[];
   const appStops = stations.filter(isAppStop);
   const platformFragments = stations.filter((station) => !isAppStop(station));
   const byStopCode = new Map<string, CatalogStation>();

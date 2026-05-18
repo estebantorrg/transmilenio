@@ -320,19 +320,34 @@ export function toggleZonalRoutes(map: maplibregl.Map, visible: boolean): void {
 export function highlightRoute(
   map: maplibregl.Map,
   routeCode: string,
-  type: 'troncal' | 'zonal'
+  type: 'troncal' | 'zonal',
+  customGeometry?: { paths: number[][][] }
 ): void {
   clearHighlight(map);
 
-  const sourceId = `${type}-routes`;
-  const source = map.getSource(sourceId) as maplibregl.GeoJSONSource;
+  let sourceId = `${type}-routes`;
+  let filter: maplibregl.FilterSpecification | undefined = ['==', ['get', 'code'], routeCode];
+
+  // If we have custom geometry (e.g. from catalog), use a temporary source
+  if (customGeometry) {
+    sourceId = 'highlight-temp-source';
+    const geojson: GeoJSON.Feature = {
+      type: 'Feature',
+      properties: { code: routeCode, color: getRouteColor(routeCode, type) },
+      geometry: { type: 'MultiLineString', coordinates: customGeometry.paths },
+    };
+    map.addSource(sourceId, { type: 'geojson', data: geojson });
+    filter = undefined; // Show everything in this temp source
+  }
+
+  const source = map.getSource(sourceId);
   if (!source) return;
 
   map.addLayer({
     id: 'highlight-route-glow',
     type: 'line',
     source: sourceId,
-    filter: ['==', ['get', 'code'], routeCode],
+    filter,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
@@ -346,7 +361,7 @@ export function highlightRoute(
     id: 'highlight-route',
     type: 'line',
     source: sourceId,
-    filter: ['==', ['get', 'code'], routeCode],
+    filter,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
@@ -359,4 +374,5 @@ export function highlightRoute(
 export function clearHighlight(map: maplibregl.Map): void {
   if (map.getLayer('highlight-route')) map.removeLayer('highlight-route');
   if (map.getLayer('highlight-route-glow')) map.removeLayer('highlight-route-glow');
+  if (map.getSource('highlight-temp-source')) map.removeSource('highlight-temp-source');
 }

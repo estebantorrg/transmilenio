@@ -25,8 +25,25 @@ export interface CatalogStation {
   wagons: CatalogWagons;
 }
 
+export interface CatalogRouteDetail {
+  id: string;
+  codigo: string;
+  nombre: string;
+  color: string;
+  sistema: string;
+  tipoServicio: string;
+  horarios?: CatalogRoute['horarios'];
+  stops: Array<{
+    nombre: string;
+    codigo: string;
+    coordenada: string;
+    posicion: number;
+  }>;
+}
+
 export interface MasterCatalog {
-  [stationCode: string]: CatalogStation;
+  stations: { [stationCode: string]: CatalogStation };
+  routes: { [routeCode: string]: CatalogRouteDetail[] };
 }
 
 export interface MasterCatalogResponse {

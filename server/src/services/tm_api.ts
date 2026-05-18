@@ -62,8 +62,25 @@ export interface CatalogStation {
   wagons: CatalogWagons;
 }
 
+export interface CatalogRouteDetail {
+  id: string;
+  codigo: string;
+  nombre: string;
+  color: string;
+  sistema: string;
+  tipoServicio: string;
+  horarios?: CatalogRoute['horarios'];
+  stops: Array<{
+    nombre: string;
+    codigo: string;
+    coordenada: string;
+    posicion: number;
+  }>;
+}
+
 export interface MasterCatalog {
-  [stationCode: string]: CatalogStation;
+  stations: { [stationCode: string]: CatalogStation };
+  routes: { [routeCode: string]: CatalogRouteDetail[] };
 }
 
 interface ApiRouteListItem {
@@ -225,7 +242,7 @@ async function getRouteInfo(
 
 // ─── In-Memory Catalog ──────────────────────────────────
 
-let masterCatalog: MasterCatalog = {};
+let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
 let catalogLoadedAt: number = 0;
 
 export async function loadCatalogFromDisk(): Promise<void> {
@@ -233,12 +250,12 @@ export async function loadCatalogFromDisk(): Promise<void> {
     const raw = await fs.readFile(CATALOG_FILE, 'utf-8');
     masterCatalog = JSON.parse(raw);
     catalogLoadedAt = Date.now();
-    const stationCount = Object.keys(masterCatalog).length;
-    const totalRoutes = Object.values(masterCatalog).reduce((sum, s) => {
+    const stationCount = Object.keys(masterCatalog.stations || {}).length;
+    const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
       return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
     }, 0);
     console.log(
-      `[TM API] Loaded master catalog: ${stationCount} stations, ${totalRoutes} route-wagon mappings`
+      `[TM API] Loaded master catalog: ${stationCount} stations, ${totalRoutes} route-wagon mappings, ${Object.keys(masterCatalog.routes || {}).length} routes`
     );
   } catch {
     console.log('[TM API] No master catalog on disk. Run sync to generate.');
@@ -250,11 +267,11 @@ export function getCatalog(): MasterCatalog {
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
-  return masterCatalog[code] ?? null;
+  return (masterCatalog.stations && masterCatalog.stations[code]) ?? null;
 }
 
 export function isCatalogStale(): boolean {
-  if (Object.keys(masterCatalog).length === 0) return true;
+  if (!masterCatalog.stations || Object.keys(masterCatalog.stations).length === 0) return true;
   if (catalogLoadedAt === 0) return true;
   return Date.now() - catalogLoadedAt > STALE_DAYS * 24 * 60 * 60 * 1000;
 }
@@ -289,7 +306,7 @@ export async function syncMasterCatalog(): Promise<void> {
       `[TM API] Found ${allRoutes.length} total routes, ${catalogRoutes.length} app routes to index.`
     );
 
-    const newCatalog: MasterCatalog = {};
+    const newCatalog: MasterCatalog = { stations: {}, routes: {} };
     let processed = 0;
     let errors = 0;
 
@@ -316,8 +333,8 @@ export async function syncMasterCatalog(): Promise<void> {
             const wagonLabel = stop.vagon || '0';
 
             // Initialize station if needed
-            if (!newCatalog[stationCode]) {
-              newCatalog[stationCode] = {
+            if (!newCatalog.stations[stationCode]) {
+              newCatalog.stations[stationCode] = {
                 id: stop.id,
                 codigo: stationCode,
                 nombre: stop.nombre,
@@ -330,16 +347,16 @@ export async function syncMasterCatalog(): Promise<void> {
             }
 
             // Initialize wagon array if needed
-            if (!newCatalog[stationCode].wagons[wagonLabel]) {
-              newCatalog[stationCode].wagons[wagonLabel] = [];
+            if (!newCatalog.stations[stationCode].wagons[wagonLabel]) {
+              newCatalog.stations[stationCode].wagons[wagonLabel] = [];
             }
-
+            
             // Add route if not already present (prevent duplicates)
-            const exists = newCatalog[stationCode].wagons[wagonLabel].some(
+            const exists = newCatalog.stations[stationCode].wagons[wagonLabel].some(
               (r) => (r.id && r.id === route.id) || (!r.id && r.codigo === route.codigo && r.nombre === route.nombre)
             );
             if (!exists) {
-              newCatalog[stationCode].wagons[wagonLabel].push({
+              newCatalog.stations[stationCode].wagons[wagonLabel].push({
                 id: route.id,
                 codigo: route.codigo,
                 nombre: route.nombre,
@@ -351,6 +368,27 @@ export async function syncMasterCatalog(): Promise<void> {
               stopsAdded++;
             }
           }
+
+          // 2.2 Add to global route collection
+          if (!newCatalog.routes[route.codigo]) {
+            newCatalog.routes[route.codigo] = [];
+          }
+          
+          newCatalog.routes[route.codigo].push({
+            id: route.id,
+            codigo: route.codigo,
+            nombre: route.nombre,
+            color: routeColor,
+            sistema: sistema || route.sistema,
+            tipoServicio: tipoServicio || route.tipoServicio,
+            horarios,
+            stops: recorrido.map(s => ({
+              nombre: s.nombre,
+              codigo: s.codigo,
+              coordenada: s.coordenada,
+              posicion: s.posicion
+            }))
+          });
 
           console.log(
             `[TM API] [${progress}] ${route.codigo} (${route.nombre}) — ${recorrido.length} stops, ${stopsAdded} new mappings`
@@ -372,8 +410,8 @@ export async function syncMasterCatalog(): Promise<void> {
     await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
     await fs.writeFile(CATALOG_FILE, JSON.stringify(masterCatalog, null, 2), 'utf-8');
 
-    const stationCount = Object.keys(masterCatalog).length;
-    const totalRoutes = Object.values(masterCatalog).reduce((sum, s) => {
+    const stationCount = Object.keys(masterCatalog.stations).length;
+    const totalRoutes = Object.values(masterCatalog.stations).reduce((sum, s) => {
       return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
     }, 0);
 

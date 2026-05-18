@@ -61,7 +61,7 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
   try {
     const catalog = tmApi.getCatalog();
-    const count = Object.keys(catalog).length;
+    const count = Object.keys(catalog.stations || {}).length;
     if (count === 0) {
       res.json({ success: true, data: {}, count: 0, stale: true });
     } else {
@@ -132,7 +132,7 @@ router.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     cacheEntries: cache.size,
-    catalogStations: Object.keys(tmApi.getCatalog()).length,
+    catalogStations: Object.keys(tmApi.getCatalog().stations || {}).length,
     catalogStale: tmApi.isCatalogStale(),
     syncInProgress: tmApi.isSyncInProgress(),
     uptime: process.uptime(),

@@ -129,4 +129,6 @@ export interface RouteListItem {
   operator?: string;
   length?: number;
   color?: string;
+  geometry?: { paths: number[][][] };
+  stops?: Array<{ nombre: string; codigo: string; coordinate: [number, number] }>;
 }

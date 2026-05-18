@@ -50,69 +50,49 @@ function normalizeRouteText(value: string | null | undefined): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function routeListKey(route: RouteListItem): string {
-  return [
-    route.type,
-    normalizeRouteText(route.code),
-    normalizeRouteText(route.origin),
-    normalizeRouteText(route.destination),
-    normalizeRouteText(route.name),
-  ].join('|');
-}
-
-function catalogRouteKey(route: CatalogRoute): string {
-  return [
-    route.id ?? '',
-    normalizeRouteText(route.codigo),
-    normalizeRouteText(route.nombre),
-    route.sistema ?? '',
-    route.tipoServicio ?? '',
-    route.color ?? '',
-  ].join('|');
-}
-
-function catalogRouteType(route: CatalogRoute, stations: CatalogStation[]): 'troncal' | 'zonal' {
-  const service = `${route.sistema ?? ''} ${route.tipoServicio ?? ''}`.toUpperCase();
-  if (service.includes('TRANSMIZONAL')) return 'zonal';
-  if (service.includes('TRONCAL') || service.includes('TRANSMILENIO')) return 'troncal';
-  return stations.some((station) => /^TM\d+$/i.test(station.codigo)) ? 'troncal' : 'zonal';
-}
 
 function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
-  const grouped = new Map<string, { route: CatalogRoute; stations: CatalogStation[] }>();
+  const items: RouteListItem[] = [];
+  if (!catalog.routes) return items;
 
-  for (const station of Object.values(catalog)) {
-    for (const routes of Object.values(station.wagons)) {
-      for (const route of routes) {
-        const key = catalogRouteKey(route);
-        const entry = grouped.get(key);
-        if (entry) {
-          entry.stations.push(station);
-        } else {
-          grouped.set(key, { route, stations: [station] });
-        }
-      }
+  for (const [code, variants] of Object.entries(catalog.routes)) {
+    for (const route of variants) {
+      const service = `${route.sistema} ${route.tipoServicio}`.toUpperCase();
+      const type = service.includes('ZONAL') || service.includes('TRANSMIZONAL') ? 'zonal' : 'troncal';
+
+      const stops = route.stops || [];
+      const origin = stops[0]?.nombre || code;
+      const destination = stops[stops.length - 1]?.nombre || route.nombre;
+
+      // Convert "lat,lng" string to [lng, lat] numbers for GeoJSON
+      const geometryCoords = stops
+        .map((s) => {
+          const [lat, lng] = s.coordenada.split(',').map(Number);
+          return [lng, lat];
+        })
+        .filter((c) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
+
+      items.push({
+        id: `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`,
+        code,
+        name: route.nombre,
+        origin,
+        destination,
+        type,
+        source: 'catalog',
+        busType: route.tipoServicio,
+        schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
+        color: route.color || getRouteColor(code, type),
+        geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
+        stops: stops.map((s) => {
+          const [lat, lng] = s.coordenada.split(',').map(Number);
+          return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] };
+        }),
+      });
     }
   }
 
-  return Array.from(grouped.values()).map(({ route, stations }) => {
-    const code = route.codigo.trim();
-    const destination = route.nombre.trim() || code;
-    const type = catalogRouteType(route, stations);
-
-    return {
-      id: `catalog-${route.id ?? `${normalizeRouteText(code)}-${normalizeRouteText(destination)}-${route.color ?? ''}`}`,
-      code,
-      name: destination,
-      origin: code,
-      destination,
-      type,
-      source: 'catalog',
-      busType: route.tipoServicio || 'Catalogo oficial app',
-      schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
-      color: route.color || getRouteColor(code, type),
-    };
-  });
+  return items;
 }
 
 // ─── Build Route List Items ───────────────────────────────
@@ -122,42 +102,70 @@ function buildRouteList(
   zonalRoutes: ZonalRouteFeature[],
   catalog: MasterCatalog
 ): RouteListItem[] {
-  const troncalItems: RouteListItem[] = troncalRoutes.map((r) => ({
-    id: `t-${r.attributes.objectid}`,
-    code: r.attributes.route_name_ruta_troncal,
-    name: `${r.attributes.origen_ruta_troncal} → ${r.attributes.destino_ruta_troncal}`,
-    origin: r.attributes.origen_ruta_troncal,
-    destination: r.attributes.destino_ruta_troncal,
-    type: 'troncal',
-    source: 'arcgis',
-    busType: r.attributes.desc_tipo_bus_ruta_troncal,
-    schedule: r.attributes.horario_lunes_viernes,
-    length: r.attributes.longitud_ruta_troncal
-      ? r.attributes.longitud_ruta_troncal
-      : undefined,
-    color: getRouteColor(r.attributes.route_name_ruta_troncal, 'troncal'),
-  }));
-
-  const zonalItems: RouteListItem[] = zonalRoutes.map((r) => ({
-    id: `z-${r.attributes.objectid}`,
-    code: r.attributes.codigo_definitivo_ruta_zonal,
-    name: r.attributes.denominacion_ruta_zonal,
-    origin: r.attributes.origen_ruta_zonal,
-    destination: r.attributes.destino_ruta_zonal,
-    type: 'zonal',
-    source: 'arcgis',
-    operator: r.attributes.operador_ruta_zonal,
-    length: r.attributes.longitud_ruta_zonal,
-    color: getRouteColor(r.attributes.codigo_definitivo_ruta_zonal, 'zonal', r.attributes.tipo_ruta_zonal),
-  }));
-
-  const uniqueRoutes = new Map<string, RouteListItem>();
-  [...troncalItems, ...zonalItems, ...buildCatalogRouteList(catalog)].forEach((route) => {
-    const key = routeListKey(route);
-    if (!uniqueRoutes.has(key)) uniqueRoutes.set(key, route);
+  const troncalItems: RouteListItem[] = troncalRoutes.map((r) => {
+    const code = r.attributes.route_name_ruta_troncal;
+    return {
+      id: `t-${r.attributes.objectid}`,
+      code,
+      name: `${r.attributes.origen_ruta_troncal} → ${r.attributes.destino_ruta_troncal}`,
+      origin: r.attributes.origen_ruta_troncal,
+      destination: r.attributes.destino_ruta_troncal,
+      type: 'troncal',
+      source: 'arcgis',
+      busType: r.attributes.desc_tipo_bus_ruta_troncal,
+      schedule: r.attributes.horario_lunes_viernes,
+      length: r.attributes.longitud_ruta_troncal || undefined,
+      color: getRouteColor(code, 'troncal'),
+      geometry: r.geometry,
+    };
   });
 
-  return Array.from(uniqueRoutes.values());
+  const zonalItems: RouteListItem[] = zonalRoutes.map((r) => {
+    const code = r.attributes.codigo_definitivo_ruta_zonal;
+    return {
+      id: `z-${r.attributes.objectid}`,
+      code,
+      name: r.attributes.denominacion_ruta_zonal,
+      origin: r.attributes.origen_ruta_zonal,
+      destination: r.attributes.destino_ruta_zonal,
+      type: 'zonal',
+      source: 'arcgis',
+      operator: r.attributes.operador_ruta_zonal,
+      length: r.attributes.longitud_ruta_zonal,
+      color: getRouteColor(code, 'zonal', r.attributes.tipo_ruta_zonal),
+      geometry: r.geometry,
+    };
+  });
+
+  const catalogItems = buildCatalogRouteList(catalog);
+  const mergedRoutes = new Map<string, RouteListItem>();
+
+  // 1. Base on ArcGIS data (better geometry)
+  [...troncalItems, ...zonalItems].forEach((route) => {
+    const key = `${route.type}|${normalizeRouteText(route.code)}`;
+    mergedRoutes.set(key, route);
+  });
+
+  // 2. Merge Catalog data (better metadata, fallback geometry)
+  catalogItems.forEach((catRoute) => {
+    const key = `${catRoute.type}|${normalizeRouteText(catRoute.code)}`;
+    const existing = mergedRoutes.get(key);
+
+    if (existing) {
+      // Merge metadata
+      if (catRoute.busType && catRoute.busType !== 'Catalogo oficial app') {
+        existing.busType = catRoute.busType;
+      }
+      if (catRoute.schedule) existing.schedule = catRoute.schedule;
+      if (catRoute.color) existing.color = catRoute.color;
+      if (catRoute.stops) existing.stops = catRoute.stops;
+    } else {
+      // Add new route from catalog
+      mergedRoutes.set(key, catRoute);
+    }
+  });
+
+  return Array.from(mergedRoutes.values());
 }
 
 // ─── Main ─────────────────────────────────────────────────
@@ -182,7 +190,7 @@ async function main(): Promise<void> {
 
   let troncalRoutes: TroncalRouteFeature[] = [];
   let zonalRoutes: ZonalRouteFeature[] = [];
-  let catalog: MasterCatalog = {};
+  let catalog: MasterCatalog = { stations: {}, routes: {} };
   let stationCount = 0;
   let stopsCount = 0;
 
@@ -197,7 +205,7 @@ async function main(): Promise<void> {
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
-    catalog = catalogRes.data || {};
+    catalog = catalogRes.data || { stations: {}, routes: {} };
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stationsRes.features.length}`);
@@ -258,12 +266,8 @@ async function main(): Promise<void> {
 
   initSidebar({
     onRouteSelect: (route: RouteListItem) => {
-      if (route.source === 'catalog') {
-        clearHighlight(map);
-        return;
-      }
 
-      highlightRoute(map, route.code, route.type);
+      highlightRoute(map, route.code, route.type, route.geometry);
 
       // Find the route feature to get its bounds
       const source = route.type === 'troncal' ? troncalRoutes : zonalRoutes;
