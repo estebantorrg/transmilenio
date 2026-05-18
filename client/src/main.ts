@@ -234,9 +234,9 @@ async function main(): Promise<void> {
       api.getZonalStopRoutes(),
     ]);
 
-    zonalRoutes = filterZonalRoutesWithStops(zonalRoutesRes.features, zonalStopRoutesRes.features);
+    zonalRoutes = zonalRoutesRes.features;
     const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, zonalRoutes, catalog);
-    console.log(`✅ Zonal routes: ${zonalRoutes.length} of ${zonalRoutesRes.features.length} with paradero mappings`);
+    console.log(`✅ Zonal routes: ${zonalRoutes.length} indexed`);
     console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
 
