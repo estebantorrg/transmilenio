@@ -282,31 +282,6 @@ export function addTroncalRoutesLayer(
 ): void {
   const geojson = routesToGeoJSON(routes, 'troncal');
   map.addSource('troncal-routes', { type: 'geojson', data: geojson });
-
-  map.addLayer({
-    id: 'troncal-routes-glow',
-    type: 'line',
-    source: 'troncal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 10, 17, 18],
-      'line-opacity': 0.14,
-      'line-blur': 4,
-    },
-  });
-
-  map.addLayer({
-    id: 'troncal-routes-line',
-    type: 'line',
-    source: 'troncal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
-    paint: {
-      'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 3, 17, 5],
-      'line-opacity': 0.82,
-    },
-  });
 }
 
 export function addZonalRoutesLayer(
@@ -349,10 +324,8 @@ export function addZonalRoutesLayer(
 export function bringTroncalLayersToFront(map: maplibregl.Map): void {
   // Order matters: Bottom to Top
   const layers = [
-    'troncal-routes-glow',
     'troncal-corridors-casing',
     'troncal-corridors-line',
-    'troncal-routes-line',
     'highlight-route-glow',
     'highlight-route',
     'troncal-corridors-labels',
@@ -368,12 +341,15 @@ export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void
     'troncal-corridors-casing',
     'troncal-corridors-line',
     'troncal-corridors-labels',
-    'troncal-routes-glow',
-    'troncal-routes-line',
   ];
   layers.forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });
+
+  // Re-enforce hierarchy when turning back on
+  if (visible) {
+    bringTroncalLayersToFront(map);
+  }
 }
 
 export function toggleZonalRoutes(map: maplibregl.Map, visible: boolean): void {
@@ -381,6 +357,11 @@ export function toggleZonalRoutes(map: maplibregl.Map, visible: boolean): void {
   ['zonal-routes-glow', 'zonal-routes-line'].forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });
+
+  // If turning on zonales, make sure troncals still stay on top
+  if (visible) {
+    bringTroncalLayersToFront(map);
+  }
 }
 
 export function highlightRoute(
