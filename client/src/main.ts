@@ -147,58 +147,41 @@ function buildRouteList(
     const arcgisName = normalizeRouteText(r.attributes.denominacion_ruta_zonal);
     const arcgisDest = normalizeRouteText(r.attributes.destino_ruta_zonal);
 
-    let bestMatch: RouteListItem | null = null;
-    let bestScore = -1;
+    const matches: RouteListItem[] = [];
 
     for (const catRoute of catalogItems) {
       if (catRoute.type !== 'zonal') continue;
       const catCode = catRoute.code;
       
-      const match = rawCode.match(/^([A-Z]+)(\d+)$/);
-      if (!match) {
-         if (rawCode === catCode) {
-           bestScore = 1000;
-           bestMatch = catRoute;
-         }
-         continue;
+      if (rawCode === catCode) {
+        matches.push(catRoute);
+        continue;
       }
+
+      const match = rawCode.match(/^([A-Z]+)(\d+)$/);
+      if (!match) continue;
 
       const rawLetters = match[1];
       const rawNumbers = match[2];
 
       const catMatch = catCode.match(/^([A-Z])(\d+)$/);
-      if (!catMatch) {
-         if (rawCode === catCode) {
-           bestScore = 1000;
-           bestMatch = catRoute;
-         }
-         continue;
-      }
+      if (!catMatch) continue;
       
       const catLetter = catMatch[1];
       const catNumbers = catMatch[2];
 
+      // e.g. rawCode "CL149", catCode "C149" or "L149"
       if (rawNumbers === catNumbers && rawLetters.includes(catLetter)) {
-        let score = 50; 
-        const catName = normalizeRouteText(catRoute.name);
-        if (arcgisName && arcgisName === catName) score += 100;
-        else if (arcgisName && catName && (arcgisName.includes(catName) || catName.includes(arcgisName))) score += 50;
-        if (catRoute.destination && arcgisDest && catRoute.destination.includes(arcgisDest)) score += 20;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = catRoute;
-        }
-      } else if (rawCode === catCode) {
-        bestScore = 1000;
-        bestMatch = catRoute;
+        matches.push(catRoute);
       }
     }
 
-    if (bestMatch) {
-      if (r.geometry) bestMatch.geometry = r.geometry;
-      if (!bestMatch.operator && r.attributes.operador_ruta_zonal) bestMatch.operator = r.attributes.operador_ruta_zonal;
-      if (!bestMatch.length && r.attributes.longitud_ruta_zonal) bestMatch.length = r.attributes.longitud_ruta_zonal;
+    if (matches.length > 0) {
+      matches.forEach(bestMatch => {
+        if (r.geometry) bestMatch.geometry = r.geometry;
+        if (!bestMatch.operator && r.attributes.operador_ruta_zonal) bestMatch.operator = r.attributes.operador_ruta_zonal;
+        if (!bestMatch.length && r.attributes.longitud_ruta_zonal) bestMatch.length = r.attributes.longitud_ruta_zonal;
+      });
     } else {
       const fallbackCode = rawCode;
       mergedRoutes.set(fallbackCode, {
