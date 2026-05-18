@@ -20,6 +20,7 @@ import {
   highlightRoute,
   clearHighlight,
   normalizeRouteCodeForMatch,
+  bringTroncalLayersToFront,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
 import type { RouteListItem, TroncalRouteFeature, ZonalRouteFeature } from './types/transmilenio';
@@ -246,6 +247,7 @@ async function main(): Promise<void> {
     addStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
     stopsCount = zonalStopsRes.features.length;
 
+    bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
     bringStopsLayerToFront(map);
   } catch (error) {

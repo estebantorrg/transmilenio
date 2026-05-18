@@ -265,6 +265,10 @@ export function addZonalRoutesLayer(
   const geojson = routesToGeoJSON(routes, 'zonal');
   map.addSource('zonal-routes', { type: 'geojson', data: geojson });
 
+  // Insert zonal layers BEFORE any troncal layers if they exist
+  const firstTroncalLayer = 'troncal-corridors-casing';
+  const beforeId = map.getLayer(firstTroncalLayer) ? firstTroncalLayer : undefined;
+
   map.addLayer({
     id: 'zonal-routes-glow',
     type: 'line',
@@ -276,7 +280,7 @@ export function addZonalRoutesLayer(
       'line-opacity': 0.08,
       'line-blur': 3,
     },
-  });
+  }, beforeId);
 
   map.addLayer({
     id: 'zonal-routes-line',
@@ -288,6 +292,21 @@ export function addZonalRoutesLayer(
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],
       'line-opacity': 0.45,
     },
+  }, beforeId);
+}
+
+export function bringTroncalLayersToFront(map: maplibregl.Map): void {
+  const layers = [
+    'troncal-corridors-casing',
+    'troncal-corridors-line',
+    'troncal-corridors-labels',
+    'troncal-routes-glow',
+    'troncal-routes-line',
+    'highlight-route-glow',
+    'highlight-route',
+  ];
+  layers.forEach((id) => {
+    if (map.getLayer(id)) map.moveLayer(id);
   });
 }
 
