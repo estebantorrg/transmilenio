@@ -63,7 +63,7 @@ function sortCatalogRoutes(routes: CatalogRoute[]): CatalogRoute[] {
 
 // ─── Catalog Lookup ─────────────────────────────────────
 
-let _catalog: MasterCatalog = {};
+let _catalog: MasterCatalog = { stations: {}, routes: {} };
 let _resolvedStations: Record<string, ResolvedCatalogStation> = {};
 let _stationAudit: StationCatalogAudit[] = [];
 

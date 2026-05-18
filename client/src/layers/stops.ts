@@ -50,7 +50,8 @@ function addStopRoute(map: StopRoutesMap, cenefa: string, routeTag: StopRouteTag
 }
 
 function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void {
-  for (const station of Object.values(catalog)) {
+  const stations = Object.values(catalog.stations || {});
+  for (const station of stations) {
     if (/^TM\d+$/i.test(station.codigo)) continue;
 
     for (const routes of Object.values(station.wagons)) {
@@ -67,7 +68,7 @@ function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void 
 export function buildStopRoutesMap(
   stopRoutes: any[],
   zonalRoutes: ZonalRouteFeature[] = [],
-  catalog: MasterCatalog = {}
+  catalog: MasterCatalog = { stations: {}, routes: {} }
 ): StopRoutesMap {
   const routeTypeByCode = new Map<string, number>();
   zonalRoutes.forEach((route) => {
