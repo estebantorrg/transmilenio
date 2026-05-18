@@ -11,7 +11,15 @@ import type { TroncalStationFeature } from '../types/transmilenio';
 import { getTroncalColor, markClickHandled, normalizeRouteCode } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
-import type { MasterCatalog, CatalogStation, CatalogRoute } from '../types/catalog';
+import type { MasterCatalog, CatalogRoute } from '../types/catalog';
+import {
+  buildStationKey,
+  normalizeStationName,
+  resolveStationCatalog,
+  stationNode,
+  type ResolvedCatalogStation,
+  type StationCatalogAudit,
+} from './stationCatalogResolver';
 
 const STATION_LAYERS = [
   'stations-glow',
@@ -26,50 +34,8 @@ const UNUSED_TRONCAL_STATIONS = new Set([
   'TIBANICAPRIMAVERA',
 ]);
 
-const STATION_ALIASES: Record<string, string> = {
-  'TERCERMILENIO': 'TERCERMILENIOSENA',
-  'NQSCALLE38AS': 'NQSCALLE38ASUR',
-  'TERREROSHOSPITALCARDIOVASCULAR': 'TERREROSHCARDIOVASCULAR',
-  'CALLE45AMERICANSCHOOLWAY': 'CALLE45ASW',
-  'AV1MAYO': 'AVENIDA1DEMAYO',
-  'CALLE72': 'CALLE72UNIVERSIDADSERGIOARBOLEDA',
-  'CALLE19': 'AVENIDACALLE19',
-  'NQSCALLE30S': 'NQSCALLE30SUR',
-  'CALLE63': 'CALLE63FENALCO',
-  'HOSPITAL': 'HOSPITALAMORTEDEVIDA',
-  'SUBACALLE116': 'SUBACALLE116CENTROCOMERCIALPONTEVEDRA',
-  'SANBERNARDO': 'SANBERNARDOHOSPITALSANJUANDEDIOS',
-  'SENA': 'SENACAD',
-  'AVCHILE': 'AVENIDACHILE',
-  'GRANJAKR77': 'GRANJACARRERA77',
-  'AVBOYACA': 'AVENIDABOYACA',
-  'AV68': 'AVENIDA68',
-  'AVCALI': 'AVENIDACALIBRISASDEENGATIVA',
-  'AVJIMENEZCARACAS': 'AVENIDAJIMENEZ',
-  'AVJIMENEZCL13': 'AVENIDAJIMENEZ',
-  'PRADERA': 'PRADERAPLAZACENTRAL',
-  'PATIOBONITO': 'PATIOBONITOCENTROBAMBU',
-  'HEROES': 'HEROESGELGATTO',
-  'CALLE106MALETASEXPLORA': 'CALLE106',
-  'TEMPORALCALLE57': 'CALLE57',
-  'TEMPORALMARLY': 'MARLY',
-  'CALLE75': 'CALLE75ZONAM',
-  'TEMPORALCALLE34': 'CALLE34',
-  'TEMPORALCALLE22': 'CALLE22',
-};
-
-function normalizeName(value: string | null | undefined): string {
-  if (!value) return '';
-  const cleaned = value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toUpperCase()
-    .replace(/[^A-Z0-9]/g, '');
-  return STATION_ALIASES[cleaned] || cleaned;
-}
-
 export function isVisibleTroncalStation(station: TroncalStationFeature): boolean {
-  return !UNUSED_TRONCAL_STATIONS.has(normalizeName(station.attributes.nombre_estacion));
+  return !UNUSED_TRONCAL_STATIONS.has(normalizeStationName(station.attributes.nombre_estacion));
 }
 
 // ─── Route Tag Formatting ───────────────────────────────
@@ -98,25 +64,34 @@ function sortCatalogRoutes(routes: CatalogRoute[]): CatalogRoute[] {
 // ─── Catalog Lookup ─────────────────────────────────────
 
 let _catalog: MasterCatalog = {};
+let _resolvedStations: Record<string, ResolvedCatalogStation> = {};
+let _stationAudit: StationCatalogAudit[] = [];
 
 export function setCatalog(catalog: MasterCatalog): void {
   _catalog = catalog;
+  _resolvedStations = {};
+  _stationAudit = [];
 }
 
-function findStationInCatalog(stationCode: string, stationName: string): CatalogStation | null {
-  // Direct code lookup
-  if (_catalog[stationCode]) return _catalog[stationCode];
+export function getStationAudit(): StationCatalogAudit[] {
+  return _stationAudit;
+}
 
-  // Fallback: search by normalized name
-  const normalizedTarget = normalizeName(stationName);
-  const stations = Object.values(_catalog) as CatalogStation[];
-  for (const station of stations) {
-    if (normalizeName(station.nombre) === normalizedTarget) {
-      return station;
-    }
+function publishStationAudit(): void {
+  const total = _stationAudit.length;
+  const unmatched = _stationAudit.filter((entry) => entry.matchMethod === 'unmatched').length;
+  const verified = _stationAudit.filter((entry) => entry.matchMethod.startsWith('verified-split')).length;
+  const platformClusters = _stationAudit.filter((entry) => entry.matchMethod.startsWith('platform-cluster')).length;
+
+  if (typeof window !== 'undefined') {
+    (window as Window & { __tmStationAudit?: StationCatalogAudit[] }).__tmStationAudit = _stationAudit;
   }
 
-  return null;
+  console.info(
+    `[Stations] Catalog audit: ${total - unmatched}/${total} matched, ` +
+      `${verified} verified splits, ${platformClusters} platform clusters, ${unmatched} unmatched.`,
+    _stationAudit
+  );
 }
 
 // ─── Station Popup ──────────────────────────────────────
@@ -143,15 +118,15 @@ function showStationPopup(
   const coords = (feature.geometry as GeoJSON.Point).coordinates;
   const stationCode = p.stationCode || '';
   const stationName = p.name || '';
+  const stationKey = String(p.stationKey || stationCode);
 
-  // Lookup wagon data from catalog
-  const catalogStation = findStationInCatalog(stationCode, stationName);
+  const resolvedStation = _resolvedStations[stationKey];
 
   // Build wagon sections
   let wagonSections = '';
 
-  if (catalogStation && Object.keys(catalogStation.wagons).length > 0) {
-    const wagonEntries = Object.entries(catalogStation.wagons);
+  if (resolvedStation && Object.keys(resolvedStation.wagons).length > 0) {
+    const wagonEntries = Object.entries(resolvedStation.wagons);
 
     // Sort wagon labels naturally (A, B, C... or T5A, T5B, T9...)
     wagonEntries.sort(([a], [b]) =>
@@ -204,13 +179,20 @@ export function addStationsLayer(
   stations: TroncalStationFeature[]
 ): void {
   const visibleStations = stations.filter(isVisibleTroncalStation);
+  const resolution = resolveStationCatalog(visibleStations, _catalog);
+  _resolvedStations = resolution.stationsByKey;
+  _stationAudit = resolution.audit;
+  publishStationAudit();
+
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: visibleStations.map((s) => ({
       type: 'Feature',
       properties: {
+        stationKey: buildStationKey(s),
         name: s.attributes.nombre_estacion,
         stationCode: s.attributes.numero_estacion,
+        stationNode: stationNode(s),
         corridor: s.attributes.troncal_estacion,
         location: s.attributes.ubicacion_estacion,
         wifi: s.attributes.componente_wifi,

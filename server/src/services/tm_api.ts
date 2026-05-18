@@ -37,9 +37,13 @@ const STALE_DAYS = 7;
 // ─── Types ──────────────────────────────────────────────
 
 export interface CatalogRoute {
+  id?: string;
   codigo: string;
   nombre: string;
   color: string;
+  sistema?: string;
+  tipoServicio?: string;
+  horarios?: { data?: Array<{ convencion: string; hora_inicio: string; hora_fin: string }> };
 }
 
 export interface CatalogWagons {
@@ -52,6 +56,8 @@ export interface CatalogStation {
   nombre: string;
   direccion: string;
   coordenada: string;
+  sistema?: string;
+  tipoServicio?: string;
   wagons: CatalogWagons;
 }
 
@@ -181,14 +187,14 @@ async function getRouteInfo(
   idRuta: string,
   nombre: string,
   codigo: string
-): Promise<{ recorrido: ApiRecorridoStop[]; color: string }> {
+): Promise<{ recorrido: ApiRecorridoStop[]; color: string; horarios?: CatalogRoute['horarios']; sistema?: string; tipoServicio?: string }> {
   const data = await fetchWithRetry(
     {
       lServicio: 'Rutas',
       lTipo: 'api',
       lFuncion: 'infoRuta',
       idRuta,
-      nombre: encodeURIComponent(nombre),
+      nombre,
       codigo,
     },
     `infoRuta(${codigo})`
@@ -196,7 +202,13 @@ async function getRouteInfo(
 
   const stops: ApiRecorridoStop[] = data?.recorrido?.data ?? [];
   const color: string = data?.['0']?.color ?? '';
-  return { recorrido: stops, color };
+  return {
+    recorrido: stops,
+    color,
+    horarios: data?.['0']?.horarios,
+    sistema: data?.['0']?.sistema,
+    tipoServicio: data?.['0']?.tipoServicio,
+  };
 }
 
 // ─── In-Memory Catalog ──────────────────────────────────
@@ -273,7 +285,7 @@ export async function syncMasterCatalog(): Promise<void> {
       const progress = `${processed}/${troncalRoutes.length}`;
 
       try {
-        const { recorrido, color } = await getRouteInfo(route.id, route.nombre, route.codigo);
+        const { recorrido, color, horarios, sistema, tipoServicio } = await getRouteInfo(route.id, route.nombre, route.codigo);
         const routeColor = color || route.color || '#64748B';
 
         if (!recorrido || recorrido.length === 0) {
@@ -297,6 +309,8 @@ export async function syncMasterCatalog(): Promise<void> {
                 nombre: stop.nombre,
                 direccion: stop.direccion,
                 coordenada: stop.coordenada,
+                sistema: stop.sistema,
+                tipoServicio: stop.tipoServicio,
                 wagons: {},
               };
             }
@@ -308,13 +322,17 @@ export async function syncMasterCatalog(): Promise<void> {
 
             // Add route if not already present (prevent duplicates)
             const exists = newCatalog[stationCode].wagons[wagonLabel].some(
-              (r) => r.codigo === route.codigo
+              (r) => (r.id && r.id === route.id) || (!r.id && r.codigo === route.codigo && r.nombre === route.nombre)
             );
             if (!exists) {
               newCatalog[stationCode].wagons[wagonLabel].push({
+                id: route.id,
                 codigo: route.codigo,
                 nombre: route.nombre,
                 color: routeColor,
+                sistema: sistema || route.sistema,
+                tipoServicio: tipoServicio || route.tipoServicio,
+                horarios,
               });
               stopsAdded++;
             }

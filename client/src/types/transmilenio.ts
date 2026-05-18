@@ -29,6 +29,7 @@ export interface TroncalRouteFeature {
 export interface TroncalStation {
   objectid: number;
   numero_estacion: string;
+  codigo_nodo_estacion?: string | number;
   nombre_estacion: string;
   ubicacion_estacion: string;
   troncal_estacion: string;
