@@ -240,7 +240,7 @@ async function main(): Promise<void> {
     ]);
 
     zonalRoutes = zonalRoutesRes.features;
-    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, zonalRoutes, catalog);
+    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, catalog);
     console.log(`✅ Zonal routes: ${zonalRoutes.length} indexed`);
     console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);

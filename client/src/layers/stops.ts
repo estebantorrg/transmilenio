@@ -67,27 +67,18 @@ function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void 
 
 export function buildStopRoutesMap(
   stopRoutes: any[],
-  zonalRoutes: ZonalRouteFeature[] = [],
   catalog: MasterCatalog = { stations: {}, routes: {} }
 ): StopRoutesMap {
-  const routeTypeByCode = new Map<string, number>();
-  zonalRoutes.forEach((route) => {
-    routeTypeByCode.set(
-      normalizeRouteCodeForMatch(route.attributes.codigo_definitivo_ruta_zonal),
-      route.attributes.tipo_ruta_zonal
-    );
-  });
-
   const map = new Map<string, StopRouteTag[]>();
 
   for (const sr of stopRoutes) {
     const cenefa: string = sr.attributes?.cenefa;
     const route: string = sr.attributes?.ruta;
     if (!cenefa || !route) continue;
-    const code = normalizeRouteCodeForMatch(route);
+    
     const routeTag = {
       code: route,
-      color: getRouteColor(route, 'zonal', routeTypeByCode.get(code)),
+      color: getRouteColor(route, 'zonal'),
     };
 
     addStopRoute(map, cenefa, routeTag);
