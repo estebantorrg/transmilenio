@@ -42,6 +42,7 @@ app.get('/api', (_req, res) => {
       'GET /api/troncal/stations',
       'GET /api/troncal/wagons',
       'GET /api/troncal/corridors',
+      'GET /api/troncal/layouts',
       'GET /api/zonal/routes',
       'GET /api/zonal/stops',
       'GET /api/zonal/stop-routes',

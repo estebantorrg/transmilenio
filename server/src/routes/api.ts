@@ -55,6 +55,13 @@ router.get('/troncal/wagons', async (_req: Request, res: Response) => {
   }
 });
 
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 router.get('/troncal/corridors', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('troncal-corridors', queries.troncalCorridors);
@@ -62,6 +69,18 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
   } catch (error) {
     console.error('Error fetching troncal corridors:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch troncal corridors' });
+  }
+});
+
+router.get('/troncal/layouts', async (_req: Request, res: Response) => {
+  try {
+    const filePath = path.resolve(__dirname, '../../src/data/wagon_mappings.json');
+    const fileContent = await fs.readFile(filePath, 'utf-8');
+    const data = JSON.parse(fileContent);
+    res.json({ success: true, data });
+  } catch (error) {
+    console.error('Error fetching layouts (might not be fully generated yet):', error);
+    res.json({ success: true, data: {} });
   }
 });
 
