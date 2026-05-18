@@ -23,8 +23,17 @@ app.use(express.json());
 // Mount API routes
 app.use('/api', apiRoutes);
 
-// Root
-app.get('/', (_req, res) => {
+// Serve the statically built frontend
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDist = path.resolve(__dirname, '../../client/dist');
+app.use(express.static(clientDist));
+
+// Root API test path
+app.get('/api', (_req, res) => {
   res.json({
     name: 'Transmilenio API Proxy',
     version: '1.0.0',
@@ -39,6 +48,11 @@ app.get('/', (_req, res) => {
       'GET /api/health',
     ],
   });
+});
+
+// For any other route, serve the React app (Client-side routing fallback)
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(clientDist, 'index.html'));
 });
 
 app.listen(PORT, () => {

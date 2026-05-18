@@ -29,7 +29,26 @@ const UNUSED_TRONCAL_STATIONS = new Set([
 const ROUTE_TO_WAGON_DISTANCE_METERS = 34;
 const ROUTE_TO_STATION_DISTANCE_METERS = 75;
 const ROUTE_DIRECTION_TOLERANCE_DEGREES = 80;
-const WAGON_LABEL_OFFSET_METERS = 8;
+const WAGON_LABEL_OFFSET_METERS = 30;
+
+function buildSyntheticPolygon(anchorCenter: Coordinate, synthCfg: any): Coordinate[][] {
+  const { length, width, distanceOffset, bearingOffset, baseBearing } = synthCfg;
+  const bearing = baseBearing !== undefined ? baseBearing : 12;
+  
+  const ptCenter = turf.destination(turf.point(anchorCenter), distanceOffset, bearing + bearingOffset, { units: 'meters' });
+  
+  const ptF = turf.destination(ptCenter, length / 2, bearing, { units: 'meters' });
+  const ptB = turf.destination(ptCenter, length / 2, bearing - 180, { units: 'meters' });
+  
+  const p1 = turf.destination(ptF, width / 2, bearing - 90, { units: 'meters' }).geometry.coordinates;
+  const p2 = turf.destination(ptF, width / 2, bearing + 90, { units: 'meters' }).geometry.coordinates;
+  const p3 = turf.destination(ptB, width / 2, bearing + 90, { units: 'meters' }).geometry.coordinates;
+  const p4 = turf.destination(ptB, width / 2, bearing - 90, { units: 'meters' }).geometry.coordinates;
+  
+  return [[p1, p2, p3, p4, p1]] as Coordinate[][];
+}
+
+type PolygonFeature = GeoJSON.Feature<GeoJSON.Polygon>;
 
 type Coordinate = [number, number];
 
@@ -130,6 +149,12 @@ function bearingAxisDifference(a: number, b: number): number {
   return Math.min(bearingDifference(a, b), bearingDifference(a, normalizeBearing(b + 180)));
 }
 
+function isNearFast(a: Coordinate, b: Coordinate, maxDistSq: number): boolean {
+  const dx = a[0] - b[0];
+  const dy = a[1] - b[1];
+  return dx * dx + dy * dy <= maxDistSq;
+}
+
 function readableMapBearing(bearing: number): number {
   const normalized = normalizeBearing(bearing);
   return normalized > 90 && normalized < 270 ? normalizeBearing(normalized + 180) : normalized;
@@ -207,11 +232,28 @@ function isActiveWagon(wagon: TroncalWagonFeature): boolean {
   const name = normalizeName(attrs.nombre);
   const type = normalizeName(attrs.tipo);
   const section = normalizeName(attrs.secciontipo);
-  const id = Number(attrs.id_vagon ?? 0);
+  const station = normalizeName(attrs.estacion);
 
-  if (id <= 0) return false;
-  if (!name.startsWith('VAGON') && !type.startsWith('VAGON') && section !== 'VAGON') return false;
-  return !/(CONEX|CONEXION|CONEXA|TRANSIC|PLATAFORMA|ENTRADA)/.test(`${name} ${type}`);
+  // Handle Terminal station specifically as its database tags are inconsistent
+  if (station === 'TERMINAL') {
+    // Exclude the pedestrian bridge (tagged as Conexion)
+    if (section.includes('CONEX') || type.includes('CONEX')) return false;
+    return name.includes('VAGON') || name.includes('TRANSICION') || section === 'VAGON';
+  }
+
+
+  // General logic for other stations
+  const isVagon = name.includes('VAGON') || type.includes('VAGON') || section === 'VAGON';
+  if (!isVagon) return false;
+
+  // We exclude clear non-passenger areas, but we are lenient if it's explicitly labeled as a vagon in some way
+  const isExclusion = /(CONEX|CONEXION|CONEXA|PLATAFORMA|ENTRADA)/.test(`${name} ${type}`);
+  if (isExclusion && !name.includes('VAGON')) return false;
+
+  // General exclusion for transitions unless they are explicitly tagged as wagons
+  if (name.includes('TRANSIC') && !name.includes('VAGON') && !type.includes('VAGON')) return false;
+
+  return true;
 }
 
 function getStationKey(wagon: TroncalWagonFeature): string {
@@ -449,14 +491,129 @@ function redistributeEmptyWagonRoutes(stationWagons: WagonCandidate[], routes: T
   });
 }
 
-function assignRoutesToWagons(wagons: WagonCandidate[], routes: TroncalRouteFeature[]): void {
+function assignRoutesToWagons(
+  wagons: WagonCandidate[],
+  routes: TroncalRouteFeature[],
+  layouts: Record<string, any> = {}
+): void {
   const wagonsByStation = new Map<string, WagonCandidate[]>();
   wagons.forEach((wagon) => {
     const key = wagon.feature.properties.stationKey;
     wagonsByStation.set(key, [...(wagonsByStation.get(key) ?? []), wagon]);
   });
 
-  wagonsByStation.forEach((stationWagons) => {
+  const layoutsByName = new Map<string, any>();
+  Object.values(layouts).forEach((l: any) => {
+    if (l.name) layoutsByName.set(normalizeName(l.name), l);
+  });
+
+  wagonsByStation.forEach((stationWagons, stationKey) => {
+    const stationName = stationWagons[0]?.feature.properties.stationName;
+    const exactLayout = layoutsByName.get(normalizeName(stationName));
+
+    if (exactLayout && exactLayout.wagons && exactLayout.wagons.length > 0) {
+      // Use exact layout mapping!
+      const layoutWagons = exactLayout.wagons;
+      // Sort stationWagons geographically or by displayName so they correspond 1:1 roughly
+      const orderedWagons = [...stationWagons].sort((a, b) =>
+        normalizeRouteCode(a.feature.properties.displayName)
+          .localeCompare(normalizeRouteCode(b.feature.properties.displayName), undefined, { numeric: true })
+      );
+
+      orderedWagons.forEach((wagon, index) => {
+        const matchingLayoutWagon = layoutWagons[index];
+        if (matchingLayoutWagon) {
+          if (matchingLayoutWagon.geometry || matchingLayoutWagon.synthetic) {
+            const geom = matchingLayoutWagon.synthetic 
+               ? buildSyntheticPolygon(orderedWagons[0].meta.centerCoord, matchingLayoutWagon.synthetic)
+               : matchingLayoutWagon.geometry;
+
+            wagon.feature.geometry = {
+              type: 'Polygon',
+              coordinates: geom
+            };
+            const poly = turf.polygon(geom);
+            const newCenter = turf.centerOfMass(poly);
+            wagon.meta.center = newCenter;
+            wagon.meta.centerCoord = newCenter.geometry.coordinates as Coordinate;
+            wagon.meta.bearing = getLongestEdgeBearing(poly);
+            wagon.meta.readableBearing = readableMapBearing(wagon.meta.bearing);
+          }
+
+          const allRoutes = [...(matchingLayoutWagon.side1 || []), ...(matchingLayoutWagon.side2 || [])];
+          allRoutes.forEach((r: string) => {
+            if (r && r.trim() !== '') {
+               wagon.routes.add(r.trim());
+            }
+          });
+        }
+        // If this is the last physical wagon but there are more layout wagons (because ArcGIS data is missing polygons),
+        // we procedurally generate and draw the missing wagons!
+        if (index === orderedWagons.length - 1 && layoutWagons.length > orderedWagons.length) {
+          const lastWagon = wagon;
+          
+          for (let i = index + 1; i < layoutWagons.length; i++) {
+            const extraLayoutWagon = layoutWagons[i];
+            const distance = (i - index) * 50; 
+            const bearing = lastWagon.meta.bearing;
+            
+            let baseFeature;
+            let newCenter;
+            if (extraLayoutWagon.geometry || extraLayoutWagon.synthetic) {
+              const geom = extraLayoutWagon.synthetic 
+                 ? buildSyntheticPolygon(orderedWagons[0].meta.centerCoord, extraLayoutWagon.synthetic)
+                 : extraLayoutWagon.geometry;
+              baseFeature = turf.polygon(geom);
+              newCenter = turf.centerOfMass(baseFeature);
+            } else {
+              baseFeature = turf.transformTranslate(
+                lastWagon.feature,
+                distance,
+                bearing,
+                { units: 'meters' }
+              );
+              newCenter = turf.transformTranslate(
+                lastWagon.meta.center,
+                distance,
+                bearing,
+                { units: 'meters' }
+              ) as GeoJSON.Feature<GeoJSON.Point>;
+            }
+
+            const newFeature = baseFeature as WagonFeature;
+
+            const syntheticId = lastWagon.feature.properties.id + i * 10000;
+            newFeature.properties = {
+              ...lastWagon.feature.properties,
+              id: syntheticId,
+              displayName: extraLayoutWagon.name || `Vagon ${i + 1}`,
+            };
+
+            const newCandidate: WagonCandidate = {
+              feature: newFeature,
+              meta: {
+                ...lastWagon.meta,
+                center: newCenter,
+                centerCoord: newCenter.geometry.coordinates as Coordinate,
+              },
+              routes: new Set<string>(),
+            };
+
+            const extraRoutes = [...(extraLayoutWagon.side1 || []), ...(extraLayoutWagon.side2 || [])];
+            extraRoutes.forEach((r: string) => {
+              if (r && r.trim() !== '') {
+                newCandidate.routes.add(r.trim());
+              }
+            });
+
+            wagons.push(newCandidate);
+          }
+        }
+      });
+      return; // Skip geographical guessing for this station
+    }
+
+    // Geographic guessing fallback
     const declaredDirections = new Set(
       stationWagons
         .map((wagon) => wagon.meta.direction?.bearing)
@@ -479,7 +636,17 @@ function assignRoutesToWagons(wagons: WagonCandidate[], routes: TroncalRouteFeat
           const start = path[i - 1] as Coordinate;
           const end = path[i] as Coordinate;
 
+          // FAST PASSDOWN: Only process segments roughly near the whole station (~300 meters)
+          if (!isNearFast(start, stationWagons[0].meta.centerCoord, 0.00001)) {
+             continue;
+          }
+
           for (const wagon of stationWagons) {
+            // FAST PASSDOWN for wagon (~111 meters)
+            if (!isNearFast(start, wagon.meta.centerCoord, 0.000001)) {
+               continue;
+            }
+
             const candidate = getRouteSegmentCandidate(wagon, start, end, useDeclaredDirection);
             if (!candidate) continue;
             if (
@@ -592,7 +759,8 @@ function showWagonPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): 
 export function addStationsLayer(
   map: maplibregl.Map,
   stations: TroncalStationFeature[],
-  routes: TroncalRouteFeature[] = []
+  routes: TroncalRouteFeature[] = [],
+  layouts: Record<string, any> = {}
 ): void {
   const visibleStations = stations.filter(isVisibleTroncalStation);
   const geojson: GeoJSON.FeatureCollection = {
@@ -687,7 +855,8 @@ export function addStationsLayer(
 export function addWagonsLayer(
   map: maplibregl.Map,
   wagons: TroncalWagonFeature[],
-  routes: TroncalRouteFeature[] = []
+  routes: TroncalRouteFeature[] = [],
+  layouts: Record<string, any> = {}
 ): void {
   const activeWagons = wagons.filter(isActiveWagon);
   const ordinals = getStationLocalOrdinals(activeWagons);
@@ -702,7 +871,7 @@ export function addWagonsLayer(
     };
   });
 
-  assignRoutesToWagons(candidates, routes);
+  assignRoutesToWagons(candidates, routes, layouts);
 
   const candidatesByStation = new Map<string, WagonCandidate[]>();
   candidates.forEach((candidate) => {
@@ -713,15 +882,31 @@ export function addWagonsLayer(
   const labelFeatures: WagonLabelFeature[] = [];
   const wagonFeatures = candidates.map((candidate) => {
     const routesForWagon = sortRoutes(candidate.routes);
-    const label = [
-      [candidate.feature.properties.displayName, candidate.feature.properties.directionLabel].filter(Boolean).join(' '),
-      shortRouteList(routesForWagon),
-    ].join('\n');
+    
+    const props: any = {
+      ...candidate.feature.properties,
+      routes: JSON.stringify(routesForWagon),
+      vagonLabel: [candidate.feature.properties.displayName, candidate.feature.properties.directionLabel].filter(Boolean).join(' '),
+    };
+
+    // Prepare color slots for the map renderer
+    for (let i = 0; i < 12; i++) {
+        const route = routesForWagon[i];
+        if (route) {
+            props[`r${i + 1}`] = route;
+            props[`c${i + 1}`] = getTroncalColor(route);
+            props[`s${i + 1}`] = ' '; // Spacer
+        } else {
+            props[`r${i + 1}`] = '';
+            props[`c${i + 1}`] = '#ffffff';
+            props[`s${i + 1}`] = '';
+        }
+    }
 
     labelFeatures.push({
       type: 'Feature',
       properties: {
-        label,
+        ...props,
         bearing: candidate.meta.readableBearing,
       },
       geometry: getLabelPoint(candidate, candidatesByStation.get(candidate.feature.properties.stationKey) ?? [candidate]),
@@ -729,10 +914,7 @@ export function addWagonsLayer(
 
     return {
       ...candidate.feature,
-      properties: {
-        ...candidate.feature.properties,
-        routes: JSON.stringify(routesForWagon),
-      },
+      properties: props,
     };
   });
 
@@ -781,7 +963,23 @@ export function addWagonsLayer(
     source: 'wagon-route-labels',
     minzoom: 15,
     layout: {
-      'text-field': ['get', 'label'],
+      'text-field': [
+        'format',
+        ['get', 'vagonLabel'], { 'font-scale': 1.1, 'text-font': ['Open Sans Bold'] },
+        '\n', {},
+        ['get', 'r1'], { 'text-color': ['get', 'c1'] }, ['get', 's1'], {},
+        ['get', 'r2'], { 'text-color': ['get', 'c2'] }, ['get', 's2'], {},
+        ['get', 'r3'], { 'text-color': ['get', 'c3'] }, ['get', 's3'], {},
+        ['get', 'r4'], { 'text-color': ['get', 'c4'] }, ['get', 's4'], {},
+        ['get', 'r5'], { 'text-color': ['get', 'c5'] }, ['get', 's5'], {},
+        ['get', 'r6'], { 'text-color': ['get', 'c6'] }, ['get', 's6'], {},
+        ['get', 'r7'], { 'text-color': ['get', 'c7'] }, ['get', 's7'], {},
+        ['get', 'r8'], { 'text-color': ['get', 'c8'] }, ['get', 's8'], {},
+        ['get', 'r9'], { 'text-color': ['get', 'c9'] }, ['get', 's9'], {},
+        ['get', 'r10'], { 'text-color': ['get', 'c10'] }, ['get', 's10'], {},
+        ['get', 'r11'], { 'text-color': ['get', 'c11'] }, ['get', 's11'], {},
+        ['get', 'r12'], { 'text-color': ['get', 'c12'] }, ['get', 's12'], {}
+      ],
       'text-font': ['Open Sans Bold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 15, 8, 17, 10],
       'text-max-width': 12,

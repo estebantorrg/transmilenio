@@ -81,12 +81,16 @@ export function getRouteZoneLetters(value: string | null | undefined): string[] 
 export function getTroncalLetter(value: string | null | undefined): string | null {
   const normalized = normalizeRouteCode(value);
   if (!normalized) return null;
-  if (/^\d+\s*-\s*\d+/.test(normalized) || normalized.includes('RUTA FACIL')) return 'RF';
 
-  // AV. 1 de Mayo belongs visually to the Carrera 10 trunk, not to the
-  // first "A" in "AV."; keep it light blue when the corridor name is used.
+  // Ruta Facil (1-8) or explicit RF strings
+  if (/^\d{1,2}$/.test(normalized) || /^\d+\s*-\s*\d+/.test(normalized) || normalized.includes('RUTA FACIL')) {
+    return 'RF';
+  }
+
+  // AV. 1 de Mayo belongs visually to the Carrera 10 trunk (L), not to the
+  // first "A" in "AV." or "G" prefix sometimes used.
   if (/(^|\b)(AV\.?\s*)?1(\s+DE)?\s+MAYO\b/.test(normalized) || /\b(CARRERA|CRA|KR)\s*10\b/.test(normalized)) {
-    return 'G';
+    return 'L';
   }
 
   const routeLetters = getRouteZoneLetters(normalized);

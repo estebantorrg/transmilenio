@@ -111,20 +111,23 @@ async function main(): Promise<void> {
 
   try {
     // Fetch troncal data
-    const [troncalRoutesRes, corridorsRes, stationsRes, wagonsRes] = await Promise.all([
+    const [troncalRoutesRes, corridorsRes, stationsRes, wagonsRes, layoutsRes] = await Promise.all([
       api.getTroncalRoutes(),
       api.getTroncalCorridors(),
       api.getTroncalStations(),
       api.getTroncalWagons(),
+      api.getTroncalLayouts(),
     ]);
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
     const wagons = wagonsRes.features;
+    const layouts = layoutsRes.data || {};
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stationsRes.features.length}`);
     console.log(`✅ Wagons: ${wagons.length}`);
+    console.log(`✅ Exact Layouts: ${Object.keys(layouts).length}`);
 
     // Add route/corridor layers first; stops and stations are moved on top after all routes load.
     setLoadingStatus('Dibujando troncales...');
@@ -134,12 +137,12 @@ async function main(): Promise<void> {
     addTroncalRoutesLayer(map, troncalRoutes);
 
     setLoadingStatus('Colocando estaciones...');
-    addStationsLayer(map, stations, troncalRoutes);
+    addStationsLayer(map, stations, troncalRoutes, layouts);
     stationCount = stations.length;
 
     // Add wagon layer (visible at zoom 15+)
     setLoadingStatus('Dibujando vagones...');
-    addWagonsLayer(map, wagons, troncalRoutes);
+    addWagonsLayer(map, wagons, troncalRoutes, layouts);
 
     // Fetch zonal routes, stops, and stop-route mappings
     setLoadingStatus('Descargando rutas y paraderos zonales...');
