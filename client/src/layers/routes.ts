@@ -243,7 +243,11 @@ export function addTroncalCorridorsLayer(
     id: 'troncal-corridors-line',
     type: 'line',
     source: 'troncal-corridors',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'line-sort-key': ['index-of', ['get', 'letter'], 'ABCDEFGHIJKLMPT'],
+    },
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 5, 17, 8],
@@ -343,14 +347,15 @@ export function addZonalRoutesLayer(
 }
 
 export function bringTroncalLayersToFront(map: maplibregl.Map): void {
+  // Order matters: Bottom to Top
   const layers = [
+    'troncal-routes-glow',
     'troncal-corridors-casing',
     'troncal-corridors-line',
-    'troncal-corridors-labels',
-    'troncal-routes-glow',
     'troncal-routes-line',
     'highlight-route-glow',
     'highlight-route',
+    'troncal-corridors-labels',
   ];
   layers.forEach((id) => {
     if (map.getLayer(id)) map.moveLayer(id);
