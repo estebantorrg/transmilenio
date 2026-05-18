@@ -321,6 +321,14 @@ async function main(): Promise<void> {
           toggleStopsLayer(map, visible);
           break;
       }
+
+      // ─── Force Global Hierarchy ───────────────────────────────────
+      // Every time a filter changes, we must re-move layers to the front
+      // in order to avoid MapLibre's default rendering order messing up
+      // the Troncal > Zonal hierarchy.
+      bringTroncalLayersToFront(map);
+      bringStationsLayerToFront(map);
+      bringStopsLayerToFront(map);
     },
   });
 
