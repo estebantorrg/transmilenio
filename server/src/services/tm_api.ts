@@ -248,7 +248,16 @@ let catalogLoadedAt: number = 0;
 export async function loadCatalogFromDisk(): Promise<void> {
   try {
     const raw = await fs.readFile(CATALOG_FILE, 'utf-8');
-    masterCatalog = JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    
+    // Support both the legacy flat format and the current wrapped format
+    if (parsed.stations && typeof parsed.stations === 'object') {
+      masterCatalog = parsed;
+    } else {
+      console.log('[TM API] Legacy flat catalog detected. Migrating to wrapped format...');
+      masterCatalog = { stations: parsed, routes: {} };
+    }
+
     catalogLoadedAt = Date.now();
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
     const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
@@ -257,8 +266,8 @@ export async function loadCatalogFromDisk(): Promise<void> {
     console.log(
       `[TM API] Loaded master catalog: ${stationCount} stations, ${totalRoutes} route-wagon mappings, ${Object.keys(masterCatalog.routes || {}).length} routes`
     );
-  } catch {
-    console.log('[TM API] No master catalog on disk. Run sync to generate.');
+  } catch (err: any) {
+    console.log(`[TM API] No master catalog on disk (${err.message}). Run sync to generate.`);
   }
 }
 
