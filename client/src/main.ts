@@ -126,7 +126,7 @@ function buildRouteList(
   const zonalItems: RouteListItem[] = zonalRoutes.map((r) => {
     const rawCode = r.attributes.codigo_definitivo_ruta_zonal;
     const destZone = r.attributes.zona_destino_ruta_zonal;
-    const code = getZonalDisplayCode(rawCode, destZone);
+    const code = getZonalDisplayCode(rawCode, destZone, r.attributes.destino_ruta_zonal, r.attributes.origen_ruta_zonal);
     
     return {
       id: `z-${r.attributes.objectid}`,
@@ -138,7 +138,7 @@ function buildRouteList(
       source: 'arcgis',
       operator: r.attributes.operador_ruta_zonal,
       length: r.attributes.longitud_ruta_zonal,
-      color: getZonalRouteColor(rawCode, destZone),
+      color: getZonalRouteColor(code),
       geometry: r.geometry,
     };
   });
@@ -282,7 +282,7 @@ async function main(): Promise<void> {
         const attrs = f.attributes as any;
         const code = route.type === 'troncal'
           ? attrs.route_name_ruta_troncal
-          : attrs.codigo_definitivo_ruta_zonal;
+          : getZonalDisplayCode(attrs.codigo_definitivo_ruta_zonal, attrs.zona_destino_ruta_zonal, attrs.destino_ruta_zonal, attrs.origen_ruta_zonal);
         const origin = route.type === 'troncal'
           ? attrs.origen_ruta_troncal
           : attrs.origen_ruta_zonal;

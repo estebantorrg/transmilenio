@@ -25,6 +25,7 @@ export const TRONCAL_COLORS: Record<string, string> = {
 };
 
 const ZONAL_ZONE_TO_LETTER: Record<number, string> = {
+  0: 'A', // Centro/Chapinero
   1: 'B', // Usaquen
   2: 'C', // Suba Oriental
   3: 'C', // Suba Centro
@@ -38,6 +39,12 @@ const ZONAL_ZONE_TO_LETTER: Record<number, string> = {
   11: 'H', // Usme
   12: 'L', // San Cristobal
   13: 'L', // Rafael Uribe
+  14: 'A', // Chapinero
+  15: 'A', // Teusaquillo
+  16: 'A', // Barrios Unidos
+  17: 'A', // Los Martires
+  18: 'A', // Puente Aranda
+  19: 'A', // Antonio Narino
 };
 
 
@@ -115,16 +122,10 @@ export function getTroncalColor(value: string | null | undefined): string {
   return letter ? TRONCAL_COLORS[letter] ?? DEFAULT_TRONCAL_COLOR : DEFAULT_TRONCAL_COLOR;
 }
 
-export function getZonalRouteColor(code?: string | null, destinationZone?: number): string {
+export function getZonalRouteColor(code?: string | null): string {
   const normalized = normalizeRouteCode(code);
   
-  // 1. Try destination zone ID first (most accurate for SITP)
-  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
-    const letter = ZONAL_ZONE_TO_LETTER[destinationZone];
-    if (TRONCAL_COLORS[letter]) return TRONCAL_COLORS[letter];
-  }
-
-  // 2. Try to get the zone color from the code (e.g. F408 -> Red)
+  // Try to get the zone color from the code (e.g. F408 -> Red)
   const zoneLetter = getTroncalLetter(normalized);
   if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
     return TRONCAL_COLORS[zoneLetter];
@@ -133,24 +134,67 @@ export function getZonalRouteColor(code?: string | null, destinationZone?: numbe
   return DEFAULT_ZONAL_COLOR;
 }
 
-export function getZonalDisplayCode(code: string, destinationZone?: number): string {
+export function getZonalDisplayCode(
+  code: string,
+  destinationZone?: number,
+  destinationName?: string,
+  originName?: string
+): string {
   const normalized = normalizeRouteCode(code);
   if (normalized.length <= 4) return normalized; // Already short like F408
 
-  // If it's a combined code like FH408, try to filter for the destination zone
+  const match = normalized.match(/^([A-Z]{2,})(\d+)$/);
+  if (!match) return normalized;
+
+  const letters = match[1];
+  const numberPart = match[2];
+
+  // 1. Try destination zone ID mapping, BUT strictly enforce it belongs to the prefix!
   if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
     const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
-    const match = normalized.match(/(\d+)$/);
-    if (match) {
-      return `${targetLetter}${match[1]}`;
+    if (letters.includes(targetLetter)) {
+      return `${targetLetter}${numberPart}`;
+    }
+  }
+
+  // 2. Keyword fallback for tricky combined routes where ArcGis destZone is corrupted
+  const dest = (destinationName || '').toUpperCase();
+  const orig = (originName || '').toUpperCase();
+  if (dest || orig) {
+    const ZONE_KEYWORDS: Record<string, string[]> = {
+      A: ['CHAPINERO', 'CENTRO', 'TEUSAQUILLO', 'MARTIRES', 'PUENTE ARANDA', 'BARRIOS UNIDOS', 'ANTONIO NARINO', 'BOGOTA', 'GERMANIA', 'LAS NIEVES', 'SAN DIEGO'],
+      B: ['USAQUEN', 'CODITO', 'SAN CRISTOBAL NORTE', 'TOBERIN', 'VERBENAL', 'LIJA', 'CERRO NORTE', 'SANTA BÁRBARA'],
+      C: ['SUBA', 'BILBAO', 'TIBABUYES', 'RINCON', 'LOMBARDIA', 'LISBOA', 'GAITANA', 'CORTIJO'],
+      D: ['ENGATIVA', 'CALLE 80', 'BACHUE', 'VILLA CINDY', 'GARCES NAVAS', 'ALAMOS'],
+      K: ['FONTIBON', 'HAYUELOS', 'MODELIA', 'AEROPUERTO', 'RECODO', 'ZONA FRANCA'],
+      F: ['KENNEDY', 'AMERICAS', 'BANDERAS', 'PATIO BONITO', 'TINTAL', 'CORABASTOS'],
+      G: ['BOSA', 'SUR', 'PERDOMO', 'TERREROS', 'SAN MATEO', 'SOACHA', 'PORVENIR'],
+      H: ['USME', 'CIUDAD BOLIVAR', 'TUNAL', 'LUCERO', 'MEISSEN', 'JUAN JOSE RONDON', 'CANDELARIA', 'SAN FRANCISCO'],
+      L: ['SAN CRISTOBAL', '20 DE JULIO', 'GAVIOTAS', 'VICTORIA', 'LIBERTADORES', 'GUACAMAYAS', 'BELLAVISTA', 'ALPES'],
+    };
+
+    // Forward check: Destination text
+    for (const letter of letters) {
+      if (ZONE_KEYWORDS[letter]?.some((kw) => dest.includes(kw))) {
+        return `${letter}${numberPart}`;
+      }
+    }
+    // Reverse check: Origin text implies destination is the OTHER letter
+    for (const letter of letters) {
+      if (ZONE_KEYWORDS[letter]?.some((kw) => orig.includes(kw))) {
+        const remaining = letters.replace(letter, '');
+        if (remaining.length === 1) {
+          return `${remaining}${numberPart}`;
+        }
+      }
     }
   }
 
   return normalized;
 }
 
-export function getRouteColor(code: string, type: 'troncal' | 'zonal', zonalRouteType?: number): string {
-  return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code, zonalRouteType);
+export function getRouteColor(code: string, type: 'troncal' | 'zonal'): string {
+  return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code);
 }
 
 function routesToGeoJSON(
@@ -165,8 +209,8 @@ function routesToGeoJSON(
       const code = isTroncal
         ? attrs.route_name_ruta_troncal
         : attrs.codigo_definitivo_ruta_zonal;
-      const displayCode = isTroncal ? code : getZonalDisplayCode(code, attrs.zona_destino_ruta_zonal);
-      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(code, attrs.zona_destino_ruta_zonal);
+      const displayCode = isTroncal ? code : getZonalDisplayCode(code, attrs.zona_destino_ruta_zonal, attrs.destino_ruta_zonal, attrs.origen_ruta_zonal);
+      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(displayCode);
 
       return {
         type: 'Feature' as const,
@@ -301,7 +345,7 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': DEFAULT_ZONAL_COLOR,
+      'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
       'line-opacity': 0.12,
       'line-blur': 3,
@@ -314,7 +358,7 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': DEFAULT_ZONAL_COLOR,
+      'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],
       'line-opacity': 0.55,
     },
