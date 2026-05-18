@@ -42,12 +42,20 @@ export function initSidebar(options: {
     filterRoutes('');
   });
 
-  document.querySelectorAll('.toggle-item input[type="checkbox"]').forEach((cb) => {
-    cb.addEventListener('change', (e) => {
-      const checkbox = e.target as HTMLInputElement;
-      const layer = checkbox.dataset.layer!;
-      onLayerToggle?.(layer, checkbox.checked);
+  document.querySelectorAll('.toggle-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      // If the target is the checkbox itself, the 'change' event will handle it.
+      // If the target is a span or text, we let label behavior toggle the checkbox.
+      // We listen to 'change' on the checkbox for the actual logic.
     });
+
+    const cb = item.querySelector('input[type="checkbox"]') as HTMLInputElement;
+    if (cb) {
+      cb.addEventListener('change', () => {
+        const layer = cb.dataset.layer!;
+        onLayerToggle?.(layer, cb.checked);
+      });
+    }
   });
 
   const detailClose = document.getElementById('route-detail-close')!;

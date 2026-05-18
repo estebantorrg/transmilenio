@@ -305,6 +305,8 @@ export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void
     'troncal-corridors-casing',
     'troncal-corridors-line',
     'troncal-corridors-labels',
+    'troncal-routes-glow',
+    'troncal-routes-line',
   ].forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });
@@ -347,7 +349,7 @@ export function highlightRoute(
     id: 'highlight-route-glow',
     type: 'line',
     source: sourceId,
-    filter,
+    ...(filter ? { filter } : {}),
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
@@ -361,7 +363,7 @@ export function highlightRoute(
     id: 'highlight-route',
     type: 'line',
     source: sourceId,
-    filter,
+    ...(filter ? { filter } : {}),
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR],
