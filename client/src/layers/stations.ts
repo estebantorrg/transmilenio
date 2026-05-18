@@ -82,6 +82,8 @@ type WagonCandidate = {
   feature: WagonFeature;
   meta: WagonMeta;
   routes: Set<string>;
+  routesSide1?: Set<string>;
+  routesSide2?: Set<string>;
 };
 
 type RouteObservation = {
@@ -540,6 +542,16 @@ function assignRoutesToWagons(
             wagon.meta.readableBearing = readableMapBearing(wagon.meta.bearing);
           }
 
+          wagon.routesSide1 = new Set();
+          wagon.routesSide2 = new Set();
+          
+          if (matchingLayoutWagon.side1) {
+            matchingLayoutWagon.side1.forEach((r: string) => r && r.trim() !== '' && wagon.routesSide1!.add(r.trim()));
+          }
+          if (matchingLayoutWagon.side2) {
+            matchingLayoutWagon.side2.forEach((r: string) => r && r.trim() !== '' && wagon.routesSide2!.add(r.trim()));
+          }
+
           const allRoutes = [...(matchingLayoutWagon.side1 || []), ...(matchingLayoutWagon.side2 || [])];
           allRoutes.forEach((r: string) => {
             if (r && r.trim() !== '') {
@@ -597,7 +609,16 @@ function assignRoutesToWagons(
                 centerCoord: newCenter.geometry.coordinates as Coordinate,
               },
               routes: new Set<string>(),
+              routesSide1: new Set<string>(),
+              routesSide2: new Set<string>(),
             };
+
+            if (extraLayoutWagon.side1) {
+              extraLayoutWagon.side1.forEach((r: string) => r && r.trim() !== '' && newCandidate.routesSide1!.add(r.trim()));
+            }
+            if (extraLayoutWagon.side2) {
+              extraLayoutWagon.side2.forEach((r: string) => r && r.trim() !== '' && newCandidate.routesSide2!.add(r.trim()));
+            }
 
             const extraRoutes = [...(extraLayoutWagon.side1 || []), ...(extraLayoutWagon.side2 || [])];
             extraRoutes.forEach((r: string) => {
@@ -742,7 +763,25 @@ function showWagonPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): 
 
   const p = feature.properties;
   const routes = JSON.parse(p.routes || '[]') as string[];
-  const routeTags = routes.length ? formatRouteTags(routes) : '<span class="popup-empty">Sin rutas asociadas</span>';
+  const routesSide1 = JSON.parse(p.routesSide1 || '[]') as string[];
+  const routesSide2 = JSON.parse(p.routesSide2 || '[]') as string[];
+
+  let routeTags = '';
+  
+  if (routesSide1.length > 0 || routesSide2.length > 0) {
+    if (routesSide1.length > 0) {
+      routeTags += `<div class="popup-eyebrow" style="margin-top: 8px;">Puerta Occidente / Sur</div>`;
+      routeTags += formatRouteTags(routesSide1);
+    }
+    if (routesSide2.length > 0) {
+      routeTags += `<div class="popup-eyebrow" style="margin-top: 8px;">Puerta Oriente / Norte</div>`;
+      routeTags += formatRouteTags(routesSide2);
+    }
+  } else if (routes.length) {
+    routeTags = formatRouteTags(routes);
+  } else {
+    routeTags = '<span class="popup-empty">Sin rutas asociadas</span>';
+  }
   const subtitle = [p.displayName, p.directionLabel].filter(Boolean).join(' ');
   const html = `
     <div class="popup-card popup-card-compact">
@@ -860,7 +899,7 @@ export function addWagonsLayer(
 ): void {
   const activeWagons = wagons.filter(isActiveWagon);
   const ordinals = getStationLocalOrdinals(activeWagons);
-  const candidates = activeWagons.map((wagon) => {
+  const candidates: WagonCandidate[] = activeWagons.map((wagon) => {
     const feature = makeWagonFeature(wagon, ordinals.get(wagon.attributes.objectid) ?? 1);
     const meta = getWagonMeta(feature, wagon);
     feature.properties.directionLabel = meta.direction?.label ?? '';
@@ -868,6 +907,8 @@ export function addWagonsLayer(
       feature,
       meta,
       routes: new Set<string>(),
+      routesSide1: new Set<string>(),
+      routesSide2: new Set<string>(),
     };
   });
 
@@ -886,6 +927,8 @@ export function addWagonsLayer(
     const props: any = {
       ...candidate.feature.properties,
       routes: JSON.stringify(routesForWagon),
+      routesSide1: candidate.routesSide1 ? JSON.stringify(sortRoutes(candidate.routesSide1)) : '[]',
+      routesSide2: candidate.routesSide2 ? JSON.stringify(sortRoutes(candidate.routesSide2)) : '[]',
       vagonLabel: [candidate.feature.properties.displayName, candidate.feature.properties.directionLabel].filter(Boolean).join(' '),
     };
 
