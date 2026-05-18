@@ -4,6 +4,7 @@
 
 import maplibregl from 'maplibre-gl';
 import type { TroncalCorridorFeature, TroncalRouteFeature, ZonalRouteFeature } from '../types/transmilenio';
+import type { MasterCatalog } from '../types/catalog';
 
 export const TRONCAL_COLORS: Record<string, string> = {
   A: '#0C3A95',
@@ -138,7 +139,9 @@ export function getZonalDisplayCode(
   code: string,
   destinationZone?: number,
   destinationName?: string,
-  originName?: string
+  originName?: string,
+  routeName?: string,
+  catalog?: MasterCatalog
 ): string {
   const normalized = normalizeRouteCode(code);
   if (normalized.length <= 4) return normalized; // Already short like F408
@@ -149,7 +152,54 @@ export function getZonalDisplayCode(
   const letters = match[1];
   const numberPart = match[2];
 
-  // 1. Try destination zone ID mapping, BUT strictly enforce it belongs to the prefix!
+  // 1. Definitively lookup using the Master Catalog if provided
+  if (catalog && catalog.routes) {
+    const rawArcgisName = normalizeRouteCodeForMatch(routeName || '');
+    let bestLetter = letters[0];
+    let bestScore = -1;
+
+    for (const letter of letters) {
+      const candidateCode = `${letter}${numberPart}`;
+      const catalogVariants = catalog.routes[candidateCode] || [];
+      
+      for (const variant of catalogVariants) {
+        const rawCatalogName = normalizeRouteCodeForMatch(variant.nombre || '');
+        let score = 0;
+        
+        // Exact name match
+        if (rawArcgisName && rawCatalogName && rawArcgisName === rawCatalogName) {
+           score += 100;
+        } else if (rawArcgisName && rawCatalogName && (rawArcgisName.includes(rawCatalogName) || rawCatalogName.includes(rawArcgisName))) {
+           score += 50;
+        }
+
+        const dest = normalizeRouteCodeForMatch(destinationName || '');
+        const orig = normalizeRouteCodeForMatch(originName || '');
+        
+        if (dest && rawCatalogName.includes(dest)) score += 10;
+        if (orig && rawCatalogName.includes(orig)) score += 5;
+
+        // Try against stops
+        if (variant.stops && variant.stops.length > 0) {
+          const firstStop = normalizeRouteCodeForMatch(variant.stops[0].nombre);
+          const lastStop = normalizeRouteCodeForMatch(variant.stops[variant.stops.length - 1].nombre);
+          if (dest && lastStop && (dest.includes(lastStop) || lastStop.includes(dest))) score += 20;
+          if (orig && firstStop && (orig.includes(firstStop) || firstStop.includes(orig))) score += 20;
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestLetter = letter;
+        }
+      }
+    }
+
+    if (bestScore > 0) {
+      return `${bestLetter}${numberPart}`;
+    }
+  }
+
+  // 2. Keyword fallback for tricky combined routes when catalog is unavailable
   if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
     const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
     if (letters.includes(targetLetter)) {
@@ -190,7 +240,15 @@ export function getZonalDisplayCode(
     }
   }
 
-  return normalized;
+  // 3. Fallback: Destination Zone mapping (last resort, highly unreliable in ArcGIS)
+  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
+    const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
+    if (letters.includes(targetLetter)) {
+      return `${targetLetter}${numberPart}`;
+    }
+  }
+
+  return `${letters[0]}${numberPart}`; // Return the very first letter if ALL else fails
 }
 
 export function getRouteColor(code: string, type: 'troncal' | 'zonal'): string {
@@ -199,7 +257,8 @@ export function getRouteColor(code: string, type: 'troncal' | 'zonal'): string {
 
 function routesToGeoJSON(
   features: (TroncalRouteFeature | ZonalRouteFeature)[],
-  type: 'troncal' | 'zonal'
+  type: 'troncal' | 'zonal',
+  catalog?: MasterCatalog
 ): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
@@ -209,7 +268,16 @@ function routesToGeoJSON(
       const code = isTroncal
         ? attrs.route_name_ruta_troncal
         : attrs.codigo_definitivo_ruta_zonal;
-      const displayCode = isTroncal ? code : getZonalDisplayCode(code, attrs.zona_destino_ruta_zonal, attrs.destino_ruta_zonal, attrs.origen_ruta_zonal);
+      const displayCode = isTroncal 
+        ? code 
+        : getZonalDisplayCode(
+            code, 
+            attrs.zona_destino_ruta_zonal, 
+            attrs.destino_ruta_zonal, 
+            attrs.origen_ruta_zonal,
+            attrs.denominacion_ruta_zonal,
+            catalog
+          );
       const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(displayCode);
 
       return {
@@ -330,9 +398,10 @@ export function addTroncalRoutesLayer(
 
 export function addZonalRoutesLayer(
   map: maplibregl.Map,
-  routes: ZonalRouteFeature[]
+  routes: ZonalRouteFeature[],
+  catalog: MasterCatalog
 ): void {
-  const geojson = routesToGeoJSON(routes, 'zonal');
+  const geojson = routesToGeoJSON(routes, 'zonal', catalog);
   map.addSource('zonal-routes', { type: 'geojson', data: geojson });
 
   // Insert zonal layers BEFORE any troncal layers if they exist

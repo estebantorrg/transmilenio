@@ -126,7 +126,14 @@ function buildRouteList(
   const zonalItems: RouteListItem[] = zonalRoutes.map((r) => {
     const rawCode = r.attributes.codigo_definitivo_ruta_zonal;
     const destZone = r.attributes.zona_destino_ruta_zonal;
-    const code = getZonalDisplayCode(rawCode, destZone, r.attributes.destino_ruta_zonal, r.attributes.origen_ruta_zonal);
+    const code = getZonalDisplayCode(
+      rawCode, 
+      destZone, 
+      r.attributes.destino_ruta_zonal, 
+      r.attributes.origen_ruta_zonal,
+      r.attributes.denominacion_ruta_zonal,
+      catalog
+    );
     
     return {
       id: `z-${r.attributes.objectid}`,
@@ -246,7 +253,7 @@ async function main(): Promise<void> {
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
 
     setLoadingStatus('Dibujando rutas zonales...');
-    addZonalRoutesLayer(map, zonalRoutes);
+    addZonalRoutesLayer(map, zonalRoutes, catalog);
 
     setLoadingStatus('Colocando paraderos...');
     addStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
@@ -282,7 +289,14 @@ async function main(): Promise<void> {
         const attrs = f.attributes as any;
         const code = route.type === 'troncal'
           ? attrs.route_name_ruta_troncal
-          : getZonalDisplayCode(attrs.codigo_definitivo_ruta_zonal, attrs.zona_destino_ruta_zonal, attrs.destino_ruta_zonal, attrs.origen_ruta_zonal);
+          : getZonalDisplayCode(
+              attrs.codigo_definitivo_ruta_zonal, 
+              attrs.zona_destino_ruta_zonal, 
+              attrs.destino_ruta_zonal, 
+              attrs.origen_ruta_zonal,
+              attrs.denominacion_ruta_zonal,
+              catalog
+            );
         const origin = route.type === 'troncal'
           ? attrs.origen_ruta_troncal
           : attrs.origen_ruta_zonal;
