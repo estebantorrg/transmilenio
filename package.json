@@ -2,6 +2,10 @@
   "name": "transmilenio-explorer",
   "version": "1.0.0",
   "private": true,
+  "workspaces": [
+    "server",
+    "client"
+  ],
   "scripts": {
     "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/dev.ps1",
     "dev:client": "npm --prefix client run dev",
