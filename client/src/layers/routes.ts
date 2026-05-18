@@ -21,12 +21,29 @@ export const TRONCAL_COLORS: Record<string, string> = {
   P: '#25206F',
   T: '#808000',
   RF: '#000000',
+  Z: '#EAB308', // General Zonal
+};
+
+const ZONAL_ZONE_TO_LETTER: Record<number, string> = {
+  1: 'B', // Usaquen
+  2: 'C', // Suba Oriental
+  3: 'C', // Suba Centro
+  4: 'D', // Calle 80
+  5: 'D', // Engativa
+  6: 'K', // Fontibon
+  7: 'F', // Kennedy
+  8: 'G', // Bosa
+  9: 'G', // Perdomo
+  10: 'H', // Ciudad Bolivar
+  11: 'H', // Usme
+  12: 'L', // San Cristobal
+  13: 'L', // Rafael Uribe
 };
 
 
 
 const DEFAULT_TRONCAL_COLOR = '#FB2C17';
-const DEFAULT_ZONAL_COLOR = '#38BDF8';
+const DEFAULT_ZONAL_COLOR = '#EAB308'; // SITP Yellow/General Zonal color
 const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 
 let claimedClickEvent: Event | null = null;
@@ -98,10 +115,38 @@ export function getTroncalColor(value: string | null | undefined): string {
   return letter ? TRONCAL_COLORS[letter] ?? DEFAULT_TRONCAL_COLOR : DEFAULT_TRONCAL_COLOR;
 }
 
-export function getZonalRouteColor(code?: string | null, routeType?: number): string {
-  // Always return SITP Blue for zonales to avoid the 'rainbow' mess
-  // while keeping troncales color-coded by corridor.
+export function getZonalRouteColor(code?: string | null, destinationZone?: number): string {
+  const normalized = normalizeRouteCode(code);
+  
+  // 1. Try destination zone ID first (most accurate for SITP)
+  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
+    const letter = ZONAL_ZONE_TO_LETTER[destinationZone];
+    if (TRONCAL_COLORS[letter]) return TRONCAL_COLORS[letter];
+  }
+
+  // 2. Try to get the zone color from the code (e.g. F408 -> Red)
+  const zoneLetter = getTroncalLetter(normalized);
+  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
+    return TRONCAL_COLORS[zoneLetter];
+  }
+
   return DEFAULT_ZONAL_COLOR;
+}
+
+export function getZonalDisplayCode(code: string, destinationZone?: number): string {
+  const normalized = normalizeRouteCode(code);
+  if (normalized.length <= 4) return normalized; // Already short like F408
+
+  // If it's a combined code like FH408, try to filter for the destination zone
+  if (destinationZone !== undefined && ZONAL_ZONE_TO_LETTER[destinationZone]) {
+    const targetLetter = ZONAL_ZONE_TO_LETTER[destinationZone];
+    const match = normalized.match(/(\d+)$/);
+    if (match) {
+      return `${targetLetter}${match[1]}`;
+    }
+  }
+
+  return normalized;
 }
 
 export function getRouteColor(code: string, type: 'troncal' | 'zonal', zonalRouteType?: number): string {
@@ -120,13 +165,15 @@ function routesToGeoJSON(
       const code = isTroncal
         ? attrs.route_name_ruta_troncal
         : attrs.codigo_definitivo_ruta_zonal;
-      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(code, attrs.tipo_ruta_zonal);
+      const displayCode = isTroncal ? code : getZonalDisplayCode(code, attrs.zona_destino_ruta_zonal);
+      const color = isTroncal ? getTroncalColor(code) : getZonalRouteColor(code, attrs.zona_destino_ruta_zonal);
 
       return {
         type: 'Feature' as const,
         properties: {
           id: attrs.objectid,
-          code,
+          code: displayCode,
+          originalCode: code,
           letter: isTroncal ? getTroncalLetter(code) : undefined,
           color,
           name: isTroncal
@@ -277,7 +324,7 @@ export function addZonalRoutesLayer(
     paint: {
       'line-color': DEFAULT_ZONAL_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
-      'line-opacity': 0.08,
+      'line-opacity': 0.12,
       'line-blur': 3,
     },
   }, beforeId);
@@ -290,7 +337,7 @@ export function addZonalRoutesLayer(
     paint: {
       'line-color': DEFAULT_ZONAL_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],
-      'line-opacity': 0.45,
+      'line-opacity': 0.55,
     },
   }, beforeId);
 }

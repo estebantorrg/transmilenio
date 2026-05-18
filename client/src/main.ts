@@ -15,6 +15,8 @@ import {
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
   getRouteColor,
+  getZonalDisplayCode,
+  getZonalRouteColor,
   toggleTroncalRoutes,
   toggleZonalRoutes,
   highlightRoute,
@@ -122,7 +124,10 @@ function buildRouteList(
   });
 
   const zonalItems: RouteListItem[] = zonalRoutes.map((r) => {
-    const code = r.attributes.codigo_definitivo_ruta_zonal;
+    const rawCode = r.attributes.codigo_definitivo_ruta_zonal;
+    const destZone = r.attributes.zona_destino_ruta_zonal;
+    const code = getZonalDisplayCode(rawCode, destZone);
+    
     return {
       id: `z-${r.attributes.objectid}`,
       code,
@@ -133,7 +138,7 @@ function buildRouteList(
       source: 'arcgis',
       operator: r.attributes.operador_ruta_zonal,
       length: r.attributes.longitud_ruta_zonal,
-      color: getRouteColor(code, 'zonal', r.attributes.tipo_ruta_zonal),
+      color: getZonalRouteColor(rawCode, destZone),
       geometry: r.geometry,
     };
   });
@@ -143,13 +148,13 @@ function buildRouteList(
 
   // 1. Base on ArcGIS data (better geometry)
   [...troncalItems, ...zonalItems].forEach((route) => {
-    const key = `${route.type}|${normalizeRouteText(route.code)}`;
+    const key = `${route.type}|${normalizeRouteText(route.code)}|${normalizeRouteText(route.origin)}|${normalizeRouteText(route.destination)}`;
     mergedRoutes.set(key, route);
   });
 
   // 2. Merge Catalog data (better metadata, fallback geometry)
   catalogItems.forEach((catRoute) => {
-    const key = `${catRoute.type}|${normalizeRouteText(catRoute.code)}`;
+    const key = `${catRoute.type}|${normalizeRouteText(catRoute.code)}|${normalizeRouteText(catRoute.origin)}|${normalizeRouteText(catRoute.destination)}`;
     const existing = mergedRoutes.get(key);
 
     if (existing) {
