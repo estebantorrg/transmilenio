@@ -3,6 +3,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
+import type { MasterCatalog } from '../types/catalog';
 import type { ZonalRouteFeature } from '../types/transmilenio';
 import { getRouteColor, markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
@@ -38,7 +39,36 @@ export function filterZonalRoutesWithStops(
   );
 }
 
-export function buildStopRoutesMap(stopRoutes: any[], zonalRoutes: ZonalRouteFeature[] = []): StopRoutesMap {
+function addStopRoute(map: StopRoutesMap, cenefa: string, routeTag: StopRouteTag): void {
+  const code = normalizeRouteCodeForMatch(routeTag.code);
+  const existing = map.get(cenefa);
+  if (existing) {
+    if (!existing.some((item) => normalizeRouteCodeForMatch(item.code) === code)) existing.push(routeTag);
+  } else {
+    map.set(cenefa, [routeTag]);
+  }
+}
+
+function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void {
+  for (const station of Object.values(catalog)) {
+    if (/^TM\d+$/i.test(station.codigo)) continue;
+
+    for (const routes of Object.values(station.wagons)) {
+      for (const route of routes) {
+        addStopRoute(map, station.codigo, {
+          code: route.codigo,
+          color: route.color || getRouteColor(route.codigo, 'zonal'),
+        });
+      }
+    }
+  }
+}
+
+export function buildStopRoutesMap(
+  stopRoutes: any[],
+  zonalRoutes: ZonalRouteFeature[] = [],
+  catalog: MasterCatalog = {}
+): StopRoutesMap {
   const routeTypeByCode = new Map<string, number>();
   zonalRoutes.forEach((route) => {
     routeTypeByCode.set(
@@ -59,13 +89,10 @@ export function buildStopRoutesMap(stopRoutes: any[], zonalRoutes: ZonalRouteFea
       color: getRouteColor(route, 'zonal', routeTypeByCode.get(code)),
     };
 
-    const existing = map.get(cenefa);
-    if (existing) {
-      if (!existing.some((item) => normalizeRouteCodeForMatch(item.code) === code)) existing.push(routeTag);
-    } else {
-      map.set(cenefa, [routeTag]);
-    }
+    addStopRoute(map, cenefa, routeTag);
   }
+
+  addCatalogStopRoutes(map, catalog);
 
   for (const routes of map.values()) {
     routes.sort((a, b) => normalizeRouteCode(a.code).localeCompare(normalizeRouteCode(b.code), undefined, { numeric: true }));

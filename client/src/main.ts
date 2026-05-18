@@ -19,9 +19,11 @@ import {
   toggleZonalRoutes,
   highlightRoute,
   clearHighlight,
+  normalizeRouteCodeForMatch,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
 import type { RouteListItem, TroncalRouteFeature, ZonalRouteFeature } from './types/transmilenio';
+import type { CatalogRoute, CatalogStation, MasterCatalog } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
 
@@ -42,11 +44,83 @@ function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+function normalizeRouteText(value: string | null | undefined): string {
+  return normalizeRouteCodeForMatch(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function routeListKey(route: RouteListItem): string {
+  return [
+    route.type,
+    normalizeRouteText(route.code),
+    normalizeRouteText(route.origin),
+    normalizeRouteText(route.destination),
+    normalizeRouteText(route.name),
+  ].join('|');
+}
+
+function catalogRouteKey(route: CatalogRoute): string {
+  return [
+    route.id ?? '',
+    normalizeRouteText(route.codigo),
+    normalizeRouteText(route.nombre),
+    route.sistema ?? '',
+    route.tipoServicio ?? '',
+    route.color ?? '',
+  ].join('|');
+}
+
+function catalogRouteType(route: CatalogRoute, stations: CatalogStation[]): 'troncal' | 'zonal' {
+  const service = `${route.sistema ?? ''} ${route.tipoServicio ?? ''}`.toUpperCase();
+  if (service.includes('TRANSMIZONAL')) return 'zonal';
+  if (service.includes('TRONCAL') || service.includes('TRANSMILENIO')) return 'troncal';
+  return stations.some((station) => /^TM\d+$/i.test(station.codigo)) ? 'troncal' : 'zonal';
+}
+
+function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
+  const grouped = new Map<string, { route: CatalogRoute; stations: CatalogStation[] }>();
+
+  for (const station of Object.values(catalog)) {
+    for (const routes of Object.values(station.wagons)) {
+      for (const route of routes) {
+        const key = catalogRouteKey(route);
+        const entry = grouped.get(key);
+        if (entry) {
+          entry.stations.push(station);
+        } else {
+          grouped.set(key, { route, stations: [station] });
+        }
+      }
+    }
+  }
+
+  return Array.from(grouped.values()).map(({ route, stations }) => {
+    const code = route.codigo.trim();
+    const destination = route.nombre.trim() || code;
+    const type = catalogRouteType(route, stations);
+
+    return {
+      id: `catalog-${route.id ?? `${normalizeRouteText(code)}-${normalizeRouteText(destination)}-${route.color ?? ''}`}`,
+      code,
+      name: destination,
+      origin: code,
+      destination,
+      type,
+      source: 'catalog',
+      busType: route.tipoServicio || 'Catalogo oficial app',
+      schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
+      color: route.color || getRouteColor(code, type),
+    };
+  });
+}
+
 // ─── Build Route List Items ───────────────────────────────
 
 function buildRouteList(
   troncalRoutes: TroncalRouteFeature[],
-  zonalRoutes: ZonalRouteFeature[]
+  zonalRoutes: ZonalRouteFeature[],
+  catalog: MasterCatalog
 ): RouteListItem[] {
   const troncalItems: RouteListItem[] = troncalRoutes.map((r) => ({
     id: `t-${r.attributes.objectid}`,
@@ -55,6 +129,7 @@ function buildRouteList(
     origin: r.attributes.origen_ruta_troncal,
     destination: r.attributes.destino_ruta_troncal,
     type: 'troncal',
+    source: 'arcgis',
     busType: r.attributes.desc_tipo_bus_ruta_troncal,
     schedule: r.attributes.horario_lunes_viernes,
     length: r.attributes.longitud_ruta_troncal
@@ -70,14 +145,15 @@ function buildRouteList(
     origin: r.attributes.origen_ruta_zonal,
     destination: r.attributes.destino_ruta_zonal,
     type: 'zonal',
+    source: 'arcgis',
     operator: r.attributes.operador_ruta_zonal,
     length: r.attributes.longitud_ruta_zonal,
     color: getRouteColor(r.attributes.codigo_definitivo_ruta_zonal, 'zonal', r.attributes.tipo_ruta_zonal),
   }));
 
   const uniqueRoutes = new Map<string, RouteListItem>();
-  [...troncalItems, ...zonalItems].forEach((route) => {
-    const key = `${route.type}:${route.code.trim().toUpperCase()}`;
+  [...troncalItems, ...zonalItems, ...buildCatalogRouteList(catalog)].forEach((route) => {
+    const key = routeListKey(route);
     if (!uniqueRoutes.has(key)) uniqueRoutes.set(key, route);
   });
 
@@ -106,6 +182,7 @@ async function main(): Promise<void> {
 
   let troncalRoutes: TroncalRouteFeature[] = [];
   let zonalRoutes: ZonalRouteFeature[] = [];
+  let catalog: MasterCatalog = {};
   let stationCount = 0;
   let stopsCount = 0;
 
@@ -120,7 +197,7 @@ async function main(): Promise<void> {
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
-    const catalog = catalogRes.data || {};
+    catalog = catalogRes.data || {};
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stationsRes.features.length}`);
@@ -149,7 +226,7 @@ async function main(): Promise<void> {
     ]);
 
     zonalRoutes = filterZonalRoutesWithStops(zonalRoutesRes.features, zonalStopRoutesRes.features);
-    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, zonalRoutes);
+    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, zonalRoutes, catalog);
     console.log(`✅ Zonal routes: ${zonalRoutes.length} of ${zonalRoutesRes.features.length} with paradero mappings`);
     console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
     console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
@@ -170,10 +247,22 @@ async function main(): Promise<void> {
   }
 
   // 3. Initialize sidebar
-  const routeList = buildRouteList(troncalRoutes, zonalRoutes);
+  const routeList = buildRouteList(troncalRoutes, zonalRoutes, catalog);
+  const routeCounts = routeList.reduce(
+    (counts, route) => {
+      counts[route.type]++;
+      return counts;
+    },
+    { troncal: 0, zonal: 0 }
+  );
 
   initSidebar({
     onRouteSelect: (route: RouteListItem) => {
+      if (route.source === 'catalog') {
+        clearHighlight(map);
+        return;
+      }
+
       highlightRoute(map, route.code, route.type);
 
       // Find the route feature to get its bounds
@@ -183,7 +272,13 @@ async function main(): Promise<void> {
         const code = route.type === 'troncal'
           ? attrs.route_name_ruta_troncal
           : attrs.codigo_definitivo_ruta_zonal;
-        return code === route.code;
+        const origin = route.type === 'troncal'
+          ? attrs.origen_ruta_troncal
+          : attrs.origen_ruta_zonal;
+        const destination = route.type === 'troncal'
+          ? attrs.destino_ruta_troncal
+          : attrs.destino_ruta_zonal;
+        return code === route.code && origin === route.origin && destination === route.destination;
       });
 
       if (feature) {
@@ -220,8 +315,8 @@ async function main(): Promise<void> {
 
   setRoutes(routeList);
   updateCounts({
-    troncal: troncalRoutes.length,
-    zonal: zonalRoutes.length,
+    troncal: routeCounts.troncal,
+    zonal: routeCounts.zonal,
     stations: stationCount,
     stops: stopsCount,
   });

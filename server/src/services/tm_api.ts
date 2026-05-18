@@ -33,6 +33,7 @@ const MAX_DELAY_MS = 1500;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 3000;
 const STALE_DAYS = 7;
+const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -168,19 +169,30 @@ async function fetchWithRetry(params: Record<string, string>, label: string): Pr
 
 // ─── API Endpoints ──────────────────────────────────────
 
-async function searchAllRoutes(): Promise<ApiRouteListItem[]> {
+async function searchRoutesByTerm(search: string): Promise<ApiRouteListItem[]> {
   const data = await fetchWithRetry(
     {
       lServicio: 'Rutas',
       lTipo: 'api',
       lFuncion: 'searchRutaByTipo',
       tipo_ruta: 'TIPORUTA',
-      search: '',
+      search,
     },
-    'searchAllRoutes'
+    `searchRoutes(${search || 'empty'})`
   );
 
   return data?.lista_rutas ?? [];
+}
+
+async function searchAllRoutes(): Promise<ApiRouteListItem[]> {
+  const routesById = new Map<string, ApiRouteListItem>();
+
+  for (const seed of ROUTE_SEARCH_SEEDS) {
+    const routes = await searchRoutesByTerm(seed);
+    routes.forEach((route) => routesById.set(route.id, route));
+  }
+
+  return Array.from(routesById.values());
 }
 
 async function getRouteInfo(
@@ -263,16 +275,18 @@ export async function syncMasterCatalog(): Promise<void> {
   try {
     // 1. Get all routes
     const allRoutes = await searchAllRoutes();
-    const troncalRoutes = allRoutes.filter(
+    const catalogRoutes = allRoutes.filter(
       (r) =>
         r.sistema === 'TransMilenio' ||
+        r.sistema === 'TransMiZonal' ||
         r.tipoServicio === 'TRONCAL' ||
         r.tipoServicio === 'TransMilenio' ||
+        r.tipoServicio === 'TransMiZonal' ||
         r.tipoServicio === 'PADRON'
     );
 
     console.log(
-      `[TM API] Found ${allRoutes.length} total routes, ${troncalRoutes.length} troncal/padron routes to index.`
+      `[TM API] Found ${allRoutes.length} total routes, ${catalogRoutes.length} app routes to index.`
     );
 
     const newCatalog: MasterCatalog = {};
@@ -280,9 +294,9 @@ export async function syncMasterCatalog(): Promise<void> {
     let errors = 0;
 
     // 2. Fetch each route detail
-    for (const route of troncalRoutes) {
+    for (const route of catalogRoutes) {
       processed++;
-      const progress = `${processed}/${troncalRoutes.length}`;
+      const progress = `${processed}/${catalogRoutes.length}`;
 
       try {
         const { recorrido, color, horarios, sistema, tipoServicio } = await getRouteInfo(route.id, route.nombre, route.codigo);

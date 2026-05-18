@@ -80,6 +80,28 @@
           "codigo": "H15",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "T5": [
@@ -113,7 +135,9 @@
           "color": "#80BA27"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "327B11": {
     "id": "52472",
@@ -1434,6 +1458,28 @@
           "codigo": "H15",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "T3": [
@@ -1472,7 +1518,9 @@
           "color": "#FCBD1B"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "204A03": {
     "id": "54711",
@@ -5379,9 +5427,33 @@
           "codigo": "3",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0009": {
     "id": "9115",
@@ -5498,6 +5570,28 @@
           "codigo": "8",
           "nombre": "Guatoque",
           "color": "#AE6B00"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "A": [
@@ -5542,7 +5636,9 @@
           "color": "#DC0814"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0003": {
     "id": "9121",
@@ -6055,9 +6151,33 @@
           "codigo": "8",
           "nombre": "Guatoque",
           "color": "#AE6B00"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0015": {
     "id": "2304",
@@ -8380,9 +8500,33 @@
           "codigo": "C19",
           "nombre": "P.SUBA",
           "color": "#FCBD1B"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0043": {
     "id": "3002",
@@ -8457,9 +8601,33 @@
           "codigo": "C19",
           "nombre": "P.SUBA",
           "color": "#FCBD1B"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0040": {
     "id": "3005",
@@ -8524,6 +8692,28 @@
           "codigo": "C73",
           "nombre": "P.SUBA",
           "color": "#FCBD1B"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "A": [
@@ -8538,7 +8728,9 @@
           "color": "#FCBD1B"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0034": {
     "id": "3012",
@@ -9087,6 +9279,28 @@
           "codigo": "H27",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "B": [
@@ -9133,7 +9347,9 @@
           "color": "#E1A2AC"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0078": {
     "id": "5107",
@@ -9396,6 +9612,28 @@
           "codigo": "H75",
           "nombre": "P.USME",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "C": [
@@ -9420,7 +9658,9 @@
           "color": "#AE6B00"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0006": {
     "id": "9118",
@@ -9459,6 +9699,28 @@
           "codigo": "K23",
           "nombre": "Portal Eldorado",
           "color": "#D5B079"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ],
       "A": [
@@ -9493,7 +9755,9 @@
           "color": "#AE6B00"
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0071": {
     "id": "14001",
@@ -10623,9 +10887,33 @@
           "codigo": "G30",
           "nombre": "PORTAL SUR",
           "color": "#009CDE"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0033": {
     "id": "3013",
@@ -10661,9 +10949,33 @@
           "codigo": "G30",
           "nombre": "PORTAL SUR",
           "color": "#009CDE"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0047": {
     "id": "4107",
@@ -10989,9 +11301,33 @@
           "codigo": "H75",
           "nombre": "P.USME",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0107": {
     "id": "9105",
@@ -11085,9 +11421,33 @@
           "codigo": "H20",
           "nombre": "Portal Usme",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0113": {
     "id": "9003",
@@ -12602,9 +12962,33 @@
           "codigo": "H27",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0116": {
     "id": "8002",
@@ -14530,9 +14914,33 @@
           "codigo": "H15",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0038": {
     "id": "3007",
@@ -14546,9 +14954,33 @@
           "codigo": "H15",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0117": {
     "id": "8001",
@@ -14567,9 +14999,33 @@
           "codigo": "3",
           "nombre": "Portal Tunal",
           "color": "#F18500"
+        },
+        {
+          "id": "366",
+          "codigo": "C15",
+          "nombre": "Portal Suba",
+          "color": "#FCBD1B",
+          "sistema": "TransMilenio",
+          "tipoServicio": "TRONCAL",
+          "horarios": {
+            "data": [
+              {
+                "convencion": "L-S",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "11:00 PM"
+              },
+              {
+                "convencion": "D-F",
+                "hora_inicio": "4:00 AM",
+                "hora_fin": "10:00 PM"
+              }
+            ]
+          }
         }
       ]
-    }
+    },
+    "sistema": "TransMilenio",
+    "tipoServicio": "TRONCAL"
   },
   "TM0138": {
     "id": "10006",

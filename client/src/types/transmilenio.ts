@@ -123,6 +123,7 @@ export interface RouteListItem {
   origin: string;
   destination: string;
   type: 'troncal' | 'zonal';
+  source?: 'arcgis' | 'catalog';
   busType?: string;
   schedule?: string;
   operator?: string;
