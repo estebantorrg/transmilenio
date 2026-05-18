@@ -788,31 +788,32 @@ html, body {
   line-height: 1;
 }
 
-.wagon-route-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+/* ─── Popup Wagon Sections ────────────────────────────── */
+
+.popup-wagon-container {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  margin-top: 4px;
 }
 
-.wagon-route-grid > div {
-  min-width: 120px;
-  padding: 8px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
+.popup-wagon-section {
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
 }
 
-.wagon-side-title {
-  margin-bottom: 6px;
-  color: var(--text-tertiary);
-  font-size: 0.65rem;
+.popup-wagon-label {
+  font-size: var(--font-size-xs);
   font-weight: 700;
-  text-align: center;
+  color: var(--tm-yellow);
   text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 6px;
 }
 
-.wagon-route-tags {
-  justify-content: center;
+.popup-wagon-section .popup-route-tags {
   margin-top: 0;
 }
 

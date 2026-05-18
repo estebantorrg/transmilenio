@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { queries } from '../services/arcgis.js';
+import { queries } from '../services/arcgis';
+import * as tmApi from '../services/tm_api';
 
 const router = Router();
 
@@ -45,23 +46,6 @@ router.get('/troncal/stations', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/troncal/wagons', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('troncal-wagons', queries.troncalWagons);
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching troncal wagons:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch troncal wagons' });
-  }
-});
-
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 router.get('/troncal/corridors', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('troncal-corridors', queries.troncalCorridors);
@@ -72,16 +56,42 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
   }
 });
 
-router.get('/troncal/layouts', async (_req: Request, res: Response) => {
+// ─── Master Catalog (from TransMi App API) ────────────────
+
+router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
   try {
-    const filePath = path.resolve(__dirname, '../../src/data/wagon_mappings.json');
-    const fileContent = await fs.readFile(filePath, 'utf-8');
-    const data = JSON.parse(fileContent);
-    res.json({ success: true, data });
+    const catalog = tmApi.getCatalog();
+    const count = Object.keys(catalog).length;
+    if (count === 0) {
+      res.json({ success: true, data: {}, count: 0, stale: true });
+    } else {
+      res.json({ success: true, data: catalog, count, stale: tmApi.isCatalogStale() });
+    }
   } catch (error) {
-    console.error('Error fetching layouts (might not be fully generated yet):', error);
-    res.json({ success: true, data: {} });
+    console.error('Error fetching master catalog:', error);
+    res.status(500).json({ success: false, error: 'Failed to load master catalog' });
   }
+});
+
+router.get('/troncal/station/:code', async (req: Request, res: Response) => {
+  const { code } = req.params;
+  const station = tmApi.getStationByCode(code);
+  if (station) {
+    res.json({ success: true, data: station });
+  } else {
+    res.status(404).json({ success: false, error: 'Station not found in catalog' });
+  }
+});
+
+// Sync trigger
+router.post('/troncal/sync', async (_req: Request, res: Response) => {
+  if (tmApi.isSyncInProgress()) {
+    res.json({ success: true, message: 'Sync already in progress' });
+    return;
+  }
+  // Run in background
+  tmApi.syncMasterCatalog().catch((err) => console.error('[Sync Error]', err));
+  res.json({ success: true, message: 'Sync started in background' });
 });
 
 // ─── Zonal Endpoints ──────────────────────────────────────
@@ -122,6 +132,9 @@ router.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'ok',
     cacheEntries: cache.size,
+    catalogStations: Object.keys(tmApi.getCatalog()).length,
+    catalogStale: tmApi.isCatalogStale(),
+    syncInProgress: tmApi.isSyncInProgress(),
     uptime: process.uptime(),
   });
 });

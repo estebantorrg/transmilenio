@@ -1,0 +1,358 @@
+/**
+ * TransMilenio Mobile App API Client & Scraper
+ *
+ * Fetches station/wagon/route data directly from the official TransMi app API.
+ * Builds a master catalog keyed by station code → wagon label → routes.
+ */
+
+import https from 'https';
+import fs from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import zlib from 'zlib';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const CATALOG_FILE = path.resolve(__dirname, '../data/master_catalog.json');
+
+// ─── API Configuration ──────────────────────────────────
+
+const API_HOST = 'api.buscador-rutas.transmilenio.gov.co';
+const API_BASE = '/loader.php';
+const HEADERS = {
+  'Accept-Encoding': 'gzip',
+  'Connection': 'Keep-Alive',
+  'Host': API_HOST,
+  'User-Agent': 'okhttp/4.12.0',
+  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+  'version': '2.9.5',
+};
+
+const MIN_DELAY_MS = 800;
+const MAX_DELAY_MS = 1500;
+const MAX_RETRIES = 3;
+const RETRY_BASE_DELAY_MS = 3000;
+const STALE_DAYS = 7;
+
+// ─── Types ──────────────────────────────────────────────
+
+export interface CatalogRoute {
+  codigo: string;
+  nombre: string;
+  color: string;
+}
+
+export interface CatalogWagons {
+  [wagonLabel: string]: CatalogRoute[];
+}
+
+export interface CatalogStation {
+  id: string;
+  codigo: string;
+  nombre: string;
+  direccion: string;
+  coordenada: string;
+  wagons: CatalogWagons;
+}
+
+export interface MasterCatalog {
+  [stationCode: string]: CatalogStation;
+}
+
+interface ApiRouteListItem {
+  id: string;
+  codigo: string;
+  nombre: string;
+  color: string;
+  sistema: string;
+  tipoServicio: string;
+}
+
+interface ApiRecorridoStop {
+  id: string;
+  codigo: string;
+  nombre: string;
+  direccion: string;
+  coordenada: string;
+  sistema: string;
+  tipoServicio: string;
+  vagon: string;
+  parada: string;
+  posicion: number;
+}
+
+// ─── HTTP Client ────────────────────────────────────────
+
+function randomDelay(): Promise<void> {
+  const ms = Math.floor(Math.random() * (MAX_DELAY_MS - MIN_DELAY_MS + 1)) + MIN_DELAY_MS;
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function fetchApi(params: Record<string, string>): Promise<any> {
+  const query = new URLSearchParams(params).toString();
+  const apiPath = `${API_BASE}?${query}`;
+
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      {
+        hostname: API_HOST,
+        path: apiPath,
+        headers: HEADERS,
+        timeout: 15000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks);
+          const encoding = res.headers['content-encoding'];
+
+          const parse = (buf: Buffer) => {
+            const text = buf.toString('utf-8');
+            try {
+              return JSON.parse(text);
+            } catch {
+              console.error(`[TM API] JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
+              return null;
+            }
+          };
+
+          if (encoding === 'gzip') {
+            zlib.gunzip(raw, (err, decompressed) => {
+              if (err) {
+                // Try parsing raw in case it's not actually gzipped
+                resolve(parse(raw));
+              } else {
+                resolve(parse(decompressed));
+              }
+            });
+          } else {
+            resolve(parse(raw));
+          }
+        });
+      }
+    );
+
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
+  });
+}
+
+async function fetchWithRetry(params: Record<string, string>, label: string): Promise<any> {
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const result = await fetchApi(params);
+      if (result !== null) return result;
+      throw new Error('Null response');
+    } catch (err: any) {
+      const isLast = attempt === MAX_RETRIES;
+      const backoff = RETRY_BASE_DELAY_MS * attempt;
+      console.warn(
+        `[TM API] ${label} attempt ${attempt}/${MAX_RETRIES} failed: ${err.message}` +
+          (isLast ? '' : ` — retrying in ${backoff}ms`)
+      );
+      if (isLast) throw err;
+      await new Promise((r) => setTimeout(r, backoff));
+    }
+  }
+}
+
+// ─── API Endpoints ──────────────────────────────────────
+
+async function searchAllRoutes(): Promise<ApiRouteListItem[]> {
+  const data = await fetchWithRetry(
+    {
+      lServicio: 'Rutas',
+      lTipo: 'api',
+      lFuncion: 'searchRutaByTipo',
+      tipo_ruta: 'TIPORUTA',
+      search: '',
+    },
+    'searchAllRoutes'
+  );
+
+  return data?.lista_rutas ?? [];
+}
+
+async function getRouteInfo(
+  idRuta: string,
+  nombre: string,
+  codigo: string
+): Promise<{ recorrido: ApiRecorridoStop[]; color: string }> {
+  const data = await fetchWithRetry(
+    {
+      lServicio: 'Rutas',
+      lTipo: 'api',
+      lFuncion: 'infoRuta',
+      idRuta,
+      nombre: encodeURIComponent(nombre),
+      codigo,
+    },
+    `infoRuta(${codigo})`
+  );
+
+  const stops: ApiRecorridoStop[] = data?.recorrido?.data ?? [];
+  const color: string = data?.['0']?.color ?? '';
+  return { recorrido: stops, color };
+}
+
+// ─── In-Memory Catalog ──────────────────────────────────
+
+let masterCatalog: MasterCatalog = {};
+let catalogLoadedAt: number = 0;
+
+export async function loadCatalogFromDisk(): Promise<void> {
+  try {
+    const raw = await fs.readFile(CATALOG_FILE, 'utf-8');
+    masterCatalog = JSON.parse(raw);
+    catalogLoadedAt = Date.now();
+    const stationCount = Object.keys(masterCatalog).length;
+    const totalRoutes = Object.values(masterCatalog).reduce((sum, s) => {
+      return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
+    }, 0);
+    console.log(
+      `[TM API] Loaded master catalog: ${stationCount} stations, ${totalRoutes} route-wagon mappings`
+    );
+  } catch {
+    console.log('[TM API] No master catalog on disk. Run sync to generate.');
+  }
+}
+
+export function getCatalog(): MasterCatalog {
+  return masterCatalog;
+}
+
+export function getStationByCode(code: string): CatalogStation | null {
+  return masterCatalog[code] ?? null;
+}
+
+export function isCatalogStale(): boolean {
+  if (Object.keys(masterCatalog).length === 0) return true;
+  if (catalogLoadedAt === 0) return true;
+  return Date.now() - catalogLoadedAt > STALE_DAYS * 24 * 60 * 60 * 1000;
+}
+
+// ─── Master Sync ────────────────────────────────────────
+
+let syncInProgress = false;
+
+export async function syncMasterCatalog(): Promise<void> {
+  if (syncInProgress) {
+    console.log('[TM API] Sync already in progress, skipping.');
+    return;
+  }
+
+  syncInProgress = true;
+  console.log('[TM API] ═══ Starting Master Catalog Sync ═══');
+
+  try {
+    // 1. Get all routes
+    const allRoutes = await searchAllRoutes();
+    const troncalRoutes = allRoutes.filter(
+      (r) =>
+        r.sistema === 'TransMilenio' ||
+        r.tipoServicio === 'TRONCAL' ||
+        r.tipoServicio === 'TransMilenio' ||
+        r.tipoServicio === 'PADRON'
+    );
+
+    console.log(
+      `[TM API] Found ${allRoutes.length} total routes, ${troncalRoutes.length} troncal/padron routes to index.`
+    );
+
+    const newCatalog: MasterCatalog = {};
+    let processed = 0;
+    let errors = 0;
+
+    // 2. Fetch each route detail
+    for (const route of troncalRoutes) {
+      processed++;
+      const progress = `${processed}/${troncalRoutes.length}`;
+
+      try {
+        const { recorrido, color } = await getRouteInfo(route.id, route.nombre, route.codigo);
+        const routeColor = color || route.color || '#64748B';
+
+        if (!recorrido || recorrido.length === 0) {
+          console.log(`[TM API] [${progress}] ${route.codigo} — no stops`);
+          errors++;
+        } else {
+          let stopsAdded = 0;
+
+          for (const stop of recorrido) {
+            const stationCode = stop.codigo;
+            if (!stationCode || stationCode.length === 0) continue;
+
+            // Wagon label from the API
+            const wagonLabel = stop.vagon || '0';
+
+            // Initialize station if needed
+            if (!newCatalog[stationCode]) {
+              newCatalog[stationCode] = {
+                id: stop.id,
+                codigo: stationCode,
+                nombre: stop.nombre,
+                direccion: stop.direccion,
+                coordenada: stop.coordenada,
+                wagons: {},
+              };
+            }
+
+            // Initialize wagon array if needed
+            if (!newCatalog[stationCode].wagons[wagonLabel]) {
+              newCatalog[stationCode].wagons[wagonLabel] = [];
+            }
+
+            // Add route if not already present (prevent duplicates)
+            const exists = newCatalog[stationCode].wagons[wagonLabel].some(
+              (r) => r.codigo === route.codigo
+            );
+            if (!exists) {
+              newCatalog[stationCode].wagons[wagonLabel].push({
+                codigo: route.codigo,
+                nombre: route.nombre,
+                color: routeColor,
+              });
+              stopsAdded++;
+            }
+          }
+
+          console.log(
+            `[TM API] [${progress}] ${route.codigo} (${route.nombre}) — ${recorrido.length} stops, ${stopsAdded} new mappings`
+          );
+        }
+      } catch (err: any) {
+        errors++;
+        console.error(`[TM API] [${progress}] FAILED ${route.codigo}: ${err.message}`);
+      }
+
+      // Rate limit
+      await randomDelay();
+    }
+
+    // 3. Save to disk
+    masterCatalog = newCatalog;
+    catalogLoadedAt = Date.now();
+
+    await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
+    await fs.writeFile(CATALOG_FILE, JSON.stringify(masterCatalog, null, 2), 'utf-8');
+
+    const stationCount = Object.keys(masterCatalog).length;
+    const totalRoutes = Object.values(masterCatalog).reduce((sum, s) => {
+      return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
+    }, 0);
+
+    console.log(
+      `[TM API] ═══ Sync Complete! ${stationCount} stations, ${totalRoutes} mappings, ${errors} errors ═══`
+    );
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+export function isSyncInProgress(): boolean {
+  return syncInProgress;
+}

@@ -7,9 +7,9 @@ import type {
   TroncalCorridorFeature,
   TroncalRouteFeature,
   TroncalStationFeature,
-  TroncalWagonFeature,
   ZonalRouteFeature,
 } from '../types/transmilenio';
+import type { MasterCatalogResponse } from '../types/catalog';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -62,9 +62,6 @@ export const api = {
   getTroncalStations: () =>
     fetchJson<ApiResponse<TroncalStationFeature>>('/troncal/stations'),
 
-  getTroncalWagons: () =>
-    fetchJson<ApiResponse<TroncalWagonFeature>>('/troncal/wagons'),
-
   getTroncalCorridors: () =>
     fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
 
@@ -77,6 +74,6 @@ export const api = {
   getZonalStopRoutes: () =>
     fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
 
-  getTroncalLayouts: () =>
-    fetchJson<{ success: boolean; data: Record<string, any> }>('/troncal/layouts'),
+  getMasterCatalog: () =>
+    fetchJson<MasterCatalogResponse>('/troncal/master-catalog'),
 };

@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap } from './map';
 import { api } from './services/api';
-import { addStationsLayer, addWagonsLayer, bringStationsLayerToFront, isVisibleTroncalStation, toggleStationsLayer } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, filterZonalRoutesWithStops } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
@@ -110,26 +110,26 @@ async function main(): Promise<void> {
   let stopsCount = 0;
 
   try {
-    // Fetch troncal data
-    const [troncalRoutesRes, corridorsRes, stationsRes, wagonsRes, layoutsRes] = await Promise.all([
+    // Fetch troncal data (no more wagons or layouts!)
+    const [troncalRoutesRes, corridorsRes, stationsRes, catalogRes] = await Promise.all([
       api.getTroncalRoutes(),
       api.getTroncalCorridors(),
       api.getTroncalStations(),
-      api.getTroncalWagons(),
-      api.getTroncalLayouts(),
+      api.getMasterCatalog(),
     ]);
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
-    const wagons = wagonsRes.features;
-    const layouts = layoutsRes.data || {};
+    const catalog = catalogRes.data || {};
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stationsRes.features.length}`);
-    console.log(`✅ Wagons: ${wagons.length}`);
-    console.log(`✅ Exact Layouts: ${Object.keys(layouts).length}`);
+    console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
 
-    // Add route/corridor layers first; stops and stations are moved on top after all routes load.
+    // Set catalog for station popups
+    setCatalog(catalog);
+
+    // Add route/corridor layers
     setLoadingStatus('Dibujando troncales...');
     addTroncalCorridorsLayer(map, corridorsRes.features);
 
@@ -137,12 +137,8 @@ async function main(): Promise<void> {
     addTroncalRoutesLayer(map, troncalRoutes);
 
     setLoadingStatus('Colocando estaciones...');
-    addStationsLayer(map, stations, troncalRoutes, layouts);
+    addStationsLayer(map, stations);
     stationCount = stations.length;
-
-    // Add wagon layer (visible at zoom 15+)
-    setLoadingStatus('Dibujando vagones...');
-    addWagonsLayer(map, wagons, troncalRoutes, layouts);
 
     // Fetch zonal routes, stops, and stop-route mappings
     setLoadingStatus('Descargando rutas y paraderos zonales...');
