@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import apiRoutes from './routes/api';
-import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './services/tm_api';
+import apiRoutes from './routes/api.js';
+import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './services/tm_api.js';
 
 const app = express();
 const PORT = process.env.PORT || 3001;

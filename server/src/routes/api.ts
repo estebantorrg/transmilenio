@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { queries } from '../services/arcgis';
-import * as tmApi from '../services/tm_api';
+import { queries } from '../services/arcgis.js';
+import * as tmApi from '../services/tm_api.js';
 
 const router = Router();
 

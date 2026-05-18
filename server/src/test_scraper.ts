@@ -1,4 +1,4 @@
-import { syncMasterCatalog } from './services/tm_api';
+import { syncMasterCatalog } from './services/tm_api.js';
 
 async function run() {
   try {
