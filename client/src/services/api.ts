@@ -76,4 +76,7 @@ export const api = {
 
   getZonalStopRoutes: () =>
     fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
+
+  getTroncalLayouts: () =>
+    fetchJson<{ success: boolean; data: Record<string, any> }>('/troncal/layouts'),
 };
