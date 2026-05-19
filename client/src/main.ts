@@ -116,13 +116,15 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
 
 function buildRouteList(
   troncalRoutes: TroncalRouteFeature[],
-  catalog: MasterCatalog
+  catalog: MasterCatalog,
+  zonalStops: any[] = [],
+  zonalMappings: any[] = []
 ): RouteListItem[] {
   // 1. Build authoritative catalog items
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
 
-  // Add all catalog items keyed by id to avoid squashing variants with the same code (e.g. 1, 2, C149)
+  // Add all catalog items keyed by id
   catalogItems.forEach((catRoute) => {
     mergedRoutes.set(catRoute.id, catRoute);
   });
@@ -132,12 +134,8 @@ function buildRouteList(
     let code = r.attributes.route_name_ruta_troncal;
     if (!code) return;
 
-    // Strip trailing "-1" or "-2" because ArcGIS uses these for directional variants
-    // but the catalog uses the plain code
     const baseCode = code.replace(/-\d$/, '');
 
-    // Look for a matching catalog item. We find ALL that match the base code
-    // (Geometry mapping for multiple variants of a troncal isn't split by ArcGIS, so we apply it to all)
     let foundAny = false;
     for (const [id, activeRoute] of mergedRoutes.entries()) {
       if (activeRoute.code === baseCode && activeRoute.source === 'catalog') {
@@ -150,7 +148,6 @@ function buildRouteList(
     }
 
     if (!foundAny) {
-      // Existing in ArcGIS but not catalog
       mergedRoutes.set(code, {
         id: `t-${r.attributes.objectid}`,
         code,
@@ -168,7 +165,40 @@ function buildRouteList(
     }
   });
 
-  // 3. Zonal geometries are now drawn exclusively from catalog stops
+  // 3. Enrich Zonal routes with stops from mappings if missing
+  if (zonalStops.length > 0 && zonalMappings.length > 0) {
+    const stopLookup = new Map<string, any>();
+    zonalStops.forEach(s => {
+      const cenefa = s.attributes?.cenefa;
+      if (cenefa) stopLookup.set(cenefa, s);
+    });
+
+    const routeToStops = new Map<string, any[]>();
+    zonalMappings.forEach(m => {
+      const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
+      const cenefa = m.attributes?.cenefa;
+      if (routeCode && cenefa && stopLookup.has(cenefa)) {
+        if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
+        const stop = stopLookup.get(cenefa);
+        routeToStops.get(routeCode)!.push({
+          nombre: stop.attributes?.nombre || 'Paradero',
+          codigo: cenefa,
+          coordinate: [stop.geometry.x, stop.geometry.y] as [number, number]
+        });
+      }
+    });
+
+    // Apply to mergedRoutes
+    for (const route of mergedRoutes.values()) {
+      if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
+        const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
+        if (stops) {
+          route.stops = stops;
+        }
+      }
+    }
+  }
+
   return Array.from(mergedRoutes.values());
 }
 
@@ -230,7 +260,7 @@ async function main(): Promise<void> {
 
     // 2. Pre-calculate unified route list from API
     setLoadingStatus('Procesando datos de rutas...');
-    routeList = buildRouteList(troncalRoutes, catalog);
+    routeList = buildRouteList(troncalRoutes, catalog, zonalStopsRes.features, zonalStopRoutesRes.features);
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
 

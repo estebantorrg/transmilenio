@@ -234,7 +234,7 @@ export function addStopsLayer(
     source: 'selected-route-stops',
     layout: {
       'text-field': ['to-string', ['get', 'code']],
-      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-font': ['Open Sans Bold'],
       'text-size': 10,
       'text-allow-overlap': true,
       'visibility': 'none'
@@ -259,18 +259,21 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
     features: (stops || []).map((s: any) => ({
       type: 'Feature',
       properties: {
-        name: s.nombre,
-        code: s.codigo,
+        name: s.nombre || '',
+        code: String(s.codigo || ''),
         color: color
       },
       geometry: {
         type: 'Point',
-        coordinates: s.coordinate
+        coordinates: s.coordinate || [0, 0]
       }
     }))
   };
 
-  (map.getSource('selected-route-stops') as maplibregl.GeoJSONSource).setData(geojson);
+  const source = map.getSource('selected-route-stops') as maplibregl.GeoJSONSource;
+  if (source) {
+    source.setData(geojson);
+  }
   
   const visibility = (stops && stops.length > 0) ? 'visible' : 'none';
 
@@ -281,7 +284,11 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
   if (map.getLayer('selected-route-stops-bg')) {
     map.setLayoutProperty('selected-route-stops-bg', 'visibility', visibility);
     if (color) {
-      map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
+      try {
+        map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
+      } catch (e) {
+        console.warn('[Stops] Invalid color for bubble:', color, e);
+      }
     }
   }
 
