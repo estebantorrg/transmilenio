@@ -9,7 +9,7 @@ import maplibregl from 'maplibre-gl';
 import { createMap } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer } from './layers/stations';
-import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap } from './layers/stops';
+import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -71,14 +71,17 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
 
-      // Convert "lat,lng" string to [lng, lat] numbers for GeoJSON
-      const geometryCoords = stops
-        .filter((s) => s?.coordenada && typeof s.coordenada === 'string')
-        .map((s) => {
-          const [lat, lng] = s.coordenada.split(',').map(Number);
-          return [lng, lat];
-        })
-        .filter((c) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
+      // Use official trazado (high-fidelity street-following paths) if available
+      // Otherwise fallback to connecting dots between paraderos
+      const geometryCoords = route.trazado && route.trazado.length > 0
+        ? route.trazado
+        : stops
+            .filter((s) => s?.coordenada && typeof s.coordenada === 'string')
+            .map((s) => {
+              const [lat, lng] = s.coordenada.split(',').map(Number);
+              return [lng, lat];
+            })
+            .filter((c) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
 
       items.push({
         id: `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`,
@@ -271,6 +274,7 @@ async function main(): Promise<void> {
     onRouteSelect: (route: RouteListItem) => {
 
       highlightRoute(map, route.code, route.type, route.geometry, route.color);
+      updateSelectedRouteStops(map, route.stops, route.color || '#34D399');
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
@@ -284,6 +288,7 @@ async function main(): Promise<void> {
     },
     onRouteDeselect: () => {
       clearHighlight(map);
+      updateSelectedRouteStops(map, [], '');
     },
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {

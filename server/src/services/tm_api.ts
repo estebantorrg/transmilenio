@@ -76,6 +76,7 @@ export interface CatalogRouteDetail {
     coordenada: string;
     posicion: number;
   }>;
+  trazado?: number[][];
 }
 
 export interface MasterCatalog {
@@ -216,7 +217,14 @@ async function getRouteInfo(
   idRuta: string,
   nombre: string,
   codigo: string
-): Promise<{ recorrido: ApiRecorridoStop[]; color: string; horarios?: CatalogRoute['horarios']; sistema?: string; tipoServicio?: string }> {
+): Promise<{ 
+  recorrido: ApiRecorridoStop[]; 
+  color: string; 
+  horarios?: CatalogRoute['horarios']; 
+  sistema?: string; 
+  tipoServicio?: string;
+  trazado?: number[][];
+}> {
   const data = await fetchWithRetry(
     {
       lServicio: 'Rutas',
@@ -231,12 +239,27 @@ async function getRouteInfo(
 
   const stops: ApiRecorridoStop[] = data?.recorrido?.data ?? [];
   const color: string = data?.['0']?.color ?? '';
+  
+  let trazadoCoords: number[][] | undefined;
+  const rawTrazado = data?.['0']?.trazado;
+  if (rawTrazado && typeof rawTrazado === 'string') {
+    try {
+      const parsed = JSON.parse(rawTrazado);
+      if (parsed.type === 'LineString' && Array.isArray(parsed.coordinates)) {
+        trazadoCoords = parsed.coordinates;
+      }
+    } catch (e) {
+      console.warn(`[TM API] Failed to parse trazado JSON for ${codigo}`);
+    }
+  }
+
   return {
     recorrido: stops,
     color,
     horarios: data?.['0']?.horarios,
     sistema: data?.['0']?.sistema,
     tipoServicio: data?.['0']?.tipoServicio,
+    trazado: trazadoCoords,
   };
 }
 
@@ -325,7 +348,7 @@ export async function syncMasterCatalog(): Promise<void> {
       const progress = `${processed}/${catalogRoutes.length}`;
 
       try {
-        const { recorrido, color, horarios, sistema, tipoServicio } = await getRouteInfo(route.id, route.nombre, route.codigo);
+        const { recorrido, color, horarios, sistema, tipoServicio, trazado } = await getRouteInfo(route.id, route.nombre, route.codigo);
         const routeColor = color || route.color || '#64748B';
 
         if (!recorrido || recorrido.length === 0) {
@@ -396,7 +419,8 @@ export async function syncMasterCatalog(): Promise<void> {
               codigo: s.codigo,
               coordenada: s.coordenada,
               posicion: s.posicion
-            }))
+            })),
+            trazado
           });
 
           console.log(

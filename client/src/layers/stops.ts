@@ -4,6 +4,7 @@
 
 import maplibregl from 'maplibre-gl';
 import type { MasterCatalog } from '../types/catalog';
+import type { RouteListItem } from '../types/transmilenio';
 import { getRouteColor, markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
@@ -16,6 +17,7 @@ export type StopRouteTag = {
 export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
+const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble', 'selected-route-stops-labels'];
 
 
 
@@ -203,6 +205,65 @@ export function addStopsLayer(
   map.on('mouseleave', 'stops-hitbox', () => {
     map.getCanvas().style.cursor = '';
   });
+
+  // ─── Selected Route Stops (Bubble Markers) ─────────────
+  
+  map.addSource('selected-route-stops', { 
+    type: 'geojson', 
+    data: { type: 'FeatureCollection', features: [] } 
+  });
+
+  map.addLayer({
+    id: 'selected-route-stops-bubble',
+    type: 'symbol',
+    source: 'selected-route-stops',
+    layout: {
+      'icon-image': 'stop-bubble', // We will need to ensure this icon exists or use a simpler shape
+      'icon-size': 1,
+      'text-field': ['get', 'code'],
+      'text-font': ['Open Sans Bold'],
+      'text-size': 11,
+      'text-offset': [0, -0.1],
+      'visibility': 'none'
+    },
+    paint: {
+      'text-color': '#FFFFFF'
+    }
+  });
+
+  // Since we don't have custom SDF sprite 'stop-bubble' yet, 
+  // let's implement the bubble using a circle + text offset for now, 
+  // or a symbol layer with text formatting that looks like a bubble.
+  // Real "bubbles" in MapLibre usually use a background icon.
+  // For now let's go with a high-contrast label.
+}
+
+export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListItem['stops'] | undefined, color: string): void {
+  if (!map.getSource('selected-route-stops')) return;
+
+  const geojson: GeoJSON.FeatureCollection = {
+    type: 'FeatureCollection',
+    features: (stops || []).map((s: any) => ({
+      type: 'Feature',
+      properties: {
+        name: s.nombre,
+        code: s.codigo,
+        color: color
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: s.coordinate
+      }
+    }))
+  };
+
+  (map.getSource('selected-route-stops') as maplibregl.GeoJSONSource).setData(geojson);
+  
+  const visibility = (stops && stops.length > 0) ? 'visible' : 'none';
+  
+  // Set bubble color dynamically if we used a data-driven paint property
+  // For now, let's just show/hide.
+  map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
 }
 
 export function toggleStopsLayer(map: maplibregl.Map, visible: boolean): void {

@@ -39,6 +39,7 @@ export interface CatalogRouteDetail {
     coordenada: string;
     posicion: number;
   }>;
+  trazado?: number[][];
 }
 
 export interface MasterCatalog {
