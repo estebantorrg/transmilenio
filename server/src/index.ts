@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import apiRoutes from './routes/api.js';
 import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './services/tm_api.js';
 
@@ -12,6 +13,9 @@ const configuredOrigins = process.env.CLIENT_ORIGINS
 const allowedOrigins = configuredOrigins?.length
   ? configuredOrigins
   : [/^http:\/\/localhost:\d+$/, /^http:\/\/127\.0\.0\.1:\d+$/];
+
+// Gzip all responses (critical for the ~68 MB catalog JSON)
+app.use(compression());
 
 // Enable CORS for local Vite dev/preview servers.
 app.use(cors({

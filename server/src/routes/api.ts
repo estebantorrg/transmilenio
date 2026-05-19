@@ -58,6 +58,10 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 
 // ─── Master Catalog (from TransMi App API) ────────────────
 
+// Cache the serialized JSON string so we don't re-stringify 68MB on every request.
+let cachedCatalogJson: string | null = null;
+let cachedCatalogVersion: number = 0;
+
 router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
   try {
     const catalog = tmApi.getCatalog();
@@ -65,7 +69,14 @@ router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
     if (count === 0) {
       res.json({ success: true, data: {}, count: 0, stale: true });
     } else {
-      res.json({ success: true, data: catalog, count, stale: tmApi.isCatalogStale() });
+      const currentVersion = tmApi.getCatalogVersion();
+      if (!cachedCatalogJson || currentVersion !== cachedCatalogVersion) {
+        cachedCatalogJson = JSON.stringify({ success: true, data: catalog, count, stale: tmApi.isCatalogStale() });
+        cachedCatalogVersion = currentVersion;
+        console.log(`[Catalog] Pre-serialized catalog JSON (${(cachedCatalogJson.length / 1024 / 1024).toFixed(1)} MB)`);
+      }
+      res.setHeader('Content-Type', 'application/json');
+      res.send(cachedCatalogJson);
     }
   } catch (error) {
     console.error('Error fetching master catalog:', error);

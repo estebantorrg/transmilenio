@@ -270,6 +270,7 @@ export async function getRouteInfo(
 
 let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
 let catalogLoadedAt: number = 0;
+let catalogVersion: number = 0;
 
 export async function loadCatalogFromDisk(): Promise<void> {
   try {
@@ -285,6 +286,7 @@ export async function loadCatalogFromDisk(): Promise<void> {
     }
 
     catalogLoadedAt = Date.now();
+    catalogVersion++;
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
     const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
       return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
@@ -299,6 +301,10 @@ export async function loadCatalogFromDisk(): Promise<void> {
 
 export function getCatalog(): MasterCatalog {
   return masterCatalog;
+}
+
+export function getCatalogVersion(): number {
+  return catalogVersion;
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
@@ -442,9 +448,10 @@ export async function syncMasterCatalog(): Promise<void> {
     // 3. Save to disk
     masterCatalog = newCatalog;
     catalogLoadedAt = Date.now();
+    catalogVersion++;
 
     await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
-    await fs.writeFile(CATALOG_FILE, JSON.stringify(masterCatalog, null, 2), 'utf-8');
+    await fs.writeFile(CATALOG_FILE, JSON.stringify(masterCatalog), 'utf-8');
 
     const stationCount = Object.keys(masterCatalog.stations).length;
     const totalRoutes = Object.values(masterCatalog.stations).reduce((sum, s) => {

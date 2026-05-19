@@ -208,6 +208,12 @@ function buildRouteList(
 async function main(): Promise<void> {
   console.log('🚌 TransMilenio Explorer starting...');
 
+  // 0. Wake up the backend immediately (Render free tier sleeps after inactivity)
+  //    Fire-and-forget: we don't need the result, just need the server to start booting.
+  const wakeUpPromise = fetch(
+    `${(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')}/health`
+  ).catch(() => {});
+
   // 1. Initialize map
   setLoadingStatus('Cargando mapa...');
   const map = createMap('map');
@@ -220,8 +226,11 @@ async function main(): Promise<void> {
     map.on('load', resolve);
   });
 
+  // Wait for wake-up ping to complete before firing heavy requests
+  await wakeUpPromise;
+
   // 2. Fetch data from backend
-  setLoadingStatus('Descargando rutas troncales...');
+  setLoadingStatus('Conectando con el servidor...');
 
   let troncalRoutes: TroncalRouteFeature[] = [];
   let catalog: MasterCatalog = { stations: {}, routes: {} };
