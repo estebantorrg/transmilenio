@@ -214,27 +214,6 @@ export function addStopsLayer(
   });
 
   map.addLayer({
-    id: 'selected-route-stops-bubble',
-    type: 'symbol',
-    source: 'selected-route-stops',
-    layout: {
-      'text-field': ['get', 'code'],
-      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
-      'text-size': 11,
-      'text-allow-overlap': true,
-      'text-ignore-placement': true,
-      'visibility': 'none'
-    },
-    paint: {
-      'text-color': '#FFFFFF',
-      'text-halo-color': '#333333',
-      'text-halo-width': 1.5,
-      'text-halo-blur': 0.5
-    }
-  });
-
-  // Adding a background circle to act as the "bubble"
-  map.addLayer({
     id: 'selected-route-stops-bg',
     type: 'circle',
     source: 'selected-route-stops',
@@ -243,11 +222,27 @@ export function addStopsLayer(
     },
     paint: {
       'circle-color': '#333333',
-      'circle-radius': 9,
-      'circle-stroke-width': 1,
+      'circle-radius': 10,
+      'circle-stroke-width': 1.5,
       'circle-stroke-color': '#FFFFFF'
     }
-  }, 'selected-route-stops-bubble');
+  });
+
+  map.addLayer({
+    id: 'selected-route-stops-bubble',
+    type: 'symbol',
+    source: 'selected-route-stops',
+    layout: {
+      'text-field': ['get', 'code'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
+      'text-size': 10,
+      'text-allow-overlap': true,
+      'visibility': 'none'
+    },
+    paint: {
+      'text-color': '#FFFFFF'
+    }
+  });
 
   // Since we don't have custom SDF sprite 'stop-bubble' yet, 
   // let's implement the bubble using a circle + text offset for now, 
@@ -278,12 +273,16 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
   (map.getSource('selected-route-stops') as maplibregl.GeoJSONSource).setData(geojson);
   
   const visibility = (stops && stops.length > 0) ? 'visible' : 'none';
+
+  if (map.getLayer('selected-route-stops-bubble')) {
+    map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
+  }
   
-  map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
-  map.setLayoutProperty('selected-route-stops-bg', 'visibility', visibility);
-  
-  if (color) {
-    map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
+  if (map.getLayer('selected-route-stops-bg')) {
+    map.setLayoutProperty('selected-route-stops-bg', 'visibility', visibility);
+    if (color) {
+      map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
+    }
   }
 }
 
