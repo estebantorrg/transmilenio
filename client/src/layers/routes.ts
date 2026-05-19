@@ -356,7 +356,7 @@ export function highlightRoute(
   const glowId = 'highlight-route-glow';
   const lineId = 'highlight-route';
 
-  const beforeId = map.getLayer('stations-glow') ? 'stations-glow' : undefined;
+  const beforeId = map.getLayer('stations-circle') ? 'stations-circle' : undefined;
 
   map.addLayer({
     id: glowId,

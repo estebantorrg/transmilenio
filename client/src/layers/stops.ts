@@ -17,7 +17,7 @@ export type StopRouteTag = {
 export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
-const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bg', 'selected-route-stops-bubble'];
+const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble'];
 
 
 
@@ -153,15 +153,14 @@ export function addStopsLayer(
 
   map.addLayer({
     id: 'stops-circle',
-    type: 'circle',
+    type: 'symbol',
     source: 'stops',
     minzoom: 14,
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 2, 17, 5, 20, 8],
-      'circle-color': '#34D399',
-      'circle-stroke-color': '#0A0E17',
-      'circle-stroke-width': 1,
-      'circle-opacity': 0.86,
+    layout: {
+      'icon-image': 'stop-blue',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 17, 0.6, 20, 0.9],
+      'icon-allow-overlap': true,
+      'icon-anchor': 'bottom',
     },
   });
 
@@ -172,8 +171,8 @@ export function addStopsLayer(
     minzoom: 13,
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 9, 17, 15, 20, 20],
-      'circle-color': '#34D399',
-      'circle-opacity': 0.01,
+      'circle-color': '#000000',
+      'circle-opacity': 0,
     },
   });
 
@@ -181,20 +180,20 @@ export function addStopsLayer(
     id: 'stops-labels',
     type: 'symbol',
     source: 'stops',
-    minzoom: 15,
+    minzoom: 16,
     layout: {
       'text-field': ['get', 'name'],
       'text-font': ['Open Sans Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 15, 8, 17, 11],
-      'text-offset': [0, 1.4],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 16, 9, 18, 12],
+      'text-offset': [0, 0.6],
       'text-anchor': 'top',
       'text-max-width': 9,
     },
     paint: {
-      'text-color': '#34D399',
+      'text-color': '#3B82F6',
       'text-halo-color': '#0A0E17',
       'text-halo-width': 1.5,
-      'text-opacity': ['interpolate', ['linear'], ['zoom'], 15, 0.5, 16, 0.9],
+      'text-opacity': ['interpolate', ['linear'], ['zoom'], 16, 0.5, 17, 0.9],
     },
   });
 
@@ -206,7 +205,7 @@ export function addStopsLayer(
     map.getCanvas().style.cursor = '';
   });
 
-  // ─── Selected Route Stops (Bubble Markers) ─────────────
+  // ─── Selected Route Stops (Icon Markers) ─────────────
   
   map.addSource('selected-route-stops', { 
     type: 'geojson', 
@@ -214,44 +213,20 @@ export function addStopsLayer(
   });
 
   map.addLayer({
-    id: 'selected-route-stops-bg',
-    type: 'circle',
-    source: 'selected-route-stops',
-    layout: {
-      'visibility': 'none'
-    },
-    paint: {
-      'circle-color': '#333333',
-      'circle-radius': 10,
-      'circle-stroke-width': 1.5,
-      'circle-stroke-color': '#FFFFFF'
-    }
-  });
-
-  map.addLayer({
     id: 'selected-route-stops-bubble',
     type: 'symbol',
     source: 'selected-route-stops',
     layout: {
-      'text-field': ['to-string', ['get', 'code']],
-      'text-font': ['Open Sans Bold'],
-      'text-size': 10,
-      'text-allow-overlap': true,
+      'icon-image': ['match', ['get', 'type'], 'troncal', 'stop-red', 'stop-blue'],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.8, 17, 1.2],
+      'icon-allow-overlap': true,
+      'icon-anchor': 'bottom',
       'visibility': 'none'
-    },
-    paint: {
-      'text-color': '#FFFFFF'
     }
   });
-
-  // Since we don't have custom SDF sprite 'stop-bubble' yet, 
-  // let's implement the bubble using a circle + text offset for now, 
-  // or a symbol layer with text formatting that looks like a bubble.
-  // Real "bubbles" in MapLibre usually use a background icon.
-  // For now let's go with a high-contrast label.
 }
 
-export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListItem['stops'] | undefined, color: string): void {
+export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListItem['stops'] | undefined, type: 'troncal' | 'zonal'): void {
   if (!map.getSource('selected-route-stops')) return;
 
   const geojson: GeoJSON.FeatureCollection = {
@@ -261,7 +236,7 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
       properties: {
         name: s.nombre || '',
         code: String(s.codigo || ''),
-        color: color
+        type: type
       },
       geometry: {
         type: 'Point',
@@ -279,17 +254,6 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
 
   if (map.getLayer('selected-route-stops-bubble')) {
     map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
-  }
-  
-  if (map.getLayer('selected-route-stops-bg')) {
-    map.setLayoutProperty('selected-route-stops-bg', 'visibility', visibility);
-    if (color) {
-      try {
-        map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
-      } catch (e) {
-        console.warn('[Stops] Invalid color for bubble:', color, e);
-      }
-    }
   }
 
   bringStopsLayerToFront(map);

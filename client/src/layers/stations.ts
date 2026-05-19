@@ -22,7 +22,6 @@ import {
 } from './stationCatalogResolver';
 
 const STATION_LAYERS = [
-  'stations-glow',
   'stations-circle',
   'stations-hitbox',
   'stations-labels',
@@ -211,27 +210,14 @@ export function addStationsLayer(
   map.addSource('stations', { type: 'geojson', data: geojson });
 
   map.addLayer({
-    id: 'stations-glow',
-    type: 'circle',
-    source: 'stations',
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 14, 17, 22],
-      'circle-color': '#FBBF24',
-      'circle-opacity': 0.15,
-      'circle-blur': 0.8,
-    },
-  });
-
-  map.addLayer({
     id: 'stations-circle',
-    type: 'circle',
+    type: 'symbol',
     source: 'stations',
-    paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 7, 17, 12],
-      'circle-color': '#FBBF24',
-      'circle-stroke-color': '#0A0E17',
-      'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 10, 1, 14, 2],
-      'circle-opacity': 0.92,
+    layout: {
+      'icon-image': 'stop-red',
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.4, 14, 0.7, 17, 1.2],
+      'icon-allow-overlap': true,
+      'icon-anchor': 'bottom',
     },
   });
 
@@ -241,8 +227,8 @@ export function addStationsLayer(
     source: 'stations',
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 26],
-      'circle-color': '#FBBF24',
-      'circle-opacity': 0.01,
+      'circle-color': '#000000',
+      'circle-opacity': 0,
     },
   });
 
@@ -250,20 +236,20 @@ export function addStationsLayer(
     id: 'stations-labels',
     type: 'symbol',
     source: 'stations',
-    minzoom: 13,
+    minzoom: 14,
     layout: {
       'text-field': ['get', 'name'],
       'text-font': ['Open Sans Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 13, 9, 16, 13],
-      'text-offset': [0, 1.5],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 14, 9, 17, 13],
+      'text-offset': [0, 0.8],
       'text-anchor': 'top',
       'text-max-width': 10,
     },
     paint: {
-      'text-color': '#FBBF24',
+      'text-color': '#FB2C17',
       'text-halo-color': '#0A0E17',
       'text-halo-width': 1.5,
-      'text-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 15, 1],
+      'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.6, 16, 1],
     },
   });
 

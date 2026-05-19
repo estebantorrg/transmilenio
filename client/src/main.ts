@@ -6,7 +6,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { createMap } from './map';
+import { createMap, initMapImages } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops } from './layers/stops';
@@ -223,7 +223,10 @@ async function main(): Promise<void> {
 
   // Wait for map to load
   await new Promise<void>((resolve) => {
-    map.on('load', resolve);
+    map.on('load', async () => {
+      await initMapImages(map);
+      resolve();
+    });
   });
 
   // Wait for wake-up ping to complete before firing heavy requests
@@ -319,7 +322,7 @@ async function main(): Promise<void> {
     onRouteSelect: (route: RouteListItem) => {
 
       highlightRoute(map, route.code, route.type, route.geometry, route.color);
-      updateSelectedRouteStops(map, route.stops, route.color || '#34D399');
+      updateSelectedRouteStops(map, route.stops, route.type);
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
@@ -333,7 +336,7 @@ async function main(): Promise<void> {
     },
     onRouteDeselect: () => {
       clearHighlight(map);
-      updateSelectedRouteStops(map, [], '');
+      updateSelectedRouteStops(map, [], 'zonal');
     },
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {

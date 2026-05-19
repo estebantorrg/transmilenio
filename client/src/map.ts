@@ -55,3 +55,33 @@ export function createMap(container: string): maplibregl.Map {
 
   return map;
 }
+
+/**
+ * Loads custom marker images into the map style.
+ */
+export async function initMapImages(map: maplibregl.Map): Promise<void> {
+  const images = [
+    { name: 'stop-red', url: '/icons/stop-red.png' },
+    { name: 'stop-blue', url: '/icons/stop-blue.png' },
+  ];
+
+  await Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve) => {
+          (map as any).loadImage(img.url, (error: any, image: any) => {
+            if (error) {
+              console.error(`[Map] Failed to load image: ${img.name}`, error);
+              resolve(); 
+              return;
+            }
+            if (image && !map.hasImage(img.name)) {
+              map.addImage(img.name, image);
+            }
+            resolve();
+          });
+        })
+    )
+  );
+  console.log('✅ Custom marker images loaded.');
+}
