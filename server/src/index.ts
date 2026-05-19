@@ -4,7 +4,7 @@ import apiRoutes from './routes/api.js';
 import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './services/tm_api.js';
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 const configuredOrigins = process.env.CLIENT_ORIGINS
   ?.split(',')
   .map((origin) => origin.trim())
