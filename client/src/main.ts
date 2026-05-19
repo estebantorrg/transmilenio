@@ -65,6 +65,9 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       const stops = route.stops || [];
       const origin = stops[0]?.nombre || code;
       const destination = stops[stops.length - 1]?.nombre || route.nombre;
+      
+      // Use the official catalog name if available, otherwise fallback to the origin/dest string
+      const displayName = route.nombre || `${origin} → ${destination}`;
 
       // Convert "lat,lng" string to [lng, lat] numbers for GeoJSON
       const geometryCoords = stops
@@ -77,7 +80,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       items.push({
         id: `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`,
         code,
-        name: route.nombre,
+        name: displayName,
         origin,
         destination,
         type,

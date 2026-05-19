@@ -125,6 +125,14 @@ export function getTroncalColor(value: string | null | undefined): string {
 export function getZonalRouteColor(code?: string | null): string {
   const normalized = normalizeRouteCode(code);
   
+  // Alimentadores should be Green (#009944)
+  if (normalized.includes('-') && (normalized.startsWith('2-') || normalized.startsWith('3-') || normalized.startsWith('4-') || normalized.startsWith('5-') || normalized.startsWith('6-') || normalized.startsWith('7-') || normalized.startsWith('8-') || normalized.startsWith('9-') || normalized.startsWith('10-') || normalized.startsWith('11-') || normalized.startsWith('12-') || normalized.startsWith('13-') || normalized.startsWith('16-') || /^\d+-\d+$/.test(normalized))) {
+    // This is a simplified heuristic for alimentadores which follow the X-Y format in Bogota
+    // but better yet, let's just check the catalog type in main.ts.
+    // For now, let's catch the obvious ones.
+    return '#009944';
+  }
+
   // Try to get the zone color from the code (e.g. F408 -> Red)
   const zoneLetter = getTroncalLetter(normalized);
   if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
