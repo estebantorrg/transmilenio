@@ -3,7 +3,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, ZonalRouteFeature } from '../types/transmilenio';
+import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature } from '../types/transmilenio';
 
 export const TRONCAL_COLORS: Record<string, string> = {
   A: '#0C3A95',
@@ -22,29 +22,6 @@ export const TRONCAL_COLORS: Record<string, string> = {
   T: '#808000',
   RF: '#000000',
   Z: '#EAB308', // General Zonal
-};
-
-const ZONAL_ZONE_TO_LETTER: Record<number, string> = {
-  0: 'A', // Centro/Chapinero
-  1: 'B', // Usaquen
-  2: 'C', // Suba Oriental
-  3: 'C', // Suba Centro
-  4: 'D', // Calle 80
-  5: 'D', // Engativa
-  6: 'K', // Fontibon
-  7: 'F', // Kennedy
-  8: 'G', // Bosa
-  9: 'G', // Perdomo
-  10: 'H', // Ciudad Bolivar
-  11: 'H', // Usme
-  12: 'L', // San Cristobal
-  13: 'L', // Rafael Uribe
-  14: 'A', // Chapinero
-  15: 'A', // Teusaquillo
-  16: 'A', // Barrios Unidos
-  17: 'A', // Los Martires
-  18: 'A', // Puente Aranda
-  19: 'A', // Antonio Narino
 };
 
 
@@ -351,7 +328,8 @@ export function highlightRoute(
   map: maplibregl.Map,
   routeCode: string,
   type: 'troncal' | 'zonal',
-  customGeometry?: { paths: number[][][] }
+  customGeometry?: { paths: number[][][] },
+  color?: string
 ): void {
   clearHighlight(map);
 
@@ -364,7 +342,7 @@ export function highlightRoute(
       type: 'FeatureCollection',
       features: [{
         type: 'Feature',
-        properties: { code: routeCode, color: getRouteColor(routeCode, type) },
+        properties: { code: routeCode, color: color || getRouteColor(routeCode, type) },
         geometry: { type: 'MultiLineString', coordinates: customGeometry.paths },
       }],
     };

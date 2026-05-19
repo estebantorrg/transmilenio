@@ -113,16 +113,17 @@ function renderRouteList(routes: RouteListItem[]): void {
 
   container.innerHTML = visible
     .map((route) => {
-      const badgeColor = route.color ? safeColor(route.color) : '';
+      const isTroncal = route.type === 'troncal' && route.subType !== 'alimentador';
+      const badgeColor = route.color && isTroncal ? safeColor(route.color) : '';
       const badgeStyle = badgeColor ? `background:${badgeColor};border-color:${badgeColor};color:#fff;` : '';
 
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
              data-type="${route.type}"
              data-id="${escapeHTML(route.id)}">
-          <span class="route-item-badge ${route.type}" style="${badgeStyle}">${escapeHTML(route.code)}</span>
+          <span class="route-item-badge ${route.subType || route.type}" style="${badgeStyle}">${escapeHTML(route.code)}</span>
           <div class="route-item-info">
-            <div class="route-item-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
+            <div class="route-item-name">${escapeHTML(route.name)}</div>
             <div class="route-item-meta">${escapeHTML(route.busType || route.operator || route.type)}</div>
           </div>
         </div>

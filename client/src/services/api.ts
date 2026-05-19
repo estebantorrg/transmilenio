@@ -7,7 +7,6 @@ import type {
   TroncalCorridorFeature,
   TroncalRouteFeature,
   TroncalStationFeature,
-  ZonalRouteFeature,
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
 
@@ -65,8 +64,6 @@ export const api = {
   getTroncalCorridors: () =>
     fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
 
-  getZonalRoutes: () =>
-    fetchJson<ApiResponse<ZonalRouteFeature>>('/zonal/routes'),
 
   getZonalStops: () =>
     fetchJson<ApiResponse<any>>('/zonal/stops'),

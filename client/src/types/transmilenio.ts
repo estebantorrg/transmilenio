@@ -83,28 +83,6 @@ export interface TroncalCorridorFeature {
   geometry: { paths: number[][][] };
 }
 
-// ─── Zonal ────────────────────────────────────────────────
-
-export interface ZonalRoute {
-  objectid: number;
-  codigo_definitivo_ruta_zonal: string;
-  denominacion_ruta_zonal: string;
-  origen_ruta_zonal: string;
-  destino_ruta_zonal: string;
-  operador_ruta_zonal: string;
-  route_name_ruta_zonal: string;
-  tipo_operacion: string;
-  tipo_ruta_zonal: number;
-  longitud_ruta_zonal: number;
-  zona_origen_ruta_zonal: number;
-  zona_destino_ruta_zonal: number;
-}
-
-export interface ZonalRouteFeature {
-  attributes: ZonalRoute;
-  geometry: { paths: number[][][] };
-}
-
 // ─── API Response Wrapper ─────────────────────────────────
 
 export interface ApiResponse<T> {
@@ -123,6 +101,7 @@ export interface RouteListItem {
   origin: string;
   destination: string;
   type: 'troncal' | 'zonal';
+  subType?: string;
   source?: 'arcgis' | 'catalog';
   busType?: string;
   schedule?: string;

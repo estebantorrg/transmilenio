@@ -516,6 +516,12 @@ html, body {
   border: 1px solid rgba(56, 189, 248, 0.2);
 }
 
+.route-item-badge.alimentador {
+  background: rgba(0, 153, 68, 0.15);
+  color: #009944;
+  border: 1px solid rgba(0, 153, 68, 0.25);
+}
+
 .route-item-info {
   flex: 1;
   min-width: 0;

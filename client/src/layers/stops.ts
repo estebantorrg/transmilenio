@@ -4,7 +4,6 @@
 
 import maplibregl from 'maplibre-gl';
 import type { MasterCatalog } from '../types/catalog';
-import type { ZonalRouteFeature } from '../types/transmilenio';
 import { getRouteColor, markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
@@ -18,26 +17,9 @@ export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 
-export function buildStopRouteCodeSet(stopRoutes: any[]): Set<string> {
-  const codes = new Set<string>();
 
-  for (const sr of stopRoutes) {
-    const route = sr.attributes?.ruta;
-    if (route) codes.add(normalizeRouteCodeForMatch(route));
-  }
 
-  return codes;
-}
 
-export function filterZonalRoutesWithStops(
-  routes: ZonalRouteFeature[],
-  stopRoutes: any[]
-): ZonalRouteFeature[] {
-  const routeCodesWithStops = buildStopRouteCodeSet(stopRoutes);
-  return routes.filter((route) =>
-    routeCodesWithStops.has(normalizeRouteCodeForMatch(route.attributes.codigo_definitivo_ruta_zonal))
-  );
-}
 
 function addStopRoute(map: StopRoutesMap, cenefa: string, routeTag: StopRouteTag): void {
   const code = normalizeRouteCodeForMatch(routeTag.code);
