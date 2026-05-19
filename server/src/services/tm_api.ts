@@ -213,7 +213,7 @@ async function searchAllRoutes(): Promise<ApiRouteListItem[]> {
   return Array.from(routesById.values());
 }
 
-async function getRouteInfo(
+export async function getRouteInfo(
   idRuta: string,
   nombre: string,
   codigo: string
@@ -247,6 +247,9 @@ async function getRouteInfo(
       const parsed = JSON.parse(rawTrazado);
       if (parsed.type === 'LineString' && Array.isArray(parsed.coordinates)) {
         trazadoCoords = parsed.coordinates;
+      } else if (parsed.type === 'MultiLineString' && Array.isArray(parsed.coordinates)) {
+        // Flatten MultiLineString into a single LineString for the map highlight
+        trazadoCoords = parsed.coordinates.flat();
       }
     } catch (e) {
       console.warn(`[TM API] Failed to parse trazado JSON for ${codigo}`);
