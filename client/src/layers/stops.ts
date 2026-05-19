@@ -218,18 +218,36 @@ export function addStopsLayer(
     type: 'symbol',
     source: 'selected-route-stops',
     layout: {
-      'icon-image': 'stop-bubble', // We will need to ensure this icon exists or use a simpler shape
-      'icon-size': 1,
       'text-field': ['get', 'code'],
-      'text-font': ['Open Sans Bold'],
+      'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
       'text-size': 11,
-      'text-offset': [0, -0.1],
+      'text-allow-overlap': true,
+      'text-ignore-placement': true,
       'visibility': 'none'
     },
     paint: {
-      'text-color': '#FFFFFF'
+      'text-color': '#FFFFFF',
+      'text-halo-color': '#333333',
+      'text-halo-width': 1.5,
+      'text-halo-blur': 0.5
     }
   });
+
+  // Adding a background circle to act as the "bubble"
+  map.addLayer({
+    id: 'selected-route-stops-bg',
+    type: 'circle',
+    source: 'selected-route-stops',
+    layout: {
+      'visibility': 'none'
+    },
+    paint: {
+      'circle-color': '#333333',
+      'circle-radius': 9,
+      'circle-stroke-width': 1,
+      'circle-stroke-color': '#FFFFFF'
+    }
+  }, 'selected-route-stops-bubble');
 
   // Since we don't have custom SDF sprite 'stop-bubble' yet, 
   // let's implement the bubble using a circle + text offset for now, 
@@ -261,9 +279,12 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
   
   const visibility = (stops && stops.length > 0) ? 'visible' : 'none';
   
-  // Set bubble color dynamically if we used a data-driven paint property
-  // For now, let's just show/hide.
   map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
+  map.setLayoutProperty('selected-route-stops-bg', 'visibility', visibility);
+  
+  if (color) {
+    map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
+  }
 }
 
 export function toggleStopsLayer(map: maplibregl.Map, visible: boolean): void {
