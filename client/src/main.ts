@@ -178,8 +178,9 @@ function buildRouteList(
       const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
       const cenefa = m.attributes?.cenefa;
       if (routeCode && cenefa && stopLookup.has(cenefa)) {
-        if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
         const stop = stopLookup.get(cenefa);
+        if (!stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) return;
+        if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
         routeToStops.get(routeCode)!.push({
           nombre: stop.attributes?.nombre || 'Paradero',
           codigo: cenefa,
