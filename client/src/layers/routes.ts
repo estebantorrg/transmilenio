@@ -356,6 +356,8 @@ export function highlightRoute(
   const glowId = 'highlight-route-glow';
   const lineId = 'highlight-route';
 
+  const beforeId = map.getLayer('stations-glow') ? 'stations-glow' : undefined;
+
   map.addLayer({
     id: glowId,
     type: 'line',
@@ -368,7 +370,7 @@ export function highlightRoute(
       'line-opacity': 0.35,
       'line-blur': 6,
     },
-  } as any);
+  } as any, beforeId);
 
   map.addLayer({
     id: lineId,
@@ -381,7 +383,7 @@ export function highlightRoute(
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10] as any,
       'line-opacity': 1,
     },
-  } as any);
+  } as any, beforeId);
 }
 
 export function clearHighlight(map: maplibregl.Map): void {

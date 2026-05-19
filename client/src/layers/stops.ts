@@ -17,7 +17,7 @@ export type StopRouteTag = {
 export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
-const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble', 'selected-route-stops-labels'];
+const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bg', 'selected-route-stops-bubble'];
 
 
 
@@ -233,7 +233,7 @@ export function addStopsLayer(
     type: 'symbol',
     source: 'selected-route-stops',
     layout: {
-      'text-field': ['get', 'code'],
+      'text-field': ['to-string', ['get', 'code']],
       'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
       'text-size': 10,
       'text-allow-overlap': true,
@@ -284,6 +284,8 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
       map.setPaintProperty('selected-route-stops-bg', 'circle-color', color);
     }
   }
+
+  bringStopsLayerToFront(map);
 }
 
 export function toggleStopsLayer(map: maplibregl.Map, visible: boolean): void {
@@ -296,7 +298,8 @@ export function toggleStopsLayer(map: maplibregl.Map, visible: boolean): void {
 }
 
 export function bringStopsLayerToFront(map: maplibregl.Map): void {
-  STOP_LAYERS.forEach((id) => {
+  const allLayers = [...STOP_LAYERS, ...SELECTED_ROUTE_STOPS_LAYERS];
+  allLayers.forEach((id) => {
     if (map.getLayer(id)) {
       map.moveLayer(id);
     }

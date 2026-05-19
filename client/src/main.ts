@@ -96,10 +96,15 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
         color: route.color && /^#[0-9A-Fa-f]{6}$/.test(route.color.trim()) ? route.color.trim() : (type === 'troncal' ? getRouteColor(code, 'troncal') : getZonalRouteColor(code)),
         geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
-        stops: stops.map((s) => {
-          const [lat, lng] = s.coordenada.split(',').map(Number);
-          return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] };
-        }),
+        stops: stops
+          .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
+          .map((s) => {
+            const parts = s.coordenada.split(',');
+            const lat = Number(parts[0]);
+            const lng = Number(parts[1]);
+            return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
+          })
+          .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1])),
       });
     }
   }
