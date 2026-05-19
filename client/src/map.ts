@@ -69,7 +69,13 @@ export async function initMapImages(map: maplibregl.Map): Promise<void> {
     images.map(
       (img) =>
         new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            console.warn(`[Map] Loading image timed out: ${img.name}`);
+            resolve();
+          }, 2000);
+
           (map as any).loadImage(img.url, (error: any, image: any) => {
+            clearTimeout(timeout);
             if (error) {
               console.error(`[Map] Failed to load image: ${img.name}`, error);
               resolve(); 

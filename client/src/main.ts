@@ -221,13 +221,17 @@ async function main(): Promise<void> {
     (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
   }
 
-  // Wait for map to load
-  await new Promise<void>((resolve) => {
-    map.on('load', async () => {
-      await initMapImages(map);
-      resolve();
+  // Wait for map to load (handle case where it might already be loaded)
+  if (!map.loaded()) {
+    await new Promise<void>((resolve) => {
+      map.once('load', async () => {
+        await initMapImages(map);
+        resolve();
+      });
     });
-  });
+  } else {
+    await initMapImages(map);
+  }
 
   // Wait for wake-up ping to complete before firing heavy requests
   await wakeUpPromise;
