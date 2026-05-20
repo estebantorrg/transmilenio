@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { createReadStream } from 'fs';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 
@@ -58,25 +59,40 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 
 // ─── Master Catalog (from TransMi App API) ────────────────
 
-// Cache the serialized JSON string so we don't re-stringify 68MB on every request.
-let cachedCatalogJson: string | null = null;
-let cachedCatalogVersion: number = 0;
+function streamMasterCatalog(res: Response, count: number, stale: boolean): void {
+  const stream = createReadStream(tmApi.getCatalogFilePath(), { encoding: 'utf-8' });
+
+  stream.once('open', () => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.write('{"success":true,"data":');
+    stream.pipe(res, { end: false });
+  });
+
+  stream.once('end', () => {
+    if (!res.destroyed) {
+      res.end(`,"count":${count},"stale":${stale}}`);
+    }
+  });
+
+  stream.once('error', (error) => {
+    console.error('Error streaming master catalog:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: 'Failed to stream master catalog' });
+    } else {
+      res.destroy(error);
+    }
+  });
+}
 
 router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
   try {
     const catalog = tmApi.getCatalog();
     const count = Object.keys(catalog.stations || {}).length;
     if (count === 0) {
-      res.json({ success: true, data: {}, count: 0, stale: true });
+      res.json({ success: true, data: { stations: {}, routes: {} }, count: 0, stale: true });
     } else {
-      const currentVersion = tmApi.getCatalogVersion();
-      if (!cachedCatalogJson || currentVersion !== cachedCatalogVersion) {
-        cachedCatalogJson = JSON.stringify({ success: true, data: catalog, count, stale: tmApi.isCatalogStale() });
-        cachedCatalogVersion = currentVersion;
-        console.log(`[Catalog] Pre-serialized catalog JSON (${(cachedCatalogJson.length / 1024 / 1024).toFixed(1)} MB)`);
-      }
-      res.setHeader('Content-Type', 'application/json');
-      res.send(cachedCatalogJson);
+      streamMasterCatalog(res, count, tmApi.isCatalogStale());
     }
   } catch (error) {
     console.error('Error fetching master catalog:', error);

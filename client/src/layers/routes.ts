@@ -4,31 +4,29 @@
 
 import maplibregl from 'maplibre-gl';
 import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature } from '../types/transmilenio';
+import {
+  DEFAULT_TRONCAL_COLOR,
+  DEFAULT_ZONAL_COLOR,
+  getRouteColor,
+  getRouteZoneLetters,
+  getTroncalColor,
+  getTroncalLetter,
+  getZonalRouteColor,
+  normalizeRouteCode,
+  normalizeRouteCodeForMatch,
+  TRONCAL_COLORS,
+} from '../utils/routeColors';
 
-export const TRONCAL_COLORS: Record<string, string> = {
-  A: '#0C3A95',
-  B: '#75C347',
-  C: '#FFB741',
-  D: '#6867B4',
-  E: '#B76416',
-  F: '#FB2C17',
-  G: '#00B0E8',
-  H: '#FF8525',
-  J: '#E49DAA',
-  K: '#D3AA78',
-  L: '#00B0A9',
-  M: '#852D89',
-  P: '#25206F',
-  T: '#808000',
-  RF: '#000000',
-  Z: '#EAB308', // General Zonal
+export {
+  getRouteColor,
+  getRouteZoneLetters,
+  getTroncalColor,
+  getTroncalLetter,
+  getZonalRouteColor,
+  normalizeRouteCode,
+  normalizeRouteCodeForMatch,
+  TRONCAL_COLORS,
 };
-
-
-
-const DEFAULT_TRONCAL_COLOR = '#FB2C17';
-const DEFAULT_ZONAL_COLOR = '#EAB308'; // SITP Yellow/General Zonal color
-const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 
 let claimedClickEvent: Event | null = null;
 
@@ -47,80 +45,6 @@ export function markClickHandled(e: maplibregl.MapMouseEvent): boolean {
   }
 
   return true;
-}
-
-export function normalizeRouteCode(value: string | null | undefined): string {
-  return (value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
-}
-
-export function normalizeRouteCodeForMatch(value: string | null | undefined): string {
-  return normalizeRouteCode(value)
-    .replace(/\s*\([^)]*\)\s*$/g, '')
-    .replace(/\s+/g, '');
-}
-
-export function getRouteZoneLetters(value: string | null | undefined): string[] {
-  const normalized = normalizeRouteCodeForMatch(value);
-  if (!normalized) return [];
-  if (normalized.includes('RUTAFACIL')) return ['RF'];
-
-  const prefix = normalized.match(ROUTE_ZONE_PREFIX_RE)?.[1];
-  if (!prefix) return [];
-  if (prefix === 'RF') return ['RF'];
-  if (prefix === 'MP') return ['M', 'P'];
-
-  return Array.from(prefix).filter((letter) => letter in TRONCAL_COLORS);
-}
-
-export function getTroncalLetter(value: string | null | undefined): string | null {
-  const normalized = normalizeRouteCode(value);
-  if (!normalized) return null;
-
-  // Ruta Facil (1-8) or explicit RF strings
-  if (/^\d{1,2}$/.test(normalized) || /^\d+\s*-\s*\d+/.test(normalized) || normalized.includes('RUTA FACIL')) {
-    return 'RF';
-  }
-
-  // AV. 1 de Mayo belongs visually to the Carrera 10 trunk (L), not to the
-  // first "A" in "AV." or "G" prefix sometimes used.
-  if (/(^|\b)(AV\.?\s*)?1(\s+DE)?\s+MAYO\b/.test(normalized) || /\b(CARRERA|CRA|KR)\s*10\b/.test(normalized)) {
-    return 'L';
-  }
-
-  const routeLetters = getRouteZoneLetters(normalized);
-  if (routeLetters.length > 0) return routeLetters[routeLetters.length - 1];
-
-  const letter = normalized.match(/\b(RF|[A-HJ-MPT])\b/);
-  return letter ? letter[1] : null;
-}
-
-export function getTroncalColor(value: string | null | undefined): string {
-  const letter = getTroncalLetter(value);
-  return letter ? TRONCAL_COLORS[letter] ?? DEFAULT_TRONCAL_COLOR : DEFAULT_TRONCAL_COLOR;
-}
-
-export function getZonalRouteColor(code?: string | null): string {
-  const normalized = normalizeRouteCode(code);
-  
-  // Alimentadores should be Green (#009944)
-  if (normalized.includes('-') && (normalized.startsWith('2-') || normalized.startsWith('3-') || normalized.startsWith('4-') || normalized.startsWith('5-') || normalized.startsWith('6-') || normalized.startsWith('7-') || normalized.startsWith('8-') || normalized.startsWith('9-') || normalized.startsWith('10-') || normalized.startsWith('11-') || normalized.startsWith('12-') || normalized.startsWith('13-') || normalized.startsWith('16-') || /^\d+-\d+$/.test(normalized))) {
-    // This is a simplified heuristic for alimentadores which follow the X-Y format in Bogota
-    // but better yet, let's just check the catalog type in main.ts.
-    // For now, let's catch the obvious ones.
-    return '#009944';
-  }
-
-  // Try to get the zone color from the code (e.g. F408 -> Red)
-  const zoneLetter = getTroncalLetter(normalized);
-  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
-    return TRONCAL_COLORS[zoneLetter];
-  }
-
-  return DEFAULT_ZONAL_COLOR;
-}
-
-export function getRouteColor(code: string, type: 'troncal' | 'zonal'): string {
-  return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code);
 }
 
 function routeItemsToGeoJSON(
@@ -355,6 +279,9 @@ export function highlightRoute(
 
   const glowId = 'highlight-route-glow';
   const lineId = 'highlight-route';
+  const lineColor = color
+    ? color
+    : ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR] as any;
 
   const beforeId = map.getLayer('stations-circle') ? 'stations-circle' : undefined;
 
@@ -365,7 +292,7 @@ export function highlightRoute(
     filter,
     layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
-      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR] as any,
+      'line-color': lineColor,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 20, 17, 30] as any,
       'line-opacity': 0.35,
       'line-blur': 6,
@@ -379,7 +306,7 @@ export function highlightRoute(
     filter,
     layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
-      'line-color': ['coalesce', ['get', 'color'], type === 'troncal' ? DEFAULT_TRONCAL_COLOR : DEFAULT_ZONAL_COLOR] as any,
+      'line-color': lineColor,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10] as any,
       'line-opacity': 1,
     },

@@ -62,15 +62,22 @@ app.get('*', (req, res) => {
   res.sendFile(path.resolve(clientDist, 'index.html'));
 });
 
-app.listen(PORT, async () => {
-  console.log(`\n🚌 Transmilenio API Proxy running on http://localhost:${PORT}\n`);
-  
+async function start(): Promise<void> {
   // Load cached catalog from disk
   await loadCatalogFromDisk();
-  
-  // Auto-sync if catalog is stale or missing
-  if (isCatalogStale()) {
-    console.log('[TM API] Catalog is stale or missing. Starting background sync...');
-    syncMasterCatalog().catch((err) => console.error('[Auto-Sync Error]', err));
-  }
+
+  app.listen(PORT, () => {
+    console.log(`\n🚌 Transmilenio API Proxy running on http://localhost:${PORT}\n`);
+
+    // Auto-sync if catalog is stale or missing
+    if (isCatalogStale()) {
+      console.log('[TM API] Catalog is stale or missing. Starting background sync...');
+      syncMasterCatalog().catch((err) => console.error('[Auto-Sync Error]', err));
+    }
+  });
+}
+
+start().catch((error) => {
+  console.error('[Startup Error]', error);
+  process.exit(1);
 });

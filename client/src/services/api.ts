@@ -55,7 +55,12 @@ async function fetchJsonOnce<T>(endpoint: string): Promise<T> {
       const detail = body ? ` ${body.slice(0, 180)}` : '';
       throw new ApiError(endpoint, `API ${response.status} ${response.statusText}.${detail}`, response.status);
     }
-    return response.json();
+    try {
+      return await response.json();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ApiError(endpoint, `Respuesta JSON invalida desde ${endpoint}: ${message}`, response.status);
+    }
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;

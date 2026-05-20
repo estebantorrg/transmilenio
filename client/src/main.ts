@@ -24,8 +24,9 @@ import {
   bringTroncalLayersToFront,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
-import type { RouteListItem, TroncalRouteFeature } from './types/transmilenio';
-import type { CatalogRoute, CatalogStation, MasterCatalog } from './types/catalog';
+import { getRouteAccentColor } from './utils/routeColors';
+import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
+import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
 
@@ -44,6 +45,26 @@ function hideLoading(): void {
 
 function getErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function requireLoaded<T>(label: string, result: PromiseSettledResult<T>): T {
+  if (result.status === 'fulfilled') return result.value;
+  throw new Error(`${label}: ${getErrorMessage(result.reason)}`);
+}
+
+function optionalFeatures<T>(
+  label: string,
+  result: PromiseSettledResult<ApiResponse<T>>
+): ApiResponse<T> {
+  if (result.status === 'fulfilled') return result.value;
+
+  console.warn(`[Data] ${label} unavailable. Continuing with cached catalog data.`, result.reason);
+  return {
+    success: false,
+    count: 0,
+    features: [],
+    error: getErrorMessage(result.reason),
+  };
 }
 
 function normalizeRouteText(value: string | null | undefined): string {
@@ -246,15 +267,16 @@ async function main(): Promise<void> {
   let stopsCount = 0;
 
   try {
-    // 1. Fetch EVERYTHING in parallel
+    // 1. Fetch data in parallel. The cached master catalog is required; live
+    // ArcGIS layers are allowed to degrade so the app can still open.
     const [
-      troncalRoutesRes, 
-      corridorsRes, 
-      stationsRes, 
-      catalogRes,
-      zonalStopsRes,
-      zonalStopRoutesRes
-    ] = await Promise.all([
+      troncalRoutesResult,
+      corridorsResult,
+      stationsResult,
+      catalogResult,
+      zonalStopsResult,
+      zonalStopRoutesResult
+    ] = await Promise.allSettled([
       api.getTroncalRoutes(),
       api.getTroncalCorridors(),
       api.getTroncalStations(),
@@ -262,6 +284,13 @@ async function main(): Promise<void> {
       api.getZonalStops(),
       api.getZonalStopRoutes(),
     ]);
+
+    const catalogRes = requireLoaded<MasterCatalogResponse>('Master catalog', catalogResult);
+    const troncalRoutesRes = optionalFeatures('Troncal routes', troncalRoutesResult);
+    const corridorsRes = optionalFeatures('Troncal corridors', corridorsResult);
+    const stationsRes = optionalFeatures('Troncal stations', stationsResult);
+    const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
+    const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
@@ -325,7 +354,7 @@ async function main(): Promise<void> {
   initSidebar({
     onRouteSelect: (route: RouteListItem) => {
 
-      highlightRoute(map, route.code, route.type, route.geometry, route.color);
+      highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
 
       if (route.geometry && route.geometry.paths) {

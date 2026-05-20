@@ -453,6 +453,7 @@ html, body {
 
 .route-list {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 0 8px 8px;
   scrollbar-width: thin;
@@ -562,20 +563,22 @@ html, body {
 /* ─── Route Detail Panel ──────────────────────────────── */
 
 .route-detail {
-  position: absolute;
-  inset: 0;
-  background: var(--bg-card);
-  backdrop-filter: blur(24px);
   display: flex;
   flex-direction: column;
-  z-index: 10;
-  transition: transform var(--transition-medium), opacity var(--transition-medium);
+  flex: 1;
+  min-height: 0;
+  background: transparent;
 }
 
 .route-detail.hidden {
-  transform: translateX(-100%);
-  opacity: 0;
-  pointer-events: none;
+  display: none !important;
+}
+
+.sidebar.detail-open .search-container,
+.sidebar.detail-open .layer-toggles,
+.sidebar.detail-open .route-list-header,
+.sidebar.detail-open .route-list {
+  display: none;
 }
 
 .route-detail-close {

@@ -5,6 +5,7 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
+import { getRouteAccentColor } from '../utils/routeColors';
 
 let allRoutes: RouteListItem[] = [];
 let selectedRouteId: string | null = null;
@@ -113,9 +114,8 @@ function renderRouteList(routes: RouteListItem[]): void {
 
   container.innerHTML = visible
     .map((route) => {
-      const isTroncal = route.type === 'troncal' && route.subType !== 'alimentador';
-      const badgeColor = route.color && isTroncal ? safeColor(route.color) : '';
-      const badgeStyle = badgeColor ? `background:${badgeColor};border-color:${badgeColor};color:#fff;` : '';
+      const badgeColor = safeColor(getRouteAccentColor(route));
+      const badgeStyle = `background:${badgeColor};border-color:${badgeColor};color:#fff;`;
 
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
@@ -161,12 +161,13 @@ function selectRoute(route: RouteListItem): void {
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
+  const sidebar = document.getElementById('sidebar')!;
   const isTroncal = route.type === 'troncal';
-  const badgeColor = route.color ? safeColor(route.color) : '';
+  const badgeColor = safeColor(getRouteAccentColor(route));
 
   content.innerHTML = `
     <div class="detail-header">
-      <div class="detail-badge ${route.type}" style="${badgeColor ? `background:${badgeColor};color:#fff;` : ''}">${escapeHTML(route.code)}</div>
+      <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP'}</div>
     </div>
@@ -201,12 +202,15 @@ function showRouteDetail(route: RouteListItem): void {
     </div>
   `;
 
+  sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
 }
 
 function closeRouteDetail(): void {
   const panel = document.getElementById('route-detail')!;
+  const sidebar = document.getElementById('sidebar')!;
   panel.classList.add('hidden');
+  sidebar.classList.remove('detail-open');
   selectedRouteId = null;
 
   document.querySelectorAll('.route-item').forEach((el) => {

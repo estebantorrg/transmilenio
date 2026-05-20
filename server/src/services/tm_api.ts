@@ -270,11 +270,30 @@ export async function getRouteInfo(
 
 let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
 let catalogLoadedAt: number = 0;
-let catalogVersion: number = 0;
+
+export function getCatalogFilePath(): string {
+  return CATALOG_FILE;
+}
+
+async function writeCatalogAtomically(catalog: MasterCatalog): Promise<void> {
+  await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
+  const tempFile = `${CATALOG_FILE}.${process.pid}.${Date.now()}.tmp`;
+
+  try {
+    await fs.writeFile(tempFile, JSON.stringify(catalog), 'utf-8');
+    await fs.rename(tempFile, CATALOG_FILE);
+  } catch (error) {
+    await fs.rm(tempFile, { force: true }).catch(() => {});
+    throw error;
+  }
+}
 
 export async function loadCatalogFromDisk(): Promise<void> {
   try {
-    const raw = await fs.readFile(CATALOG_FILE, 'utf-8');
+    const [raw, stats] = await Promise.all([
+      fs.readFile(CATALOG_FILE, 'utf-8'),
+      fs.stat(CATALOG_FILE),
+    ]);
     const parsed = JSON.parse(raw);
     
     // Support both the legacy flat format and the current wrapped format
@@ -285,8 +304,7 @@ export async function loadCatalogFromDisk(): Promise<void> {
       masterCatalog = { stations: parsed, routes: {} };
     }
 
-    catalogLoadedAt = Date.now();
-    catalogVersion++;
+    catalogLoadedAt = stats.mtimeMs;
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
     const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
       return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
@@ -301,10 +319,6 @@ export async function loadCatalogFromDisk(): Promise<void> {
 
 export function getCatalog(): MasterCatalog {
   return masterCatalog;
-}
-
-export function getCatalogVersion(): number {
-  return catalogVersion;
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
@@ -445,13 +459,11 @@ export async function syncMasterCatalog(): Promise<void> {
       await randomDelay();
     }
 
-    // 3. Save to disk
+    // 3. Save to disk, then publish in memory once the file is complete.
+    await writeCatalogAtomically(newCatalog);
+
     masterCatalog = newCatalog;
     catalogLoadedAt = Date.now();
-    catalogVersion++;
-
-    await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
-    await fs.writeFile(CATALOG_FILE, JSON.stringify(masterCatalog), 'utf-8');
 
     const stationCount = Object.keys(masterCatalog.stations).length;
     const totalRoutes = Object.values(masterCatalog.stations).reduce((sum, s) => {
