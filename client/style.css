@@ -210,13 +210,13 @@ body {
   border-radius: calc(var(--radius-md) * var(--tm-scale, 1)) !important;
   box-shadow: var(--shadow-lg) !important;
   color: var(--text-primary) !important;
-  padding: calc(14px * var(--tm-scale, 1)) calc(16px * var(--tm-scale, 1)) !important;
+  padding: calc(12px * var(--tm-scale, 1)) calc(14px * var(--tm-scale, 1)) !important;
   font-family: var(--font-family) !important;
-  font-size: calc(14px * var(--tm-scale, 1)) !important;
+  font-size: calc(15px * var(--tm-scale, 1)) !important;
   line-height: 1.45 !important;
-  width: calc(300px * var(--tm-scale, 1)) !important;
-  min-width: calc(300px * var(--tm-scale, 1)) !important;
-  max-width: calc(300px * var(--tm-scale, 1)) !important;
+  width: calc(320px * var(--tm-scale, 1)) !important;
+  min-width: calc(320px * var(--tm-scale, 1)) !important;
+  max-width: calc(320px * var(--tm-scale, 1)) !important;
   transform: translateZ(0); /* Hardware accelerate to stop subpixel text reflow */
 }
 
@@ -856,16 +856,16 @@ body {
 
 .popup-title,
 .popup-station-name {
-  font-size: calc(15px * var(--tm-scale, 1));
-  font-weight: 700;
+  font-size: calc(17px * var(--tm-scale, 1));
+  font-weight: 800;
   margin-bottom: calc(4px * var(--tm-scale, 1));
 }
 
 .popup-eyebrow,
 .popup-station-corridor {
-  font-size: calc(12px * var(--tm-scale, 1));
+  font-size: calc(13px * var(--tm-scale, 1));
   color: var(--tm-red-light);
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: calc(4px * var(--tm-scale, 1));
 }
 
@@ -886,7 +886,8 @@ body {
 
 .popup-meta span,
 .popup-station-meta span {
-  font-size: calc(11px * var(--tm-scale, 1));
+  font-size: calc(12.5px * var(--tm-scale, 1));
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
@@ -903,12 +904,12 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: calc(24px * var(--tm-scale, 1));
-  height: calc(20px * var(--tm-scale, 1));
+  min-width: calc(26px * var(--tm-scale, 1));
+  height: calc(22px * var(--tm-scale, 1));
   padding: 0 calc(6px * var(--tm-scale, 1));
   border-radius: calc(4px * var(--tm-scale, 1));
   color: #fff;
-  font-size: calc(11px * var(--tm-scale, 1));
+  font-size: calc(12.5px * var(--tm-scale, 1));
   font-weight: 800;
   line-height: 1;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
@@ -947,11 +948,11 @@ body {
 }
 
 .popup-wagon-label {
-  font-size: calc(10px * var(--tm-scale, 1));
-  font-weight: 700;
+  font-size: calc(11px * var(--tm-scale, 1));
+  font-weight: 800;
   color: var(--tm-yellow);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.04em;
   margin-bottom: calc(6px * var(--tm-scale, 1));
 }
 

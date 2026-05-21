@@ -262,6 +262,19 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
     map.setLayoutProperty('selected-route-stops-bubble', 'visibility', visibility);
   }
 
+  // Hide global nodes if a specific route is selected 
+  const stopLayers = ['stops-circle', 'stops-hitbox', 'stops-labels'];
+  const stationLayers = ['stations-circle', 'stations-hitbox', 'stations-labels'];
+
+  if (visibility === 'visible') {
+    const hideFilter: any = ['==', 'id', '___HIDE_ALL___'];
+    stopLayers.forEach(l => { if (map.getLayer(l)) map.setFilter(l, hideFilter); });
+    stationLayers.forEach(l => { if (map.getLayer(l)) map.setFilter(l, hideFilter); });
+  } else {
+    stopLayers.forEach(l => { if (map.getLayer(l)) map.setFilter(l, null); });
+    stationLayers.forEach(l => { if (map.getLayer(l)) map.setFilter(l, null); });
+  }
+
   bringStopsLayerToFront(map);
 }
 

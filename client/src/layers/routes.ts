@@ -270,6 +270,12 @@ export function highlightRoute(
 ): void {
   clearHighlight(map);
 
+  // Dim global traces
+  if (map.getLayer('troncal-corridors-line')) map.setPaintProperty('troncal-corridors-line', 'line-opacity', 0.15);
+  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.15);
+  if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.1);
+  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.1);
+
   let sourceId = `${type}-routes`;
   let filter: any[] = ['==', ['get', 'code'], routeCode];
 
@@ -298,6 +304,8 @@ export function highlightRoute(
 
   const beforeId = map.getLayer('stations-circle') ? 'stations-circle' : undefined;
 
+  const casingColor = color === '#000000' || color === '#050812' ? '#FFFFFF' : '#000000';
+
   map.addLayer({
     id: 'highlight-route-casing',
     type: 'line',
@@ -305,7 +313,7 @@ export function highlightRoute(
     filter,
     layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
-      'line-color': '#000000',
+      'line-color': casingColor,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 11] as any,
       'line-opacity': 0.85,
     },
@@ -344,4 +352,10 @@ export function clearHighlight(map: maplibregl.Map): void {
   if (map.getLayer('highlight-route')) map.removeLayer('highlight-route');
   if (map.getLayer('highlight-route-glow')) map.removeLayer('highlight-route-glow');
   if (map.getSource('highlight-temp-source')) map.removeSource('highlight-temp-source');
+
+  // Restore global traces
+  if (map.getLayer('troncal-corridors-line')) map.setPaintProperty('troncal-corridors-line', 'line-opacity', 0.95);
+  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.55);
+  if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.72);
+  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.8);
 }
