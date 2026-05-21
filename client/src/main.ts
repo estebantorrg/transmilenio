@@ -24,7 +24,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
@@ -79,7 +79,8 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
 
-  // Track seen route combinations to deduplicate. Key = code + normalized name
+  // Track seen route combinations to deduplicate. Key = code + system type
+  // Routes with the same code and system are direction variants (A→B / B→A)
   const seen = new Map<string, number>();
 
   for (const [code, variants] of Object.entries(catalog.routes)) {
@@ -96,12 +97,17 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
 
-      // Deduplication: same code + same normalized name = duplicate
-      const dedupKey = `${code}|${normalizeRouteText(displayName)}`;
+      // Deduplication: same code + same system type = direction variant → merge
+      const dedupKey = `${code}|${type}`;
       const existingIdx = seen.get(dedupKey);
       if (existingIdx !== undefined) {
-        // Merge geometry/stops into existing entry if the existing one lacks them
+        // Merge direction variant into existing entry
         const existing = items[existingIdx];
+        // Use the second variant's name as destination if it differs
+        if (route.nombre && normalizeRouteText(route.nombre) !== normalizeRouteText(existing.origin)) {
+          existing.destination = route.nombre;
+          existing.name = `${existing.origin} \u2192 ${existing.destination}`;
+        }
         if (!existing.geometry && route.trazado && route.trazado.length > 0) {
           existing.geometry = { paths: [route.trazado] };
         }
@@ -116,7 +122,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
             })
             .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
         }
-        continue; // Skip this duplicate
+        continue; // Skip this direction variant
       }
 
       // Use official trazado (high-fidelity street-following paths) if available
@@ -419,6 +425,7 @@ async function main(): Promise<void> {
         }
       }
 
+      refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
 

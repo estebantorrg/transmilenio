@@ -20,7 +20,25 @@ export type StopRoutesMap = Map<string, StopRouteTag[]>;
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble'];
 
+function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
+  if (!markClickHandled(e)) return;
+  const feature = e.features?.[0];
+  if (!feature || !feature.properties) return;
 
+  const p = feature.properties;
+  const coords = (feature.geometry as GeoJSON.Point).coordinates;
+  const isTroncal = p.type === 'troncal';
+
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow" style="color:${isTroncal ? '#FC8181' : '#34D399'}">${isTroncal ? 'Estación troncal' : 'Paradero zonal'}</div>
+      <div class="popup-title">${escapeHTML(p.name)}</div>
+      ${p.code ? `<div class="popup-meta"><span># ${escapeHTML(p.code)}</span></div>` : ''}
+    </div>
+  `;
+
+  showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
+}
 
 
 
@@ -229,6 +247,14 @@ export function addStopsLayer(
       'icon-anchor': 'bottom',
       'visibility': 'none'
     }
+  });
+
+  map.on('click', 'selected-route-stops-bubble', (e) => showSelectedStopPopup(map, e));
+  map.on('mouseenter', 'selected-route-stops-bubble', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'selected-route-stops-bubble', () => {
+    map.getCanvas().style.cursor = '';
   });
 }
 

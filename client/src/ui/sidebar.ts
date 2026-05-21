@@ -204,6 +204,37 @@ function formatSchedule(scheduleRaw: string | undefined): string {
   return html;
 }
 
+function renderStopsTimeline(route: RouteListItem): string {
+  const stops = route.stops;
+  if (!stops || stops.length === 0) {
+    return '<div class="stops-empty">Cargando paradas…</div>';
+  }
+
+  let html = '<div class="stops-timeline">';
+  stops.forEach((stop, i) => {
+    const isFirst = i === 0;
+    const isLast = i === stops.length - 1;
+    const dotClass = isFirst ? 'origin' : isLast ? 'destination' : 'intermediate';
+    const label = isFirst ? 'Origen' : isLast ? 'Destino' : '';
+
+    html += `
+      <div class="timeline-stop ${dotClass}">
+        <div class="timeline-dot-col">
+          <div class="timeline-dot ${dotClass}"></div>
+          ${!isLast ? '<div class="timeline-line"></div>' : ''}
+        </div>
+        <div class="timeline-stop-info">
+          <div class="timeline-stop-name">${escapeHTML(stop.nombre)}</div>
+          ${label ? `<div class="timeline-stop-label">${label}</div>` : ''}
+          ${stop.codigo ? `<div class="timeline-stop-code"># ${escapeHTML(stop.codigo)}</div>` : ''}
+        </div>
+      </div>
+    `;
+  });
+  html += '</div>';
+  return html;
+}
+
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
@@ -220,23 +251,8 @@ function showRouteDetail(route: RouteListItem): void {
     </div>
 
     <div class="detail-section">
-      <div class="detail-section-title">Recorrido</div>
-      <div class="detail-endpoints">
-        <div class="detail-endpoint">
-          <div class="detail-endpoint-dot origin"></div>
-          <div>
-            <div class="detail-endpoint-text">${escapeHTML(route.origin)}</div>
-            <div class="detail-endpoint-label">Origen</div>
-          </div>
-        </div>
-        <div class="detail-endpoint">
-          <div class="detail-endpoint-dot destination"></div>
-          <div>
-            <div class="detail-endpoint-text">${escapeHTML(route.destination)}</div>
-            <div class="detail-endpoint-label">Destino</div>
-          </div>
-        </div>
-      </div>
+      <div class="detail-section-title">Paradas (${route.stops?.length || 0})</div>
+      ${renderStopsTimeline(route)}
     </div>
 
     <div class="detail-section">
@@ -256,6 +272,12 @@ function showRouteDetail(route: RouteListItem): void {
 
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
+}
+
+export function refreshRouteDetail(route: RouteListItem): void {
+  if (selectedRouteId === route.id) {
+    showRouteDetail(route);
+  }
 }
 
 function closeRouteDetail(): void {
