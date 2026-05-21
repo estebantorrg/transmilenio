@@ -11,8 +11,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export function createMap(container: string): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    // Vector tile style — using CartoCDN's Positron (light map) so black routes don't vanish
-    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+    // Vector tile style — dark map for high contrast
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     center: [-74.1071, 4.6486], // Bogotá center
     zoom: 12,
     minZoom: 9,
@@ -52,7 +52,7 @@ function createMarkerIcon(color: string): HTMLCanvasElement {
   const centerX = size / 2;
   const centerY = size / 2 - 4;
   const radius = size / 3.5;
-  
+
   // Teardrop shape
   ctx.arc(centerX, centerY, radius, Math.PI * 0.8, Math.PI * 0.2, true);
   ctx.lineTo(centerX, size - 4);

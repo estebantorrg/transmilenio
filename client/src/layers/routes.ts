@@ -52,15 +52,15 @@ function routeItemsToGeoJSON(
 ): GeoJSON.FeatureCollection {
   // We only draw routes that actually have a geometry
   const featuresWithGeom = routes.filter((r) => r.geometry && r.geometry.paths && r.geometry.paths.length > 0);
-  
+
   return {
     type: 'FeatureCollection',
     features: featuresWithGeom.map((r) => ({
       type: 'Feature' as const,
       properties: {
-        id: r.id, 
+        id: r.id,
         code: r.code,
-        originalCode: r.code, 
+        originalCode: r.code,
         letter: r.type === 'troncal' ? getTroncalLetter(r.code) : undefined,
         color: r.color,
         name: r.name,
@@ -74,7 +74,7 @@ function routeItemsToGeoJSON(
       },
       geometry: {
         type: 'MultiLineString' as const,
-        coordinates: r.geometry!.paths, 
+        coordinates: r.geometry!.paths,
       },
     })),
   };
@@ -180,6 +180,18 @@ export function addZonalRoutesLayer(
   const beforeId = map.getLayer(firstTroncalLayer) ? firstTroncalLayer : undefined;
 
   map.addLayer({
+    id: 'zonal-routes-casing',
+    type: 'line',
+    source: 'zonal-routes',
+    layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
+    paint: {
+      'line-color': '#000000',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 3.5, 17, 5],
+      'line-opacity': 0.8,
+    },
+  }, beforeId);
+
+  map.addLayer({
     id: 'zonal-routes-glow',
     type: 'line',
     source: 'zonal-routes',
@@ -210,6 +222,7 @@ export function bringTroncalLayersToFront(map: maplibregl.Map): void {
   const layers = [
     'troncal-corridors-casing',
     'troncal-corridors-line',
+    'highlight-route-casing',
     'highlight-route-glow',
     'highlight-route',
     'troncal-corridors-labels',
@@ -238,7 +251,7 @@ export function toggleTroncalRoutes(map: maplibregl.Map, visible: boolean): void
 
 export function toggleZonalRoutes(map: maplibregl.Map, visible: boolean): void {
   const v = visible ? 'visible' : 'none';
-  ['zonal-routes-glow', 'zonal-routes-line'].forEach((id) => {
+  ['zonal-routes-casing', 'zonal-routes-glow', 'zonal-routes-line'].forEach((id) => {
     if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', v);
   });
 
@@ -286,6 +299,19 @@ export function highlightRoute(
   const beforeId = map.getLayer('stations-circle') ? 'stations-circle' : undefined;
 
   map.addLayer({
+    id: 'highlight-route-casing',
+    type: 'line',
+    source: sourceId,
+    filter,
+    layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
+    paint: {
+      'line-color': '#000000',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 11] as any,
+      'line-opacity': 0.85,
+    },
+  } as any, beforeId);
+
+  map.addLayer({
     id: glowId,
     type: 'line',
     source: sourceId,
@@ -314,6 +340,7 @@ export function highlightRoute(
 }
 
 export function clearHighlight(map: maplibregl.Map): void {
+  if (map.getLayer('highlight-route-casing')) map.removeLayer('highlight-route-casing');
   if (map.getLayer('highlight-route')) map.removeLayer('highlight-route');
   if (map.getLayer('highlight-route-glow')) map.removeLayer('highlight-route-glow');
   if (map.getSource('highlight-temp-source')) map.removeSource('highlight-temp-source');

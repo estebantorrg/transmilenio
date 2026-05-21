@@ -65,13 +65,16 @@
 
 /* ─── Reset ────────────────────────────────────────────── */
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overflow: hidden;
   font-family: var(--font-family);
@@ -116,7 +119,9 @@ html, body {
 }
 
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .loading-title {
@@ -142,7 +147,8 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 1;
-  touch-action: none; /* Block browser pinch-zoom from bloating the page elements */
+  touch-action: none;
+  /* Block browser pinch-zoom from bloating the page elements */
 }
 
 /* Override MapLibre controls */
@@ -168,7 +174,7 @@ html, body {
   background: var(--bg-hover) !important;
 }
 
-.maplibregl-ctrl-group button + button {
+.maplibregl-ctrl-group button+button {
   border-top: 1px solid var(--border-subtle) !important;
 }
 
@@ -191,6 +197,8 @@ html, body {
 
 .maplibregl-popup {
   font-size: 14px !important;
+  transition: transform 0.0s !important;
+  will-change: transform;
 }
 
 .maplibregl-popup-content {
@@ -442,27 +450,30 @@ html, body {
   transition: all var(--transition-fast);
 }
 
-.toggle-item input:checked ~ .toggle-check::after {
+.toggle-item input:checked~.toggle-check::after {
   opacity: 1;
   transform: scale(1);
 }
 
-.toggle-item input:checked ~ .toggle-check.check-troncal {
+.toggle-item input:checked~.toggle-check.check-troncal {
   border-color: var(--tm-red);
   color: var(--tm-red);
   box-shadow: 0 0 6px rgba(227, 52, 47, 0.3);
 }
-.toggle-item input:checked ~ .toggle-check.check-zonal {
+
+.toggle-item input:checked~.toggle-check.check-zonal {
   border-color: var(--tm-blue);
   color: var(--tm-blue);
   box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
 }
-.toggle-item input:checked ~ .toggle-check.check-stations {
+
+.toggle-item input:checked~.toggle-check.check-stations {
   border-color: var(--tm-yellow);
   color: var(--tm-yellow);
   box-shadow: 0 0 6px rgba(251, 191, 36, 0.3);
 }
-.toggle-item input:checked ~ .toggle-check.check-stops {
+
+.toggle-item input:checked~.toggle-check.check-stops {
   border-color: var(--tm-green);
   color: var(--tm-green);
   box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
@@ -773,8 +784,13 @@ html, body {
   flex-shrink: 0;
 }
 
-.detail-endpoint-dot.origin { background: var(--tm-green); }
-.detail-endpoint-dot.destination { background: var(--tm-red); }
+.detail-endpoint-dot.origin {
+  background: var(--tm-green);
+}
+
+.detail-endpoint-dot.destination {
+  background: var(--tm-red);
+}
 
 .detail-endpoint-text {
   font-size: var(--font-size-sm);
@@ -943,7 +959,9 @@ html, body {
 
 /* ─── Utility ─────────────────────────────────────────── */
 
-.hidden { display: none !important; }
+.hidden {
+  display: none !important;
+}
 
 /* ─── Responsive ──────────────────────────────────────── */
 
