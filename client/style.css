@@ -196,18 +196,12 @@ body {
 
 /* ─── Popup — fixed pixel size, zoom-immune ──────────── */
 
-/* Fade out popup while interacting/zooming to prevent visual scaling artifacts */
-.is-interacting .maplibregl-popup {
-  opacity: 0 !important;
-  pointer-events: none !important;
-}
-
 .maplibregl-popup {
   font-size: 14px !important;
-  transition: opacity 0.15s ease-out, transform 0s !important;
+  transition: none !important;
+  animation: none !important;
   transform-style: flat !important;
-  will-change: transform, opacity;
-  z-index: 100;
+  will-change: transform;
 }
 
 .maplibregl-popup-content {
@@ -218,12 +212,13 @@ body {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   color: var(--text-primary) !important;
-  padding: 12px 14px !important;
+  padding: 14px 16px !important;
   font-family: var(--font-family) !important;
-  font-size: 13px !important;
-  line-height: 1.4 !important;
-  width: 300px !important;
-  max-width: 300px !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  min-width: 200px;
+  max-width: 340px !important;
+  width: max-content;
 }
 
 .maplibregl-popup-close-button {
