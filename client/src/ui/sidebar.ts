@@ -158,12 +158,59 @@ function selectRoute(route: RouteListItem): void {
   });
 }
 
+function formatSchedule(scheduleRaw: string | undefined): string {
+  if (!scheduleRaw) return '';
+  
+  // Format string by splitting on "/" or "|"
+  const parts = scheduleRaw.split(/[/|]/).map(p => p.trim()).filter(Boolean);
+  if (parts.length === 0) return '';
+
+  let html = '<table class="schedule-table"><tbody>';
+  
+  parts.forEach(part => {
+    // Basic heuristic: separate text (day) and time (e.g. 05:00-22:00)
+    const match = part.match(/^(.*?)\s+((?:\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}.*))$/i);
+    let day = part;
+    let time = '';
+    
+    if (match) {
+      day = match[1].trim();
+      time = match[2].trim();
+    } else {
+      // Also try to capture things like "Lunes a Viernes 4:00 am - 11:00 pm"
+      const parts2 = part.split(/(\d{1,2}:\d{2}.*)/i);
+      if (parts2.length > 1) {
+        day = parts2[0].trim();
+        time = parts2[1].trim();
+      }
+    }
+    
+    // Normalize common abbreviations
+    const normalizedDay = day
+      .replace(/^L-V$/i, 'Lunes a Viernes')
+      .replace(/^S$/i, 'Sábados')
+      .replace(/^D-F$/i, 'Dom. y Festivos')
+      .replace(/^D-F-A$/i, 'Dom. y Festivos')
+      .replace(/^L-S$/i, 'Lunes a Sábado')
+      .replace(/^L-D$/i, 'Lunes a Domingo');
+
+    html += `<tr>
+      <td class="schedule-day">${escapeHTML(normalizedDay)}</td>
+      <td class="schedule-time">${escapeHTML(time)}</td>
+    </tr>`;
+  });
+  
+  html += '</tbody></table>';
+  return html;
+}
+
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
   const sidebar = document.getElementById('sidebar')!;
   const isTroncal = route.type === 'troncal';
   const badgeColor = safeColor(getRouteAccentColor(route));
+  const scheduleHtml = formatSchedule(route.schedule);
 
   content.innerHTML = `
     <div class="detail-header">
@@ -194,12 +241,17 @@ function showRouteDetail(route: RouteListItem): void {
 
     <div class="detail-section">
       <div class="detail-section-title">Detalles</div>
-      ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
-      ${route.schedule ? `<div class="detail-row"><span class="detail-row-label">Horario L-V</span><span class="detail-row-value">${escapeHTML(route.schedule)}</span></div>` : ''}
-      ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
-      ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
-      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
+      ${route.busType ? \`<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">\${escapeHTML(route.busType)}</span></div>\` : ''}
+      ${route.operator ? \`<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">\${escapeHTML(route.operator)}</span></div>\` : ''}
+      ${route.length ? \`<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">\${route.length.toFixed(1)} km</span></div>\` : ''}
+      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">\${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
     </div>
+    
+    \${scheduleHtml ? \`
+    <div class="detail-section">
+      <div class="detail-section-title">Horario</div>
+      \${scheduleHtml}
+    </div>\` : ''}
   `;
 
   sidebar.classList.add('detail-open');

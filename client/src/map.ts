@@ -11,7 +11,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export function createMap(container: string): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    // Dark tile style — using CartoCDN's dark_all basemap (free, no API key)
+    // Dark tile style — using CartoCDN's dark_matter basemap (dark charcoal, not black)
     style: {
       version: 8,
       name: 'Dark Basemap',
@@ -19,9 +19,9 @@ export function createMap(container: string): maplibregl.Map {
         'carto-dark': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+            'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+            'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+            'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
           ],
           tileSize: 256,
           attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',

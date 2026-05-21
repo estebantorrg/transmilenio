@@ -53,28 +53,41 @@
 
     <!-- Layer Toggles -->
     <div class="layer-toggles">
+      <div class="layer-toggles-title">Capas del mapa</div>
       <label class="toggle-item" id="toggle-troncal">
         <input type="checkbox" checked data-layer="troncal" />
-        <span class="toggle-marker toggle-troncal"></span>
-        <span class="toggle-label">Troncales</span>
+        <span class="toggle-check check-troncal"></span>
+        <div class="toggle-text">
+          <div class="toggle-label">Rutas troncales</div>
+          <div class="toggle-desc">Líneas principales de TransMilenio</div>
+        </div>
         <span class="toggle-count" id="count-troncal">—</span>
       </label>
       <label class="toggle-item" id="toggle-zonal">
         <input type="checkbox" data-layer="zonal" />
-        <span class="toggle-marker toggle-zonal"></span>
-        <span class="toggle-label">Zonales</span>
+        <span class="toggle-check check-zonal"></span>
+        <div class="toggle-text">
+          <div class="toggle-label">Rutas zonales</div>
+          <div class="toggle-desc">Buses SITP que circulan por barrios</div>
+        </div>
         <span class="toggle-count" id="count-zonal">—</span>
       </label>
       <label class="toggle-item" id="toggle-stations">
         <input type="checkbox" checked data-layer="stations" />
-        <span class="toggle-marker toggle-stations"></span>
-        <span class="toggle-label">Estaciones (Troncales)</span>
+        <span class="toggle-check check-stations"></span>
+        <div class="toggle-text">
+          <div class="toggle-label">Estaciones troncales</div>
+          <div class="toggle-desc">Paradas del sistema troncal</div>
+        </div>
         <span class="toggle-count" id="count-stations">—</span>
       </label>
       <label class="toggle-item" id="toggle-stops">
         <input type="checkbox" data-layer="stops" />
-        <span class="toggle-marker toggle-stops"></span>
-        <span class="toggle-label">Paraderos (Zonales)</span>
+        <span class="toggle-check check-stops"></span>
+        <div class="toggle-text">
+          <div class="toggle-label">Paraderos zonales</div>
+          <div class="toggle-desc">Paradas de buses SITP en calle</div>
+        </div>
         <span class="toggle-count" id="count-stops">—</span>
       </label>
     </div>

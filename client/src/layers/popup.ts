@@ -18,7 +18,8 @@ export function showPopup(
     closeOnClick: true,
     focusAfterOpen: false,
     maxWidth: options.maxWidth ?? '300px',
-    offset: options.offset ?? 10,
+    anchor: 'bottom',
+    offset: options.offset ?? 14,
   })
     .setLngLat(lngLat)
     .setHTML(html)

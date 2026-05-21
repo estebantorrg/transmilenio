@@ -186,6 +186,12 @@ html, body {
   color: var(--text-secondary) !important;
 }
 
+/* ─── Popup — fixed pixel size, zoom-immune ──────────── */
+
+.maplibregl-popup {
+  font-size: 14px !important;
+}
+
 .maplibregl-popup-content {
   background: var(--bg-card) !important;
   backdrop-filter: blur(20px) !important;
@@ -194,15 +200,21 @@ html, body {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
   color: var(--text-primary) !important;
-  padding: 12px !important;
+  padding: 14px 16px !important;
   font-family: var(--font-family) !important;
-  min-width: 180px;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+  min-width: 200px;
+  max-width: 340px !important;
+  width: max-content;
 }
 
 .maplibregl-popup-close-button {
   color: var(--text-secondary) !important;
   font-size: 18px !important;
   padding: 4px 8px !important;
+  right: 4px !important;
+  top: 4px !important;
 }
 
 .maplibregl-popup-close-button:hover {
@@ -371,15 +383,25 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 8px 16px;
+  padding: 10px 16px;
   border-bottom: 1px solid var(--border-subtle);
+}
+
+.layer-toggles-title {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 4px;
+  padding: 0 10px;
 }
 
 .toggle-item {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-radius: var(--radius-sm);
   cursor: pointer;
   transition: background var(--transition-fast);
@@ -394,28 +416,74 @@ html, body {
   display: none;
 }
 
-.toggle-marker {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+/* Custom checkbox indicator */
+.toggle-check {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 2px solid var(--text-tertiary);
   flex-shrink: 0;
-  transition: opacity var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  position: relative;
 }
 
-.toggle-item input:not(:checked) ~ .toggle-marker {
-  opacity: 0.3;
+.toggle-check::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0;
+  transform: scale(0);
+  transition: all var(--transition-fast);
 }
 
-.toggle-troncal { background: var(--tm-red); box-shadow: 0 0 6px rgba(227, 52, 47, 0.4); }
-.toggle-zonal { background: var(--tm-blue); box-shadow: 0 0 6px rgba(56, 189, 248, 0.4); }
-.toggle-stations { background: var(--tm-yellow); box-shadow: 0 0 6px rgba(251, 191, 36, 0.4); }
-.toggle-stops { background: var(--tm-green); box-shadow: 0 0 6px rgba(52, 211, 153, 0.4); }
+.toggle-item input:checked ~ .toggle-check::after {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.toggle-item input:checked ~ .toggle-check.check-troncal {
+  border-color: var(--tm-red);
+  color: var(--tm-red);
+  box-shadow: 0 0 6px rgba(227, 52, 47, 0.3);
+}
+.toggle-item input:checked ~ .toggle-check.check-zonal {
+  border-color: var(--tm-blue);
+  color: var(--tm-blue);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
+}
+.toggle-item input:checked ~ .toggle-check.check-stations {
+  border-color: var(--tm-yellow);
+  color: var(--tm-yellow);
+  box-shadow: 0 0 6px rgba(251, 191, 36, 0.3);
+}
+.toggle-item input:checked ~ .toggle-check.check-stops {
+  border-color: var(--tm-green);
+  color: var(--tm-green);
+  box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
+}
+
+.toggle-text {
+  flex: 1;
+  min-width: 0;
+}
 
 .toggle-label {
   font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-primary);
-  flex: 1;
+  line-height: 1.2;
+}
+
+.toggle-desc {
+  font-size: 0.65rem;
+  color: var(--text-tertiary);
+  line-height: 1.3;
+  margin-top: 1px;
 }
 
 .toggle-count {
@@ -658,6 +726,7 @@ html, body {
 .detail-row {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   padding: 8px 0;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -669,6 +738,7 @@ html, body {
 .detail-row-label {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .detail-row-value {
@@ -676,7 +746,7 @@ html, body {
   font-weight: 600;
   color: var(--text-primary);
   text-align: right;
-  max-width: 55%;
+  max-width: 60%;
 }
 
 .detail-endpoints {
@@ -715,22 +785,66 @@ html, body {
   color: var(--text-tertiary);
 }
 
+/* ─── Schedule Table ─────────────────────────────────── */
+
+.schedule-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: var(--font-size-sm);
+  margin-top: 4px;
+}
+
+.schedule-table th {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.schedule-table td {
+  padding: 6px 8px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.schedule-table tr:last-child td {
+  border-bottom: none;
+}
+
+.schedule-day {
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.schedule-time {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 /* ─── Popup Content Styles ────────────────────────────── */
 
 .popup-card {
   font-family: var(--font-family);
+  font-size: 14px;
 }
 
 .popup-title,
 .popup-station-name {
-  font-size: var(--font-size-md);
+  font-size: 15px;
   font-weight: 700;
   margin-bottom: 4px;
 }
 
 .popup-eyebrow,
 .popup-station-corridor {
-  font-size: var(--font-size-sm);
+  font-size: 12px;
   color: var(--tm-red-light);
   font-weight: 500;
   margin-bottom: 4px;
@@ -739,7 +853,7 @@ html, body {
 .popup-subtitle {
   margin-bottom: 8px;
   color: var(--text-secondary);
-  font-size: var(--font-size-sm);
+  font-size: 12px;
   font-weight: 600;
 }
 
@@ -753,7 +867,7 @@ html, body {
 
 .popup-meta span,
 .popup-station-meta span {
-  font-size: var(--font-size-xs);
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
@@ -775,7 +889,7 @@ html, body {
   padding: 0 6px;
   border-radius: 4px;
   color: #fff;
-  font-size: 0.75rem;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1;
   text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
@@ -792,7 +906,7 @@ html, body {
   background: rgba(148, 163, 184, 0.18);
   border: 1px solid rgba(148, 163, 184, 0.24);
   color: var(--text-secondary);
-  font-size: 0.65rem;
+  font-size: 10px;
   font-weight: 700;
   line-height: 1;
 }
@@ -814,7 +928,7 @@ html, body {
 }
 
 .popup-wagon-label {
-  font-size: var(--font-size-xs);
+  font-size: 10px;
   font-weight: 700;
   color: var(--tm-yellow);
   text-transform: uppercase;
@@ -851,5 +965,4 @@ html, body {
   .sidebar.collapsed {
     transform: translateY(calc(100% - 60px));
   }
-
 }
