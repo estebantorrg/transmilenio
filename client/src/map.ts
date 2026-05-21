@@ -28,6 +28,12 @@ export function createMap(container: string): maplibregl.Map {
   // Scale bar
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-right');
 
+  // Hide popups smoothly during interactions to prevent visual scaling discrepancies
+  map.on('zoomstart', () => map.getContainer().classList.add('is-interacting'));
+  map.on('dragstart', () => map.getContainer().classList.add('is-interacting'));
+  map.on('zoomend', () => map.getContainer().classList.remove('is-interacting'));
+  map.on('dragend', () => map.getContainer().classList.remove('is-interacting'));
+
   return map;
 }
 
