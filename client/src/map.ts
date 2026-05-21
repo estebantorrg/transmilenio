@@ -11,32 +11,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export function createMap(container: string): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    // Dark tile style — using Esri Dark Gray Canvas (dark gray, high contrast for routes)
-    style: {
-      version: 8,
-      name: 'Dark Basemap',
-      sources: {
-        'esri-dark': {
-          type: 'raster',
-          tiles: [
-            'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-          ],
-          tileSize: 256,
-          maxzoom: 16,
-          attribution: '&copy; <a href="https://www.esri.com">Esri</a>, HERE, Garmin, FAO, NOAA, USGS, EPA',
-        },
-      },
-      layers: [
-        {
-          id: 'carto-dark-layer',
-          type: 'raster',
-          source: 'esri-dark',
-          minzoom: 0,
-          maxzoom: 20,
-        },
-      ],
-      glyphs: 'https://fonts.openmaptiles.org/{fontstack}/{range}.pbf',
-    },
+    // Vector tile style — using CartoCDN's vector Dark Matter gl-style (infinitely scalable, sleek dark)
+    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     center: [-74.1071, 4.6486], // Bogotá center
     zoom: 12,
     minZoom: 9,
