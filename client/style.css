@@ -77,6 +77,7 @@ html,
 body {
   height: 100%;
   overflow: hidden;
+  touch-action: none; /* Block browser pinch-zoom globally to stop UI bloating */
   font-family: var(--font-family);
   font-size: var(--font-size-base);
   color: var(--text-primary);
@@ -197,7 +198,9 @@ body {
 
 .maplibregl-popup {
   font-size: 14px !important;
-  transition: transform 0.0s !important;
+  transition: none !important;
+  animation: none !important;
+  transform-style: flat !important;
   will-change: transform;
 }
 
