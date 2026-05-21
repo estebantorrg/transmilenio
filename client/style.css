@@ -206,8 +206,6 @@ body {
 
 .maplibregl-popup-content {
   background: var(--bg-card) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
   border: 1px solid var(--border-medium) !important;
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-lg) !important;
@@ -216,9 +214,9 @@ body {
   font-family: var(--font-family) !important;
   font-size: 14px !important;
   line-height: 1.45 !important;
-  width: 320px !important;
-  min-width: 320px !important;
-  max-width: 320px !important;
+  width: 300px !important;
+  min-width: 300px !important;
+  max-width: 300px !important;
   transform: translateZ(0); /* Hardware accelerate to stop subpixel text reflow */
 }
 
