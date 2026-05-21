@@ -28,6 +28,20 @@ export function createMap(container: string): maplibregl.Map {
   // Scale bar
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-right');
 
+  // Update the global --tm-scale variable so popups can physical-dimension scale with the map without breaking MapLibre anchor translate math
+  const updateScale = () => {
+    const z = map.getZoom();
+    // Proportional curve: Zoom 10 -> 0.65x, Zoom 14 -> 0.85x, Zoom 16 -> 1.0x, Zoom 18 -> 1.15x
+    let s = 1.0;
+    if (z <= 12) s = 0.65;
+    else if (z <= 14) s = 0.65 + (0.85 - 0.65) * ((z - 12) / 2);
+    else if (z <= 16) s = 0.85 + (1.0 - 0.85) * ((z - 14) / 2);
+    else s = 1.0 + (1.15 - 1.0) * ((Math.min(z, 18) - 16) / 2);
+    map.getContainer().style.setProperty('--tm-scale', s.toFixed(3));
+  };
+  map.on('load', updateScale);
+  map.on('zoom', updateScale);
+
   return map;
 }
 
