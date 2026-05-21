@@ -10,6 +10,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./style.css" />
+  <script>
+    // Absolute safeguard to prevent laptop trackpads & ctrl+scroll from zooming the entire HTML page
+    // and bloating out fixed popup elements. MapLibre handles its own map zoom cleanly.
+    document.addEventListener('wheel', function(e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  </script>
 </head>
 <body>
   <!-- Loading Overlay -->

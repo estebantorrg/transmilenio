@@ -11,8 +11,8 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export function createMap(container: string): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    // Vector tile style — using CartoCDN's vector Dark Matter gl-style (infinitely scalable, sleek dark)
-    style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+    // Vector tile style — using CartoCDN's Positron (light map) so black routes don't vanish
+    style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
     center: [-74.1071, 4.6486], // Bogotá center
     zoom: 12,
     minZoom: 9,

@@ -142,6 +142,7 @@ html, body {
   position: absolute;
   inset: 0;
   z-index: 1;
+  touch-action: none; /* Block browser pinch-zoom from bloating the page elements */
 }
 
 /* Override MapLibre controls */
