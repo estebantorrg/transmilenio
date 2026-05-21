@@ -22,6 +22,7 @@ export function createMap(container: string): maplibregl.Map {
             'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
           ],
           tileSize: 256,
+          maxzoom: 16,
           attribution: '&copy; <a href="https://www.esri.com">Esri</a>, HERE, Garmin, FAO, NOAA, USGS, EPA',
         },
       },
