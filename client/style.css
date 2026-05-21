@@ -194,15 +194,29 @@ body {
   color: var(--text-secondary) !important;
 }
 
-/* ─── Popup — fixed pixel size, zoom-immune ──────────── */
+/* ─── Popup — Dynamic Zoom Proportional Scale ──────────── */
 
 .maplibregl-popup {
   font-size: 14px !important;
-  transition: none !important;
+  transition: transform 0s !important;
   animation: none !important;
   transform-style: flat !important;
   will-change: transform;
+  z-index: 100;
+  
+  /* Scale proportionally to map zoom driven by map.js listener */
+  scale: var(--popup-zoom-scale, 1);
 }
+
+/* Hardcode specific transform origins depending on where MapLibre anchored the popup so it centers the scale at the pin */
+.maplibregl-popup-anchor-top { transform-origin: top center; }
+.maplibregl-popup-anchor-bottom { transform-origin: bottom center; }
+.maplibregl-popup-anchor-left { transform-origin: center left; }
+.maplibregl-popup-anchor-right { transform-origin: center right; }
+.maplibregl-popup-anchor-top-left { transform-origin: top left; }
+.maplibregl-popup-anchor-top-right { transform-origin: top right; }
+.maplibregl-popup-anchor-bottom-left { transform-origin: bottom left; }
+.maplibregl-popup-anchor-bottom-right { transform-origin: bottom right; }
 
 .maplibregl-popup-content {
   background: var(--bg-card) !important;

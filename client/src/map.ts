@@ -28,6 +28,30 @@ export function createMap(container: string): maplibregl.Map {
   // Scale bar
   map.addControl(new maplibregl.ScaleControl({ maxWidth: 150, unit: 'metric' }), 'bottom-right');
 
+  // Dynamically calculate popup zoom scaling to make the HTML popups proportional to map zoom
+  const updatePopupScale = () => {
+    const currentZoom = map.getZoom();
+    let popupScale = 1.0;
+    
+    // Mimics the interpolation scale used by your stations and symbols
+    if (currentZoom <= 12) {
+      popupScale = 0.65;
+    } else if (currentZoom <= 14) {
+      popupScale = 0.65 + (0.8 - 0.65) * ((currentZoom - 12) / 2);
+    } else if (currentZoom <= 16) {
+      popupScale = 0.8 + (1.0 - 0.8) * ((currentZoom - 14) / 2);
+    } else {
+      popupScale = 1.0 + (1.1 - 1.0) * ((currentZoom - 16) / 2);
+    }
+
+    const containerEl = map.getContainer();
+    containerEl.style.setProperty('--popup-zoom-scale', popupScale.toFixed(3));
+  };
+
+  // Run immediately and on every zoom interaction to keep it strictly proportional
+  map.on('load', updatePopupScale);
+  map.on('zoom', updatePopupScale);
+
   return map;
 }
 
