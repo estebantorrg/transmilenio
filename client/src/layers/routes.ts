@@ -183,7 +183,7 @@ export function addZonalRoutesLayer(
     id: 'zonal-routes-glow',
     type: 'line',
     source: 'zonal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
@@ -196,7 +196,7 @@ export function addZonalRoutesLayer(
     id: 'zonal-routes-line',
     type: 'line',
     source: 'zonal-routes',
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],

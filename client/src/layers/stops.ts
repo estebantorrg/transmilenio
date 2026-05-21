@@ -161,6 +161,7 @@ export function addStopsLayer(
       'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 17, 0.6, 20, 0.9],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
+      'visibility': 'none',
     },
   });
 
@@ -173,6 +174,9 @@ export function addStopsLayer(
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 13, 9, 17, 15, 20, 20],
       'circle-color': '#000000',
       'circle-opacity': 0,
+    },
+    layout: {
+      'visibility': 'none',
     },
   });
 
@@ -188,6 +192,7 @@ export function addStopsLayer(
       'text-offset': [0, 0.6],
       'text-anchor': 'top',
       'text-max-width': 9,
+      'visibility': 'none',
     },
     paint: {
       'text-color': '#3B82F6',
