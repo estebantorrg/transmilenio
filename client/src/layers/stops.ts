@@ -159,7 +159,7 @@ export function addStopsLayer(
     minzoom: 14,
     layout: {
       'icon-image': 'stop-blue',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.4, 17, 0.6, 20, 0.9],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 14, 0.5, 17, 0.6, 20, 0.75],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
       'visibility': 'none',
@@ -224,7 +224,7 @@ export function addStopsLayer(
     source: 'selected-route-stops',
     layout: {
       'icon-image': ['match', ['get', 'type'], 'troncal', 'stop-red', 'stop-blue'],
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.8, 17, 1.2],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 14, 0.7, 17, 0.85],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
       'visibility': 'none'

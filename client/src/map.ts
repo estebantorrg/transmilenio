@@ -11,27 +11,25 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 export function createMap(container: string): maplibregl.Map {
   const map = new maplibregl.Map({
     container,
-    // Dark tile style — using CartoCDN's dark_matter basemap (dark charcoal, not black)
+    // Dark tile style — using Esri Dark Gray Canvas (dark gray, high contrast for routes)
     style: {
       version: 8,
       name: 'Dark Basemap',
       sources: {
-        'carto-dark': {
+        'esri-dark': {
           type: 'raster',
           tiles: [
-            'https://a.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
-            'https://b.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
-            'https://c.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}@2x.png',
+            'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
           ],
           tileSize: 256,
-          attribution: '&copy; <a href="https://carto.com/attributions">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          attribution: '&copy; <a href="https://www.esri.com">Esri</a>, HERE, Garmin, FAO, NOAA, USGS, EPA',
         },
       },
       layers: [
         {
           id: 'carto-dark-layer',
           type: 'raster',
-          source: 'carto-dark',
+          source: 'esri-dark',
           minzoom: 0,
           maxzoom: 20,
         },

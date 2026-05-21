@@ -118,7 +118,7 @@ export function addTroncalCorridorsLayer(
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
       'line-color': '#050812',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 10, 17, 18],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 6, 17, 10],
       'line-opacity': 0.72,
     },
   });
@@ -134,7 +134,7 @@ export function addTroncalCorridorsLayer(
     },
     paint: {
       'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 5, 17, 8],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4, 17, 6],
       'line-opacity': 0.95,
     },
   });
@@ -186,7 +186,7 @@ export function addZonalRoutesLayer(
     layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
       'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4, 17, 6],
       'line-opacity': 0.12,
       'line-blur': 3,
     },
@@ -199,7 +199,7 @@ export function addZonalRoutesLayer(
     layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
       'line-color': ['get', 'color'],
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.6, 14, 1.5, 17, 2.5],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 1.5, 17, 2],
       'line-opacity': 0.55,
     },
   }, beforeId);
@@ -293,7 +293,7 @@ export function highlightRoute(
     layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
       'line-color': lineColor,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 20, 17, 30] as any,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 12, 17, 18] as any,
       'line-opacity': 0.35,
       'line-blur': 6,
     },
@@ -307,7 +307,7 @@ export function highlightRoute(
     layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'visible' },
     paint: {
       'line-color': lineColor,
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 4, 14, 7, 17, 10] as any,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 5, 17, 7] as any,
       'line-opacity': 1,
     },
   } as any, beforeId);

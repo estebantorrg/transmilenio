@@ -216,7 +216,7 @@ export function addStationsLayer(
     source: 'stations',
     layout: {
       'icon-image': 'stop-red',
-      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.4, 14, 0.7, 17, 1.2],
+      'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.65, 17, 0.85],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
     },
