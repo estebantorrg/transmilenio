@@ -1,11 +1,3 @@
-/**
- * HTTP client for the backend proxy API.
- *
- * Includes automatic retry with exponential backoff to handle
- * Render free-tier cold starts (server sleeps after inactivity
- * and returns 502 for ~30s while waking up).
- */
-
 import type {
   ApiResponse,
   TroncalCorridorFeature,
@@ -15,7 +7,9 @@ import type {
 import type { MasterCatalogResponse } from '../types/catalog';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
-const REQUEST_TIMEOUT_MS = 60_000;  // 60s to accommodate cold starts
+const REQUEST_TIMEOUT_MS = 60_000;
+const MASTER_CATALOG_TIMEOUT_MS = 300_000; // 5m for the heavy catalog
+
 const MAX_RETRIES = 4;
 const INITIAL_RETRY_DELAY_MS = 2_000;  // 2s, then 4s, 8s, 16s
 
@@ -44,9 +38,9 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJsonOnce<T>(endpoint: string): Promise<T> {
+async function fetchJsonOnce<T>(endpoint: string, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, { signal: controller.signal });
@@ -58,6 +52,10 @@ async function fetchJsonOnce<T>(endpoint: string): Promise<T> {
     try {
       return await response.json();
     } catch (error) {
+      // If it's an abort error that happened during body reading, handle it specifically
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
       const message = error instanceof Error ? error.message : String(error);
       throw new ApiError(endpoint, `Respuesta JSON invalida desde ${endpoint}: ${message}`, response.status);
     }
@@ -67,11 +65,11 @@ async function fetchJsonOnce<T>(endpoint: string): Promise<T> {
     }
 
     const message = error instanceof Error ? error.message : String(error);
-    const isAbort = error instanceof DOMException && error.name === 'AbortError';
+    const isAbort = (error instanceof DOMException && error.name === 'AbortError') || message.toLowerCase().includes('aborted');
     throw new ApiError(
       endpoint,
       isAbort
-        ? `La API no respondió después de ${REQUEST_TIMEOUT_MS / 1000}s: ${endpoint}`
+        ? `La API no respondió dentro del tiempo límite (${timeoutMs / 1000}s): ${endpoint}`
         : `No se pudo conectar con ${API_BASE}: ${message}`
     );
   } finally {
@@ -79,12 +77,12 @@ async function fetchJsonOnce<T>(endpoint: string): Promise<T> {
   }
 }
 
-async function fetchJson<T>(endpoint: string): Promise<T> {
+async function fetchJson<T>(endpoint: string, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await fetchJsonOnce<T>(endpoint);
+      return await fetchJsonOnce<T>(endpoint, timeoutMs);
     } catch (error) {
       lastError = error;
 
@@ -121,5 +119,5 @@ export const api = {
     fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
 
   getMasterCatalog: () =>
-    fetchJson<MasterCatalogResponse>('/troncal/master-catalog'),
+    fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),
 };

@@ -60,7 +60,7 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 // ─── Master Catalog (from TransMi App API) ────────────────
 
 function streamMasterCatalog(res: Response, count: number, stale: boolean): void {
-  const stream = createReadStream(tmApi.getCatalogFilePath(), { encoding: 'utf-8' });
+  const stream = createReadStream(tmApi.getCatalogFilePath());
 
   stream.once('open', () => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');

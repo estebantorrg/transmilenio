@@ -258,7 +258,8 @@ async function main(): Promise<void> {
   await wakeUpPromise;
 
   // 2. Fetch data from backend
-  setLoadingStatus('Conectando con el servidor...');
+  setLoadingStatus('Conectando con el servidor (descargando catálogo maestro)...');
+
 
   let troncalRoutes: TroncalRouteFeature[] = [];
   let catalog: MasterCatalog = { stations: {}, routes: {} };
@@ -305,7 +306,7 @@ async function main(): Promise<void> {
     setCatalog(catalog);
 
     // 2. Pre-calculate unified route list from API
-    setLoadingStatus('Procesando datos de rutas...');
+    setLoadingStatus('Procesando datos (esto puede tardar unos segundos)...');
     routeList = buildRouteList(troncalRoutes, catalog, zonalStopsRes.features, zonalStopRoutesRes.features);
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
