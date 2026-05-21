@@ -269,6 +269,7 @@ export async function getRouteInfo(
 // ─── In-Memory Catalog ──────────────────────────────────
 
 let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
+let masterCatalogLight: any = null;
 let catalogLoadedAt: number = 0;
 
 export function getCatalogFilePath(): string {
@@ -305,6 +306,8 @@ export async function loadCatalogFromDisk(): Promise<void> {
     }
 
     catalogLoadedAt = stats.mtimeMs;
+    masterCatalogLight = null; // Clear light catalog cache!
+
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
     const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
       return sum + Object.values(s.wagons).reduce((ws, routes) => ws + routes.length, 0);
@@ -319,6 +322,83 @@ export async function loadCatalogFromDisk(): Promise<void> {
 
 export function getCatalog(): MasterCatalog {
   return masterCatalog;
+}
+
+export function getCatalogLight(): any {
+  if (masterCatalogLight) return masterCatalogLight;
+
+  console.log('[TM API] Generating lightweight master catalog...');
+  const cleanStations: Record<string, any> = {};
+  for (const [code, station] of Object.entries(masterCatalog.stations || {})) {
+    const isTroncal = /^TM\d+$/i.test(station.codigo);
+    const cleanWagons: Record<string, any[]> = {};
+    for (const [wagon, routes] of Object.entries(station.wagons || {})) {
+      cleanWagons[wagon] = routes.map((r: any) => {
+        if (isTroncal) {
+          return {
+            id: r.id,
+            codigo: r.codigo,
+            nombre: r.nombre,
+            color: r.color,
+            sistema: r.sistema,
+            tipoServicio: r.tipoServicio,
+            horarios: r.horarios,
+          };
+        } else {
+          return {
+            codigo: r.codigo,
+            color: r.color,
+          };
+        }
+      });
+    }
+
+    if (isTroncal) {
+      cleanStations[code] = {
+        id: station.id,
+        codigo: station.codigo,
+        nombre: station.nombre,
+        direccion: station.direccion,
+        coordenada: station.coordenada,
+        sistema: station.sistema,
+        tipoServicio: station.tipoServicio,
+        wagons: cleanWagons,
+      };
+    } else {
+      cleanStations[code] = {
+        codigo: station.codigo,
+        nombre: station.nombre,
+        coordenada: station.coordenada,
+        wagons: cleanWagons,
+      };
+    }
+  }
+
+  const cleanRoutes: Record<string, any[]> = {};
+  for (const [code, variants] of Object.entries(masterCatalog.routes || {})) {
+    cleanRoutes[code] = variants.map((route: any) => {
+      const origin = route.stops?.[0]?.nombre || '';
+      const destination = route.stops?.[route.stops.length - 1]?.nombre || '';
+      return {
+        id: route.id,
+        codigo: route.codigo,
+        nombre: route.nombre,
+        color: route.color,
+        sistema: route.sistema,
+        tipoServicio: route.tipoServicio,
+        horarios: route.horarios,
+        origin,
+        destination,
+      };
+    });
+  }
+
+  masterCatalogLight = {
+    stations: cleanStations,
+    routes: cleanRoutes,
+  };
+
+  return masterCatalogLight;
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
@@ -463,6 +543,7 @@ export async function syncMasterCatalog(): Promise<void> {
     await writeCatalogAtomically(newCatalog);
 
     masterCatalog = newCatalog;
+    masterCatalogLight = null; // Clear light catalog cache!
     catalogLoadedAt = Date.now();
 
     const stationCount = Object.keys(masterCatalog.stations).length;

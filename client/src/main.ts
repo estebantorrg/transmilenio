@@ -9,7 +9,7 @@ import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer } from './layers/stations';
-import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops } from './layers/stops';
+import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -22,6 +22,7 @@ import {
   clearHighlight,
   normalizeRouteCodeForMatch,
   bringTroncalLayersToFront,
+  updateZonalRoutes,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
@@ -89,8 +90,8 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       const subType = isAlimentador ? 'alimentador' : type;
 
       const stops = route.stops || [];
-      const origin = stops[0]?.nombre || code;
-      const destination = stops[stops.length - 1]?.nombre || route.nombre;
+      const origin = (route as any).origin || stops[0]?.nombre || code;
+      const destination = (route as any).destination || stops[stops.length - 1]?.nombre || route.nombre;
       
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
@@ -296,31 +297,28 @@ async function main(): Promise<void> {
   let stationCount = 0;
   let stopsCount = 0;
 
+  let activeRouteId: string | null = null;
+
   try {
     // 1. Fetch data in parallel. The cached master catalog is required; live
     // ArcGIS layers are allowed to degrade so the app can still open.
+    // Zonal stops/mappings are loaded asynchronously in the background.
     const [
       troncalRoutesResult,
       corridorsResult,
       stationsResult,
       catalogResult,
-      zonalStopsResult,
-      zonalStopRoutesResult
     ] = await Promise.allSettled([
       api.getTroncalRoutes(),
       api.getTroncalCorridors(),
       api.getTroncalStations(),
       api.getMasterCatalog(),
-      api.getZonalStops(),
-      api.getZonalStopRoutes(),
     ]);
 
     const catalogRes = requireLoaded<MasterCatalogResponse>('Master catalog', catalogResult);
     const troncalRoutesRes = optionalFeatures('Troncal routes', troncalRoutesResult);
     const corridorsRes = optionalFeatures('Troncal corridors', corridorsResult);
     const stationsRes = optionalFeatures('Troncal stations', stationsResult);
-    const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
-    const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
@@ -336,7 +334,7 @@ async function main(): Promise<void> {
 
     // 2. Pre-calculate unified route list from API
     setLoadingStatus('Procesando datos (esto puede tardar unos segundos)...');
-    routeList = buildRouteList(troncalRoutes, catalog, zonalStopsRes.features, zonalStopRoutesRes.features);
+    routeList = buildRouteList(troncalRoutes, catalog);
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
 
@@ -351,17 +349,12 @@ async function main(): Promise<void> {
     addStationsLayer(map, stations);
     stationCount = stations.length;
 
-    // 4. Mappings and Stops
-    const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, catalog);
-    console.log(`✅ Zonal stops: ${zonalStopsRes.features.length}`);
-    console.log(`✅ Stop-route mappings: ${zonalStopRoutesRes.features.length} → ${stopRoutesMap.size} stops`);
-
+    // 4. Mappings and Stops (Initialize empty stops layer first, background load will update it)
     setLoadingStatus('Dibujando rutas zonales...');
     addZonalRoutesLayer(map, zonalListItems);
 
     setLoadingStatus('Colocando paraderos...');
-    addStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
-    stopsCount = zonalStopsRes.features.length;
+    addStopsLayer(map, [], new Map());
 
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
@@ -382,7 +375,49 @@ async function main(): Promise<void> {
   );
 
   initSidebar({
-    onRouteSelect: (route: RouteListItem) => {
+    onRouteSelect: async (route: RouteListItem) => {
+      activeRouteId = route.id;
+
+      // On-demand loading of catalog routes (geometries and stops)
+      if (route.source === 'catalog' && (!route.geometry || !route.stops || route.stops.length === 0)) {
+        try {
+          const detailRes = await api.getRouteDetail(route.code);
+          if (activeRouteId !== route.id) return; // User switched routes during async load
+
+          if (detailRes.success && Array.isArray(detailRes.data)) {
+            const variant = detailRes.data.find((v: any) => {
+              const vId = `catalog-${v.id || `${route.code}-${normalizeRouteText(v.nombre)}`}`;
+              return vId === route.id;
+            });
+            if (variant) {
+              const vStops = variant.stops || [];
+              const geometryCoords = variant.trazado && variant.trazado.length > 0
+                ? variant.trazado
+                : vStops
+                    .filter((s: any) => s?.coordenada && typeof s.coordenada === 'string')
+                    .map((s: any) => {
+                      const [lat, lng] = s.coordenada.split(',').map(Number);
+                      return [lng, lat];
+                    })
+                    .filter((c: any) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
+
+              route.geometry = geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined;
+              route.stops = vStops
+                .filter((s: any) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
+                .map((s: any) => {
+                  const parts = s.coordenada.split(',');
+                  const lat = Number(parts[0]);
+                  const lng = Number(parts[1]);
+                  return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
+                })
+                .filter((s: any) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
+            }
+          }
+        } catch (error) {
+          console.error(`❌ Error fetching details for route ${route.code}:`, error);
+          if (activeRouteId !== route.id) return;
+        }
+      }
 
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
@@ -398,6 +433,7 @@ async function main(): Promise<void> {
       }
     },
     onRouteDeselect: () => {
+      activeRouteId = null;
       clearHighlight(map);
       updateSelectedRouteStops(map, [], 'zonal');
     },
@@ -435,9 +471,83 @@ async function main(): Promise<void> {
     stops: stopsCount,
   });
 
-  // 4. Done!
-  console.log('🎉 TransMilenio Explorer ready!');
+  // 4. Done with initial render!
+  console.log('🎉 TransMilenio Explorer initial render ready!');
   hideLoading();
+
+  // 5. Background Loading: fetch Zonal Stops and Zonal stop-route mappings asynchronously
+  Promise.allSettled([
+    api.getZonalStops(),
+    api.getZonalStopRoutes()
+  ]).then(([zonalStopsResult, zonalStopRoutesResult]) => {
+    try {
+      const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
+      const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);
+
+      console.log(`✅ Background load: Zonal stops: ${zonalStopsRes.features.length}`);
+      console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
+
+      if (zonalStopsRes.features.length > 0 && zonalStopRoutesRes.features.length > 0) {
+        // Build stop-route lookup map
+        const stopLookup = new Map<string, any>();
+        zonalStopsRes.features.forEach((s: any) => {
+          const cenefa = s.attributes?.cenefa;
+          if (cenefa) stopLookup.set(cenefa, s);
+        });
+
+        const routeToStops = new Map<string, any[]>();
+        zonalStopRoutesRes.features.forEach((m: any) => {
+          const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
+          const cenefa = m.attributes?.cenefa;
+          if (routeCode && cenefa && stopLookup.has(cenefa)) {
+            const stop = stopLookup.get(cenefa);
+            if (!stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) return;
+            if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
+            routeToStops.get(routeCode)!.push({
+              nombre: stop.attributes?.nombre || 'Paradero',
+              codigo: cenefa,
+              coordinate: [stop.geometry.x, stop.geometry.y] as [number, number]
+            });
+          }
+        });
+
+        // Enrich Zonal catalog routes with stops and connect-the-dots geometry
+        routeList.forEach((route) => {
+          if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
+            const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
+            if (stops) {
+              route.stops = stops;
+              if (!route.geometry) {
+                const coords = stops.map(s => s.coordinate);
+                if (coords.length > 1) {
+                  route.geometry = { paths: [coords] };
+                }
+              }
+            }
+          }
+        });
+
+        // Update zonal routes map source with newly loaded geometries
+        updateZonalRoutes(map, routeList.filter(r => r.type === 'zonal'));
+
+        // Build complete stopRoutesMap and update the stops layer
+        const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, catalog);
+        updateStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
+
+        stopsCount = zonalStopsRes.features.length;
+        updateCounts({
+          troncal: routeCounts.troncal,
+          zonal: routeCounts.zonal,
+          stations: stationCount,
+          stops: stopsCount,
+        });
+
+        console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
+      }
+    } catch (bgError) {
+      console.error('❌ Error during background load:', bgError);
+    }
+  });
 }
 
 // Launch!

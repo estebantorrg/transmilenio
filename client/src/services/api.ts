@@ -120,4 +120,7 @@ export const api = {
 
   getMasterCatalog: () =>
     fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),
+
+  getRouteDetail: (code: string) =>
+    fetchJson<any>(`/troncal/route/${code}`),
 };

@@ -232,6 +232,44 @@ export function addStopsLayer(
   });
 }
 
+export function updateStopsLayer(
+  map: maplibregl.Map,
+  stops: any[],
+  stopRoutesMap: StopRoutesMap
+): void {
+  const source = map.getSource('stops') as maplibregl.GeoJSONSource;
+  if (!source) return;
+
+  const validStops = stops.filter((s) => s.geometry && s.geometry.x && s.geometry.y);
+  const geojson: GeoJSON.FeatureCollection = {
+    type: 'FeatureCollection',
+    features: validStops.map((s) => {
+      const a = s.attributes;
+      const cenefa: string = a.cenefa || '';
+      const routes = stopRoutesMap?.get(cenefa) ?? [];
+
+      return {
+        type: 'Feature',
+        properties: {
+          id: a.objectid,
+          cenefa,
+          name: a.nombre || 'Paradero Zonal',
+          address: a.direccion_bandera || a.via || '',
+          locality: a.localidad || '',
+          zone: a.zona_sitp || '',
+          routes: JSON.stringify(routes),
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [s.geometry.x, s.geometry.y],
+        },
+      };
+    }),
+  };
+
+  source.setData(geojson);
+}
+
 export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListItem['stops'] | undefined, type: 'troncal' | 'zonal'): void {
   if (!map.getSource('selected-route-stops')) return;
 

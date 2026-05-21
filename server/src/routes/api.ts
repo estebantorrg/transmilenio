@@ -59,44 +59,37 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 
 // ─── Master Catalog (from TransMi App API) ────────────────
 
-function streamMasterCatalog(res: Response, count: number, stale: boolean): void {
-  const stream = createReadStream(tmApi.getCatalogFilePath());
-
-  stream.once('open', () => {
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Cache-Control', 'public, max-age=300');
-    res.write('{"success":true,"data":');
-    stream.pipe(res, { end: false });
-  });
-
-  stream.once('end', () => {
-    if (!res.destroyed) {
-      res.end(`,"count":${count},"stale":${stale}}`);
-    }
-  });
-
-  stream.once('error', (error) => {
-    console.error('Error streaming master catalog:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: 'Failed to stream master catalog' });
-    } else {
-      res.destroy(error);
-    }
-  });
-}
-
 router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
   try {
-    const catalog = tmApi.getCatalog();
+    const catalog = tmApi.getCatalogLight();
     const count = Object.keys(catalog.stations || {}).length;
-    if (count === 0) {
-      res.json({ success: true, data: { stations: {}, routes: {} }, count: 0, stale: true });
-    } else {
-      streamMasterCatalog(res, count, tmApi.isCatalogStale());
-    }
+    res.setHeader('Cache-Control', 'public, max-age=300');
+    res.json({
+      success: true,
+      data: catalog,
+      count,
+      stale: tmApi.isCatalogStale()
+    });
   } catch (error) {
     console.error('Error fetching master catalog:', error);
     res.status(500).json({ success: false, error: 'Failed to load master catalog' });
+  }
+});
+
+router.get('/troncal/route/:code', async (req: Request, res: Response) => {
+  try {
+    const { code } = req.params;
+    const catalog = tmApi.getCatalog();
+    const routeVariants = catalog.routes[code];
+    if (routeVariants && routeVariants.length > 0) {
+      res.setHeader('Cache-Control', 'public, max-age=600');
+      res.json({ success: true, data: routeVariants });
+    } else {
+      res.status(404).json({ success: false, error: `Route ${code} not found in catalog` });
+    }
+  } catch (error) {
+    console.error(`Error fetching route detail for ${req.params.code}:`, error);
+    res.status(500).json({ success: false, error: 'Failed to load route detail' });
   }
 });
 

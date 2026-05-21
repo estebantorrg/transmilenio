@@ -217,6 +217,13 @@ export function addZonalRoutesLayer(
   }, beforeId);
 }
 
+export function updateZonalRoutes(map: maplibregl.Map, routes: RouteListItem[]): void {
+  const source = map.getSource('zonal-routes') as maplibregl.GeoJSONSource;
+  if (source) {
+    source.setData(routeItemsToGeoJSON(routes));
+  }
+}
+
 export function bringTroncalLayersToFront(map: maplibregl.Map): void {
   // Order matters: Bottom to Top
   const layers = [
