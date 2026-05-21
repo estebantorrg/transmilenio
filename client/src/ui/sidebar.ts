@@ -241,17 +241,17 @@ function showRouteDetail(route: RouteListItem): void {
 
     <div class="detail-section">
       <div class="detail-section-title">Detalles</div>
-      ${route.busType ? \`<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">\${escapeHTML(route.busType)}</span></div>\` : ''}
-      ${route.operator ? \`<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">\${escapeHTML(route.operator)}</span></div>\` : ''}
-      ${route.length ? \`<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">\${route.length.toFixed(1)} km</span></div>\` : ''}
-      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">\${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
+      ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
+      ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
+      ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
+      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
     </div>
     
-    \${scheduleHtml ? \`
+    ${scheduleHtml ? `
     <div class="detail-section">
       <div class="detail-section-title">Horario</div>
-      \${scheduleHtml}
-    </div>\` : ''}
+      ${scheduleHtml}
+    </div>` : ''}
   `;
 
   sidebar.classList.add('detail-open');
