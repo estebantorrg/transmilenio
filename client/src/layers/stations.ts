@@ -8,9 +8,10 @@
 
 import maplibregl from 'maplibre-gl';
 import type { TroncalStationFeature } from '../types/transmilenio';
-import { getTroncalColor, markClickHandled, normalizeRouteCode } from './routes';
+import { markClickHandled, normalizeRouteCode } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
+import { getStopTagColor } from '../utils/routeColors';
 import type { MasterCatalog, CatalogRoute } from '../types/catalog';
 import {
   buildStationKey,
@@ -44,7 +45,7 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
   const hiddenCount = routes.length - visibleRoutes.length;
   const tags = visibleRoutes
     .map((route) => {
-      const color = safeColor(route.color || getTroncalColor(route.codigo), '#FB2C17');
+      const color = safeColor(getStopTagColor(route.codigo, route.color), '#FB2C17');
       return `<span class="route-tag" style="background:${color};">${escapeHTML(route.codigo)}</span>`;
     })
     .join('');

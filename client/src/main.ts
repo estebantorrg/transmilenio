@@ -24,7 +24,7 @@ import {
   bringTroncalLayersToFront,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts } from './ui/sidebar';
-import { getRouteAccentColor } from './utils/routeColors';
+import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
@@ -78,6 +78,9 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
 
+  // Track seen route combinations to deduplicate. Key = code + normalized name
+  const seen = new Map<string, number>();
+
   for (const [code, variants] of Object.entries(catalog.routes)) {
     for (const route of variants) {
       const service = `${route.sistema} ${route.tipoServicio}`.toUpperCase();
@@ -92,6 +95,29 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
 
+      // Deduplication: same code + same normalized name = duplicate
+      const dedupKey = `${code}|${normalizeRouteText(displayName)}`;
+      const existingIdx = seen.get(dedupKey);
+      if (existingIdx !== undefined) {
+        // Merge geometry/stops into existing entry if the existing one lacks them
+        const existing = items[existingIdx];
+        if (!existing.geometry && route.trazado && route.trazado.length > 0) {
+          existing.geometry = { paths: [route.trazado] };
+        }
+        if ((!existing.stops || existing.stops.length === 0) && stops.length > 0) {
+          existing.stops = stops
+            .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
+            .map((s) => {
+              const parts = s.coordenada.split(',');
+              const lat = Number(parts[0]);
+              const lng = Number(parts[1]);
+              return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
+            })
+            .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
+        }
+        continue; // Skip this duplicate
+      }
+
       // Use official trazado (high-fidelity street-following paths) if available
       // Otherwise fallback to connecting dots between paraderos
       const geometryCoords = route.trazado && route.trazado.length > 0
@@ -104,7 +130,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
             })
             .filter((c) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
 
-      items.push({
+      const newItem: RouteListItem = {
         id: `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`,
         code,
         name: displayName,
@@ -114,8 +140,8 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         subType,
         source: 'catalog',
         busType: route.tipoServicio,
-        schedule: route.horarios?.data?.map((item) => `${item.convencion} ${item.hora_inicio}-${item.hora_fin}`).join(' / '),
-        color: route.color && /^#[0-9A-Fa-f]{6}$/.test(route.color.trim()) ? route.color.trim() : (type === 'troncal' ? getRouteColor(code, 'troncal') : getZonalRouteColor(code)),
+        schedule: route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / '),
+        color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color),
         geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
         stops: stops
           .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
@@ -126,7 +152,10 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
             return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
           })
           .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1])),
-      });
+      };
+
+      seen.set(dedupKey, items.length);
+      items.push(newItem);
     }
   }
 

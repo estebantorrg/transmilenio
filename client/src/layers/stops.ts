@@ -5,9 +5,10 @@
 import maplibregl from 'maplibre-gl';
 import type { MasterCatalog } from '../types/catalog';
 import type { RouteListItem } from '../types/transmilenio';
-import { getRouteColor, markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
+import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
+import { getStopTagColor } from '../utils/routeColors';
 
 export type StopRouteTag = {
   code: string;
@@ -42,7 +43,7 @@ function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void 
       for (const route of routes) {
         addStopRoute(map, station.codigo, {
           code: route.codigo,
-          color: route.color || getRouteColor(route.codigo, 'zonal'),
+          color: getStopTagColor(route.codigo, route.color),
         });
       }
     }
@@ -62,7 +63,7 @@ export function buildStopRoutesMap(
     
     const routeTag = {
       code: route,
-      color: getRouteColor(route, 'zonal'),
+      color: getStopTagColor(route),
     };
 
     addStopRoute(map, cenefa, routeTag);

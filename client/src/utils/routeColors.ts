@@ -29,7 +29,13 @@ const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
 
 function validHexColor(value: string | null | undefined): string | null {
   const color = value?.trim() ?? '';
-  return /^#[0-9A-F]{6}$/i.test(color) ? color : null;
+  if (!/^#[0-9A-F]{6}$/i.test(color)) return null;
+  // Reject white / near-white — invisible on dark backgrounds
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  if (r > 240 && g > 240 && b > 240) return null;
+  return color;
 }
 
 export function normalizeRouteCode(value: string | null | undefined): string {
@@ -127,5 +133,28 @@ export function getRouteAccentColor(
     return getTroncalColor(route.code);
   }
 
+  // For zonal routes: prefer valid catalog color, then fall back to default
   return validHexColor(route.color) ?? DEFAULT_ZONAL_COLOR;
+}
+
+/**
+ * Color for a stop/paradero route tag.
+ * Uses the route code to derive a zone-based color, falling back to a
+ * validated catalog color, then to the default zonal color.
+ * This is the SINGLE source of truth for paradero popup route badge colors.
+ */
+export function getStopTagColor(code: string, catalogColor?: string | null): string {
+  if (isRutaFacilCode(code)) return RUTA_FACIL_COLOR;
+
+  const normalized = normalizeRouteCodeForMatch(code);
+  // Check for alimentador pattern (e.g. "9-3")
+  if (/^\d+-\d+$/.test(normalized)) return ALIMENTADOR_COLOR;
+
+  const zoneLetter = getTroncalLetter(code);
+  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
+    return TRONCAL_COLORS[zoneLetter];
+  }
+
+  // Fall back to validated catalog color, then default
+  return validHexColor(catalogColor) ?? DEFAULT_ZONAL_COLOR;
 }
