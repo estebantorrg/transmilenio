@@ -46,7 +46,7 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
   const tags = visibleRoutes
     .map((route) => {
       const color = safeColor(getStopTagColor(route.codigo, route.color), '#FB2C17');
-      return `<span class="route-tag" style="background:${color};">${escapeHTML(route.codigo)}</span>`;
+      return `<span class="route-tag clickable" data-route-code="${escapeHTML(route.codigo)}" style="background:${color}; cursor:pointer;">${escapeHTML(route.codigo)}</span>`;
     })
     .join('');
 
@@ -135,7 +135,16 @@ function showStationPopup(
 
     wagonSections = wagonEntries
       .map(([label, routes]) => {
-        const sorted = sortCatalogRoutes(routes as CatalogRoute[]);
+        const uniqueRoutes: CatalogRoute[] = [];
+        const seenCodes = new Set<string>();
+        for (const route of (routes as CatalogRoute[])) {
+          const code = route.codigo.toUpperCase();
+          if (!seenCodes.has(code)) {
+            seenCodes.add(code);
+            uniqueRoutes.push(route);
+          }
+        }
+        const sorted = sortCatalogRoutes(uniqueRoutes);
         const tags = formatRouteTags(sorted);
         const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
         return `
@@ -306,7 +315,16 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
     wagonSections = wagonEntries
       .map(([label, routes]) => {
-        const sorted = sortCatalogRoutes(routes as CatalogRoute[]);
+        const uniqueRoutes: CatalogRoute[] = [];
+        const seenCodes = new Set<string>();
+        for (const route of (routes as CatalogRoute[])) {
+          const code = route.codigo.toUpperCase();
+          if (!seenCodes.has(code)) {
+            seenCodes.add(code);
+            uniqueRoutes.push(route);
+          }
+        }
+        const sorted = sortCatalogRoutes(uniqueRoutes);
         const tags = formatRouteTags(sorted);
         const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
         return `

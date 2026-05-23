@@ -24,7 +24,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
@@ -531,6 +531,17 @@ async function main(): Promise<void> {
       bringStationsLayerToFront(map);
       bringStopsLayerToFront(map);
     },
+  });
+
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const clickableTag = target.closest('.route-tag.clickable');
+    if (clickableTag) {
+      const code = clickableTag.getAttribute('data-route-code');
+      if (code) {
+        selectRouteByCode(code);
+      }
+    }
   });
 
   setRoutes(routeList);

@@ -9,6 +9,7 @@ import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
+import { showStationPopupByCode } from './stations';
 
 export type StopRouteTag = {
   code: string;
@@ -28,16 +29,18 @@ function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseE
   const p = feature.properties;
   const coords = (feature.geometry as GeoJSON.Point).coordinates;
   const isTroncal = p.type === 'troncal';
+  const stopCode = p.code || '';
+  const stopName = p.name || '';
+  const stopAddress = p.address || '';
 
-  const html = `
-    <div class="popup-card">
-      <div class="popup-eyebrow" style="color:${isTroncal ? '#FC8181' : '#34D399'}">${isTroncal ? 'Estación troncal' : 'Paradero zonal'}</div>
-      <div class="popup-title">${escapeHTML(p.name)}</div>
-      ${p.code ? `<div class="popup-meta"><span># ${escapeHTML(p.code)}</span></div>` : ''}
-    </div>
-  `;
-
-  showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
+  if (isTroncal) {
+    const resolved = showStationPopupByCode(map, stopCode, coords as [number, number]);
+    if (!resolved) {
+      showStopPopupByCode(map, stopCode, stopName, coords as [number, number], stopAddress);
+    }
+  } else {
+    showStopPopupByCode(map, stopCode, stopName, coords as [number, number], stopAddress);
+  }
 }
 
 
@@ -100,7 +103,7 @@ function routeTags(routes: StopRouteTag[]): string {
   return routes
     .map(
       (route) =>
-        `<span class="route-tag" style="background:${safeColor(route.color)};">${escapeHTML(route.code)}</span>`
+        `<span class="route-tag clickable" data-route-code="${escapeHTML(route.code)}" style="background:${safeColor(route.color)}; cursor:pointer;">${escapeHTML(route.code)}</span>`
     )
     .join('');
 }
@@ -312,7 +315,8 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
       properties: {
         name: s.nombre || '',
         code: String(s.codigo || ''),
-        type: type
+        type: type,
+        address: s.direccion || ''
       },
       geometry: {
         type: 'Point',

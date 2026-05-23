@@ -316,3 +316,13 @@ export function updateCounts(counts: {
   document.getElementById('count-stations')!.textContent = counts.stations.toString();
   document.getElementById('count-stops')!.textContent = counts.stops.toString();
 }
+
+export function selectRouteByCode(code: string): boolean {
+  const normalized = code.trim().toUpperCase();
+  const route = allRoutes.find((r) => r.code.toUpperCase() === normalized);
+  if (route) {
+    selectRoute(route);
+    return true;
+  }
+  return false;
+}
