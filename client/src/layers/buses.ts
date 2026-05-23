@@ -13,6 +13,106 @@ let activeMarkers: maplibregl.Marker[] = [];
 let trackingInterval: number | null = null;
 let styleInjected = false;
 
+type LiveBus = {
+  id: string;
+  route_id?: number | string;
+  latitude: number;
+  longitude: number;
+  label: string;
+  lasttime?: string;
+  ruta_extraida?: string;
+  destino_limpio?: string;
+  posicion?: number;
+  angulo?: number;
+  nombre_sistema?: string;
+};
+
+function toFiniteNumber(value: unknown): number | null {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function isBusLike(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+
+  const bus = value as { latitude?: unknown; longitude?: unknown; lat?: unknown; lng?: unknown; lon?: unknown };
+  return toFiniteNumber(bus.latitude ?? bus.lat) !== null &&
+    toFiniteNumber(bus.longitude ?? bus.lng ?? bus.lon) !== null;
+}
+
+function busValuesFromObject(value: unknown): unknown[] | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+
+  const buses = Object.values(value).filter(isBusLike);
+  return buses.length > 0 ? buses : null;
+}
+
+function findBusPayloadArray(payload: any): unknown[] | null {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return null;
+
+  const candidates = [
+    payload.data,
+    payload.buses,
+    payload.result,
+    payload.results,
+    payload.vehiculos,
+    payload.vehicles,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+
+  for (const candidate of candidates) {
+    const buses = busValuesFromObject(candidate);
+    if (buses) return buses;
+  }
+
+  return busValuesFromObject(payload);
+}
+
+function normalizeLiveBus(rawBus: unknown, index: number, routeCode: string): LiveBus | null {
+  if (!rawBus || typeof rawBus !== 'object') return null;
+
+  const raw = rawBus as Record<string, unknown>;
+  const latitude = toFiniteNumber(raw.latitude ?? raw.lat);
+  const longitude = toFiniteNumber(raw.longitude ?? raw.lng ?? raw.lon);
+  if (latitude === null || longitude === null) return null;
+
+  const fallbackId = `${routeCode}-${latitude.toFixed(6)}-${longitude.toFixed(6)}-${index}`;
+  const rawId = raw.id ?? raw.vehicle_id ?? raw.vehiculo_id ?? raw.label ?? fallbackId;
+  const rawLabel = raw.label ?? rawId;
+  const angulo = toFiniteNumber(raw.angulo ?? raw.angle ?? raw.heading);
+  const posicion = toFiniteNumber(raw.posicion);
+
+  return {
+    ...raw,
+    id: String(rawId),
+    label: String(rawLabel),
+    latitude,
+    longitude,
+    route_id: raw.route_id as number | string | undefined,
+    lasttime: typeof raw.lasttime === 'string' ? raw.lasttime : undefined,
+    ruta_extraida: typeof raw.ruta_extraida === 'string' ? raw.ruta_extraida : undefined,
+    destino_limpio: typeof raw.destino_limpio === 'string' ? raw.destino_limpio : undefined,
+    nombre_sistema: typeof raw.nombre_sistema === 'string' ? raw.nombre_sistema : undefined,
+    ...(angulo !== null ? { angulo } : {}),
+    ...(posicion !== null ? { posicion } : {}),
+  };
+}
+
+function extractLiveBuses(response: any, routeCode: string): LiveBus[] | null {
+  if (!response || response.success === false) return null;
+
+  const payloadArray = findBusPayloadArray(response);
+  if (!payloadArray) return null;
+
+  return payloadArray
+    .map((bus, index) => normalizeLiveBus(bus, index, routeCode))
+    .filter((bus): bus is LiveBus => bus !== null);
+}
+
 // ─── Style Injection ─────────────────────────────────────
 
 function injectMarkerStyles(): void {
@@ -24,10 +124,10 @@ function injectMarkerStyles(): void {
   style.textContent = `
     .live-bus-marker {
       position: relative;
-      width: 44px;
-      height: 44px;
+      width: 58px;
+      height: 58px;
       cursor: pointer;
-      z-index: 50;
+      z-index: 120;
       transition: transform 0.2s ease-out;
     }
     .bus-badge-container {
@@ -39,8 +139,8 @@ function injectMarkerStyles(): void {
       justify-content: center;
     }
     .bus-badge-circle {
-      width: 34px;
-      height: 34px;
+      width: 48px;
+      height: 48px;
       border-radius: 50%;
       background: rgba(10, 15, 30, 0.88);
       backdrop-filter: blur(4px);
@@ -62,14 +162,14 @@ function injectMarkerStyles(): void {
       border: 2px solid #3B82F6; /* SITP Blue */
     }
     .bus-emoji {
-      font-size: 19px;
+      font-size: 30px;
       line-height: 1;
       user-select: none;
     }
     .bus-badge-glow {
       position: absolute;
-      width: 38px;
-      height: 38px;
+      width: 54px;
+      height: 54px;
       border-radius: 50%;
       filter: blur(6px);
       animation: bus-pulse-anim 1.8s infinite alternate ease-in-out;
@@ -94,13 +194,13 @@ function injectMarkerStyles(): void {
     }
     .direction-arrow {
       position: absolute;
-      top: -5px;
-      left: calc(50% - 4px);
+      top: -3px;
+      left: calc(50% - 5px);
       width: 0;
       height: 0;
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-bottom: 7px solid #10B981; /* Neon green indicator */
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 8px solid #10B981; /* Neon green indicator */
       filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
     }
     .bus-popup-card {
@@ -198,26 +298,9 @@ async function fetchAndRenderBuses(
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null) return;
 
-    let buses: any[] = [];
-    if (res) {
-      if (Array.isArray(res)) {
-        buses = res;
-      } else if (Array.isArray(res.data)) {
-        buses = res.data;
-      } else if (res.data && Array.isArray(res.data.data)) {
-        buses = res.data.data;
-      } else if (res.data && typeof res.data === 'object') {
-        const arrayProp = Object.values(res.data).find(val => Array.isArray(val));
-        if (arrayProp) {
-          buses = arrayProp as any[];
-        } else {
-          buses = Object.values(res.data).filter((item: any) => item && typeof item === 'object' && 'latitude' in item);
-        }
-      }
-    }
-
-    if (!res || (res.success === false) || !Array.isArray(buses)) {
-      console.warn(`[Tracking] Invalid API response structure for ${routeCode}:`, res);
+    const buses = extractLiveBuses(res, routeCode);
+    if (!buses) {
+      console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
       onUpdate?.(0, 'error');
       return;
     }
@@ -225,11 +308,9 @@ async function fetchAndRenderBuses(
     console.log(`[Tracking] Fetched ${buses.length} live buses for ${routeCode}`);
 
     // Map existing markers by bus ID to update them smoothly instead of rebuilding everything
-    const busMap = new Map<string, any>();
-    buses.forEach((bus: any) => {
-      if (bus.id && bus.latitude && bus.longitude) {
-        busMap.set(String(bus.id), bus);
-      }
+    const busMap = new Map<string, LiveBus>();
+    buses.forEach((bus) => {
+      busMap.set(bus.id, bus);
     });
 
     // Remove markers for buses that are no longer active
@@ -238,7 +319,7 @@ async function fetchAndRenderBuses(
       const el = marker.getElement();
       const busId = el.getAttribute('data-bus-id');
       if (busId && busMap.has(busId)) {
-        const bus = busMap.get(busId);
+        const bus = busMap.get(busId)!;
         // Smoothly update location
         marker.setLngLat([bus.longitude, bus.latitude]);
         
@@ -285,7 +366,7 @@ async function fetchAndRenderBuses(
 
 // ─── Helper Functions ────────────────────────────────────
 
-function buildBusPopupHTML(bus: any, routeType: 'troncal' | 'zonal'): string {
+function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
   const sysClass = routeType === 'troncal' ? 'troncal' : 'zonal';
   const sysLabel = bus.nombre_sistema || (routeType === 'troncal' ? 'TransMilenio' : 'SITP Zonal');
   
@@ -303,7 +384,7 @@ function buildBusPopupHTML(bus: any, routeType: 'troncal' | 'zonal'): string {
         <span>Ángulo</span>
         <span class="bus-popup-value">${bus.angulo != null ? `${bus.angulo}°` : '—'}</span>
       </div>
-      ${bus.posicion ? `
+      ${bus.posicion != null ? `
       <div class="bus-popup-row">
         <span>Progreso</span>
         <span class="bus-popup-value">${(bus.posicion / 1000).toFixed(2)} km</span>
@@ -312,7 +393,7 @@ function buildBusPopupHTML(bus: any, routeType: 'troncal' | 'zonal'): string {
   `;
 }
 
-function createBusMarker(bus: any, routeType: 'troncal' | 'zonal'): maplibregl.Marker {
+function createBusMarker(bus: LiveBus, routeType: 'troncal' | 'zonal'): maplibregl.Marker {
   const el = document.createElement('div');
   el.className = 'live-bus-marker';
   el.setAttribute('data-bus-id', String(bus.id));

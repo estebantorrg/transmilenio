@@ -141,6 +141,6 @@ export const api = {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ruta, nombre }),
+      body: JSON.stringify({ ruta, Nombre: nombre }),
     }),
 };

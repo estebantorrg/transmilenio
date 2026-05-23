@@ -563,8 +563,47 @@ export function isSyncInProgress(): boolean {
   return syncInProgress;
 }
 
-export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any> {
-  const postData = JSON.stringify({ ruta, Nombre: nombre });
+function isLiveBusLike(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false;
+
+  const bus = value as { latitude?: unknown; longitude?: unknown };
+  return Number.isFinite(Number(bus.latitude)) && Number.isFinite(Number(bus.longitude));
+}
+
+function normalizeLiveBusesPayload(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+
+  const candidates = [
+    payload.data,
+    payload.buses,
+    payload.result,
+    payload.results,
+    payload.vehiculos,
+    payload.vehicles,
+  ];
+
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'object') {
+      const nestedValues = Object.values(candidate);
+      const nestedBuses = nestedValues.filter(isLiveBusLike);
+      if (nestedBuses.length > 0) return nestedBuses;
+    }
+  }
+
+  const values = Object.values(payload);
+  const buses = values.filter(isLiveBusLike);
+  return buses.length > 0 ? buses : [];
+}
+
+export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any[]> {
+  const routeCode = String(ruta || '').trim();
+  const destinationName = String(nombre || '').trim().normalize('NFD');
+  const postData = JSON.stringify({ ruta: routeCode, Nombre: destinationName });
   
   const options = {
     hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
@@ -574,6 +613,7 @@ export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any>
       'Accept-Encoding': 'gzip',
       'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
       'Connection': 'Keep-Alive',
+      'Host': 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
       'Content-Type': 'application/json; charset=UTF-8',
       'Content-Length': Buffer.byteLength(postData),
       'User-Agent': 'okhttp/4.12.0',
@@ -594,10 +634,10 @@ export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any>
         const parse = (buf: Buffer) => {
           const text = buf.toString('utf-8');
           try {
-            return JSON.parse(text);
+            return normalizeLiveBusesPayload(JSON.parse(text));
           } catch {
             console.error(`[TM API] Live Buses JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
-            return null;
+            return [];
           }
         };
 

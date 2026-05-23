@@ -453,7 +453,7 @@ async function main(): Promise<void> {
       refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
-      startBusTracking(map, route.code, route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
+      startBusTracking(map, route.code, route.name || route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
@@ -513,6 +513,10 @@ async function main(): Promise<void> {
     const target = e.target as HTMLElement;
     const clickableTag = target.closest('.route-tag.clickable');
     if (clickableTag) {
+      const isAllowedRouteDetailClick = clickableTag.closest('.maplibregl-popup-content, #sidebar');
+      if (!isAllowedRouteDetailClick) return;
+
+      e.stopPropagation();
       const id = clickableTag.getAttribute('data-route-id');
       const code = clickableTag.getAttribute('data-route-code');
       if (id) {
