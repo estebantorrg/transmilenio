@@ -24,7 +24,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
@@ -236,23 +236,6 @@ function buildRouteList(
       if (!existing.length && r.attributes.longitud_ruta_troncal) {
         existing.length = r.attributes.longitud_ruta_troncal;
       }
-    } else {
-      // Not in catalog, create new item
-      const newItem: RouteListItem = {
-        id: `t-${r.attributes.objectid}`,
-        code,
-        name: `${origin} → ${destination}`,
-        origin,
-        destination,
-        type: 'troncal',
-        source: 'arcgis',
-        busType: r.attributes.desc_tipo_bus_ruta_troncal,
-        color: getRouteColor(code, 'troncal'),
-        length: r.attributes.longitud_ruta_troncal || undefined,
-        geometry: r.geometry,
-      };
-      
-      mergedRoutes.set(key, newItem);
     }
   });
 
@@ -526,8 +509,11 @@ async function main(): Promise<void> {
     const target = e.target as HTMLElement;
     const clickableTag = target.closest('.route-tag.clickable');
     if (clickableTag) {
+      const id = clickableTag.getAttribute('data-route-id');
       const code = clickableTag.getAttribute('data-route-code');
-      if (code) {
+      if (id) {
+        selectRouteByIdOrCode(id, code || '');
+      } else if (code) {
         selectRouteByCode(code);
       }
     }

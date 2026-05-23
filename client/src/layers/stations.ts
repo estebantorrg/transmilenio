@@ -46,7 +46,8 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
   const tags = visibleRoutes
     .map((route) => {
       const color = safeColor(getStopTagColor(route.codigo, route.color), '#FB2C17');
-      return `<span class="route-tag clickable" data-route-code="${escapeHTML(route.codigo)}" style="background:${color}; cursor:pointer;">${escapeHTML(route.codigo)}</span>`;
+      const routeId = route.id ? `catalog-${route.id}` : '';
+      return `<span class="route-tag clickable" data-route-code="${escapeHTML(route.codigo)}" data-route-id="${escapeHTML(routeId)}" title="${escapeHTML(route.nombre)}" style="background:${color}; cursor:pointer;">${escapeHTML(route.codigo)}</span>`;
     })
     .join('');
 
@@ -136,11 +137,11 @@ function showStationPopup(
     wagonSections = wagonEntries
       .map(([label, routes]) => {
         const uniqueRoutes: CatalogRoute[] = [];
-        const seenCodes = new Set<string>();
+        const seenKeys = new Set<string>();
         for (const route of (routes as CatalogRoute[])) {
-          const code = route.codigo.toUpperCase();
-          if (!seenCodes.has(code)) {
-            seenCodes.add(code);
+          const key = `${route.codigo.toUpperCase()}|${route.nombre.toUpperCase()}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
             uniqueRoutes.push(route);
           }
         }
@@ -316,11 +317,11 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
     wagonSections = wagonEntries
       .map(([label, routes]) => {
         const uniqueRoutes: CatalogRoute[] = [];
-        const seenCodes = new Set<string>();
+        const seenKeys = new Set<string>();
         for (const route of (routes as CatalogRoute[])) {
-          const code = route.codigo.toUpperCase();
-          if (!seenCodes.has(code)) {
-            seenCodes.add(code);
+          const key = `${route.codigo.toUpperCase()}|${route.nombre.toUpperCase()}`;
+          if (!seenKeys.has(key)) {
+            seenKeys.add(key);
             uniqueRoutes.push(route);
           }
         }

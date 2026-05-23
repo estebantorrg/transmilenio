@@ -326,3 +326,16 @@ export function selectRouteByCode(code: string): boolean {
   }
   return false;
 }
+
+export function selectRouteByIdOrCode(id: string, code: string): boolean {
+  let route = allRoutes.find((r) => r.id === id);
+  if (!route && code) {
+    const normalized = code.trim().toUpperCase();
+    route = allRoutes.find((r) => r.code.toUpperCase() === normalized);
+  }
+  if (route) {
+    selectRoute(route);
+    return true;
+  }
+  return false;
+}
