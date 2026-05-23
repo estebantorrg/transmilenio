@@ -564,7 +564,9 @@ export function isSyncInProgress(): boolean {
 }
 
 export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any> {
-  const postData = JSON.stringify({ ruta, Nombre: nombre });
+  // Always query with an empty Nombre parameter to retrieve all active buses for the route.
+  // This bypasses fragile NFD/NFC normalizations, spelling, and casing discrepancies.
+  const postData = JSON.stringify({ ruta, Nombre: "" });
   
   const options = {
     hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
