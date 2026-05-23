@@ -93,7 +93,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
 
-  // Track seen route combinations to deduplicate. Key = baseCode|type|origin|dest
+  // Track seen route combinations to deduplicate. Key = baseCode|type
   const seen = new Map<string, number>();
 
   for (const [code, variants] of Object.entries(catalog.routes)) {
@@ -111,9 +111,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       const displayName = route.nombre || `${origin} → ${destination}`;
 
       const baseCode = getBaseRouteCode(code);
-      const normOrigin = cleanRouteText(origin);
-      const normDest = cleanRouteText(destination);
-      const dedupKey = `${baseCode}|${type}|${normOrigin}|${normDest}`;
+      const dedupKey = `${baseCode}|${type}`;
 
       const existingIdx = seen.get(dedupKey);
       if (existingIdx !== undefined) {
@@ -131,13 +129,30 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
           existing.origin = origin;
           existing.destination = destination;
           existing.busType = route.tipoServicio;
+        } else if (!isNewCiclovia && !isExistingCiclovia) {
+          // If both are regular direction variants, merge names and endpoints
+          if (route.nombre && !existing.name.toLowerCase().includes(route.nombre.toLowerCase())) {
+            existing.name = `${existing.name} \u2192 ${route.nombre}`;
+          }
+          if (destination && !existing.destination.toLowerCase().includes(destination.toLowerCase())) {
+            existing.destination = `${existing.destination} / ${destination}`;
+          }
         }
 
-        if (!existing.geometry && route.trazado && route.trazado.length > 0) {
-          existing.geometry = { paths: [route.trazado] };
+        if (route.trazado && route.trazado.length > 0) {
+          if (existing.geometry && existing.geometry.paths) {
+            const pathStr = JSON.stringify(route.trazado);
+            const exists = existing.geometry.paths.some(p => JSON.stringify(p) === pathStr);
+            if (!exists) {
+              existing.geometry.paths.push(route.trazado);
+            }
+          } else {
+            existing.geometry = { paths: [route.trazado] };
+          }
         }
-        if ((!existing.stops || existing.stops.length === 0) && stops.length > 0) {
-          existing.stops = stops
+        
+        if (stops.length > 0) {
+          const parsedStops = stops
             .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
             .map((s) => {
               const parts = s.coordenada.split(',');
@@ -146,6 +161,16 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
               return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
             })
             .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
+            
+          if (!existing.stops || existing.stops.length === 0) {
+            existing.stops = parsedStops;
+          } else {
+            parsedStops.forEach(newStop => {
+              if (!existing.stops!.some(s => s.codigo === newStop.codigo)) {
+                existing.stops!.push(newStop);
+              }
+            });
+          }
         }
         continue;
       }
@@ -206,13 +231,10 @@ function buildRouteList(
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
 
-  // Add all catalog items keyed by a unified dedup key
+  // Add all catalog items keyed by a unified baseCode|type key
   catalogItems.forEach((catRoute) => {
     const baseCode = getBaseRouteCode(catRoute.code);
-    const normOrigin = cleanRouteText(catRoute.origin);
-    const normDest = cleanRouteText(catRoute.destination);
-    const key = `${baseCode}|${catRoute.type}|${normOrigin}|${normDest}`;
-    
+    const key = `${baseCode}|${catRoute.type}`;
     mergedRoutes.set(key, catRoute);
   });
 
@@ -222,36 +244,25 @@ function buildRouteList(
     if (!code) return;
 
     const baseCode = getBaseRouteCode(code.replace(/-\d$/, ''));
-    const origin = r.attributes.origen_ruta_troncal || '';
-    const destination = r.attributes.destino_ruta_troncal || '';
-    const normOrigin = cleanRouteText(origin);
-    const normDest = cleanRouteText(destination);
+    const key = `${baseCode}|troncal`;
 
-    let bestMatch: RouteListItem | null = null;
-    let bestScore = -1;
-
-    for (const activeRoute of mergedRoutes.values()) {
-      if (activeRoute.type === 'troncal' && getBaseRouteCode(activeRoute.code) === baseCode) {
-        let score = 0;
-        const activeOrigin = cleanRouteText(activeRoute.origin);
-        const activeDest = cleanRouteText(activeRoute.destination);
-
-        if (activeOrigin === normOrigin) score += 2;
-        if (activeDest === normDest) score += 2;
-        if (activeOrigin.includes(normOrigin) || normOrigin.includes(activeOrigin)) score += 1;
-        if (activeDest.includes(normDest) || normDest.includes(activeDest)) score += 1;
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = activeRoute;
+    const existing = mergedRoutes.get(key);
+    if (existing) {
+      if (r.geometry) {
+        if (existing.geometry && existing.geometry.paths && r.geometry.paths) {
+          r.geometry.paths.forEach(path => {
+            const pathStr = JSON.stringify(path);
+            const exists = existing.geometry!.paths.some(p => JSON.stringify(p) === pathStr);
+            if (!exists) {
+              existing.geometry!.paths.push(path);
+            }
+          });
+        } else {
+          existing.geometry = r.geometry;
         }
       }
-    }
-
-    if (bestMatch && bestScore > 0) {
-      if (r.geometry) bestMatch.geometry = r.geometry;
-      if (!bestMatch.length && r.attributes.longitud_ruta_troncal) {
-        bestMatch.length = r.attributes.longitud_ruta_troncal;
+      if (!existing.length && r.attributes.longitud_ruta_troncal) {
+        existing.length = r.attributes.longitud_ruta_troncal;
       }
     }
   });
