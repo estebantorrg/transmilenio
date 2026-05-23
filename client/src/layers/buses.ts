@@ -198,13 +198,30 @@ async function fetchAndRenderBuses(
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null) return;
 
-    if (!res || !res.success || !Array.isArray(res.data)) {
-      console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
+    let buses: any[] = [];
+    if (res) {
+      if (Array.isArray(res)) {
+        buses = res;
+      } else if (Array.isArray(res.data)) {
+        buses = res.data;
+      } else if (res.data && Array.isArray(res.data.data)) {
+        buses = res.data.data;
+      } else if (res.data && typeof res.data === 'object') {
+        const arrayProp = Object.values(res.data).find(val => Array.isArray(val));
+        if (arrayProp) {
+          buses = arrayProp as any[];
+        } else {
+          buses = Object.values(res.data).filter((item: any) => item && typeof item === 'object' && 'latitude' in item);
+        }
+      }
+    }
+
+    if (!res || (res.success === false) || !Array.isArray(buses)) {
+      console.warn(`[Tracking] Invalid API response structure for ${routeCode}:`, res);
       onUpdate?.(0, 'error');
       return;
     }
 
-    const buses = res.data;
     console.log(`[Tracking] Fetched ${buses.length} live buses for ${routeCode}`);
 
     // Map existing markers by bus ID to update them smoothly instead of rebuilding everything
