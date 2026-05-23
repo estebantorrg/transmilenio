@@ -74,13 +74,26 @@ function normalizeRouteText(value: string | null | undefined): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
+function getBaseRouteCode(code: string): string {
+  return code.toUpperCase()
+    .replace(/(?:CV|CICLOVIA|CICLOVÍA|C)$/i, '')
+    .trim();
+}
+
+function cleanRouteText(text: string): string {
+  return text.toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\bciclovia\b/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
 
 function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
 
-  // Track seen route combinations to deduplicate. Key = code + system type
-  // Routes with the same code and system are direction variants (A→B / B→A)
+  // Track seen route combinations to deduplicate. Key = baseCode|type|origin|dest
   const seen = new Map<string, number>();
 
   for (const [code, variants] of Object.entries(catalog.routes)) {
@@ -97,17 +110,29 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
 
-      // Deduplication: same code + same system type = direction variant → merge
-      const dedupKey = `${code}|${type}`;
+      const baseCode = getBaseRouteCode(code);
+      const normOrigin = cleanRouteText(origin);
+      const normDest = cleanRouteText(destination);
+      const dedupKey = `${baseCode}|${type}|${normOrigin}|${normDest}`;
+
       const existingIdx = seen.get(dedupKey);
       if (existingIdx !== undefined) {
-        // Merge direction variant into existing entry
+        // Merge geometry/stops into existing entry
         const existing = items[existingIdx];
-        // Use the second variant's name as destination if it differs
-        if (route.nombre && normalizeRouteText(route.nombre) !== normalizeRouteText(existing.origin)) {
-          existing.destination = route.nombre;
-          existing.name = `${existing.origin} \u2192 ${existing.destination}`;
+        
+        // If existing is a Ciclovía variant but the new one is regular, update metadata
+        const isNewCiclovia = code.toUpperCase().endsWith('CV') || displayName.toLowerCase().includes('ciclovia');
+        const isExistingCiclovia = existing.code.toUpperCase().endsWith('CV') || existing.name.toLowerCase().includes('ciclovia');
+        
+        if (isExistingCiclovia && !isNewCiclovia) {
+          existing.id = `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`;
+          existing.code = code;
+          existing.name = displayName;
+          existing.origin = origin;
+          existing.destination = destination;
+          existing.busType = route.tipoServicio;
         }
+
         if (!existing.geometry && route.trazado && route.trazado.length > 0) {
           existing.geometry = { paths: [route.trazado] };
         }
@@ -122,7 +147,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
             })
             .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
         }
-        continue; // Skip this direction variant
+        continue;
       }
 
       // Use official trazado (high-fidelity street-following paths) if available
@@ -181,36 +206,43 @@ function buildRouteList(
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
 
-  // Add all catalog items keyed by id
+  // Add all catalog items keyed by a unified dedup key
   catalogItems.forEach((catRoute) => {
-    mergedRoutes.set(catRoute.id, catRoute);
+    const baseCode = getBaseRouteCode(catRoute.code);
+    const normOrigin = cleanRouteText(catRoute.origin);
+    const normDest = cleanRouteText(catRoute.destination);
+    const key = `${baseCode}|${catRoute.type}|${normOrigin}|${normDest}`;
+    
+    mergedRoutes.set(key, catRoute);
   });
 
-  // 2. Process Troncal geometries
+  // 2. Process Troncal geometries from ArcGIS
   troncalRoutes.forEach((r) => {
     let code = r.attributes.route_name_ruta_troncal;
     if (!code) return;
 
-    const baseCode = code.replace(/-\d$/, '');
+    const baseCode = getBaseRouteCode(code.replace(/-\d$/, ''));
+    const origin = r.attributes.origen_ruta_troncal || '';
+    const destination = r.attributes.destino_ruta_troncal || '';
+    const normOrigin = cleanRouteText(origin);
+    const normDest = cleanRouteText(destination);
+    
+    const key = `${baseCode}|troncal|${normOrigin}|${normDest}`;
 
-    let foundAny = false;
-    for (const [id, activeRoute] of mergedRoutes.entries()) {
-      if (activeRoute.code === baseCode && activeRoute.source === 'catalog') {
-        foundAny = true;
-        if (r.geometry) activeRoute.geometry = r.geometry;
-        if (!activeRoute.length && r.attributes.longitud_ruta_troncal) {
-          activeRoute.length = r.attributes.longitud_ruta_troncal;
-        }
+    const existing = mergedRoutes.get(key);
+    if (existing) {
+      if (r.geometry) existing.geometry = r.geometry;
+      if (!existing.length && r.attributes.longitud_ruta_troncal) {
+        existing.length = r.attributes.longitud_ruta_troncal;
       }
-    }
-
-    if (!foundAny) {
-      mergedRoutes.set(code, {
+    } else {
+      // Not in catalog, create new item
+      const newItem: RouteListItem = {
         id: `t-${r.attributes.objectid}`,
         code,
-        name: `${r.attributes.origen_ruta_troncal} → ${r.attributes.destino_ruta_troncal}`,
-        origin: r.attributes.origen_ruta_troncal,
-        destination: r.attributes.destino_ruta_troncal,
+        name: `${origin} → ${destination}`,
+        origin,
+        destination,
         type: 'troncal',
         source: 'arcgis',
         busType: r.attributes.desc_tipo_bus_ruta_troncal,
@@ -218,7 +250,9 @@ function buildRouteList(
         length: r.attributes.longitud_ruta_troncal || undefined,
         color: getRouteColor(code, 'troncal'),
         geometry: r.geometry,
-      });
+      };
+      
+      mergedRoutes.set(key, newItem);
     }
   });
 
