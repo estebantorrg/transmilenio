@@ -12,15 +12,18 @@ let selectedRouteId: string | null = null;
 let onRouteSelect: ((route: RouteListItem) => void) | null = null;
 let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
+let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 
 export function initSidebar(options: {
   onRouteSelect: (route: RouteListItem) => void;
   onRouteDeselect: () => void;
   onLayerToggle: (layer: string, visible: boolean) => void;
+  onStopSelect?: (stop: any, routeType: 'troncal' | 'zonal') => void;
 }): void {
   onRouteSelect = options.onRouteSelect;
   onRouteDeselect = options.onRouteDeselect;
   onLayerToggle = options.onLayerToggle;
+  onStopSelect = options.onStopSelect || null;
 
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
@@ -218,7 +221,7 @@ function renderStopsTimeline(route: RouteListItem): string {
     const label = isFirst ? 'Origen' : isLast ? 'Destino' : '';
 
     html += `
-      <div class="timeline-stop ${dotClass}">
+      <div class="timeline-stop ${dotClass}" data-index="${i}">
         <div class="timeline-dot-col">
           <div class="timeline-dot ${dotClass}"></div>
           ${!isLast ? '<div class="timeline-line"></div>' : ''}
@@ -226,7 +229,7 @@ function renderStopsTimeline(route: RouteListItem): string {
         <div class="timeline-stop-info">
           <div class="timeline-stop-name">${escapeHTML(stop.nombre)}</div>
           ${label ? `<div class="timeline-stop-label">${label}</div>` : ''}
-          ${stop.codigo ? `<div class="timeline-stop-code"># ${escapeHTML(stop.codigo)}</div>` : ''}
+          ${stop.direccion ? `<div class="timeline-stop-code">${escapeHTML(stop.direccion)}</div>` : (stop.codigo ? `<div class="timeline-stop-code"># ${escapeHTML(stop.codigo)}</div>` : '')}
         </div>
       </div>
     `;
@@ -269,6 +272,16 @@ function showRouteDetail(route: RouteListItem): void {
       ${scheduleHtml}
     </div>` : ''}
   `;
+
+  content.querySelectorAll('.timeline-stop').forEach((el) => {
+    el.addEventListener('click', () => {
+      const idx = parseInt((el as HTMLElement).dataset.index || '0', 10);
+      const stop = route.stops?.[idx];
+      if (stop) {
+        onStopSelect?.(stop, route.type);
+      }
+    });
+  });
 
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');

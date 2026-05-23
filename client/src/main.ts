@@ -8,8 +8,8 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer } from './layers/stations';
-import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer } from './layers/stops';
+import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -286,7 +286,8 @@ function buildRouteList(
         routeToStops.get(routeCode)!.push({
           nombre: stop.attributes?.nombre || 'Paradero',
           codigo: cenefa,
-          coordinate: [stop.geometry.x, stop.geometry.y] as [number, number]
+          coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
+          direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || ''
         });
       }
     });
@@ -459,7 +460,12 @@ async function main(): Promise<void> {
                   const parts = s.coordenada.split(',');
                   const lat = Number(parts[0]);
                   const lng = Number(parts[1]);
-                  return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
+                  return {
+                    nombre: s.nombre,
+                    codigo: s.codigo,
+                    coordinate: [lng, lat] as [number, number],
+                    direccion: s.direccion
+                  };
                 })
                 .filter((s: any) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
             }
@@ -488,6 +494,18 @@ async function main(): Promise<void> {
       activeRouteId = null;
       clearHighlight(map);
       updateSelectedRouteStops(map, [], 'zonal');
+    },
+    onStopSelect: (stop: any, routeType: 'troncal' | 'zonal') => {
+      if (stop && stop.coordinate) {
+        if (routeType === 'troncal') {
+          const resolved = showStationPopupByCode(map, stop.codigo, stop.coordinate);
+          if (!resolved) {
+            showStopPopupByCode(map, stop.codigo, stop.nombre, stop.coordinate, stop.direccion);
+          }
+        } else {
+          showStopPopupByCode(map, stop.codigo, stop.nombre, stop.coordinate, stop.direccion);
+        }
+      }
     },
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
@@ -558,7 +576,8 @@ async function main(): Promise<void> {
             routeToStops.get(routeCode)!.push({
               nombre: stop.attributes?.nombre || 'Paradero',
               codigo: cenefa,
-              coordinate: [stop.geometry.x, stop.geometry.y] as [number, number]
+              coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
+              direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || ''
             });
           }
         });

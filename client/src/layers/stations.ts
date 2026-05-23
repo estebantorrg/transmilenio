@@ -178,6 +178,7 @@ export function addStationsLayer(
   map: maplibregl.Map,
   stations: TroncalStationFeature[]
 ): void {
+  globalStations = stations;
   const visibleStations = stations.filter(isVisibleTroncalStation);
   const resolution = resolveStationCatalog(visibleStations, _catalog);
   _resolvedStations = resolution.stationsByKey;
@@ -278,4 +279,70 @@ export function bringStationsLayerToFront(map: maplibregl.Map): void {
       map.moveLayer(id);
     }
   });
+}
+
+let globalStations: TroncalStationFeature[] = [];
+
+export function showStationPopupByCode(map: maplibregl.Map, stationCode: string, coordinate: [number, number]): boolean {
+  let resolvedStation: ResolvedCatalogStation | undefined;
+  for (const station of Object.values(_resolvedStations)) {
+    if (
+      station.stationCode === stationCode ||
+      station.stationKey === stationCode ||
+      station.sourceStops.some(ss => ss.codigo === stationCode)
+    ) {
+      resolvedStation = station;
+      break;
+    }
+  }
+
+  if (!resolvedStation) return false;
+
+  let wagonSections = '';
+
+  if (Object.keys(resolvedStation.wagons).length > 0) {
+    const wagonEntries = Object.entries(resolvedStation.wagons);
+    wagonEntries.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
+
+    wagonSections = wagonEntries
+      .map(([label, routes]) => {
+        const sorted = sortCatalogRoutes(routes as CatalogRoute[]);
+        const tags = formatRouteTags(sorted);
+        const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
+        return `
+          <div class="popup-wagon-section">
+            <div class="popup-wagon-label">${wagonName}</div>
+            <div class="popup-route-tags">${tags}</div>
+          </div>
+        `;
+      })
+      .join('');
+  } else {
+    wagonSections = '<div class="popup-empty">Sin datos de vagones disponibles</div>';
+  }
+
+  const stationFeature = globalStations.find(s => 
+    s.attributes.numero_estacion === stationCode ||
+    s.attributes.codigo_nodo_estacion === stationCode ||
+    normalizeStationName(s.attributes.nombre_estacion) === normalizeStationName(resolvedStation!.stationName)
+  );
+
+  const corridor = stationFeature?.attributes.troncal_estacion || 'Estación troncal';
+
+  const firstSource = resolvedStation.sourceStops[0];
+  const location = firstSource ? firstSource.direccion : '';
+
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow">${escapeHTML(corridor)}</div>
+      <div class="popup-title">${escapeHTML(resolvedStation.stationName)}</div>
+      ${location ? `<div class="popup-meta"><span>${escapeHTML(location)}</span></div>` : ''}
+      <div class="popup-wagon-container">
+        ${wagonSections}
+      </div>
+    </div>
+  `;
+
+  showPopup(map, coordinate, html, { offset: 12, maxWidth: '340px' });
+  return true;
 }

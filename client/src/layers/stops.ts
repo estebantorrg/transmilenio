@@ -135,11 +135,16 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
   showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
 }
 
+let globalStopRoutesMap: StopRoutesMap | null = null;
+
 export function addStopsLayer(
   map: maplibregl.Map,
   stops: any[],
   stopRoutesMap?: StopRoutesMap
 ): void {
+  if (stopRoutesMap) {
+    globalStopRoutesMap = stopRoutesMap;
+  }
   const validStops = stops.filter((s) => s.geometry && s.geometry.x && s.geometry.y);
 
   const geojson: GeoJSON.FeatureCollection = {
@@ -263,6 +268,7 @@ export function updateStopsLayer(
   stops: any[],
   stopRoutesMap: StopRoutesMap
 ): void {
+  globalStopRoutesMap = stopRoutesMap;
   const source = map.getSource('stops') as maplibregl.GeoJSONSource;
   if (!source) return;
 
@@ -358,4 +364,27 @@ export function bringStopsLayerToFront(map: maplibregl.Map): void {
       map.moveLayer(id);
     }
   });
+}
+
+export function showStopPopupByCode(
+  map: maplibregl.Map,
+  stopCode: string,
+  name: string,
+  coordinate: [number, number],
+  address?: string
+): void {
+  const routes = globalStopRoutesMap?.get(stopCode) ?? [];
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow" style="color:#34D399">Paradero zonal</div>
+      <div class="popup-title">${escapeHTML(name)}</div>
+      <div class="popup-meta">
+        ${stopCode ? `<span># ${escapeHTML(stopCode)}</span>` : ''}
+        ${address ? `<span>${escapeHTML(address)}</span>` : ''}
+      </div>
+      ${routes.length ? `<div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+    </div>
+  `;
+
+  showPopup(map, coordinate, html, { offset: 6, maxWidth: '280px' });
 }

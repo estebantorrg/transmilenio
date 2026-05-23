@@ -82,8 +82,22 @@ router.get('/troncal/route/:code', async (req: Request, res: Response) => {
     const catalog = tmApi.getCatalog();
     const routeVariants = catalog.routes[code];
     if (routeVariants && routeVariants.length > 0) {
+      const enrichedVariants = routeVariants.map(variant => {
+        if (!variant.stops) return variant;
+        const enrichedStops = variant.stops.map(stop => {
+          const station = catalog.stations[stop.codigo];
+          return {
+            ...stop,
+            direccion: station?.direccion || ''
+          };
+        });
+        return {
+          ...variant,
+          stops: enrichedStops
+        };
+      });
       res.setHeader('Cache-Control', 'public, max-age=600');
-      res.json({ success: true, data: routeVariants });
+      res.json({ success: true, data: enrichedVariants });
     } else {
       res.status(404).json({ success: false, error: `Route ${code} not found in catalog` });
     }
