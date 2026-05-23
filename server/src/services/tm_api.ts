@@ -564,9 +564,7 @@ export function isSyncInProgress(): boolean {
 }
 
 export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any> {
-  // Always query with an empty Nombre parameter to retrieve all active buses for the route.
-  // This bypasses fragile NFD/NFC normalizations, spelling, and casing discrepancies.
-  const postData = JSON.stringify({ ruta, Nombre: "" });
+  const postData = JSON.stringify({ ruta, Nombre: nombre });
   
   const options = {
     hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
@@ -628,3 +626,9 @@ export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any>
   });
 }
 
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
+/home/engine/.bashrc: line 1: syntax error near unexpected token `('
+/home/engine/.bashrc: line 1: `. /etc/profile.d/workload-containment.shn# ~/.bashrc: executed by bash(1) for non-login shells.'
