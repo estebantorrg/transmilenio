@@ -562,3 +562,67 @@ export async function syncMasterCatalog(): Promise<void> {
 export function isSyncInProgress(): boolean {
   return syncInProgress;
 }
+
+export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any> {
+  const postData = JSON.stringify({ ruta, Nombre: nombre });
+  
+  const options = {
+    hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
+    path: '/buses',
+    method: 'POST',
+    headers: {
+      'Accept-Encoding': 'gzip',
+      'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+      'Connection': 'Keep-Alive',
+      'Content-Type': 'application/json; charset=UTF-8',
+      'Content-Length': Buffer.byteLength(postData),
+      'User-Agent': 'okhttp/4.12.0',
+      'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+      'version': '2.9.5',
+    },
+    timeout: 10000,
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => {
+        const raw = Buffer.concat(chunks);
+        const encoding = res.headers['content-encoding'];
+
+        const parse = (buf: Buffer) => {
+          const text = buf.toString('utf-8');
+          try {
+            return JSON.parse(text);
+          } catch {
+            console.error(`[TM API] Live Buses JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
+            return null;
+          }
+        };
+
+        if (encoding === 'gzip') {
+          zlib.gunzip(raw, (err, decompressed) => {
+            if (err) {
+              resolve(parse(raw));
+            } else {
+              resolve(parse(decompressed));
+            }
+          });
+        } else {
+          resolve(parse(raw));
+        }
+      });
+    });
+
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
+
+    req.write(postData);
+    req.end();
+  });
+}
+

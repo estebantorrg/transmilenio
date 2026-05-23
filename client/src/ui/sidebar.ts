@@ -251,6 +251,10 @@ function showRouteDetail(route: RouteListItem): void {
       <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP'}</div>
+      <div id="live-tracking-status" class="live-tracking-status">
+        <span class="live-status-dot pulse loading"></span>
+        <span class="live-status-text">Conectando con buses en vivo...</span>
+      </div>
     </div>
 
     <div class="detail-section">
@@ -285,6 +289,35 @@ function showRouteDetail(route: RouteListItem): void {
 
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
+}
+
+export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error'): void {
+  const dotEl = document.getElementById('live-tracking-status')?.querySelector('.live-status-dot');
+  const textEl = document.getElementById('live-tracking-status')?.querySelector('.live-status-text');
+
+  if (!dotEl || !textEl) return;
+
+  // Clear existing classes
+  dotEl.className = 'live-status-dot';
+
+  switch (status) {
+    case 'loading':
+      dotEl.classList.add('pulse', 'loading');
+      textEl.textContent = 'Conectando con buses en vivo...';
+      break;
+    case 'success':
+      dotEl.classList.add('pulse');
+      textEl.textContent = `Rastreando ${count} bus${count > 1 ? 'es' : ''} en vivo`;
+      break;
+    case 'empty':
+      dotEl.classList.add('empty');
+      textEl.textContent = 'Sin buses activos en este momento';
+      break;
+    case 'error':
+      dotEl.classList.add('error');
+      textEl.textContent = 'Error al rastrear buses en vivo';
+      break;
+  }
 }
 
 export function refreshRouteDetail(route: RouteListItem): void {

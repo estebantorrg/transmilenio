@@ -24,7 +24,8 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus } from './ui/sidebar';
+import { startBusTracking, stopBusTracking } from './layers/buses';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
@@ -401,6 +402,7 @@ async function main(): Promise<void> {
   initSidebar({
     onRouteSelect: async (route: RouteListItem) => {
       activeRouteId = route.id;
+      stopBusTracking();
 
       // On-demand loading of catalog routes (geometries and stops)
       if (route.source === 'catalog' && (!route.geometry || !route.stops || route.stops.length === 0)) {
@@ -451,6 +453,7 @@ async function main(): Promise<void> {
       refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
+      startBusTracking(map, route.code, route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
@@ -464,6 +467,7 @@ async function main(): Promise<void> {
     },
     onRouteDeselect: () => {
       activeRouteId = null;
+      stopBusTracking();
       clearHighlight(map);
       updateSelectedRouteStops(map, [], 'zonal');
     },

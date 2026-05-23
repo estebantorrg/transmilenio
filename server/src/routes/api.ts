@@ -160,6 +160,21 @@ router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
   }
 });
 
+router.post('/buses', async (req: Request, res: Response) => {
+  try {
+    const { ruta, nombre } = req.body;
+    if (!ruta || !nombre) {
+      res.status(400).json({ success: false, error: 'ruta and nombre are required' });
+      return;
+    }
+    const buses = await tmApi.fetchLiveBuses(ruta, nombre);
+    res.json({ success: true, data: buses });
+  } catch (error) {
+    console.error('Error fetching live buses:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch live buses' });
+  }
+});
+
 // ─── Health Check ─────────────────────────────────────────
 
 router.get('/health', (_req: Request, res: Response) => {

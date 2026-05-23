@@ -38,12 +38,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fetchJsonOnce<T>(endpoint: string, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
+async function fetchJsonOnce<T>(
+  endpoint: string,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+  init?: RequestInit
+): Promise<T> {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, { signal: controller.signal });
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...init,
+      signal: controller.signal,
+    });
     if (!response.ok) {
       const body = await response.text().catch(() => '');
       const detail = body ? ` ${body.slice(0, 180)}` : '';
@@ -77,12 +84,16 @@ async function fetchJsonOnce<T>(endpoint: string, timeoutMs: number = REQUEST_TI
   }
 }
 
-async function fetchJson<T>(endpoint: string, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> {
+async function fetchJson<T>(
+  endpoint: string,
+  timeoutMs: number = REQUEST_TIMEOUT_MS,
+  init?: RequestInit
+): Promise<T> {
   let lastError: unknown;
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {
-      return await fetchJsonOnce<T>(endpoint, timeoutMs);
+      return await fetchJsonOnce<T>(endpoint, timeoutMs, init);
     } catch (error) {
       lastError = error;
 
@@ -123,4 +134,13 @@ export const api = {
 
   getRouteDetail: (code: string) =>
     fetchJson<any>(`/troncal/route/${code}`),
+
+  getLiveBuses: (ruta: string, nombre: string) =>
+    fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ ruta, nombre }),
+    }),
 };
