@@ -216,7 +216,7 @@ function buildRouteList(
     mergedRoutes.set(key, catRoute);
   });
 
-  // 2. Process Troncal geometries from ArcGIS
+  // 2. Process Troncal geometries from ArcGIS to enrich catalog items
   troncalRoutes.forEach((r) => {
     let code = r.attributes.route_name_ruta_troncal;
     if (!code) return;
@@ -226,33 +226,33 @@ function buildRouteList(
     const destination = r.attributes.destino_ruta_troncal || '';
     const normOrigin = cleanRouteText(origin);
     const normDest = cleanRouteText(destination);
-    
-    const key = `${baseCode}|troncal|${normOrigin}|${normDest}`;
 
-    const existing = mergedRoutes.get(key);
-    if (existing) {
-      if (r.geometry) existing.geometry = r.geometry;
-      if (!existing.length && r.attributes.longitud_ruta_troncal) {
-        existing.length = r.attributes.longitud_ruta_troncal;
+    let bestMatch: RouteListItem | null = null;
+    let bestScore = -1;
+
+    for (const activeRoute of mergedRoutes.values()) {
+      if (activeRoute.type === 'troncal' && getBaseRouteCode(activeRoute.code) === baseCode) {
+        let score = 0;
+        const activeOrigin = cleanRouteText(activeRoute.origin);
+        const activeDest = cleanRouteText(activeRoute.destination);
+
+        if (activeOrigin === normOrigin) score += 2;
+        if (activeDest === normDest) score += 2;
+        if (activeOrigin.includes(normOrigin) || normOrigin.includes(activeOrigin)) score += 1;
+        if (activeDest.includes(normDest) || normDest.includes(activeDest)) score += 1;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = activeRoute;
+        }
       }
-    } else {
-      // Not in catalog, create new item
-      const newItem: RouteListItem = {
-        id: `t-${r.attributes.objectid}`,
-        code,
-        name: `${origin} → ${destination}`,
-        origin,
-        destination,
-        type: 'troncal',
-        source: 'arcgis',
-        busType: r.attributes.desc_tipo_bus_ruta_troncal,
-        schedule: r.attributes.horario_lunes_viernes,
-        length: r.attributes.longitud_ruta_troncal || undefined,
-        color: getRouteColor(code, 'troncal'),
-        geometry: r.geometry,
-      };
-      
-      mergedRoutes.set(key, newItem);
+    }
+
+    if (bestMatch && bestScore > 0) {
+      if (r.geometry) bestMatch.geometry = r.geometry;
+      if (!bestMatch.length && r.attributes.longitud_ruta_troncal) {
+        bestMatch.length = r.attributes.longitud_ruta_troncal;
+      }
     }
   });
 
