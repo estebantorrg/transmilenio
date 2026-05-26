@@ -601,7 +601,7 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
-export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
+async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
   const routeCode = String(ruta || '').trim();
   const destinationName = String(nombre || '').trim();
 
@@ -639,7 +639,7 @@ export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 't
     timeout: 25000,
   };
 
-  console.log(`[TM API] fetchLiveBuses: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
+  console.log(`[TM API] fetchLiveBusesDirect: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
 
   const requestLib = apiURL.protocol === 'https:' ? https : http;
 
@@ -702,4 +702,29 @@ export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 't
     }
     req.end();
   });
+}
+
+export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
+  let retries = 3;
+  let delay = 600;
+
+  while (retries > 0) {
+    try {
+      return await fetchLiveBusesDirect(ruta, nombre, routeType);
+    } catch (err: any) {
+      retries--;
+      const isStatus401 = err.message && err.message.includes('Status: 401');
+      const isTimeout = err.message && err.message.includes('timed out');
+      const isLocalhost = !process.env.TRANSMILENIO_API_URL || process.env.TRANSMILENIO_API_URL.includes('localhost') || process.env.TRANSMILENIO_API_URL.includes('127.0.0.1');
+
+      if (retries > 0 && (isStatus401 || isTimeout) && !isLocalhost) {
+        console.warn(`[TM API] fetchLiveBuses failed (${err.message}). Retrying in ${delay}ms... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        delay *= 1.5;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Failed after max retries');
 }

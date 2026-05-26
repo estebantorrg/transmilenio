@@ -128,7 +128,6 @@ function injectMarkerStyles(): void {
       height: 58px;
       cursor: pointer;
       z-index: 120;
-      transition: transform 0.2s ease-out;
     }
     .bus-badge-container {
       position: relative;
