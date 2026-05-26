@@ -183,42 +183,24 @@ router.post('/buses', async (req: Request, res: Response) => {
 // ─── Health Check ─────────────────────────────────────────
 
 router.get('/debug-buses', async (req: Request, res: Response) => {
+  const diagnostics: any = {};
   try {
-    const postData = JSON.stringify({ ruta: '1', Nombre: 'Universidades' });
-    const options = {
-      hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-      path: '/buses',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=UTF-8',
-        'Content-Length': Buffer.byteLength(postData),
-        'Accept-Encoding': 'identity',
-        'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-        'Connection': 'Keep-Alive',
-        'User-Agent': 'okhttp/4.12.0',
-        'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-        'version': '2.9.5',
-      }
+    diagnostics.env = {
+      TRANSMILENIO_API_URL: process.env.TRANSMILENIO_API_URL,
+      RENDER: process.env.RENDER
     };
-    const httpsReq = https.request(options, (httpsRes) => {
-      const chunks: Buffer[] = [];
-      httpsRes.on('data', (chunk) => chunks.push(chunk));
-      httpsRes.on('end', () => {
-        const body = Buffer.concat(chunks).toString('utf8');
-        res.json({
-          status: httpsRes.statusCode,
-          headers: httpsRes.headers,
-          body
-        });
-      });
-    });
-    httpsReq.on('error', (err) => {
-      res.status(500).json({ error: err.message });
-    });
-    httpsReq.write(postData);
-    httpsReq.end();
+
+    console.log('[/debug-buses] Attempting direct fetch...');
+    try {
+      const direct = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
+      diagnostics.direct = { success: true, count: direct.length };
+    } catch (err: any) {
+      diagnostics.direct = { success: false, message: err.message, code: err.code };
+    }
+
+    res.json(diagnostics);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: err.message, diagnostics });
   }
 });
 
