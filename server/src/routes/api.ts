@@ -164,14 +164,16 @@ router.post('/buses', async (req: Request, res: Response) => {
   try {
     const { ruta } = req.body;
     const nombre = req.body.Nombre ?? req.body.nombre ?? '';
+    console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}"`);
     if (!ruta) {
       res.status(400).json({ success: false, error: 'ruta is required' });
       return;
     }
     const buses = await tmApi.fetchLiveBuses(ruta, nombre);
+    console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}"`);
     res.json({ success: true, count: buses.length, data: buses });
   } catch (error) {
-    console.error('Error fetching live buses:', error);
+    console.error('[/buses] Error fetching live buses:', error);
     res.status(500).json({ success: false, error: 'Failed to fetch live buses' });
   }
 });

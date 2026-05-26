@@ -298,6 +298,7 @@ async function fetchAndRenderBuses(
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null) return;
 
+    console.log(`[Tracking] Raw API response for ${routeCode}:`, JSON.stringify(res).slice(0, 500));
     const buses = extractLiveBuses(res, routeCode);
     if (!buses) {
       console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
