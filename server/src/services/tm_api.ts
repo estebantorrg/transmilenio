@@ -6,6 +6,7 @@
  */
 
 import https from 'https';
+import http from 'http';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -623,18 +624,26 @@ export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 't
     headers['Content-Length'] = 0;
   }
 
+  const apiBaseUrl = process.env.TRANSMILENIO_API_URL || 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
+  const apiURL = new URL(apiBaseUrl);
+
   const options = {
-    hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-    path: isZonal ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}` : '/buses',
+    hostname: apiURL.hostname,
+    port: apiURL.port || (apiURL.protocol === 'https:' ? 443 : 80),
+    path: isZonal 
+      ? `${apiURL.pathname === '/' ? '' : apiURL.pathname}/location/ruta?ruta=${encodeURIComponent(routeCode)}` 
+      : `${apiURL.pathname === '/' ? '' : apiURL.pathname}/buses`,
     method: 'POST',
     headers,
     timeout: 10000,
   };
 
-  console.log(`[TM API] fetchLiveBuses: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path}`);
+  console.log(`[TM API] fetchLiveBuses: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
+
+  const requestLib = apiURL.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
+    const req = requestLib.request(options, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
       res.on('end', () => {
