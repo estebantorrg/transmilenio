@@ -601,155 +601,7 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
-let proxyList: string[] = [];
-let lastProxyFetchTime = 0;
-const PROXY_FETCH_INTERVAL = 30 * 60 * 1000; // 30 minutes
-
-async function refreshProxyList(): Promise<string[]> {
-  if (proxyList.length > 0 && Date.now() - lastProxyFetchTime < PROXY_FETCH_INTERVAL) {
-    return proxyList;
-  }
-
-  console.log('[TM API] Fetching fresh Colombian proxies from ProxyScrape...');
-  try {
-    const res = await fetch('https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=co&ssl=all&anonymity=all');
-    if (res.ok) {
-      const text = await res.text();
-      const list = text.split('\n').map(p => p.trim()).filter(p => p.includes(':'));
-      if (list.length > 0) {
-        proxyList = list;
-        lastProxyFetchTime = Date.now();
-        console.log(`[TM API] Cached ${proxyList.length} Colombian proxies.`);
-      }
-    }
-  } catch (err: any) {
-    console.error('[TM API] Failed to fetch proxy list:', err.message);
-  }
-  return proxyList;
-}
-
-function fetchLiveBusesThroughProxy(ruta: string, nombre: string, routeType: 'troncal' | 'zonal', proxyStr: string): Promise<any[]> {
-  const routeCode = String(ruta || '').trim();
-  const destinationName = String(nombre || '').trim();
-
-  const isZonal = routeType === 'zonal';
-  const postData = isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName });
-
-  const headers: Record<string, string | number> = {
-    'Host': 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-    'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-    'Connection': 'close',
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
-  };
-
-  if (!isZonal) {
-    headers['Content-Type'] = 'application/json; charset=UTF-8';
-    headers['Content-Length'] = Buffer.byteLength(postData);
-  }
-
-  const [ip, portStr] = proxyStr.split(':');
-  const port = parseInt(portStr, 10);
-
-  return new Promise((resolve, reject) => {
-    const req = http.request({
-      host: ip,
-      port: port,
-      method: 'CONNECT',
-      path: 'tmsa-transmiapp-shvpc.uc.r.appspot.com:443',
-      headers: {
-        Host: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-      },
-      timeout: 5000,
-    });
-
-    req.on('connect', (res, socket, head) => {
-      const tlsSocket = tls.connect({
-        socket,
-        servername: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-      }, () => {
-        const path = isZonal 
-          ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}` 
-          : '/buses';
-        let requestRaw = `POST ${path} HTTP/1.0\r\n`;
-        for (const [k, v] of Object.entries(headers)) {
-          requestRaw += `${k}: ${v}\r\n`;
-        }
-        requestRaw += '\r\n';
-        if (postData) {
-          requestRaw += postData;
-        }
-
-        tlsSocket.write(requestRaw);
-      });
-
-      const chunks: Buffer[] = [];
-      tlsSocket.on('data', chunk => chunks.push(chunk));
-      tlsSocket.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        const separatorIdx = buffer.indexOf('\r\n\r\n');
-        if (separatorIdx === -1) {
-          reject(new Error('Invalid HTTP response from proxy'));
-          return;
-        }
-
-        const headText = buffer.slice(0, separatorIdx).toString('utf8');
-        const bodyText = buffer.slice(separatorIdx + 4).toString('utf8');
-
-        if (headText.includes('200 OK')) {
-          try {
-            const parsed = normalizeLiveBusesPayload(JSON.parse(bodyText));
-            resolve(parsed);
-          } catch {
-            reject(new Error('Failed to parse JSON response from proxy'));
-          }
-        } else {
-          reject(new Error(`Proxy target status error: ${headText.split('\r\n')[0]}`));
-        }
-      });
-
-      tlsSocket.on('error', reject);
-    });
-
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('CONNECT timeout'));
-    });
-    req.end();
-  });
-}
-
-async function fetchLiveBusesWithProxyFallback(ruta: string, nombre: string, routeType: 'troncal' | 'zonal'): Promise<any[]> {
-  const proxies = await refreshProxyList();
-  if (proxies.length === 0) {
-    throw new Error('No Colombian proxies available');
-  }
-
-  const errors: string[] = [];
-  for (const proxy of proxies) {
-    try {
-      console.log(`[TM API] Trying proxy fallback: ${proxy}`);
-      const buses = await fetchLiveBusesThroughProxy(ruta, nombre, routeType, proxy);
-      console.log(`[TM API] Proxy fallback success using: ${proxy}`);
-      const idx = proxyList.indexOf(proxy);
-      if (idx > 0) {
-        proxyList.splice(idx, 1);
-        proxyList.unshift(proxy);
-      }
-      return buses;
-    } catch (e: any) {
-      console.warn(`[TM API] Proxy ${proxy} failed: ${e.message}. Trying next...`);
-      errors.push(`${proxy}: ${e.message}`);
-    }
-  }
-
-  throw new Error(`All Colombian proxies failed. Details: ${errors.slice(0, 10).join(', ')}`);
-}
-
-async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
+export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
   const routeCode = String(ruta || '').trim();
   const destinationName = String(nombre || '').trim();
 
@@ -784,10 +636,10 @@ async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'tr
       : `${apiURL.pathname === '/' ? '' : apiURL.pathname}/buses`,
     method: 'POST',
     headers,
-    timeout: 10000,
+    timeout: 25000,
   };
 
-  console.log(`[TM API] fetchLiveBusesDirect: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
+  console.log(`[TM API] fetchLiveBuses: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
 
   const requestLib = apiURL.protocol === 'https:' ? https : http;
 
@@ -850,25 +702,4 @@ async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'tr
     }
     req.end();
   });
-}
-
-export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
-  try {
-    return await fetchLiveBusesDirect(ruta, nombre, routeType);
-  } catch (err: any) {
-    const isLocalhost = !process.env.TRANSMILENIO_API_URL || process.env.TRANSMILENIO_API_URL.includes('localhost') || process.env.TRANSMILENIO_API_URL.includes('127.0.0.1');
-    const isStatus401 = err.message && err.message.includes('Status: 401');
-    const isConnRefused = err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND' || err.code === 'ECONNRESET' || err.message.includes('timeout');
-
-    if ((isStatus401 || isConnRefused) && !isLocalhost) {
-      console.log(`[TM API] Direct fetch failed (${err.message || err.code}). Retrying using proxy fallback...`);
-      try {
-        return await fetchLiveBusesWithProxyFallback(ruta, nombre, routeType);
-      } catch (proxyErr: any) {
-        console.error('[TM API] Proxy fallback also failed:', proxyErr.message);
-        throw proxyErr;
-      }
-    }
-    throw err;
-  }
 }

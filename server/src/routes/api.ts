@@ -174,9 +174,16 @@ router.post('/buses', async (req: Request, res: Response) => {
     const buses = await tmApi.fetchLiveBuses(ruta, nombre, routeType as 'troncal' | 'zonal');
     console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}"`);
     res.json({ success: true, count: buses.length, data: buses });
-  } catch (error) {
+  } catch (error: any) {
     console.error('[/buses] Error fetching live buses:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch live buses' });
+    const msg = error.message || '';
+    if (msg.includes('timed out')) {
+      res.status(504).json({ success: false, error: 'Gateway Timeout connecting to live tracking API' });
+    } else if (msg.includes('Status: 401') || msg.includes('Unauthorized') || error.code === 'ECONNRESET') {
+      res.status(503).json({ success: false, error: 'Live tracking service temporarily unavailable' });
+    } else {
+      res.status(500).json({ success: false, error: 'Failed to fetch live buses due to internal error' });
+    }
   }
 });
 
