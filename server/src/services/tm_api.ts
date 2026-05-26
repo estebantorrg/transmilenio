@@ -602,7 +602,7 @@ function normalizeLiveBusesPayload(payload: any): any[] {
 
 export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any[]> {
   const routeCode = String(ruta || '').trim();
-  const destinationName = String(nombre || '').trim().normalize('NFD');
+  const destinationName = String(nombre || '').trim();
   const postData = JSON.stringify({ ruta: routeCode, Nombre: destinationName });
   
   const options = {
