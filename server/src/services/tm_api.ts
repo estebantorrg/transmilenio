@@ -573,6 +573,7 @@ const EXTERNAL_PROXY_TIMEOUT_MS = 12_000;
 const CO_PROXY_READY_TIMEOUT_MS = 18_000;
 const MAX_CO_PROXY_ATTEMPTS = 8;
 const DEFAULT_COLOMBIAN_CLIENT_IP = '181.50.0.1';
+const DEFAULT_GAS_PROXY_URL = 'https://script.google.com/macros/s/AKfycbz6GPL2AKiOLcGzDPx5YR_LLGnDxU21p50PAzCpo_plRLfJHx1pWHYZMSjIa92JWsaH8w/exec';
 
 interface LiveRequestContext {
   routeCode: string;
@@ -673,6 +674,7 @@ function getConfiguredExternalProxyUrls(): string[] {
   const urls = [
     process.env.TRANSMILENIO_LIVE_PROXY_URL,
     process.env.TRANSMILENIO_GAS_PROXY_URL,
+    DEFAULT_GAS_PROXY_URL,
   ];
 
   return Array.from(new Set(urls
