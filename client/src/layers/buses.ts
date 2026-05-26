@@ -12,6 +12,8 @@ import { escapeHTML } from '../utils/html';
 let activeMarkers: maplibregl.Marker[] = [];
 let trackingInterval: number | null = null;
 let styleInjected = false;
+let fetchInFlight = false;
+let trackingSessionId = 0;
 
 type LiveBus = {
   id: string;
@@ -253,6 +255,9 @@ function injectMarkerStyles(): void {
 // ─── Tracking API Logic ──────────────────────────────────
 
 export function stopBusTracking(): void {
+  trackingSessionId++;
+  fetchInFlight = false;
+
   if (trackingInterval !== null) {
     window.clearInterval(trackingInterval);
     trackingInterval = null;
@@ -273,14 +278,15 @@ export function startBusTracking(
   stopBusTracking();
 
   console.log(`[Tracking] Started live tracking for ${routeCode} -> ${destinationName}`);
+  const sessionId = ++trackingSessionId;
   
   // Initial fetch
   onUpdate?.(0, 'loading');
-  fetchAndRenderBuses(map, routeCode, destinationName, routeType, onUpdate);
+  fetchAndRenderBuses(map, routeCode, destinationName, routeType, sessionId, onUpdate);
 
   // Poll every 15 seconds
   trackingInterval = window.setInterval(() => {
-    fetchAndRenderBuses(map, routeCode, destinationName, routeType, onUpdate);
+    fetchAndRenderBuses(map, routeCode, destinationName, routeType, sessionId, onUpdate);
   }, 15000);
 }
 
@@ -289,13 +295,21 @@ async function fetchAndRenderBuses(
   routeCode: string,
   destinationName: string,
   routeType: 'troncal' | 'zonal',
+  sessionId: number,
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
 ): Promise<void> {
+  if (fetchInFlight) {
+    console.debug(`[Tracking] Skipping poll for ${routeCode}; previous live request still pending`);
+    return;
+  }
+
+  fetchInFlight = true;
+
   try {
     const res = await api.getLiveBuses(routeCode, destinationName, routeType);
     
     // Check if tracking was stopped while the async request was in flight
-    if (trackingInterval === null) return;
+    if (trackingInterval === null || sessionId !== trackingSessionId) return;
 
     console.log(`[Tracking] Raw API response for ${routeCode}:`, JSON.stringify(res).slice(0, 500));
     const buses = extractLiveBuses(res, routeCode);
@@ -358,8 +372,12 @@ async function fetchAndRenderBuses(
     }
   } catch (err) {
     console.error(`[Tracking] Failed to fetch live buses for ${routeCode}:`, err);
-    if (trackingInterval !== null) {
+    if (trackingInterval !== null && sessionId === trackingSessionId) {
       onUpdate?.(0, 'error');
+    }
+  } finally {
+    if (sessionId === trackingSessionId) {
+      fetchInFlight = false;
     }
   }
 }

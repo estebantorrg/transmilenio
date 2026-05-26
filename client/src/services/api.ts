@@ -87,21 +87,22 @@ async function fetchJsonOnce<T>(
 async function fetchJson<T>(
   endpoint: string,
   timeoutMs: number = REQUEST_TIMEOUT_MS,
-  init?: RequestInit
+  init?: RequestInit,
+  maxRetries: number = MAX_RETRIES
 ): Promise<T> {
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       return await fetchJsonOnce<T>(endpoint, timeoutMs, init);
     } catch (error) {
       lastError = error;
 
-      if (attempt < MAX_RETRIES && isRetryable(error)) {
+      if (attempt < maxRetries && isRetryable(error)) {
         const delay = INITIAL_RETRY_DELAY_MS * Math.pow(2, attempt);
         const status = error instanceof ApiError ? error.status : 'network';
         console.warn(
-          `[API] ${endpoint} failed (${status}), retry ${attempt + 1}/${MAX_RETRIES} in ${delay}ms...`
+          `[API] ${endpoint} failed (${status}), retry ${attempt + 1}/${maxRetries} in ${delay}ms...`
         );
         await sleep(delay);
       } else {
@@ -142,5 +143,5 @@ export const api = {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ ruta, Nombre: nombre, type: routeType }),
-    }),
+    }, 0),
 };

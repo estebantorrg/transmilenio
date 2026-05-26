@@ -1,6 +1,4 @@
 import { Router, Request, Response } from 'express';
-import { createReadStream } from 'fs';
-import https from 'https';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 
@@ -179,7 +177,12 @@ router.post('/buses', async (req: Request, res: Response) => {
     const msg = error.message || '';
     if (msg.includes('timed out')) {
       res.status(504).json({ success: false, error: 'Gateway Timeout connecting to live tracking API' });
-    } else if (msg.includes('Status: 401') || msg.includes('Unauthorized') || error.code === 'ECONNRESET') {
+    } else if (
+      msg.includes('Live tracking unavailable') ||
+      msg.includes('Status: 401') ||
+      msg.includes('Unauthorized') ||
+      error.code === 'ECONNRESET'
+    ) {
       res.status(503).json({ success: false, error: 'Live tracking service temporarily unavailable' });
     } else {
       res.status(500).json({ success: false, error: 'Failed to fetch live buses due to internal error' });
@@ -194,15 +197,18 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
   try {
     diagnostics.env = {
       TRANSMILENIO_API_URL: process.env.TRANSMILENIO_API_URL,
+      TRANSMILENIO_LIVE_PROXY_URL: process.env.TRANSMILENIO_LIVE_PROXY_URL,
+      TRANSMILENIO_GAS_PROXY_URL: process.env.TRANSMILENIO_GAS_PROXY_URL,
+      TRANSMILENIO_COLOMBIA_CLIENT_IP: process.env.TRANSMILENIO_COLOMBIA_CLIENT_IP,
       RENDER: process.env.RENDER
     };
 
-    console.log('[/debug-buses] Attempting direct fetch...');
+    console.log('[/debug-buses] Attempting live fetch...');
     try {
-      const direct = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
-      diagnostics.direct = { success: true, count: direct.length };
+      const live = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
+      diagnostics.live = { success: true, count: live.length };
     } catch (err: any) {
-      diagnostics.direct = { success: false, message: err.message, code: err.code };
+      diagnostics.live = { success: false, message: err.message, code: err.code };
     }
 
     res.json(diagnostics);

@@ -7,7 +7,6 @@
 
 import https from 'https';
 import http from 'http';
-import tls from 'tls';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -564,11 +563,27 @@ export function isSyncInProgress(): boolean {
   return syncInProgress;
 }
 
+const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
+const LIVE_REQUEST_TIMEOUT_MS = 9_000;
+const EXTERNAL_PROXY_TIMEOUT_MS = 12_000;
+const DEFAULT_COLOMBIAN_CLIENT_IP = '181.50.0.1';
+
+interface LiveRequestContext {
+  routeCode: string;
+  destinationName: string;
+  routeType: 'troncal' | 'zonal';
+  isZonal: boolean;
+  targetPath: string;
+  postData: string;
+}
+
 function isLiveBusLike(value: unknown): boolean {
   if (!value || typeof value !== 'object') return false;
 
-  const bus = value as { latitude?: unknown; longitude?: unknown };
-  return Number.isFinite(Number(bus.latitude)) && Number.isFinite(Number(bus.longitude));
+  const bus = value as { latitude?: unknown; longitude?: unknown; lat?: unknown; lng?: unknown; lon?: unknown };
+  return Number.isFinite(Number(bus.latitude ?? bus.lat)) &&
+    Number.isFinite(Number(bus.longitude ?? bus.lng ?? bus.lon));
 }
 
 function normalizeLiveBusesPayload(payload: any): any[] {
@@ -601,92 +616,125 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
-async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
+function createLiveRequestContext(
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal' = 'troncal'
+): LiveRequestContext {
   const routeCode = String(ruta || '').trim();
   const destinationName = String(nombre || '').trim();
-
   const isZonal = routeType === 'zonal';
-  const postData = isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName });
 
-  const apiBaseUrl = process.env.TRANSMILENIO_API_URL || 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
-  const apiURL = new URL(apiBaseUrl);
-
-  const headers: Record<string, string | number> = {
-    'Accept-Encoding': 'gzip',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-    'Connection': 'Keep-Alive',
-    'Host': apiURL.hostname,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
+  return {
+    routeCode,
+    destinationName,
+    routeType,
+    isZonal,
+    targetPath: isZonal
+      ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}`
+      : '/buses',
+    postData: isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName }),
   };
+}
 
-  if (!isZonal) {
-    headers['Content-Type'] = 'application/json; charset=UTF-8';
-    headers['Content-Length'] = Buffer.byteLength(postData);
-  } else {
-    headers['Content-Length'] = 0;
-  }
+function getConfiguredExternalProxyUrls(): string[] {
+  const urls = [
+    process.env.TRANSMILENIO_LIVE_PROXY_URL,
+    process.env.TRANSMILENIO_API_URL,
+    process.env.TRANSMILENIO_GAS_PROXY_URL,
+  ];
 
-  const options = {
-    hostname: apiURL.hostname,
-    port: apiURL.port || (apiURL.protocol === 'https:' ? 443 : 80),
-    path: isZonal 
-      ? `${apiURL.pathname === '/' ? '' : apiURL.pathname}/location/ruta?ruta=${encodeURIComponent(routeCode)}` 
-      : `${apiURL.pathname === '/' ? '' : apiURL.pathname}/buses`,
-    method: 'POST',
-    headers,
-    timeout: 25000,
-  };
+  return Array.from(new Set(urls
+    .map((url) => String(url || '').trim())
+    .filter(Boolean)
+    .filter((url) => {
+      try {
+        return new URL(url).hostname !== LIVE_API_HOST;
+      } catch {
+        console.warn(`[TM API] Ignoring invalid live proxy URL: ${url}`);
+        return false;
+      }
+    })));
+}
 
-  console.log(`[TM API] fetchLiveBusesDirect: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path} via=${apiBaseUrl}`);
+function getColombianClientIp(): string {
+  return String(process.env.TRANSMILENIO_COLOMBIA_CLIENT_IP || DEFAULT_COLOMBIAN_CLIENT_IP).trim();
+}
 
-  const requestLib = apiURL.protocol === 'https:' ? https : http;
+function addColombianForwardingHeaders(headers: Record<string, string | number>): void {
+  const clientIp = getColombianClientIp();
+  headers['X-Forwarded-For'] = clientIp;
+  headers['X-Real-IP'] = clientIp;
+  headers['Forwarded'] = `for=${clientIp}`;
+}
+
+function decodeBody(raw: Buffer, encoding: string | string[] | undefined): Promise<Buffer> {
+  const contentEncoding = Array.isArray(encoding) ? encoding.join(',') : encoding || '';
+  if (!contentEncoding.toLowerCase().includes('gzip')) return Promise.resolve(raw);
 
   return new Promise((resolve, reject) => {
-    const req = requestLib.request(options, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`Status: ${res.statusCode}`));
-        return;
-      }
+    zlib.gunzip(raw, (err, decompressed) => {
+      if (err) reject(err);
+      else resolve(decompressed);
+    });
+  });
+}
 
+async function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
+  const body = await decodeBody(raw, encoding).catch(() => raw);
+  const text = body.toString('utf-8');
+
+  let payload: any;
+  try {
+    payload = JSON.parse(text);
+  } catch {
+    throw new Error(`${source}: Live Buses JSON parse error (${text.slice(0, 120)})`);
+  }
+
+  if (payload?.success === false) {
+    throw new Error(`${source}: ${payload.error || 'Proxy returned success=false'}`);
+  }
+
+  const problemStatus = Number(payload?.status);
+  if (Number.isFinite(problemStatus) && problemStatus >= 400) {
+    throw new Error(`${source}: Status: ${problemStatus} ${payload.title || payload.detail || ''}`.trim());
+  }
+
+  return normalizeLiveBusesPayload(payload);
+}
+
+function requestLiveJson(
+  url: URL,
+  headers: Record<string, string | number>,
+  postData: string,
+  timeoutMs: number
+): Promise<any[]> {
+  const requestLib = url.protocol === 'http:' ? http : https;
+  const source = `${url.protocol}//${url.hostname}${url.pathname}`;
+
+  return new Promise((resolve, reject) => {
+    const req = requestLib.request({
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'http:' ? 80 : 443),
+      path: `${url.pathname}${url.search}`,
+      method: 'POST',
+      headers,
+      timeout: timeoutMs,
+    }, (res) => {
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => {
+      res.on('end', async () => {
         const raw = Buffer.concat(chunks);
-        const encoding = res.headers['content-encoding'];
 
-        const parse = (buf: Buffer): any[] => {
-          const text = buf.toString('utf-8');
-          try {
-            return normalizeLiveBusesPayload(JSON.parse(text));
-          } catch {
-            throw new Error('Live Buses JSON parse error');
-          }
-        };
+        if (res.statusCode !== 200) {
+          reject(new Error(`${source}: Status: ${res.statusCode}`));
+          return;
+        }
 
-        if (encoding === 'gzip') {
-          zlib.gunzip(raw, (err, decompressed) => {
-            if (err) {
-              try {
-                resolve(parse(raw));
-              } catch (parseErr) {
-                reject(parseErr);
-              }
-            } else {
-              try {
-                resolve(parse(decompressed));
-              } catch (parseErr) {
-                reject(parseErr);
-              }
-            }
-          });
-        } else {
-          try {
-            resolve(parse(raw));
-          } catch (parseErr) {
-            reject(parseErr);
-          }
+        try {
+          resolve(await parseLiveResponse(raw, res.headers['content-encoding'], source));
+        } catch (error) {
+          reject(error);
         }
       });
     });
@@ -694,37 +742,131 @@ async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'tr
     req.on('error', reject);
     req.on('timeout', () => {
       req.destroy();
-      reject(new Error('Request timed out'));
+      reject(new Error(`${source}: Request timed out`));
     });
 
-    if (postData) {
-      req.write(postData);
-    }
+    if (postData) req.write(postData);
     req.end();
   });
 }
 
-export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
-  let retries = 3;
-  let delay = 600;
+function buildExternalProxyRequestUrl(baseUrl: string, context: LiveRequestContext): URL {
+  const url = new URL(baseUrl);
+  const isGoogleAppsScript = url.hostname === 'script.google.com' && url.pathname.endsWith('/exec');
+  if (isGoogleAppsScript) return url;
 
-  while (retries > 0) {
+  const trimmedPath = url.pathname.replace(/\/$/, '');
+  const alreadyTargetsLiveApi = trimmedPath.endsWith('/buses') || trimmedPath.includes('/location/ruta');
+  if (!alreadyTargetsLiveApi) {
+    url.pathname = `${trimmedPath}${context.isZonal ? '/location/ruta' : '/buses'}`.replace(/\/{2,}/g, '/');
+  }
+
+  if (context.isZonal) {
+    url.searchParams.set('ruta', context.routeCode);
+  }
+
+  return url;
+}
+
+function buildExternalProxyBody(baseUrl: string, context: LiveRequestContext): string {
+  const url = new URL(baseUrl);
+  const isGoogleAppsScript = url.hostname === 'script.google.com' && url.pathname.endsWith('/exec');
+
+  if (isGoogleAppsScript) {
+    return JSON.stringify({
+      action: context.isZonal ? 'zonal' : 'troncal',
+      ruta: context.routeCode,
+      nombre: context.destinationName,
+      Nombre: context.destinationName,
+      type: context.routeType,
+    });
+  }
+
+  return context.isZonal ? '' : context.postData;
+}
+
+async function fetchLiveBusesViaExternalProxy(context: LiveRequestContext): Promise<any[]> {
+  const proxyUrls = getConfiguredExternalProxyUrls();
+  let lastError: Error | null = null;
+
+  for (const baseUrl of proxyUrls) {
     try {
-      return await fetchLiveBusesDirect(ruta, nombre, routeType);
-    } catch (err: any) {
-      retries--;
-      const isStatus401 = err.message && err.message.includes('Status: 401');
-      const isTimeout = err.message && err.message.includes('timed out');
-      const isLocalhost = !process.env.TRANSMILENIO_API_URL || process.env.TRANSMILENIO_API_URL.includes('localhost') || process.env.TRANSMILENIO_API_URL.includes('127.0.0.1');
+      const url = buildExternalProxyRequestUrl(baseUrl, context);
+      const postData = buildExternalProxyBody(baseUrl, context);
+      const headers: Record<string, string | number> = {
+        'Accept-Encoding': 'identity',
+        'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+        'User-Agent': 'okhttp/4.12.0',
+        'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+        'version': '2.9.5',
+        'Content-Length': Buffer.byteLength(postData),
+      };
+      addColombianForwardingHeaders(headers);
 
-      if (retries > 0 && (isStatus401 || isTimeout) && !isLocalhost) {
-        console.warn(`[TM API] fetchLiveBuses failed (${err.message}). Retrying in ${delay}ms... (${retries} retries left)`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 1.5;
-        continue;
+      if (postData) {
+        headers['Content-Type'] = 'application/json; charset=UTF-8';
       }
-      throw err;
+
+      console.log(`[TM API] Trying configured live proxy ${url.href}`);
+      return await requestLiveJson(url, headers, postData, EXTERNAL_PROXY_TIMEOUT_MS);
+    } catch (error: any) {
+      lastError = error;
+      console.warn(`[TM API] Configured live proxy failed: ${error.message}`);
     }
   }
-  throw new Error('Failed after max retries');
+
+  throw lastError ?? new Error('No configured live proxy URL');
+}
+
+async function fetchLiveBusesFromTransmiApp(context: LiveRequestContext): Promise<any[]> {
+  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
+  const postData = context.postData;
+  const headers: Record<string, string | number> = {
+    'Accept-Encoding': 'identity',
+    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    'Connection': 'Keep-Alive',
+    'Host': LIVE_API_HOST,
+    'User-Agent': 'okhttp/4.12.0',
+    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+    'version': '2.9.5',
+    'Content-Length': Buffer.byteLength(postData),
+  };
+  addColombianForwardingHeaders(headers);
+
+  if (postData) {
+    headers['Content-Type'] = 'application/json; charset=UTF-8';
+  }
+
+  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=direct+xff`);
+
+  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS);
+}
+
+export async function fetchLiveBuses(
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal' = 'troncal'
+): Promise<any[]> {
+  const context = createLiveRequestContext(ruta, nombre, routeType);
+  const errors: string[] = [];
+
+  if (!context.routeCode) {
+    throw new Error('ruta is required');
+  }
+
+  try {
+    return await fetchLiveBusesFromTransmiApp(context);
+  } catch (error: any) {
+    errors.push(error.message);
+  }
+
+  if (getConfiguredExternalProxyUrls().length > 0) {
+    try {
+      return await fetchLiveBusesViaExternalProxy(context);
+    } catch (error: any) {
+      errors.push(error.message);
+    }
+  }
+
+  throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
 }
