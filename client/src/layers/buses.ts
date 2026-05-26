@@ -272,6 +272,7 @@ export function startBusTracking(
   routeCode: string,
   destinationName: string,
   routeType: 'troncal' | 'zonal',
+  nombreCandidates: string[] = [],
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
 ): void {
   injectMarkerStyles();
@@ -282,11 +283,11 @@ export function startBusTracking(
   
   // Initial fetch
   onUpdate?.(0, 'loading');
-  fetchAndRenderBuses(map, routeCode, destinationName, routeType, sessionId, onUpdate);
+  fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
 
   // Poll every 15 seconds
   trackingInterval = window.setInterval(() => {
-    fetchAndRenderBuses(map, routeCode, destinationName, routeType, sessionId, onUpdate);
+    fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
   }, 15000);
 }
 
@@ -295,6 +296,7 @@ async function fetchAndRenderBuses(
   routeCode: string,
   destinationName: string,
   routeType: 'troncal' | 'zonal',
+  nombreCandidates: string[],
   sessionId: number,
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
 ): Promise<void> {
@@ -306,7 +308,7 @@ async function fetchAndRenderBuses(
   fetchInFlight = true;
 
   try {
-    const res = await api.getLiveBuses(routeCode, destinationName, routeType);
+    const res = await api.getLiveBuses(routeCode, destinationName, routeType, nombreCandidates);
     
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null || sessionId !== trackingSessionId) return;

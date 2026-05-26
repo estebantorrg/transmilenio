@@ -197,6 +197,34 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   return items;
 }
 
+function addUniqueLiveName(candidates: string[], value: unknown): void {
+  const text = String(value || '').trim();
+  if (!text) return;
+
+  const parts = text.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
+  for (const part of parts.length > 1 ? [...parts].reverse() : parts) {
+    const clean = part.trim();
+    if (clean && !candidates.some((candidate) => candidate.toLowerCase() === clean.toLowerCase())) {
+      candidates.push(clean);
+    }
+  }
+
+  if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
+    candidates.push(text);
+  }
+}
+
+function getLiveNameCandidates(route: RouteListItem): string[] {
+  const candidates: string[] = [];
+  addUniqueLiveName(candidates, route.destination);
+  addUniqueLiveName(candidates, route.catalogNombre);
+  addUniqueLiveName(candidates, route.name);
+  addUniqueLiveName(candidates, route.origin);
+  route.stops?.slice(0, 1).forEach((stop) => addUniqueLiveName(candidates, stop.nombre));
+  route.stops?.slice(-1).forEach((stop) => addUniqueLiveName(candidates, stop.nombre));
+  return candidates;
+}
+
 // ─── Build Route List Items ───────────────────────────────
 
 function buildRouteList(
@@ -454,7 +482,15 @@ async function main(): Promise<void> {
       refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
-      startBusTracking(map, route.code, route.catalogNombre || route.name || route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
+      route.liveNameCandidates = getLiveNameCandidates(route);
+      startBusTracking(
+        map,
+        route.code,
+        route.liveNameCandidates[0] || route.catalogNombre || route.name || route.destination,
+        route.type,
+        route.liveNameCandidates,
+        (count, status) => updateLiveBusStatus(count, status)
+      );
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();

@@ -136,12 +136,17 @@ export const api = {
   getRouteDetail: (code: string) =>
     fetchJson<any>(`/troncal/route/${code}`),
 
-  getLiveBuses: (ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal') =>
+  getLiveBuses: (
+    ruta: string,
+    nombre: string,
+    routeType: 'troncal' | 'zonal' = 'troncal',
+    nombreCandidates: string[] = []
+  ) =>
     fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ruta, Nombre: nombre, type: routeType }),
+      body: JSON.stringify({ ruta, Nombre: nombre, nombreCandidates, type: routeType }),
     }, 0),
 };

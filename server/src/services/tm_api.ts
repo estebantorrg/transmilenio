@@ -566,7 +566,10 @@ export function isSyncInProgress(): boolean {
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
+const LIVE_DIRECT_ATTEMPTS = 2;
 const EXTERNAL_PROXY_TIMEOUT_MS = 12_000;
+const CO_PROXY_READY_TIMEOUT_MS = 18_000;
+const MAX_CO_PROXY_ATTEMPTS = 8;
 const DEFAULT_COLOMBIAN_CLIENT_IP = '181.50.0.1';
 
 interface LiveRequestContext {
@@ -576,6 +579,7 @@ interface LiveRequestContext {
   isZonal: boolean;
   targetPath: string;
   postData: string;
+  candidateName: string;
 }
 
 function isLiveBusLike(value: unknown): boolean {
@@ -619,10 +623,11 @@ function normalizeLiveBusesPayload(payload: any): any[] {
 function createLiveRequestContext(
   ruta: string,
   nombre: string,
-  routeType: 'troncal' | 'zonal' = 'troncal'
+  routeType: 'troncal' | 'zonal' = 'troncal',
+  candidateName = nombre
 ): LiveRequestContext {
   const routeCode = String(ruta || '').trim();
-  const destinationName = String(nombre || '').trim();
+  const destinationName = String(candidateName || nombre || '').trim();
   const isZonal = routeType === 'zonal';
 
   return {
@@ -634,13 +639,37 @@ function createLiveRequestContext(
       ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}`
       : '/buses',
     postData: isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName }),
+    candidateName: destinationName,
   };
+}
+
+function addUniqueLiveName(candidates: string[], value: unknown): void {
+  const text = String(value || '').trim();
+  if (!text) return;
+
+  const parts = text.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
+  for (const part of parts.length > 1 ? [...parts].reverse() : parts) {
+    const clean = part.trim();
+    if (clean && !candidates.some((candidate) => candidate.toLowerCase() === clean.toLowerCase())) {
+      candidates.push(clean);
+    }
+  }
+
+  if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
+    candidates.push(text);
+  }
+}
+
+function buildLiveNameCandidates(nombre: string, nombreCandidates: string[] = []): string[] {
+  const candidates: string[] = [];
+  for (const candidate of nombreCandidates) addUniqueLiveName(candidates, candidate);
+  addUniqueLiveName(candidates, nombre);
+  return candidates.length > 0 ? candidates : [String(nombre || '').trim()];
 }
 
 function getConfiguredExternalProxyUrls(): string[] {
   const urls = [
     process.env.TRANSMILENIO_LIVE_PROXY_URL,
-    process.env.TRANSMILENIO_API_URL,
     process.env.TRANSMILENIO_GAS_PROXY_URL,
   ];
 
@@ -707,7 +736,8 @@ function requestLiveJson(
   url: URL,
   headers: Record<string, string | number>,
   postData: string,
-  timeoutMs: number
+  timeoutMs: number,
+  agent?: https.Agent
 ): Promise<any[]> {
   const requestLib = url.protocol === 'http:' ? http : https;
   const source = `${url.protocol}//${url.hostname}${url.pathname}`;
@@ -719,6 +749,7 @@ function requestLiveJson(
       path: `${url.pathname}${url.search}`,
       method: 'POST',
       headers,
+      agent,
       timeout: timeoutMs,
     }, (res) => {
       const chunks: Buffer[] = [];
@@ -842,29 +873,97 @@ async function fetchLiveBusesFromTransmiApp(context: LiveRequestContext): Promis
   return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS);
 }
 
+async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Promise<any[]> {
+  const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
+  const readyCount = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
+  if (readyCount === 0) {
+    throw new Error('No Colombian proxy available');
+  }
+
+  const attempts = Math.min(Math.max(readyCount, 1), MAX_CO_PROXY_ATTEMPTS);
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    const proxy = ProxyManager.getWorkingProxy();
+    if (!proxy) break;
+
+    try {
+      const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
+      const postData = context.postData;
+      const headers: Record<string, string | number> = {
+        'Accept-Encoding': 'identity',
+        'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+        'Connection': 'Keep-Alive',
+        'Host': LIVE_API_HOST,
+        'User-Agent': 'okhttp/4.12.0',
+        'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+        'version': '2.9.5',
+        'Content-Length': Buffer.byteLength(postData),
+      };
+      if (postData) {
+        headers['Content-Type'] = 'application/json; charset=UTF-8';
+      }
+
+      console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy ${proxy.ip}:${proxy.port}`);
+      return await requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, new SimpleProxyAgent(proxy.ip, proxy.port));
+    } catch (error: any) {
+      lastError = error;
+      ProxyManager.reportFailure(proxy.ip, proxy.port);
+      console.warn(`[TM API] CO proxy attempt ${attempt}/${attempts} failed: ${error.message}`);
+    }
+  }
+
+  throw lastError ?? new Error('No Colombian proxy responded');
+}
+
 export async function fetchLiveBuses(
   ruta: string,
   nombre: string,
-  routeType: 'troncal' | 'zonal' = 'troncal'
+  routeType: 'troncal' | 'zonal' = 'troncal',
+  nombreCandidates: string[] = []
 ): Promise<any[]> {
-  const context = createLiveRequestContext(ruta, nombre, routeType);
+  const contexts = routeType === 'zonal'
+    ? [createLiveRequestContext(ruta, nombre, routeType)]
+    : buildLiveNameCandidates(nombre, nombreCandidates)
+        .map((candidate) => createLiveRequestContext(ruta, nombre, routeType, candidate));
+  const primaryContext = contexts[0];
   const errors: string[] = [];
 
-  if (!context.routeCode) {
+  if (!primaryContext?.routeCode) {
     throw new Error('ruta is required');
   }
 
-  try {
-    return await fetchLiveBusesFromTransmiApp(context);
-  } catch (error: any) {
-    errors.push(error.message);
+  for (const context of contexts) {
+    for (let attempt = 1; attempt <= LIVE_DIRECT_ATTEMPTS; attempt++) {
+      try {
+        const buses = await fetchLiveBusesFromTransmiApp(context);
+        console.log(`[TM API] Live candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+        return buses;
+      } catch (error: any) {
+        errors.push(`[direct ${context.candidateName} #${attempt}] ${error.message}`);
+      }
+    }
   }
 
   if (getConfiguredExternalProxyUrls().length > 0) {
+    for (const context of contexts) {
+      try {
+        const buses = await fetchLiveBusesViaExternalProxy(context);
+        console.log(`[TM API] Live proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+        return buses;
+      } catch (error: any) {
+        errors.push(`[external ${context.candidateName}] ${error.message}`);
+      }
+    }
+  }
+
+  for (const context of contexts) {
     try {
-      return await fetchLiveBusesViaExternalProxy(context);
+      const buses = await fetchLiveBusesViaColombianProxy(context);
+      console.log(`[TM API] CO proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+      return buses;
     } catch (error: any) {
-      errors.push(error.message);
+      errors.push(`[co-proxy ${context.candidateName}] ${error.message}`);
     }
   }
 

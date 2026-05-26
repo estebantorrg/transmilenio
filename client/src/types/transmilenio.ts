@@ -111,4 +111,5 @@ export interface RouteListItem {
   geometry?: { paths: number[][][] };
   stops?: Array<{ nombre: string; codigo: string; coordinate: [number, number]; direccion?: string }>;
   catalogNombre?: string;
+  liveNameCandidates?: string[];
 }
