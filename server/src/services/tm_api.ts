@@ -728,6 +728,7 @@ async function fetchLiveBusesWithProxyFallback(ruta: string, nombre: string, rou
     throw new Error('No Colombian proxies available');
   }
 
+  const errors: string[] = [];
   for (const proxy of proxies) {
     try {
       console.log(`[TM API] Trying proxy fallback: ${proxy}`);
@@ -741,10 +742,11 @@ async function fetchLiveBusesWithProxyFallback(ruta: string, nombre: string, rou
       return buses;
     } catch (e: any) {
       console.warn(`[TM API] Proxy ${proxy} failed: ${e.message}. Trying next...`);
+      errors.push(`${proxy}: ${e.message}`);
     }
   }
 
-  throw new Error('All Colombian proxies failed');
+  throw new Error(`All Colombian proxies failed. Details: ${errors.slice(0, 10).join(', ')}`);
 }
 
 async function fetchLiveBusesDirect(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
