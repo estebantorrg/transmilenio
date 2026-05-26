@@ -607,11 +607,14 @@ export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 't
   const isZonal = routeType === 'zonal';
   const postData = isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName });
 
+  const apiBaseUrl = process.env.TRANSMILENIO_API_URL || 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
+  const apiURL = new URL(apiBaseUrl);
+
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'gzip',
     'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
     'Connection': 'Keep-Alive',
-    'Host': 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
+    'Host': apiURL.hostname,
     'User-Agent': 'okhttp/4.12.0',
     'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
     'version': '2.9.5',
@@ -623,9 +626,6 @@ export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 't
   } else {
     headers['Content-Length'] = 0;
   }
-
-  const apiBaseUrl = process.env.TRANSMILENIO_API_URL || 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
-  const apiURL = new URL(apiBaseUrl);
 
   const options = {
     hostname: apiURL.hostname,
