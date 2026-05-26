@@ -176,17 +176,23 @@ router.post('/buses', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[/buses] Error fetching live buses:', error);
     const msg = error.message || '';
+    const payload: Record<string, any> = { success: false };
+    if (req.query.debug === '1') {
+      payload.detail = msg;
+      payload.code = error.code;
+    }
+
     if (msg.includes('timed out')) {
-      res.status(504).json({ success: false, error: 'Gateway Timeout connecting to live tracking API' });
+      res.status(504).json({ ...payload, error: 'Gateway Timeout connecting to live tracking API' });
     } else if (
       msg.includes('Live tracking unavailable') ||
       msg.includes('Status: 401') ||
       msg.includes('Unauthorized') ||
       error.code === 'ECONNRESET'
     ) {
-      res.status(503).json({ success: false, error: 'Live tracking service temporarily unavailable' });
+      res.status(503).json({ ...payload, error: 'Live tracking service temporarily unavailable' });
     } else {
-      res.status(500).json({ success: false, error: 'Failed to fetch live buses due to internal error' });
+      res.status(500).json({ ...payload, error: 'Failed to fetch live buses due to internal error' });
     }
   }
 });
@@ -224,6 +230,7 @@ router.get('/health', (_req: Request, res: Response) => {
     cacheEntries: cache.size,
     catalogStations: Object.keys(tmApi.getCatalog().stations || {}).length,
     catalogStale: tmApi.isCatalogStale(),
+    liveTrackingVersion: tmApi.LIVE_TRACKING_VERSION,
     syncInProgress: tmApi.isSyncInProgress(),
     uptime: process.uptime(),
   });

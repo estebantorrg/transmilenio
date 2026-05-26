@@ -566,6 +566,7 @@ export function isSyncInProgress(): boolean {
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 const LIVE_API_DIRECT_ORIGIN = `http://${LIVE_API_HOST}`;
+export const LIVE_TRACKING_VERSION = 'http-direct-v2';
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
 const LIVE_DIRECT_ATTEMPTS = 2;
 const EXTERNAL_PROXY_TIMEOUT_MS = 12_000;
