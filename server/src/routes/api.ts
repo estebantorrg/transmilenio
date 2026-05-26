@@ -164,12 +164,13 @@ router.post('/buses', async (req: Request, res: Response) => {
   try {
     const { ruta } = req.body;
     const nombre = req.body.Nombre ?? req.body.nombre ?? '';
-    console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}"`);
+    const routeType = req.body.type === 'zonal' ? 'zonal' : 'troncal';
+    console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}" type=${routeType}`);
     if (!ruta) {
       res.status(400).json({ success: false, error: 'ruta is required' });
       return;
     }
-    const buses = await tmApi.fetchLiveBuses(ruta, nombre);
+    const buses = await tmApi.fetchLiveBuses(ruta, nombre, routeType as 'troncal' | 'zonal');
     console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}"`);
     res.json({ success: true, count: buses.length, data: buses });
   } catch (error) {

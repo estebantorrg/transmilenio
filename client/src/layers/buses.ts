@@ -293,7 +293,7 @@ async function fetchAndRenderBuses(
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
 ): Promise<void> {
   try {
-    const res = await api.getLiveBuses(routeCode, destinationName);
+    const res = await api.getLiveBuses(routeCode, destinationName, routeType);
     
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null) return;

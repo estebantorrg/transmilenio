@@ -541,7 +541,6 @@ export async function syncMasterCatalog(): Promise<void> {
 
     // 3. Save to disk, then publish in memory once the file is complete.
     await writeCatalogAtomically(newCatalog);
-
     masterCatalog = newCatalog;
     masterCatalogLight = null; // Clear light catalog cache!
     catalogLoadedAt = Date.now();
@@ -600,28 +599,39 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
-export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any[]> {
+export async function fetchLiveBuses(ruta: string, nombre: string, routeType: 'troncal' | 'zonal' = 'troncal'): Promise<any[]> {
   const routeCode = String(ruta || '').trim();
   const destinationName = String(nombre || '').trim();
-  const postData = JSON.stringify({ ruta: routeCode, Nombre: destinationName });
-  
+
+  const isZonal = routeType === 'zonal';
+  const postData = isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName });
+
+  const headers: Record<string, string | number> = {
+    'Accept-Encoding': 'gzip',
+    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    'Connection': 'Keep-Alive',
+    'Host': 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
+    'User-Agent': 'okhttp/4.12.0',
+    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+    'version': '2.9.5',
+  };
+
+  if (!isZonal) {
+    headers['Content-Type'] = 'application/json; charset=UTF-8';
+    headers['Content-Length'] = Buffer.byteLength(postData);
+  } else {
+    headers['Content-Length'] = 0;
+  }
+
   const options = {
     hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-    path: '/buses',
+    path: isZonal ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}` : '/buses',
     method: 'POST',
-    headers: {
-      'Accept-Encoding': 'gzip',
-      'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-      'Connection': 'Keep-Alive',
-      'Host': 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-      'Content-Type': 'application/json; charset=UTF-8',
-      'Content-Length': Buffer.byteLength(postData),
-      'User-Agent': 'okhttp/4.12.0',
-      'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-      'version': '2.9.5',
-    },
+    headers,
     timeout: 10000,
   };
+
+  console.log(`[TM API] fetchLiveBuses: type=${routeType} ruta=${routeCode} nombre=${destinationName} path=${options.path}`);
 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
@@ -634,7 +644,9 @@ export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any[
         const parse = (buf: Buffer) => {
           const text = buf.toString('utf-8');
           try {
-            return normalizeLiveBusesPayload(JSON.parse(text));
+            const parsed = normalizeLiveBusesPayload(JSON.parse(text));
+            console.log(`[TM API] fetchLiveBuses result: ${parsed.length} buses for ${routeCode}`);
+            return parsed;
           } catch {
             console.error(`[TM API] Live Buses JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
             return [];
@@ -661,7 +673,9 @@ export async function fetchLiveBuses(ruta: string, nombre: string): Promise<any[
       reject(new Error('Request timed out'));
     });
 
-    req.write(postData);
+    if (postData) {
+      req.write(postData);
+    }
     req.end();
   });
 }

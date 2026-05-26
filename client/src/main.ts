@@ -454,7 +454,7 @@ async function main(): Promise<void> {
       refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
-      startBusTracking(map, route.code, '', route.type, (count, status) => updateLiveBusStatus(count, status));
+      startBusTracking(map, route.code, route.catalogNombre || route.name || route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
