@@ -176,6 +176,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         busType: route.tipoServicio,
         schedule: route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / '),
         color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color),
+        catalogNombre: route.nombre || '',
         geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
         stops: stops
           .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
@@ -453,7 +454,7 @@ async function main(): Promise<void> {
       refreshRouteDetail(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
-      startBusTracking(map, route.code, route.destination || route.name, route.type, (count, status) => updateLiveBusStatus(count, status));
+      startBusTracking(map, route.code, route.catalogNombre || route.name || route.destination, route.type, (count, status) => updateLiveBusStatus(count, status));
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
