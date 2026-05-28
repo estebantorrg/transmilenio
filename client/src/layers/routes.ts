@@ -185,9 +185,9 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
-      'line-color': '#000000',
+      'line-color': '#032A3F',
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 14, 3.5, 17, 5],
-      'line-opacity': 0.8,
+      'line-opacity': 0.35,
     },
   }, beforeId);
 
@@ -197,9 +197,9 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': DEFAULT_ZONAL_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2, 14, 4, 17, 6],
-      'line-opacity': 0.12,
+      'line-opacity': 0.16,
       'line-blur': 3,
     },
   }, beforeId);
@@ -210,9 +210,9 @@ export function addZonalRoutesLayer(
     source: 'zonal-routes',
     layout: { 'line-cap': 'round', 'line-join': 'round', 'visibility': 'none' },
     paint: {
-      'line-color': ['get', 'color'],
+      'line-color': DEFAULT_ZONAL_COLOR,
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 1.5, 17, 2],
-      'line-opacity': 0.55,
+      'line-opacity': 0.78,
     },
   }, beforeId);
 }
@@ -373,9 +373,9 @@ export function clearHighlight(map: maplibregl.Map): void {
   if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.72);
   if (map.getLayer('troncal-corridors-labels')) map.setPaintProperty('troncal-corridors-labels', 'text-opacity', 1);
 
-  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.55);
-  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.8);
-  if (map.getLayer('zonal-routes-glow')) map.setPaintProperty('zonal-routes-glow', 'line-opacity', 0.12);
+  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.78);
+  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.35);
+  if (map.getLayer('zonal-routes-glow')) map.setPaintProperty('zonal-routes-glow', 'line-opacity', 0.16);
 
   if (map.getLayer('stations-circle')) map.setPaintProperty('stations-circle', 'icon-opacity', 1);
   if (map.getLayer('stations-labels')) map.setPaintProperty('stations-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 14, 0.6, 16, 1]);

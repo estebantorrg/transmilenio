@@ -22,7 +22,7 @@ export const TRONCAL_COLORS: Record<string, string> = {
 export const ALIMENTADOR_COLOR = '#009944';
 export const RUTA_FACIL_COLOR = '#000000';
 export const DEFAULT_TRONCAL_COLOR = '#FB2C17';
-export const DEFAULT_ZONAL_COLOR = '#EAB308';
+export const DEFAULT_ZONAL_COLOR = '#00608B';
 
 const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
@@ -100,11 +100,6 @@ export function getZonalRouteColor(code?: string | null): string {
     return ALIMENTADOR_COLOR;
   }
 
-  const zoneLetter = getTroncalLetter(normalized);
-  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
-    return TRONCAL_COLORS[zoneLetter];
-  }
-
   return DEFAULT_ZONAL_COLOR;
 }
 
@@ -124,17 +119,11 @@ export function getRouteAccentColor(
   if (isAlimentadorRoute(route)) return ALIMENTADOR_COLOR;
   if (isRutaFacilCode(route.code)) return RUTA_FACIL_COLOR;
 
-  const zoneLetter = getTroncalLetter(route.code);
-  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
-    return TRONCAL_COLORS[zoneLetter];
-  }
-
   if (route.type === 'troncal') {
-    return getTroncalColor(route.code);
+    return validHexColor(route.color) ?? getTroncalColor(route.code);
   }
 
-  // For zonal routes: prefer valid catalog color, then fall back to default
-  return validHexColor(route.color) ?? DEFAULT_ZONAL_COLOR;
+  return validHexColor(route.color) ?? getZonalRouteColor(route.code);
 }
 
 /**
@@ -146,15 +135,11 @@ export function getRouteAccentColor(
 export function getStopTagColor(code: string, catalogColor?: string | null): string {
   if (isRutaFacilCode(code)) return RUTA_FACIL_COLOR;
 
+  const catalog = validHexColor(catalogColor);
+  if (catalog) return catalog;
+
   const normalized = normalizeRouteCodeForMatch(code);
-  // Check for alimentador pattern (e.g. "9-3")
   if (/^\d+-\d+$/.test(normalized)) return ALIMENTADOR_COLOR;
 
-  const zoneLetter = getTroncalLetter(code);
-  if (zoneLetter && TRONCAL_COLORS[zoneLetter]) {
-    return TRONCAL_COLORS[zoneLetter];
-  }
-
-  // Fall back to validated catalog color, then default
-  return validHexColor(catalogColor) ?? DEFAULT_ZONAL_COLOR;
+  return DEFAULT_ZONAL_COLOR;
 }

@@ -35,6 +35,7 @@ const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 3000;
 const STALE_DAYS = 7;
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
+const LIGHT_TRACE_MAX_POINTS = 160;
 
 // ─── Types ──────────────────────────────────────────────
 
@@ -71,13 +72,16 @@ export interface CatalogRouteDetail {
   sistema: string;
   tipoServicio: string;
   horarios?: CatalogRoute['horarios'];
-  stops: Array<{
+  origin?: string;
+  destination?: string;
+  stops?: Array<{
     nombre: string;
     codigo: string;
     coordenada: string;
     posicion: number;
+    direccion?: string;
   }>;
-  trazado?: number[][];
+  trazado?: RouteTrace;
 }
 
 export interface MasterCatalog {
@@ -106,6 +110,8 @@ interface ApiRecorridoStop {
   parada: string;
   posicion: number;
 }
+
+type RouteTrace = number[][] | number[][][];
 
 // ─── HTTP Client ────────────────────────────────────────
 
@@ -224,7 +230,7 @@ export async function getRouteInfo(
   horarios?: CatalogRoute['horarios']; 
   sistema?: string; 
   tipoServicio?: string;
-  trazado?: number[][];
+  trazado?: RouteTrace;
 }> {
   const data = await fetchWithRetry(
     {
@@ -241,7 +247,7 @@ export async function getRouteInfo(
   const stops: ApiRecorridoStop[] = data?.recorrido?.data ?? [];
   const color: string = data?.['0']?.color ?? '';
   
-  let trazadoCoords: number[][] | undefined;
+  let trazadoCoords: RouteTrace | undefined;
   const rawTrazado = data?.['0']?.trazado;
   if (rawTrazado && typeof rawTrazado === 'string') {
     try {
@@ -249,8 +255,7 @@ export async function getRouteInfo(
       if (parsed.type === 'LineString' && Array.isArray(parsed.coordinates)) {
         trazadoCoords = parsed.coordinates;
       } else if (parsed.type === 'MultiLineString' && Array.isArray(parsed.coordinates)) {
-        // Flatten MultiLineString into a single LineString for the map highlight
-        trazadoCoords = parsed.coordinates.flat();
+        trazadoCoords = parsed.coordinates;
       }
     } catch (e) {
       console.warn(`[TM API] Failed to parse trazado JSON for ${codigo}`);
@@ -325,6 +330,55 @@ export function getCatalog(): MasterCatalog {
   return masterCatalog;
 }
 
+function isCoordinatePair(value: unknown): value is number[] {
+  return Array.isArray(value) &&
+    value.length >= 2 &&
+    Number.isFinite(Number(value[0])) &&
+    Number.isFinite(Number(value[1]));
+}
+
+function traceToPaths(trace: RouteTrace | undefined): number[][][] {
+  if (!Array.isArray(trace) || trace.length === 0) return [];
+
+  const first = trace[0];
+  if (isCoordinatePair(first)) {
+    return [trace as number[][]];
+  }
+
+  if (Array.isArray(first) && isCoordinatePair(first[0])) {
+    return (trace as number[][][]).filter((path) => Array.isArray(path) && path.length > 1);
+  }
+
+  return [];
+}
+
+function sampleLine(line: number[][], maxPoints: number): number[][] {
+  if (line.length <= maxPoints) return line;
+
+  const sampled: number[][] = [];
+  for (let i = 0; i < maxPoints; i++) {
+    sampled.push(line[Math.round((i * (line.length - 1)) / (maxPoints - 1))]);
+  }
+  return sampled;
+}
+
+function simplifyTraceForLight(trace: RouteTrace | undefined): RouteTrace | undefined {
+  const paths = traceToPaths(trace);
+  if (paths.length === 0) return undefined;
+
+  if (paths.length === 1) {
+    const path = sampleLine(paths[0], LIGHT_TRACE_MAX_POINTS);
+    return path.length > 1 ? path : undefined;
+  }
+
+  const maxPerPath = Math.max(2, Math.floor(LIGHT_TRACE_MAX_POINTS / paths.length));
+  const simplified = paths
+    .map((path) => sampleLine(path, maxPerPath))
+    .filter((path) => path.length > 1);
+
+  return simplified.length > 0 ? simplified : undefined;
+}
+
 export function getCatalogLight(): any {
   if (masterCatalogLight) return masterCatalogLight;
 
@@ -390,6 +444,7 @@ export function getCatalogLight(): any {
         horarios: route.horarios,
         origin,
         destination,
+        trazado: simplifyTraceForLight(route.trazado),
       };
     });
   }

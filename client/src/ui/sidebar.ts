@@ -243,6 +243,7 @@ function showRouteDetail(route: RouteListItem): void {
   const content = document.getElementById('route-detail-content')!;
   const sidebar = document.getElementById('sidebar')!;
   const isTroncal = route.type === 'troncal';
+  const routeKindLabel = route.subType === 'dual' ? 'Ruta Dual' : isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP';
   const badgeColor = safeColor(getRouteAccentColor(route));
   const scheduleHtml = formatSchedule(route.schedule);
 
@@ -250,7 +251,7 @@ function showRouteDetail(route: RouteListItem): void {
     <div class="detail-header">
       <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
-      <div class="detail-subtitle">${isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP'}</div>
+      <div class="detail-subtitle">${routeKindLabel}</div>
       <div id="live-tracking-status" class="live-tracking-status">
         <span class="live-status-dot pulse loading"></span>
         <span class="live-status-text">Conectando con buses en vivo...</span>
@@ -267,7 +268,7 @@ function showRouteDetail(route: RouteListItem): void {
       ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
       ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
       ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
-      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
+      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${route.subType === 'dual' ? 'TransMilenio Dual' : isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
     </div>
     
     ${scheduleHtml ? `

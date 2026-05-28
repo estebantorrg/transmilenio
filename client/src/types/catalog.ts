@@ -33,13 +33,16 @@ export interface CatalogRouteDetail {
   sistema: string;
   tipoServicio: string;
   horarios?: CatalogRoute['horarios'];
-  stops: Array<{
+  origin?: string;
+  destination?: string;
+  stops?: Array<{
     nombre: string;
     codigo: string;
     coordenada: string;
     posicion: number;
+    direccion?: string;
   }>;
-  trazado?: number[][];
+  trazado?: number[][] | number[][][];
 }
 
 export interface MasterCatalog {

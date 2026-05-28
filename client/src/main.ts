@@ -90,6 +90,77 @@ function cleanRouteText(text: string): string {
     .trim();
 }
 
+type RouteStop = NonNullable<RouteListItem['stops']>[number];
+
+function isStationStopCode(code: string | null | undefined): boolean {
+  return /^TM\d+$/i.test(String(code || '').trim());
+}
+
+function stopKind(code: string | null | undefined): 'station' | 'stop' {
+  return isStationStopCode(code) ? 'station' : 'stop';
+}
+
+function parseCatalogStop(stop: any): RouteStop | null {
+  if (!stop?.coordenada || typeof stop.coordenada !== 'string' || !stop.coordenada.includes(',')) return null;
+  const [lat, lng] = stop.coordenada.split(',').map(Number);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  return {
+    nombre: stop.nombre,
+    codigo: stop.codigo,
+    coordinate: [lng, lat] as [number, number],
+    direccion: stop.direccion,
+    kind: stopKind(stop.codigo),
+  };
+}
+
+function dedupeStops(stops: RouteListItem['stops'] | undefined): RouteStop[] {
+  const seen = new Set<string>();
+  const result: RouteStop[] = [];
+
+  for (const stop of stops || []) {
+    const coordinateKey = `${stop.coordinate[0].toFixed(6)},${stop.coordinate[1].toFixed(6)}`;
+    const key = stop.codigo
+      ? `${stop.codigo.toUpperCase()}|${coordinateKey}`
+      : `${normalizeRouteText(stop.nombre)}|${coordinateKey}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(stop);
+  }
+
+  return result;
+}
+
+function isLngLatPair(value: unknown): value is number[] {
+  return Array.isArray(value) &&
+    value.length >= 2 &&
+    Number.isFinite(Number(value[0])) &&
+    Number.isFinite(Number(value[1]));
+}
+
+function traceToGeometry(trace: number[][] | number[][][] | undefined): { paths: number[][][] } | undefined {
+  if (!Array.isArray(trace) || trace.length === 0) return undefined;
+  const first = trace[0];
+
+  if (isLngLatPair(first)) {
+    return trace.length > 1 ? { paths: [trace as number[][]] } : undefined;
+  }
+
+  if (Array.isArray(first) && isLngLatPair(first[0])) {
+    const paths = (trace as number[][][]).filter((path) => Array.isArray(path) && path.length > 1);
+    return paths.length > 0 ? { paths } : undefined;
+  }
+
+  return undefined;
+}
+
+function routeHasDualStops(stops: any[] | undefined): boolean {
+  if (!stops || stops.length === 0) return false;
+  const hasStation = stops.some((stop) => isStationStopCode(stop.codigo));
+  const hasStop = stops.some((stop) => !isStationStopCode(stop.codigo));
+  return hasStation && hasStop;
+}
+
 function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
@@ -101,12 +172,14 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
     for (const route of variants) {
       const service = `${route.sistema} ${route.tipoServicio}`.toUpperCase();
       const isAlimentador = service.includes('ALIMENTADOR');
+      const isDual = service.includes('PADRON') || routeHasDualStops(route.stops);
       const type = service.includes('ZONAL') || service.includes('TRANSMIZONAL') || isAlimentador ? 'zonal' : 'troncal';
-      const subType = isAlimentador ? 'alimentador' : type;
+      const subType = isDual ? 'dual' : isAlimentador ? 'alimentador' : type;
 
-      const stops = route.stops || [];
-      const origin = (route as any).origin || stops[0]?.nombre || code;
-      const destination = (route as any).destination || stops[stops.length - 1]?.nombre || route.nombre;
+      const rawStops = route.stops || [];
+      const stops = dedupeStops(rawStops.map(parseCatalogStop).filter((stop): stop is RouteStop => Boolean(stop)));
+      const origin = route.origin || rawStops[0]?.nombre || code;
+      const destination = route.destination || rawStops[rawStops.length - 1]?.nombre || route.nombre;
       
       // Use the official catalog name if available, otherwise fallback to the origin/dest string
       const displayName = route.nombre || `${origin} → ${destination}`;
@@ -134,35 +207,18 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
           existing.busType = route.tipoServicio;
         }
 
-        if (!existing.geometry && route.trazado && route.trazado.length > 0) {
-          existing.geometry = { paths: [route.trazado] };
+        const traceGeometry = traceToGeometry(route.trazado);
+        if (!existing.geometry && traceGeometry) {
+          existing.geometry = traceGeometry;
         }
         
         if ((!existing.stops || existing.stops.length === 0) && stops.length > 0) {
-          existing.stops = stops
-            .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
-            .map((s) => {
-              const parts = s.coordenada.split(',');
-              const lat = Number(parts[0]);
-              const lng = Number(parts[1]);
-              return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
-            })
-            .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
+          existing.stops = stops;
         }
         continue;
       }
 
-      // Use official trazado (high-fidelity street-following paths) if available
-      // Otherwise fallback to connecting dots between paraderos
-      const geometryCoords = route.trazado && route.trazado.length > 0
-        ? route.trazado
-        : stops
-            .filter((s) => s?.coordenada && typeof s.coordenada === 'string')
-            .map((s) => {
-              const [lat, lng] = s.coordenada.split(',').map(Number);
-              return [lng, lat];
-            })
-            .filter((c) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
+      const geometry = traceToGeometry(route.trazado);
 
       const newItem: RouteListItem = {
         id: `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`,
@@ -177,16 +233,8 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         schedule: route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / '),
         color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color),
         catalogNombre: route.nombre || '',
-        geometry: geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined,
-        stops: stops
-          .filter((s) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
-          .map((s) => {
-            const parts = s.coordenada.split(',');
-            const lat = Number(parts[0]);
-            const lng = Number(parts[1]);
-            return { nombre: s.nombre, codigo: s.codigo, coordinate: [lng, lat] as [number, number] };
-          })
-          .filter((s) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1])),
+        geometry,
+        stops,
       };
 
       seen.set(dedupKey, items.length);
@@ -236,6 +284,33 @@ function buildRouteList(
   // 1. Build authoritative catalog items
   const catalogItems = buildCatalogRouteList(catalog);
   const mergedRoutes = new Map<string, RouteListItem>();
+  const catalogItemsByBaseAndType = new Map<string, RouteListItem[]>();
+
+  const indexCatalogRoute = (route: RouteListItem) => {
+    const indexKey = `${getBaseRouteCode(route.code)}|${route.type}`;
+    const routes = catalogItemsByBaseAndType.get(indexKey) ?? [];
+    routes.push(route);
+    catalogItemsByBaseAndType.set(indexKey, routes);
+  };
+
+  const endpointMatches = (left: string, right: string) =>
+    Boolean(left && right && (left.includes(right) || right.includes(left)));
+
+  const findCatalogRouteForArcgis = (
+    baseCode: string,
+    type: 'troncal' | 'zonal',
+    normOrigin: string,
+    normDest: string
+  ): RouteListItem | undefined => {
+    const candidates = catalogItemsByBaseAndType.get(`${baseCode}|${type}`) ?? [];
+    if (candidates.length === 0) return undefined;
+
+    return candidates.find((candidate) => {
+      const candidateOrigin = cleanRouteText(candidate.origin);
+      const candidateDest = cleanRouteText(candidate.destination);
+      return endpointMatches(candidateOrigin, normOrigin) && endpointMatches(candidateDest, normDest);
+    }) ?? (candidates.length === 1 ? candidates[0] : undefined);
+  };
 
   // Add all catalog items keyed by a unified baseCode|type|origin|dest key
   catalogItems.forEach((catRoute) => {
@@ -245,6 +320,7 @@ function buildRouteList(
     const key = `${baseCode}|${catRoute.type}|${normOrigin}|${normDest}`;
     
     mergedRoutes.set(key, catRoute);
+    indexCatalogRoute(catRoute);
   });
 
   // 2. Process Troncal geometries from ArcGIS to enrich catalog items
@@ -260,7 +336,7 @@ function buildRouteList(
 
     const key = `${baseCode}|troncal|${normOrigin}|${normDest}`;
 
-    const existing = mergedRoutes.get(key);
+    const existing = mergedRoutes.get(key) ?? findCatalogRouteForArcgis(baseCode, 'troncal', normOrigin, normDest);
     if (existing) {
       if (r.geometry) existing.geometry = r.geometry;
       if (!existing.length && r.attributes.longitud_ruta_troncal) {
@@ -289,7 +365,8 @@ function buildRouteList(
           nombre: stop.attributes?.nombre || 'Paradero',
           codigo: cenefa,
           coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
-          direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || ''
+          direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
+          kind: 'stop',
         });
       }
     });
@@ -299,7 +376,7 @@ function buildRouteList(
       if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
         const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
         if (stops) {
-          route.stops = stops;
+          route.stops = dedupeStops(stops);
         }
       }
     }
@@ -446,31 +523,10 @@ async function main(): Promise<void> {
             });
             if (variant) {
               const vStops = variant.stops || [];
-              const geometryCoords = variant.trazado && variant.trazado.length > 0
-                ? variant.trazado
-                : vStops
-                    .filter((s: any) => s?.coordenada && typeof s.coordenada === 'string')
-                    .map((s: any) => {
-                      const [lat, lng] = s.coordenada.split(',').map(Number);
-                      return [lng, lat];
-                    })
-                    .filter((c: any) => !isNaN(c[0]) && !isNaN(c[1])) as [number, number][];
-
-              route.geometry = geometryCoords.length > 1 ? { paths: [geometryCoords] } : undefined;
-              route.stops = vStops
-                .filter((s: any) => s?.coordenada && typeof s.coordenada === 'string' && s.coordenada.includes(','))
-                .map((s: any) => {
-                  const parts = s.coordenada.split(',');
-                  const lat = Number(parts[0]);
-                  const lng = Number(parts[1]);
-                  return {
-                    nombre: s.nombre,
-                    codigo: s.codigo,
-                    coordinate: [lng, lat] as [number, number],
-                    direccion: s.direccion
-                  };
-                })
-                .filter((s: any) => !isNaN(s.coordinate[0]) && !isNaN(s.coordinate[1]));
+              const detailGeometry = traceToGeometry(variant.trazado);
+              if (detailGeometry) route.geometry = detailGeometry;
+              if (routeHasDualStops(vStops)) route.subType = 'dual';
+              route.stops = dedupeStops(vStops.map(parseCatalogStop).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
             }
           }
         } catch (error) {
@@ -510,7 +566,8 @@ async function main(): Promise<void> {
     },
     onStopSelect: (stop: any, routeType: 'troncal' | 'zonal') => {
       if (stop && stop.coordinate) {
-        if (routeType === 'troncal') {
+        const kind = stop.kind ?? (routeType === 'troncal' ? 'station' : 'stop');
+        if (kind === 'station') {
           const resolved = showStationPopupByCode(map, stop.codigo, stop.coordinate);
           if (!resolved) {
             showStopPopupByCode(map, stop.codigo, stop.nombre, stop.coordinate, stop.direccion);
@@ -608,23 +665,18 @@ async function main(): Promise<void> {
               nombre: stop.attributes?.nombre || 'Paradero',
               codigo: cenefa,
               coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
-              direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || ''
+              direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
+              kind: 'stop',
             });
           }
         });
 
-        // Enrich Zonal catalog routes with stops and connect-the-dots geometry
+        // Enrich stop lists only. Route lines must come from official trazado data.
         routeList.forEach((route) => {
           if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
             const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
             if (stops) {
-              route.stops = stops;
-              if (!route.geometry) {
-                const coords = stops.map(s => s.coordinate);
-                if (coords.length > 1) {
-                  route.geometry = { paths: [coords] };
-                }
-              }
+              route.stops = dedupeStops(stops);
             }
           }
         });

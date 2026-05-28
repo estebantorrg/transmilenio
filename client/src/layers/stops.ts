@@ -20,6 +20,7 @@ export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble'];
+const STATION_STOP_RE = /^TM\d+$/i;
 
 function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
   if (!markClickHandled(e)) return;
@@ -28,12 +29,12 @@ function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseE
 
   const p = feature.properties;
   const coords = (feature.geometry as GeoJSON.Point).coordinates;
-  const isTroncal = p.type === 'troncal';
+  const isStation = p.kind === 'station' || (p.kind == null && p.type === 'troncal');
   const stopCode = p.code || '';
   const stopName = p.name || '';
   const stopAddress = p.address || '';
 
-  if (isTroncal) {
+  if (isStation) {
     const resolved = showStationPopupByCode(map, stopCode, coords as [number, number]);
     if (!resolved) {
       showStopPopupByCode(map, stopCode, stopName, coords as [number, number], stopAddress);
@@ -71,20 +72,46 @@ function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void 
   }
 }
 
+function buildCatalogRouteColorMap(catalog: MasterCatalog): Map<string, string> {
+  const colors = new Map<string, string>();
+
+  for (const variants of Object.values(catalog.routes || {})) {
+    for (const route of variants) {
+      if (route.codigo) {
+        colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color));
+      }
+    }
+  }
+
+  for (const station of Object.values(catalog.stations || {})) {
+    for (const routes of Object.values(station.wagons || {})) {
+      for (const route of routes) {
+        if (route.codigo) {
+          colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color));
+        }
+      }
+    }
+  }
+
+  return colors;
+}
+
 export function buildStopRoutesMap(
   stopRoutes: any[],
   catalog: MasterCatalog = { stations: {}, routes: {} }
 ): StopRoutesMap {
   const map = new Map<string, StopRouteTag[]>();
+  const catalogColors = buildCatalogRouteColorMap(catalog);
 
   for (const sr of stopRoutes) {
     const cenefa: string = sr.attributes?.cenefa;
     const route: string = sr.attributes?.ruta;
     if (!cenefa || !route) continue;
+    const normalizedRoute = normalizeRouteCodeForMatch(route);
     
     const routeTag = {
       code: route,
-      color: getStopTagColor(route),
+      color: catalogColors.get(normalizedRoute) ?? getStopTagColor(route),
     };
 
     addStopRoute(map, cenefa, routeTag);
@@ -249,7 +276,7 @@ export function addStopsLayer(
     type: 'symbol',
     source: 'selected-route-stops',
     layout: {
-      'icon-image': ['match', ['get', 'type'], 'troncal', 'stop-red', 'stop-blue'],
+      'icon-image': ['match', ['get', 'kind'], 'station', 'stop-red', 'stop-blue'],
       'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.55, 14, 0.7, 17, 0.85],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
@@ -308,14 +335,27 @@ export function updateStopsLayer(
 export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListItem['stops'] | undefined, type: 'troncal' | 'zonal'): void {
   if (!map.getSource('selected-route-stops')) return;
 
+  const seen = new Set<string>();
+  const uniqueStops = (stops || []).filter((s: any) => {
+    const coordinate = s.coordinate || [0, 0];
+    const coordinateKey = `${Number(coordinate[0]).toFixed(6)},${Number(coordinate[1]).toFixed(6)}`;
+    const key = s.codigo
+      ? `${String(s.codigo).toUpperCase()}|${coordinateKey}`
+      : `${String(s.nombre || '').toUpperCase()}|${coordinateKey}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: (stops || []).map((s: any) => ({
+    features: uniqueStops.map((s: any) => ({
       type: 'Feature',
       properties: {
         name: s.nombre || '',
         code: String(s.codigo || ''),
         type: type,
+        kind: s.kind || (STATION_STOP_RE.test(String(s.codigo || '')) ? 'station' : 'stop'),
         address: s.direccion || ''
       },
       geometry: {

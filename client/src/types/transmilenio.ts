@@ -109,7 +109,13 @@ export interface RouteListItem {
   length?: number;
   color?: string;
   geometry?: { paths: number[][][] };
-  stops?: Array<{ nombre: string; codigo: string; coordinate: [number, number]; direccion?: string }>;
+  stops?: Array<{
+    nombre: string;
+    codigo: string;
+    coordinate: [number, number];
+    direccion?: string;
+    kind?: 'station' | 'stop';
+  }>;
   catalogNombre?: string;
   liveNameCandidates?: string[];
 }
