@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "relay:co": "tsx src/colombia_live_relay.ts",
     "build": "tsc && node --input-type=module -e \"import fs from 'fs'; fs.cpSync('src/data', 'dist/data', { recursive: true });\"",
     "start": "node dist/index.js"
   },

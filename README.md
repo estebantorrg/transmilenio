@@ -33,6 +33,36 @@ This project is built with a modern tech stack (Vite + Node.js) and features a r
 - **Data Layers**: Custom scraping services for `api.buscador-rutas.transmilenio.gov.co`.
 - **Caching**: Local JSON-based master catalog with automatic stale-check and background sync.
 
+### Live Tracking From Colombia
+
+Live bus tracking is Colombia-origin only. The main server no longer relies on fake
+`X-Forwarded-For` headers or non-Colombian cloud fetchers.
+
+Use a tiny relay on any machine connected to a Colombian network:
+
+```bash
+set TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
+npm --prefix server run relay:co
+```
+
+Expose that relay with a free outbound tunnel, for example:
+
+```bash
+cloudflared tunnel --url http://localhost:8787
+```
+
+Then configure the main server:
+
+```bash
+TRANSMILENIO_COLOMBIA_RELAY_URL=https://your-relay.trycloudflare.com
+TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
+```
+
+The relay checks its own egress country before every live request window and
+returns HTTP 451 if the egress is not `CO`. Requests to the official live API are
+made by the Colombian relay, not by Render, Google Apps Script, or Cloudflare
+Workers.
+
 ---
 
 ## 🚀 Getting Started

@@ -120,10 +120,12 @@ export function getRouteAccentColor(
   if (isRutaFacilCode(route.code)) return RUTA_FACIL_COLOR;
 
   if (route.type === 'troncal') {
+    const routeLetters = getRouteZoneLetters(route.code);
+    if (routeLetters.length > 0) return getTroncalColor(route.code);
     return validHexColor(route.color) ?? getTroncalColor(route.code);
   }
 
-  return validHexColor(route.color) ?? getZonalRouteColor(route.code);
+  return getStopTagColor(route.code, route.color);
 }
 
 /**
@@ -135,11 +137,14 @@ export function getRouteAccentColor(
 export function getStopTagColor(code: string, catalogColor?: string | null): string {
   if (isRutaFacilCode(code)) return RUTA_FACIL_COLOR;
 
-  const catalog = validHexColor(catalogColor);
-  if (catalog) return catalog;
-
   const normalized = normalizeRouteCodeForMatch(code);
   if (/^\d+-\d+$/.test(normalized)) return ALIMENTADOR_COLOR;
+
+  const routeLetters = getRouteZoneLetters(code);
+  if (routeLetters.length > 0) return getTroncalColor(code);
+
+  const catalog = validHexColor(catalogColor);
+  if (catalog) return catalog;
 
   return DEFAULT_ZONAL_COLOR;
 }

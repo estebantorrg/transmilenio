@@ -8,7 +8,7 @@
 
 import maplibregl from 'maplibre-gl';
 import type { TroncalStationFeature } from '../types/transmilenio';
-import { markClickHandled, normalizeRouteCode } from './routes';
+import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
@@ -40,14 +40,38 @@ export function isVisibleTroncalStation(station: TroncalStationFeature): boolean
 
 // ─── Route Tag Formatting ───────────────────────────────
 
+function groupCatalogRoutesByCode(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
+  const groups = new Map<string, { code: string; primary: CatalogRoute; routes: CatalogRoute[] }>();
+
+  for (const route of routes) {
+    const key = normalizeRouteCodeForMatch(route.codigo);
+    if (!key) continue;
+
+    const group = groups.get(key);
+    if (group) {
+      group.routes.push(route);
+    } else {
+      groups.set(key, { code: route.codigo, primary: route, routes: [route] });
+    }
+  }
+
+  return Array.from(groups.values()).sort((a, b) =>
+    normalizeRouteCode(a.code).localeCompare(normalizeRouteCode(b.code), undefined, { numeric: true })
+  );
+}
+
 function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
-  const visibleRoutes = routes.slice(0, limit);
-  const hiddenCount = routes.length - visibleRoutes.length;
-  const tags = visibleRoutes
-    .map((route) => {
+  const groups = groupCatalogRoutesByCode(routes);
+  const visibleGroups = groups.slice(0, limit);
+  const hiddenCount = groups.length - visibleGroups.length;
+  const tags = visibleGroups
+    .map((group) => {
+      const route = group.primary;
       const color = safeColor(getStopTagColor(route.codigo, route.color), '#FB2C17');
-      const routeId = route.id ? `catalog-${route.id}` : '';
-      return `<span class="route-tag clickable" data-route-code="${escapeHTML(route.codigo)}" data-route-id="${escapeHTML(routeId)}" title="${escapeHTML(route.nombre)}" style="background:${color}; cursor:pointer;">${escapeHTML(route.codigo)}</span>`;
+      const routeId = group.routes.length === 1 && route.id ? `catalog-${route.id}` : '';
+      const names = Array.from(new Set(group.routes.map((item) => item.nombre).filter(Boolean)));
+      const title = names.join(' / ') || route.nombre;
+      return `<span class="route-tag clickable" data-route-code="${escapeHTML(route.codigo)}" data-route-id="${escapeHTML(routeId)}" title="${escapeHTML(title)}" style="background:${color}; cursor:pointer;">${escapeHTML(route.codigo)}</span>`;
     })
     .join('');
 
@@ -136,17 +160,7 @@ function showStationPopup(
 
     wagonSections = wagonEntries
       .map(([label, routes]) => {
-        const uniqueRoutes: CatalogRoute[] = [];
-        const seenKeys = new Set<string>();
-        for (const route of (routes as CatalogRoute[])) {
-          const key = `${route.codigo.toUpperCase()}|${route.nombre.toUpperCase()}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            uniqueRoutes.push(route);
-          }
-        }
-        const sorted = sortCatalogRoutes(uniqueRoutes);
-        const tags = formatRouteTags(sorted);
+        const tags = formatRouteTags(routes as CatalogRoute[]);
         const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
         return `
           <div class="popup-wagon-section">
@@ -316,17 +330,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
     wagonSections = wagonEntries
       .map(([label, routes]) => {
-        const uniqueRoutes: CatalogRoute[] = [];
-        const seenKeys = new Set<string>();
-        for (const route of (routes as CatalogRoute[])) {
-          const key = `${route.codigo.toUpperCase()}|${route.nombre.toUpperCase()}`;
-          if (!seenKeys.has(key)) {
-            seenKeys.add(key);
-            uniqueRoutes.push(route);
-          }
-        }
-        const sorted = sortCatalogRoutes(uniqueRoutes);
-        const tags = formatRouteTags(sorted);
+        const tags = formatRouteTags(routes as CatalogRoute[]);
         const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
         return `
           <div class="popup-wagon-section">

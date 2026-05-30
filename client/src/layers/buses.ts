@@ -450,10 +450,10 @@ function createBusMarker(bus: LiveBus, routeType: 'troncal' | 'zonal'): maplibre
 
   // Show popup on hover
   el.addEventListener('mouseenter', () => {
-    marker.togglePopup();
+    if (!marker.getPopup().isOpen()) marker.togglePopup();
   });
   el.addEventListener('mouseleave', () => {
-    marker.togglePopup();
+    if (marker.getPopup().isOpen()) marker.togglePopup();
   });
 
   return marker;

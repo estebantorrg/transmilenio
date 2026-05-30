@@ -620,15 +620,11 @@ export function isSyncInProgress(): boolean {
 
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
-const LIVE_API_DIRECT_ORIGIN = `http://${LIVE_API_HOST}`;
-export const LIVE_TRACKING_VERSION = 'http-direct-v2';
+export const LIVE_TRACKING_VERSION = 'colombia-relay-v1';
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
-const LIVE_DIRECT_ATTEMPTS = 2;
-const EXTERNAL_PROXY_TIMEOUT_MS = 12_000;
+const COLOMBIA_RELAY_TIMEOUT_MS = 12_000;
 const CO_PROXY_READY_TIMEOUT_MS = 18_000;
 const MAX_CO_PROXY_ATTEMPTS = 8;
-const DEFAULT_COLOMBIAN_CLIENT_IP = '181.50.0.1';
-const DEFAULT_GAS_PROXY_URL = 'https://script.google.com/macros/s/AKfycbz6GPL2AKiOLcGzDPx5YR_LLGnDxU21p50PAzCpo_plRLfJHx1pWHYZMSjIa92JWsaH8w/exec';
 
 interface LiveRequestContext {
   routeCode: string;
@@ -725,35 +721,16 @@ function buildLiveNameCandidates(nombre: string, nombreCandidates: string[] = []
   return candidates.length > 0 ? candidates : [String(nombre || '').trim()];
 }
 
-function getConfiguredExternalProxyUrls(): string[] {
-  const urls = [
-    process.env.TRANSMILENIO_LIVE_PROXY_URL,
-    process.env.TRANSMILENIO_GAS_PROXY_URL,
-    DEFAULT_GAS_PROXY_URL,
-  ];
-
-  return Array.from(new Set(urls
-    .map((url) => String(url || '').trim())
-    .filter(Boolean)
-    .filter((url) => {
-      try {
-        return new URL(url).hostname !== LIVE_API_HOST;
-      } catch {
-        console.warn(`[TM API] Ignoring invalid live proxy URL: ${url}`);
-        return false;
-      }
-    })));
+function getConfiguredColombiaRelayUrl(): string {
+  return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL || '').trim();
 }
 
-function getColombianClientIp(): string {
-  return String(process.env.TRANSMILENIO_COLOMBIA_CLIENT_IP || DEFAULT_COLOMBIAN_CLIENT_IP).trim();
+function getColombiaRelaySecret(): string {
+  return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
 }
 
-function addColombianForwardingHeaders(headers: Record<string, string | number>): void {
-  const clientIp = getColombianClientIp();
-  headers['X-Forwarded-For'] = clientIp;
-  headers['X-Real-IP'] = clientIp;
-  headers['Forwarded'] = `for=${clientIp}`;
+function allowPublicColombianProxyFallback(): boolean {
+  return process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1';
 }
 
 function decodeBody(raw: Buffer, encoding: string | string[] | undefined): Promise<Buffer> {
@@ -840,96 +817,45 @@ function requestLiveJson(
   });
 }
 
-function buildExternalProxyRequestUrl(baseUrl: string, context: LiveRequestContext): URL {
+function buildColombiaRelayRequestUrl(baseUrl: string): URL {
   const url = new URL(baseUrl);
-  const isGoogleAppsScript = url.hostname === 'script.google.com' && url.pathname.endsWith('/exec');
-  if (isGoogleAppsScript) return url;
-
   const trimmedPath = url.pathname.replace(/\/$/, '');
-  const alreadyTargetsLiveApi = trimmedPath.endsWith('/buses') || trimmedPath.includes('/location/ruta');
-  if (!alreadyTargetsLiveApi) {
-    url.pathname = `${trimmedPath}${context.isZonal ? '/location/ruta' : '/buses'}`.replace(/\/{2,}/g, '/');
+  if (!trimmedPath.endsWith('/buses')) {
+    url.pathname = `${trimmedPath}/buses`.replace(/\/{2,}/g, '/');
   }
-
-  if (context.isZonal) {
-    url.searchParams.set('ruta', context.routeCode);
-  }
-
   return url;
 }
 
-function buildExternalProxyBody(baseUrl: string, context: LiveRequestContext): string {
-  const url = new URL(baseUrl);
-  const isGoogleAppsScript = url.hostname === 'script.google.com' && url.pathname.endsWith('/exec');
-
-  if (isGoogleAppsScript) {
-    return JSON.stringify({
-      action: context.isZonal ? 'zonal' : 'troncal',
-      ruta: context.routeCode,
-      nombre: context.destinationName,
-      Nombre: context.destinationName,
-      type: context.routeType,
-    });
-  }
-
-  return context.isZonal ? '' : context.postData;
+function buildColombiaRelayBody(context: LiveRequestContext): string {
+  return JSON.stringify({
+    action: context.isZonal ? 'zonal' : 'troncal',
+    ruta: context.routeCode,
+    nombre: context.destinationName,
+    Nombre: context.destinationName,
+    type: context.routeType,
+  });
 }
 
-async function fetchLiveBusesViaExternalProxy(context: LiveRequestContext): Promise<any[]> {
-  const proxyUrls = getConfiguredExternalProxyUrls();
-  let lastError: Error | null = null;
-
-  for (const baseUrl of proxyUrls) {
-    try {
-      const url = buildExternalProxyRequestUrl(baseUrl, context);
-      const postData = buildExternalProxyBody(baseUrl, context);
-      const headers: Record<string, string | number> = {
-        'Accept-Encoding': 'identity',
-        'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-        'User-Agent': 'okhttp/4.12.0',
-        'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-        'version': '2.9.5',
-        'Content-Length': Buffer.byteLength(postData),
-      };
-      addColombianForwardingHeaders(headers);
-
-      if (postData) {
-        headers['Content-Type'] = 'application/json; charset=UTF-8';
-      }
-
-      console.log(`[TM API] Trying configured live proxy ${url.href}`);
-      return await requestLiveJson(url, headers, postData, EXTERNAL_PROXY_TIMEOUT_MS);
-    } catch (error: any) {
-      lastError = error;
-      console.warn(`[TM API] Configured live proxy failed: ${error.message}`);
-    }
+async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext): Promise<any[]> {
+  const relayUrl = getConfiguredColombiaRelayUrl();
+  if (!relayUrl) {
+    throw new Error(
+      'No Colombia relay configured. Set TRANSMILENIO_COLOMBIA_RELAY_URL to a relay running from a Colombian network.'
+    );
   }
 
-  throw lastError ?? new Error('No configured live proxy URL');
-}
-
-async function fetchLiveBusesFromTransmiApp(context: LiveRequestContext): Promise<any[]> {
-  const url = new URL(`${LIVE_API_DIRECT_ORIGIN}${context.targetPath}`);
-  const postData = context.postData;
+  const url = buildColombiaRelayRequestUrl(relayUrl);
+  const postData = buildColombiaRelayBody(context);
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-    'Connection': 'Keep-Alive',
-    'Host': LIVE_API_HOST,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
+    'Content-Type': 'application/json; charset=UTF-8',
     'Content-Length': Buffer.byteLength(postData),
   };
-  addColombianForwardingHeaders(headers);
+  const secret = getColombiaRelaySecret();
+  if (secret) headers.Authorization = `Bearer ${secret}`;
 
-  if (postData) {
-    headers['Content-Type'] = 'application/json; charset=UTF-8';
-  }
-
-  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=direct+xff`);
-
-  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS);
+  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO relay ${url.origin}`);
+  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS);
 }
 
 async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Promise<any[]> {
@@ -993,36 +919,24 @@ export async function fetchLiveBuses(
   }
 
   for (const context of contexts) {
-    for (let attempt = 1; attempt <= LIVE_DIRECT_ATTEMPTS; attempt++) {
-      try {
-        const buses = await fetchLiveBusesFromTransmiApp(context);
-        console.log(`[TM API] Live candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-        return buses;
-      } catch (error: any) {
-        errors.push(`[direct ${context.candidateName} #${attempt}] ${error.message}`);
-      }
-    }
-  }
-
-  if (getConfiguredExternalProxyUrls().length > 0) {
-    for (const context of contexts) {
-      try {
-        const buses = await fetchLiveBusesViaExternalProxy(context);
-        console.log(`[TM API] Live proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-        return buses;
-      } catch (error: any) {
-        errors.push(`[external ${context.candidateName}] ${error.message}`);
-      }
-    }
-  }
-
-  for (const context of contexts) {
     try {
-      const buses = await fetchLiveBusesViaColombianProxy(context);
-      console.log(`[TM API] CO proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+      const buses = await fetchLiveBusesViaColombiaRelay(context);
+      console.log(`[TM API] CO relay candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
       return buses;
     } catch (error: any) {
-      errors.push(`[co-proxy ${context.candidateName}] ${error.message}`);
+      errors.push(`[co-relay ${context.candidateName}] ${error.message}`);
+    }
+  }
+
+  if (allowPublicColombianProxyFallback()) {
+    for (const context of contexts) {
+      try {
+        const buses = await fetchLiveBusesViaColombianProxy(context);
+        console.log(`[TM API] public CO proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+        return buses;
+      } catch (error: any) {
+        errors.push(`[public-co-proxy ${context.candidateName}] ${error.message}`);
+      }
     }
   }
 
