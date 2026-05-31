@@ -1,6 +1,6 @@
 # TransMilenio Explorer — Technical Specification
 
-Authoritative spec for TransMilenio Explorer transit intelligence platform. Governs all architecture, security, compliance. Follow precisely.
+Authoritative spec for TransMilenio Explorer transit intelligence platform, governs all architecture, security, compliance. Follow precisely.
 
 ---
 
