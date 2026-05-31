@@ -304,11 +304,9 @@ The system aligns with this specification when:
 4. **Relay Operations**: Live tracking routes queries to the Colombia relay, showing loading, tracking, empty, or error states.
 5. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
 
----
+## 6. Future Goals & Rules
 
-## 6. Future Roadmap & Open Questions
-
-### 6.1 Action Items
+### 6.1 Platform Goals & Action Items
 * **Discovery Expansion**: Identify additional app endpoints beyond `Rutas`.
 * **Provenance Tracking**: Log exact source keys for all coordinate shapes and schedules.
 * **Relay Panel**: Add a monitoring UI dashboard for Colombia Relay health.
@@ -316,8 +314,8 @@ The system aligns with this specification when:
   * Unit tests: code normalization, coordinate simplification, resolver logic.
   * Integration tests: API contracts.
   * Smoke tests: Playwright-based testing for boot flow and search actions.
+* **Journey Planning**: Journey planning (origin/destination route calculation) is explicitly within the project scope as a functional goal.
 
-### 6.2 Open Questions
-* Can live tracking be consolidated to bypass individual relay server infrastructure?
-* Should route variant diff calculations be embedded inside the Express sync action?
-* Is journey planning (origin/destination route calculation) within project scope?
+### 6.2 Architectural Rules
+* **Live Tracking Consolidation**: Live tracking must be consolidated to bypass individual relay server infrastructure.
+* **Sync Separation**: Route variant diff calculations must not be embedded inside the Express sync action.
