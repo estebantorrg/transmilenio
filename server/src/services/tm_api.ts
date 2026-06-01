@@ -215,6 +215,8 @@ async function searchAllRoutes(): Promise<ApiRouteListItem[]> {
   for (const seed of ROUTE_SEARCH_SEEDS) {
     const routes = await searchRoutesByTerm(seed);
     routes.forEach((route) => routesById.set(route.id, route));
+    // Spec §5.1.3: random 800–1500ms delay between every upstream call.
+    await randomDelay();
   }
 
   return Array.from(routesById.values());
