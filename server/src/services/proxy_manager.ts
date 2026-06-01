@@ -3,6 +3,11 @@ import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
 
+// Cap on how long the proxy CONNECT tunnel may take to establish before we
+// give up. Without this, an unresponsive proxy leaves the tunnel hanging
+// because the per-request timeout only covers the post-connect phase.
+const PROXY_CONNECT_TIMEOUT_MS = 8000;
+
 export class SimpleProxyAgent extends https.Agent {
   public proxyHost: string;
   public proxyPort: number;
@@ -23,6 +28,16 @@ export class SimpleProxyAgent extends https.Agent {
     const servername = String((options as any).servername ?? options.hostname ?? options.host ?? '')
       .replace(/:\d+$/, '');
 
+    // Guard against the callback firing more than once. The tunnel can fail
+    // (TLS error) after it has already succeeded, and Node throws if the
+    // createConnection callback is invoked twice.
+    let settled = false;
+    const done = (err: Error | null, socket?: Duplex) => {
+      if (settled) return;
+      settled = true;
+      callback(err, socket as Duplex);
+    };
+
     const req = http.request({
       host: this.proxyHost,
       port: this.proxyPort,
@@ -31,25 +46,31 @@ export class SimpleProxyAgent extends https.Agent {
       headers: {
         host: `${targetHost}:${targetPort}`,
       },
+      timeout: PROXY_CONNECT_TIMEOUT_MS,
     });
 
     req.on('connect', (res, socket) => {
       if (res.statusCode !== 200) {
-        callback(new Error(`Proxy connection failed: ${res.statusCode}`), undefined as unknown as Duplex);
+        socket.destroy();
+        done(new Error(`Proxy connection failed: ${res.statusCode}`));
         return;
       }
-      
+
       const secureSocket = tls.connect({
         socket,
         servername,
       }, () => {
-        callback(null, secureSocket);
+        done(null, secureSocket);
       });
 
-      secureSocket.on('error', (err) => callback(err, undefined as unknown as Duplex));
+      secureSocket.on('error', (err) => done(err));
     });
 
-    req.on('error', (err) => callback(err, undefined as unknown as Duplex));
+    req.on('timeout', () => {
+      req.destroy();
+      done(new Error('Proxy CONNECT timed out'));
+    });
+    req.on('error', (err) => done(err));
     req.end();
     return null;
   }
