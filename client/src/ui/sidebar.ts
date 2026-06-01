@@ -70,7 +70,7 @@ export function initSidebar(options: {
 }
 
 export function setRoutes(routes: RouteListItem[]): void {
-  allRoutes = routes.sort((a, b) => {
+  allRoutes = [...routes].sort((a, b) => {
     if (a.type !== b.type) return a.type === 'troncal' ? -1 : 1;
     return a.code.localeCompare(b.code, undefined, { numeric: true });
   });

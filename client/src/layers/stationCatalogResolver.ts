@@ -185,6 +185,7 @@ function stationPoint(feature: TroncalStationFeature): LngLat | null {
 }
 
 function catalogPoint(station: CatalogStation): LngLat | null {
+  if (!station.coordenada || typeof station.coordenada !== 'string') return null;
   const [latText, lngText] = station.coordenada.split(',');
   const lat = finiteNumber(latText);
   const lng = finiteNumber(lngText);
