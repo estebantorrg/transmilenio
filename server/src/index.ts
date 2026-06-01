@@ -57,6 +57,11 @@ app.get('/api', (_req, res) => {
   });
 });
 
+// Unknown API routes must return structured JSON, not the SPA shell.
+app.use('/api', (_req, res) => {
+  res.status(404).json({ status: 'error', message: 'API endpoint not found' });
+});
+
 // For any other route, serve the React app (Client-side routing fallback)
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(clientDist, 'index.html'));
