@@ -2,6 +2,7 @@ import express, { Request, Response } from 'express';
 import http from 'http';
 import https from 'https';
 import zlib from 'zlib';
+import crypto from 'crypto';
 
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
@@ -28,11 +29,22 @@ interface EgressCheck {
 
 let cachedEgress: EgressCheck | null = null;
 
+/** Constant-time comparison to avoid leaking the secret via timing. */
+function secretsMatch(candidate: string): boolean {
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(RELAY_SECRET);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
+}
+
 function isAuthorized(req: Request): boolean {
   if (!RELAY_SECRET) return true;
   const auth = String(req.headers.authorization || '');
-  const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
-  return token === RELAY_SECRET || req.headers['x-relay-secret'] === RELAY_SECRET;
+  const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
+  const headerRaw = req.headers['x-relay-secret'];
+  const headerSecret = String(Array.isArray(headerRaw) ? headerRaw[0] ?? '' : headerRaw ?? '').trim();
+  return (bearer !== '' && secretsMatch(bearer)) ||
+    (headerSecret !== '' && secretsMatch(headerSecret));
 }
 
 function fetchText(url: string, timeoutMs = 5_000): Promise<string> {
