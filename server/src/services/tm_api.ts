@@ -87,6 +87,10 @@ export interface CatalogRouteDetail {
 export interface MasterCatalog {
   stations: { [stationCode: string]: CatalogStation };
   routes: { [routeCode: string]: CatalogRouteDetail[] };
+  /** Epoch ms of the last successful sync. Drives content-based staleness so
+   *  the catalog keeps refreshing in production, where each deploy is a fresh
+   *  checkout and the file mtime would otherwise always look "new". */
+  syncedAt?: number;
 }
 
 interface ApiRouteListItem {
@@ -313,7 +317,9 @@ export async function loadCatalogFromDisk(): Promise<void> {
       masterCatalog = { stations: parsed, routes: {} };
     }
 
-    catalogLoadedAt = stats.mtimeMs;
+    // Prefer the catalog's own sync timestamp; fall back to file mtime for
+    // legacy catalogs written before syncedAt existed.
+    catalogLoadedAt = typeof parsed.syncedAt === 'number' ? parsed.syncedAt : stats.mtimeMs;
     masterCatalogLight = null; // Clear light catalog cache!
 
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
@@ -663,10 +669,11 @@ export async function syncMasterCatalog(): Promise<void> {
     }
 
     // 3. Save to disk, then publish in memory once the file is complete.
+    newCatalog.syncedAt = Date.now();
     await writeCatalogAtomically(newCatalog);
     masterCatalog = newCatalog;
     masterCatalogLight = null; // Clear light catalog cache!
-    catalogLoadedAt = Date.now();
+    catalogLoadedAt = newCatalog.syncedAt;
 
     const stationCount = Object.keys(masterCatalog.stations).length;
     const totalRoutes = Object.values(masterCatalog.stations).reduce((sum, s) => {
