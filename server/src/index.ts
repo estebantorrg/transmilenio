@@ -6,6 +6,11 @@ import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './servic
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+
+// Behind Render's proxy — trust X-Forwarded-* so req.ip is the real client IP
+// (used by /api/geoip for approximate location).
+app.set('trust proxy', true);
+
 const configuredOrigins = process.env.CLIENT_ORIGINS
   ?.split(',')
   .map((origin) => origin.trim())

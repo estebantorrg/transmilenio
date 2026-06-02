@@ -197,6 +197,62 @@ router.post('/buses', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Approximate Geolocation (IP fallback) ────────────────
+// Used when the browser's native geolocation is unavailable (e.g. the OS/
+// network location provider is blocked, returning POSITION_UNAVAILABLE).
+// Resolves the *client's* IP to an approximate coordinate. Nothing is stored
+// (spec §3.3 — zero PII storage); the client only calls /api/* (spec §2.3).
+
+const GEOIP_TIMEOUT_MS = 5_000;
+const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
+
+function getClientIp(req: Request): string | null {
+  const ip = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '').trim();
+  // Loopback / private ranges can't be geolocated — let the upstream fall back
+  // to the request source IP instead of sending a useless private address.
+  if (!ip || PRIVATE_IP_RE.test(ip)) return null;
+  return ip;
+}
+
+router.get('/geoip', async (req: Request, res: Response) => {
+  const ip = getClientIp(req);
+  const url = ip
+    ? `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`
+    : 'https://get.geojs.io/v1/ip/geo.json';
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), GEOIP_TIMEOUT_MS);
+  try {
+    const upstream = await fetch(url, { signal: controller.signal });
+    if (!upstream.ok) throw new Error(`geojs status ${upstream.status}`);
+
+    const data = await upstream.json() as { latitude?: string; longitude?: string; city?: string };
+    const latitude = Number(data.latitude);
+    const longitude = Number(data.longitude);
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+      res.status(502).json({ success: false, error: 'Could not resolve approximate location' });
+      return;
+    }
+
+    res.json({
+      success: true,
+      source: 'ip',
+      latitude,
+      longitude,
+      city: typeof data.city === 'string' ? data.city : undefined,
+    });
+  } catch (error: any) {
+    const timedOut = error?.name === 'AbortError';
+    console.error('[/geoip] Error:', error?.message || error);
+    res.status(timedOut ? 504 : 502).json({
+      success: false,
+      error: timedOut ? 'Geolocation lookup timed out' : 'Geolocation lookup failed',
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+});
+
 // ─── Health Check ─────────────────────────────────────────
 
 router.get('/debug-buses', async (req: Request, res: Response) => {

@@ -400,50 +400,79 @@ function initNearbyStations(map: maplibregl.Map): void {
   const defaultText = label?.textContent ?? 'Estaciones cerca';
   let userMarker: maplibregl.Marker | null = null;
 
-  const fail = (message: string): void => {
-    btn.classList.remove('loading');
+  const restore = (message: string): void => {
     if (label) {
       label.textContent = message;
       window.setTimeout(() => { label.textContent = defaultText; }, 2500);
     }
   };
 
-  btn.addEventListener('click', () => {
+  const placeUser = (longitude: number, latitude: number): void => {
+    userMarker?.remove();
+    const el = document.createElement('div');
+    el.className = 'user-location-dot';
+    userMarker = new maplibregl.Marker({ element: el })
+      .setLngLat([longitude, latitude])
+      .addTo(map);
+
+    map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+
+    const nearest = getNearestVisibleStation(longitude, latitude);
+    if (nearest) {
+      map.once('moveend', () => {
+        showStationPopupByCode(map, nearest.code, nearest.coordinate);
+      });
+    }
+  };
+
+  btn.addEventListener('click', async () => {
     if (btn.classList.contains('loading')) return;
+    btn.classList.add('loading');
+    try {
+      const { longitude, latitude } = await resolveUserLocation();
+      placeUser(longitude, latitude);
+    } catch (error) {
+      console.warn('[Nearby] could not resolve location:', error);
+      restore('No se pudo ubicarte');
+    } finally {
+      btn.classList.remove('loading');
+    }
+  });
+}
+
+/**
+ * Resolves the user's location. Tries the browser's native geolocation first
+ * (precise, permission-gated); if it is unavailable or blocked — e.g. the OS
+ * network-location provider errors out with POSITION_UNAVAILABLE — falls back
+ * to coarse IP-based location via the backend (/api/geoip).
+ */
+function resolveUserLocation(): Promise<{ longitude: number; latitude: number }> {
+  return getNativeLocation().catch((nativeError) => {
+    console.warn('[Nearby] native geolocation failed, falling back to IP:', nativeError?.message ?? nativeError);
+    return getIpLocation();
+  });
+}
+
+function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
+  return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
-      fail('Geolocalización no disponible');
+      reject(new Error('Geolocation API unavailable'));
       return;
     }
-
-    btn.classList.add('loading');
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        btn.classList.remove('loading');
-        const { longitude, latitude } = pos.coords;
-
-        userMarker?.remove();
-        const el = document.createElement('div');
-        el.className = 'user-location-dot';
-        userMarker = new maplibregl.Marker({ element: el })
-          .setLngLat([longitude, latitude])
-          .addTo(map);
-
-        map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
-
-        const nearest = getNearestVisibleStation(longitude, latitude);
-        if (nearest) {
-          map.once('moveend', () => {
-            showStationPopupByCode(map, nearest.code, nearest.coordinate);
-          });
-        }
-      },
-      (error) => {
-        console.warn('[Geolocation] unavailable:', error);
-        fail('No se pudo ubicarte');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+      (pos) => resolve({ longitude: pos.coords.longitude, latitude: pos.coords.latitude }),
+      (error) => reject(error),
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
     );
   });
+}
+
+async function getIpLocation(): Promise<{ longitude: number; latitude: number }> {
+  const res = await api.getGeoIp();
+  if (!res.success || typeof res.longitude !== 'number' || typeof res.latitude !== 'number') {
+    throw new Error(res.error ?? 'IP geolocation failed');
+  }
+  return { longitude: res.longitude, latitude: res.latitude };
 }
 
 // ─── Main ─────────────────────────────────────────────────

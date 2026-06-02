@@ -149,4 +149,17 @@ export const api = {
       },
       body: JSON.stringify({ ruta, Nombre: nombre, nombreCandidates, type: routeType }),
     }, 0),
+
+  /** Approximate location from the client IP — fallback when native geolocation is blocked. */
+  getGeoIp: () =>
+    fetchJson<GeoIpResponse>('/geoip', 8_000, undefined, 1),
 };
+
+export interface GeoIpResponse {
+  success: boolean;
+  source?: string;
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  error?: string;
+}
