@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import {
   addTroncalCorridorsLayer,
@@ -385,6 +385,67 @@ function buildRouteList(
   return Array.from(mergedRoutes.values());
 }
 
+// ─── Nearby Stations (geolocation) ────────────────────────
+
+/**
+ * Wires the "Estaciones cerca" footer action: locates the user, recenters
+ * the map on their position and opens the popup for the closest troncal
+ * station. Geolocation is processed entirely client-side (no PII stored).
+ */
+function initNearbyStations(map: maplibregl.Map): void {
+  const btn = document.getElementById('nearby-stations') as HTMLButtonElement | null;
+  if (!btn) return;
+
+  const label = btn.querySelector('.footer-action-label');
+  const defaultText = label?.textContent ?? 'Estaciones cerca';
+  let userMarker: maplibregl.Marker | null = null;
+
+  const fail = (message: string): void => {
+    btn.classList.remove('loading');
+    if (label) {
+      label.textContent = message;
+      window.setTimeout(() => { label.textContent = defaultText; }, 2500);
+    }
+  };
+
+  btn.addEventListener('click', () => {
+    if (btn.classList.contains('loading')) return;
+    if (!('geolocation' in navigator)) {
+      fail('Geolocalización no disponible');
+      return;
+    }
+
+    btn.classList.add('loading');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        btn.classList.remove('loading');
+        const { longitude, latitude } = pos.coords;
+
+        userMarker?.remove();
+        const el = document.createElement('div');
+        el.className = 'user-location-dot';
+        userMarker = new maplibregl.Marker({ element: el })
+          .setLngLat([longitude, latitude])
+          .addTo(map);
+
+        map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+
+        const nearest = getNearestVisibleStation(longitude, latitude);
+        if (nearest) {
+          map.once('moveend', () => {
+            showStationPopupByCode(map, nearest.code, nearest.coordinate);
+          });
+        }
+      },
+      (error) => {
+        console.warn('[Geolocation] unavailable:', error);
+        fail('No se pudo ubicarte');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  });
+}
+
 // ─── Main ─────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -620,6 +681,8 @@ async function main(): Promise<void> {
       }
     }
   });
+
+  initNearbyStations(map);
 
   setRoutes(routeList);
   updateCounts({

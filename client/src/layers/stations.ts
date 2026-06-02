@@ -307,6 +307,42 @@ export function bringStationsLayerToFront(map: maplibregl.Map): void {
 
 let globalStations: TroncalStationFeature[] = [];
 
+/**
+ * Finds the closest visible troncal station to a coordinate.
+ * Uses an equirectangular approximation — accurate enough at city scale
+ * and far cheaper than haversine for a one-shot nearest lookup.
+ */
+export function getNearestVisibleStation(
+  lng: number,
+  lat: number
+): { code: string; coordinate: [number, number]; name: string } | null {
+  const latRad = (lat * Math.PI) / 180;
+  const cosLat = Math.cos(latRad);
+
+  let best: { code: string; coordinate: [number, number]; name: string } | null = null;
+  let bestDistSq = Infinity;
+
+  for (const station of globalStations) {
+    if (!isVisibleTroncalStation(station)) continue;
+    const { x, y } = station.geometry;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+
+    const dx = (x - lng) * cosLat;
+    const dy = y - lat;
+    const distSq = dx * dx + dy * dy;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      best = {
+        code: station.attributes.numero_estacion,
+        coordinate: [x, y],
+        name: station.attributes.nombre_estacion,
+      };
+    }
+  }
+
+  return best;
+}
+
 export function showStationPopupByCode(map: maplibregl.Map, stationCode: string, coordinate: [number, number]): boolean {
   let resolvedStation: ResolvedCatalogStation | undefined;
   for (const station of Object.values(_resolvedStations)) {

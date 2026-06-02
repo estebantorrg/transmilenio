@@ -5,7 +5,14 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getRouteAccentColor } from '../utils/routeColors';
+import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
+
+/** Short uppercase family label shown under the route name (TRONCAL / ZONAL / …). */
+function routeTypeLabel(route: RouteListItem): string {
+  if (route.subType === 'dual') return 'PADRÓN';
+  if (isAlimentadorRoute(route) || route.subType === 'alimentador') return 'ALIMENTADOR';
+  return route.type === 'troncal' ? 'TRONCAL' : 'ZONAL';
+}
 
 let allRoutes: RouteListItem[] = [];
 let selectedRouteId: string | null = null;
@@ -118,16 +125,17 @@ function renderRouteList(routes: RouteListItem[]): void {
   container.innerHTML = visible
     .map((route) => {
       const badgeColor = safeColor(getRouteAccentColor(route));
-      const badgeStyle = `background:${badgeColor};border-color:${badgeColor};color:#fff;`;
+      const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
+      const badgeStyle = `background:${badgeColor};border-color:${badgeBorder};`;
 
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
              data-type="${route.type}"
              data-id="${escapeHTML(route.id)}">
-          <span class="route-item-badge ${route.subType || route.type}" style="${badgeStyle}">${escapeHTML(route.code)}</span>
+          <span class="route-item-badge" style="${badgeStyle}">${escapeHTML(route.code)}</span>
           <div class="route-item-info">
             <div class="route-item-name">${escapeHTML(route.name)}</div>
-            <div class="route-item-meta">${escapeHTML(route.busType || route.operator || route.type)}</div>
+            <div class="route-item-type">${escapeHTML(routeTypeLabel(route))}</div>
           </div>
         </div>
       `;
@@ -253,8 +261,11 @@ function showRouteDetail(route: RouteListItem): void {
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${routeKindLabel}</div>
       <div id="live-tracking-status" class="live-tracking-status">
-        <span class="live-status-dot pulse loading"></span>
-        <span class="live-status-text">Conectando con buses en vivo...</span>
+        <div class="live-card-main">
+          <span class="live-status-dot pulse loading"></span>
+          <span class="live-status-text">Conectando con buses en vivo...</span>
+        </div>
+        <span class="live-status-chip loading">En vivo</span>
       </div>
     </div>
 
@@ -293,30 +304,41 @@ function showRouteDetail(route: RouteListItem): void {
 }
 
 export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error'): void {
-  const dotEl = document.getElementById('live-tracking-status')?.querySelector('.live-status-dot');
-  const textEl = document.getElementById('live-tracking-status')?.querySelector('.live-status-text');
+  const card = document.getElementById('live-tracking-status');
+  const dotEl = card?.querySelector('.live-status-dot');
+  const textEl = card?.querySelector('.live-status-text');
+  const chipEl = card?.querySelector('.live-status-chip');
 
-  if (!dotEl || !textEl) return;
+  if (!dotEl || !textEl || !chipEl) return;
 
-  // Clear existing classes
+  // Reset state classes
   dotEl.className = 'live-status-dot';
+  chipEl.className = 'live-status-chip';
 
   switch (status) {
     case 'loading':
       dotEl.classList.add('pulse', 'loading');
+      chipEl.classList.add('loading');
       textEl.textContent = 'Conectando con buses en vivo...';
+      chipEl.textContent = 'En vivo';
       break;
     case 'success':
       dotEl.classList.add('pulse');
+      chipEl.classList.add('success');
       textEl.textContent = `Rastreando ${count} bus${count > 1 ? 'es' : ''} en vivo`;
+      chipEl.textContent = 'A tiempo';
       break;
     case 'empty':
       dotEl.classList.add('empty');
+      chipEl.classList.add('empty');
       textEl.textContent = 'Sin buses activos en este momento';
+      chipEl.textContent = 'Inactivo';
       break;
     case 'error':
       dotEl.classList.add('error');
+      chipEl.classList.add('error');
       textEl.textContent = 'Error al rastrear buses en vivo';
+      chipEl.textContent = 'Atrasado';
       break;
   }
 }
