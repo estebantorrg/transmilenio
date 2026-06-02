@@ -540,6 +540,59 @@ export function isCatalogStale(): boolean {
   return Date.now() - catalogLoadedAt > STALE_DAYS * 24 * 60 * 60 * 1000;
 }
 
+// ─── Catalog Merge ──────────────────────────────────────
+
+/**
+ * Non-destructively merges a freshly fetched catalog over the previous one.
+ *
+ * The TransMi API is a live snapshot: some services are only listed on certain
+ * days (e.g. Ciclovía routes appear on Sundays), and a partial fetch can miss
+ * routes. A blind full replace would delete those. So `fresh` is authoritative
+ * for everything it returns (updates win by id), and anything present only in
+ * `previous` — routes, variants, station-wagon mappings — is retained.
+ */
+export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): MasterCatalog {
+  const merged: MasterCatalog = {
+    stations: { ...fresh.stations },
+    routes: { ...fresh.routes },
+  };
+
+  // Routes: union by code; within a code, union variants by id (fresh wins).
+  for (const [code, oldVariants] of Object.entries(previous.routes || {})) {
+    const freshVariants = merged.routes[code];
+    if (!freshVariants) {
+      merged.routes[code] = oldVariants;
+      continue;
+    }
+    const freshIds = new Set(freshVariants.map((v) => String(v.id)));
+    const retained = oldVariants.filter((v) => !freshIds.has(String(v.id)));
+    if (retained.length > 0) merged.routes[code] = [...freshVariants, ...retained];
+  }
+
+  // Stations: union by code; union wagons; within a wagon, union route refs by id.
+  for (const [stationCode, oldStation] of Object.entries(previous.stations || {})) {
+    const freshStation = merged.stations[stationCode];
+    if (!freshStation) {
+      merged.stations[stationCode] = oldStation;
+      continue;
+    }
+    const mergedWagons: CatalogStation['wagons'] = { ...freshStation.wagons };
+    for (const [wagon, oldRoutes] of Object.entries(oldStation.wagons || {})) {
+      const freshRoutes = mergedWagons[wagon];
+      if (!freshRoutes) {
+        mergedWagons[wagon] = oldRoutes;
+        continue;
+      }
+      const ids = new Set(freshRoutes.map((r) => String(r.id)));
+      const retained = oldRoutes.filter((r) => !ids.has(String(r.id)));
+      if (retained.length > 0) mergedWagons[wagon] = [...freshRoutes, ...retained];
+    }
+    merged.stations[stationCode] = { ...freshStation, wagons: mergedWagons };
+  }
+
+  return merged;
+}
+
 // ─── Master Sync ────────────────────────────────────────
 
 let syncInProgress = false;
@@ -668,12 +721,15 @@ export async function syncMasterCatalog(): Promise<void> {
       await randomDelay();
     }
 
-    // 3. Save to disk, then publish in memory once the file is complete.
-    newCatalog.syncedAt = Date.now();
-    await writeCatalogAtomically(newCatalog);
-    masterCatalog = newCatalog;
+    // 3. Merge over the previous catalog so day-dependent services (Ciclovía
+    //    routes are only listed on Sundays) and anything a partial fetch missed
+    //    survive, then save atomically and publish once the file is complete.
+    const merged = mergeCatalogs(masterCatalog, newCatalog);
+    merged.syncedAt = Date.now();
+    await writeCatalogAtomically(merged);
+    masterCatalog = merged;
     masterCatalogLight = null; // Clear light catalog cache!
-    catalogLoadedAt = newCatalog.syncedAt;
+    catalogLoadedAt = merged.syncedAt;
 
     const stationCount = Object.keys(masterCatalog.stations).length;
     const totalRoutes = Object.values(masterCatalog.stations).reduce((sum, s) => {
