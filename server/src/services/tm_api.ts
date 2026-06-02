@@ -364,18 +364,77 @@ function sampleLine(line: number[][], maxPoints: number): number[][] {
   return sampled;
 }
 
+/** Perpendicular distance from point `p` to the infinite line through `a`→`b`. */
+function perpendicularDistance(p: number[], a: number[], b: number[]): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const mag = Math.hypot(dx, dy);
+  if (mag === 0) return Math.hypot(p[0] - a[0], p[1] - a[1]);
+  return Math.abs(dy * p[0] - dx * p[1] + b[0] * a[1] - b[1] * a[0]) / mag;
+}
+
+/**
+ * Ramer–Douglas–Peucker line simplification. Unlike uniform decimation it
+ * keeps the geometrically significant vertices (turns), so the simplified
+ * line still follows the streets of the original trace.
+ */
+function douglasPeucker(points: number[][], epsilon: number): number[][] {
+  if (points.length <= 2) return points;
+
+  let maxDist = 0;
+  let index = 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  for (let i = 1; i < points.length - 1; i++) {
+    const dist = perpendicularDistance(points[i], first, last);
+    if (dist > maxDist) {
+      maxDist = dist;
+      index = i;
+    }
+  }
+
+  if (maxDist > epsilon) {
+    const left = douglasPeucker(points.slice(0, index + 1), epsilon);
+    const right = douglasPeucker(points.slice(index), epsilon);
+    return left.slice(0, -1).concat(right);
+  }
+  return [first, last];
+}
+
+// ~0.00005° ≈ 5.5 m at Bogotá's latitude — tight enough to keep every turn.
+const TRACE_SIMPLIFY_EPSILON = 0.00005;
+
+/**
+ * Simplifies a single line to at most `maxPoints` while preserving its shape.
+ * Douglas–Peucker drops only near-collinear points; if a winding line still
+ * exceeds the cap we loosen the tolerance rather than blindly decimating.
+ */
+function simplifyLine(line: number[][], maxPoints: number): number[][] {
+  if (line.length <= maxPoints) return line;
+
+  let epsilon = TRACE_SIMPLIFY_EPSILON;
+  let result = douglasPeucker(line, epsilon);
+  for (let guard = 0; result.length > maxPoints && guard < 24; guard++) {
+    epsilon *= 1.6;
+    result = douglasPeucker(line, epsilon);
+  }
+  // Extremely winding lines can still exceed the cap — even-sample the
+  // already shape-preserving DP output as a last resort.
+  return result.length > maxPoints ? sampleLine(result, maxPoints) : result;
+}
+
 function simplifyTraceForLight(trace: RouteTrace | undefined): RouteTrace | undefined {
   const paths = traceToPaths(trace);
   if (paths.length === 0) return undefined;
 
   if (paths.length === 1) {
-    const path = sampleLine(paths[0], LIGHT_TRACE_MAX_POINTS);
+    const path = simplifyLine(paths[0], LIGHT_TRACE_MAX_POINTS);
     return path.length > 1 ? path : undefined;
   }
 
   const maxPerPath = Math.max(2, Math.floor(LIGHT_TRACE_MAX_POINTS / paths.length));
   const simplified = paths
-    .map((path) => sampleLine(path, maxPerPath))
+    .map((path) => simplifyLine(path, maxPerPath))
     .filter((path) => path.length > 1);
 
   return simplified.length > 0 ? simplified : undefined;
@@ -402,8 +461,14 @@ export function getCatalogLight(): any {
             horarios: r.horarios,
           };
         } else {
+          // Keep id + nombre even for non-TM-coded stops: some troncal
+          // platforms carry zonal-style codes (e.g. 664A00), and a route's
+          // two directions share a codigo but differ by id/nombre. Dropping
+          // them collapses both directions into one in the station resolver.
           return {
+            id: r.id,
             codigo: r.codigo,
+            nombre: r.nombre,
             color: r.color,
           };
         }
