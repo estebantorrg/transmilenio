@@ -462,7 +462,8 @@ function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve({ longitude: pos.coords.longitude, latitude: pos.coords.latitude }),
       (error) => reject(error),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }
+      // High accuracy + no cached fix → device GPS, not a coarse network/IP guess.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
     );
   });
 }
