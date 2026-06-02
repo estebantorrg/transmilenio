@@ -90,6 +90,15 @@ function cleanRouteText(text: string): string {
     .trim();
 }
 
+/** Accent-insensitive Ciclov\u00eda check \u2014 the catalog spells it "Ciclov\u00eda". */
+function isCicloviaName(text: string | null | undefined): boolean {
+  return String(text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .includes('ciclovia');
+}
+
 type RouteStop = NonNullable<RouteListItem['stops']>[number];
 
 function isStationStopCode(code: string | null | undefined): boolean {
@@ -195,8 +204,8 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         const existing = items[existingIdx];
         
         // If existing is a Ciclovía variant but the new one is regular, update metadata
-        const isNewCiclovia = code.toUpperCase().endsWith('CV') || displayName.toLowerCase().includes('ciclovia');
-        const isExistingCiclovia = existing.code.toUpperCase().endsWith('CV') || existing.name.toLowerCase().includes('ciclovia');
+        const isNewCiclovia = code.toUpperCase().endsWith('CV') || isCicloviaName(displayName);
+        const isExistingCiclovia = existing.code.toUpperCase().endsWith('CV') || isCicloviaName(existing.name);
         
         if (isExistingCiclovia && !isNewCiclovia) {
           existing.id = `catalog-${route.id || `${code}-${normalizeRouteText(route.nombre)}`}`;
