@@ -19,8 +19,10 @@ import {
   resolveStationCatalog,
   stationNode,
   type ResolvedCatalogStation,
+  type ResolvedCatalogWagons,
   type StationCatalogAudit,
 } from './stationCatalogResolver';
+import { isZonalService } from '../utils/routeType';
 
 const STATION_LAYERS = [
   'stations-circle',
@@ -40,12 +42,18 @@ export function isVisibleTroncalStation(station: TroncalStationFeature): boolean
 
 // ─── Route Tag Formatting ───────────────────────────────
 
-function groupCatalogRoutesByCode(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
+function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
   const groups = new Map<string, { code: string; primary: CatalogRoute; routes: CatalogRoute[] }>();
 
   for (const route of routes) {
-    const key = normalizeRouteCodeForMatch(route.codigo);
-    if (!key) continue;
+    const codeKey = normalizeRouteCodeForMatch(route.codigo);
+    if (!codeKey) continue;
+
+    // Key by code AND direction (destination name). A route that serves a wagon
+    // in both directions — common for rutas fáciles like "1" → Universidades /
+    // Portal Eldorado — must keep each end as its own clickable tag instead of
+    // collapsing into a single tag that can only reach one direction.
+    const key = `${codeKey}|${normalizeStationName(route.nombre)}`;
 
     const group = groups.get(key);
     if (group) {
@@ -56,12 +64,13 @@ function groupCatalogRoutesByCode(routes: CatalogRoute[]): Array<{ code: string;
   }
 
   return Array.from(groups.values()).sort((a, b) =>
-    normalizeRouteCode(a.code).localeCompare(normalizeRouteCode(b.code), undefined, { numeric: true })
+    normalizeRouteCode(a.code).localeCompare(normalizeRouteCode(b.code), undefined, { numeric: true }) ||
+    String(a.primary.nombre || '').localeCompare(String(b.primary.nombre || ''), undefined, { numeric: true })
   );
 }
 
 function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
-  const groups = groupCatalogRoutesByCode(routes);
+  const groups = groupCatalogRoutesByDirection(routes);
   const visibleGroups = groups.slice(0, limit);
   const hiddenCount = groups.length - visibleGroups.length;
   const tags = visibleGroups
@@ -80,10 +89,51 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
     : tags;
 }
 
-function sortCatalogRoutes(routes: CatalogRoute[]): CatalogRoute[] {
-  return [...routes].sort((a, b) =>
-    normalizeRouteCode(a.codigo).localeCompare(normalizeRouteCode(b.codigo), undefined, { numeric: true })
-  );
+/**
+ * Keeps only the routes that genuinely board at a given wagon.
+ *
+ * Troncal/dual routes board lettered troncal platforms. Feeder and integrating
+ * zonal routes are only real in the station's feeder/integration zone — the app
+ * files those under wagon "0". When the TransMi data mismaps a zonal route onto
+ * a lettered troncal platform (e.g. A537 "Palermo", which merely parallels the
+ * corridor), it is a phantom stop and is dropped. Real feeders/zonales filed in
+ * wagon "0" (e.g. Banderas F423/F424, San Mateo CSM) are kept.
+ */
+function routesBoardingWagon(wagonLabel: string, routes: CatalogRoute[]): CatalogRoute[] {
+  if (wagonLabel === '0') return routes;
+  return routes.filter((r) => !isZonalService(r.sistema, r.tipoServicio));
+}
+
+/** A wagon "0" holding any feeder/zonal route is the integration zone, not a
+ *  single troncal platform — label it for what it is. */
+function wagonSectionLabel(wagonLabel: string, routes: CatalogRoute[]): string {
+  if (wagonLabel !== '0') return `Vagón ${escapeHTML(wagonLabel)}`;
+  const hasFeederOrZonal = routes.some((r) => isZonalService(r.sistema, r.tipoServicio));
+  return hasFeederOrZonal ? 'Alimentadores y zonales' : 'Vagón único';
+}
+
+/**
+ * Renders the wagon → route-tag sections shown inside a station popup, after
+ * dropping routes that don't actually board each wagon (see
+ * `routesBoardingWagon`). Wagons left empty are omitted.
+ */
+function buildWagonSectionsHtml(wagons: ResolvedCatalogWagons): string {
+  const sections = Object.entries(wagons)
+    .map(([label, routes]) => [label, routesBoardingWagon(label, routes as CatalogRoute[])] as const)
+    .filter(([, routes]) => routes.length > 0)
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+    .map(([label, routes]) => {
+      const count = groupCatalogRoutesByDirection(routes).length;
+      return `
+          <div class="popup-wagon-section">
+            <div class="popup-wagon-label">${wagonSectionLabel(label, routes)}<span class="popup-count">${count}</span></div>
+            <div class="popup-route-tags">${formatRouteTags(routes)}</div>
+          </div>
+        `;
+    })
+    .join('');
+
+  return sections || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
 // ─── Catalog Lookup ─────────────────────────────────────
@@ -147,32 +197,10 @@ function showStationPopup(
 
   const resolvedStation = _resolvedStations[stationKey];
 
-  // Build wagon sections
-  let wagonSections = '';
-
-  if (resolvedStation && Object.keys(resolvedStation.wagons).length > 0) {
-    const wagonEntries = Object.entries(resolvedStation.wagons);
-
-    // Sort wagon labels naturally (A, B, C... or T5A, T5B, T9...)
-    wagonEntries.sort(([a], [b]) =>
-      a.localeCompare(b, undefined, { numeric: true })
-    );
-
-    wagonSections = wagonEntries
-      .map(([label, routes]) => {
-        const tags = formatRouteTags(routes as CatalogRoute[]);
-        const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
-        return `
-          <div class="popup-wagon-section">
-            <div class="popup-wagon-label">${wagonName}</div>
-            <div class="popup-route-tags">${tags}</div>
-          </div>
-        `;
-      })
-      .join('');
-  } else {
-    wagonSections = '<div class="popup-empty">Sin datos de vagones disponibles</div>';
-  }
+  const wagonSections =
+    resolvedStation && Object.keys(resolvedStation.wagons).length > 0
+      ? buildWagonSectionsHtml(resolvedStation.wagons)
+      : '<div class="popup-empty">Sin datos de vagones disponibles</div>';
 
   // Station meta
   const meta = [
@@ -358,29 +386,9 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  let wagonSections = '';
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons);
 
-  if (Object.keys(resolvedStation.wagons).length > 0) {
-    const wagonEntries = Object.entries(resolvedStation.wagons);
-    wagonEntries.sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }));
-
-    wagonSections = wagonEntries
-      .map(([label, routes]) => {
-        const tags = formatRouteTags(routes as CatalogRoute[]);
-        const wagonName = label === '0' ? 'Vagón Único' : `Vagón ${escapeHTML(label)}`;
-        return `
-          <div class="popup-wagon-section">
-            <div class="popup-wagon-label">${wagonName}</div>
-            <div class="popup-route-tags">${tags}</div>
-          </div>
-        `;
-      })
-      .join('');
-  } else {
-    wagonSections = '<div class="popup-empty">Sin datos de vagones disponibles</div>';
-  }
-
-  const stationFeature = globalStations.find(s => 
+  const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||
     s.attributes.codigo_nodo_estacion === stationCode ||
     normalizeStationName(s.attributes.nombre_estacion) === normalizeStationName(resolvedStation!.stationName)

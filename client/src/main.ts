@@ -27,6 +27,7 @@ import {
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus } from './ui/sidebar';
 import { startBusTracking, stopBusTracking } from './layers/buses';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
+import { setRouteTypeIndex } from './utils/routeType';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
@@ -462,17 +463,54 @@ function resolveUserLocation(): Promise<{ longitude: number; latitude: number }>
   });
 }
 
+// Resolve once GPS reaches this accuracy; otherwise keep the best fix seen
+// within the time budget. A one-shot getCurrentPosition often returns the
+// coarse first fix (network/WiFi, ~100–200 m) before the GPS hardware
+// converges — watching and keeping the most accurate sample fixes that.
+const GEO_TARGET_ACCURACY_M = 35;
+const GEO_MAX_WAIT_MS = 15_000;
+
 function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new Error('Geolocation API unavailable'));
       return;
     }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ longitude: pos.coords.longitude, latitude: pos.coords.latitude }),
-      (error) => reject(error),
+
+    let best: GeolocationPosition | null = null;
+    let settled = false;
+
+    const finish = (): void => {
+      if (settled) return;
+      settled = true;
+      navigator.geolocation.clearWatch(watchId);
+      window.clearTimeout(timer);
+      if (best) {
+        resolve({ longitude: best.coords.longitude, latitude: best.coords.latitude });
+      } else {
+        reject(new Error('No position acquired'));
+      }
+    };
+
+    const timer = window.setTimeout(finish, GEO_MAX_WAIT_MS);
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
+        // Good enough — stop early instead of burning the full budget.
+        if (pos.coords.accuracy <= GEO_TARGET_ACCURACY_M) finish();
+      },
+      (error) => {
+        // Only fail if no fix ever arrived; otherwise keep the best we have.
+        if (!best) {
+          settled = true;
+          navigator.geolocation.clearWatch(watchId);
+          window.clearTimeout(timer);
+          reject(error);
+        }
+      },
       // High accuracy + no cached fix → device GPS, not a coarse network/IP guess.
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: GEO_MAX_WAIT_MS, maximumAge: 0 }
     );
   });
 }
@@ -560,8 +598,10 @@ async function main(): Promise<void> {
     console.log(`✅ Stations: ${stations.length}`);
     console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
 
-    // Set catalog for station popups
+    // Set catalog for station popups, and index route service types so popups
+    // can keep troncal/zonal routes from leaking into each other.
     setCatalog(catalog);
+    setRouteTypeIndex(catalog);
 
     // 2. Pre-calculate unified route list from API
     setLoadingStatus('Procesando datos (esto puede tardar unos segundos)...');

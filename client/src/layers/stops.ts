@@ -9,6 +9,7 @@ import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from
 import { showPopup } from './popup';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
+import { servesZonal } from '../utils/routeType';
 import { showStationPopupByCode } from './stations';
 
 export type StopRouteTag = {
@@ -47,6 +48,9 @@ function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseE
 
 
 function addStopRoute(map: StopRoutesMap, cenefa: string, routeTag: StopRouteTag): void {
+  // Keep paradero popups zonal-only: the catalog attaches routes to stops by
+  // code alone, so purely-troncal routes can leak onto zonal paraderos.
+  if (!servesZonal(routeTag.code)) return;
   const code = normalizeRouteCodeForMatch(routeTag.code);
   const existing = map.get(cenefa);
   if (existing) {
@@ -158,7 +162,7 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
         ${p.address ? `<span>${escapeHTML(p.address)}</span>` : ''}
         ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
-      ${routes.length ? `<div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
     </div>
   `;
 
@@ -426,7 +430,7 @@ export function showStopPopupByCode(
         ${stopCode ? `<span># ${escapeHTML(stopCode)}</span>` : ''}
         ${address ? `<span>${escapeHTML(address)}</span>` : ''}
       </div>
-      ${routes.length ? `<div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
     </div>
   `;
 

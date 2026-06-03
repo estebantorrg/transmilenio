@@ -125,7 +125,11 @@ function injectMarkerStyles(): void {
   style.id = 'live-bus-marker-styles';
   style.textContent = `
     .live-bus-marker {
-      position: relative;
+      /* MUST be absolute: MapLibre positions markers via transform translate().
+         With position:relative the markers stay in document flow and stack
+         vertically, so the translate lands them off by the stack height
+         (correct X, drifting Y) — worse the further you zoom out. */
+      position: absolute;
       width: 58px;
       height: 58px;
       cursor: pointer;

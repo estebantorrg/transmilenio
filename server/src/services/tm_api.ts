@@ -1031,6 +1031,63 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Pro
   throw lastError ?? new Error('No Colombian proxy responded');
 }
 
+/**
+ * Direct call to the live API host. This is the primary path: when the backend
+ * itself runs with a Colombian egress IP (local/CO-hosted), it works with no
+ * relay or proxy. From a non-Colombian host the geofence answers 401/451, which
+ * fails fast and falls through to the relay below.
+ */
+async function fetchLiveBusesDirect(context: LiveRequestContext): Promise<any[]> {
+  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
+  const postData = context.postData;
+  const headers: Record<string, string | number> = {
+    'Accept-Encoding': 'identity',
+    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    'Connection': 'Keep-Alive',
+    'Host': LIVE_API_HOST,
+    'User-Agent': 'okhttp/4.12.0',
+    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+    'version': '2.9.5',
+    'Content-Length': Buffer.byteLength(postData),
+  };
+  if (postData) {
+    headers['Content-Type'] = 'application/json; charset=UTF-8';
+  }
+
+  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=DIRECT`);
+  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS);
+}
+
+/** A non-Colombian egress is rejected by the geofence — no candidate will fare
+ *  better, so abort the remaining attempts for this strategy. */
+function isGeofenceRejection(error: any): boolean {
+  return /Status: (401|451)/.test(String(error?.message || ''));
+}
+
+/**
+ * Runs one transport strategy across every name candidate, returning the first
+ * successful payload (even when empty) or `null` if all candidates failed.
+ */
+async function runLiveStrategy(
+  label: string,
+  fetcher: (context: LiveRequestContext) => Promise<any[]>,
+  contexts: LiveRequestContext[],
+  errors: string[],
+  shouldAbort?: (error: any) => boolean
+): Promise<any[] | null> {
+  for (const context of contexts) {
+    try {
+      const buses = await fetcher(context);
+      console.log(`[TM API] ${label} candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+      return buses;
+    } catch (error: any) {
+      errors.push(`[${label} ${context.candidateName}] ${error.message}`);
+      if (shouldAbort?.(error)) break;
+    }
+  }
+  return null;
+}
+
 export async function fetchLiveBuses(
   ruta: string,
   nombre: string,
@@ -1048,26 +1105,18 @@ export async function fetchLiveBuses(
     throw new Error('ruta is required');
   }
 
-  for (const context of contexts) {
-    try {
-      const buses = await fetchLiveBusesViaColombiaRelay(context);
-      console.log(`[TM API] CO relay candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-      return buses;
-    } catch (error: any) {
-      errors.push(`[co-relay ${context.candidateName}] ${error.message}`);
-    }
-  }
+  // 1. Direct (works when the backend egress is Colombian).
+  const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection);
+  if (direct) return direct;
 
+  // 2. Colombia relay (for non-Colombian hosts with a relay configured).
+  const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors);
+  if (relay) return relay;
+
+  // 3. Public Colombian proxy (opt-in best-effort fallback).
   if (allowPublicColombianProxyFallback()) {
-    for (const context of contexts) {
-      try {
-        const buses = await fetchLiveBusesViaColombianProxy(context);
-        console.log(`[TM API] public CO proxy candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-        return buses;
-      } catch (error: any) {
-        errors.push(`[public-co-proxy ${context.candidateName}] ${error.message}`);
-      }
-    }
+    const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors);
+    if (proxy) return proxy;
   }
 
   throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
