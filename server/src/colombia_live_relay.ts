@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import cors from 'cors';
 import http from 'http';
 import https from 'https';
 import zlib from 'zlib';
@@ -11,6 +12,20 @@ const RELAY_SECRET = String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || ''
 const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 const EGRESS_CACHE_MS = 30_000;
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
+
+// Browser-direct mode: the web client (PC or mobile) calls this relay straight,
+// so the live request egresses from the relay's Colombian IP with no main server
+// in the path. Allow-list the app origin(s) for CORS.
+const CLIENT_ORIGINS = String(process.env.RELAY_CLIENT_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+const DEV_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (!origin) return false;
+  return DEV_ORIGIN_RE.test(origin) || CLIENT_ORIGINS.includes(origin);
+}
 
 interface LiveRequestContext {
   routeCode: string;
@@ -38,6 +53,12 @@ function secretsMatch(candidate: string): boolean {
 }
 
 function isAuthorized(req: Request): boolean {
+  // Browser requests from an allow-listed origin are trusted at the app layer:
+  // CORS already blocks other browser origins, and the relay returns only public,
+  // CO-gated bus positions. (Origin is not a hard boundary for non-browser
+  // clients, but there is nothing private to protect here.)
+  if (isAllowedOrigin(req.headers.origin as string | undefined)) return true;
+
   if (!RELAY_SECRET) return true;
   const auth = String(req.headers.authorization || '');
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
@@ -94,12 +115,12 @@ async function assertColombianEgress(): Promise<EgressCheck> {
   return egress;
 }
 
-function createLiveRequestContext(body: any): LiveRequestContext {
-  const routeType = body?.type === 'zonal' || body?.action === 'zonal' ? 'zonal' : 'troncal';
-  const routeCode = String(body?.ruta || '').trim();
-  const destinationName = String(body?.Nombre ?? body?.nombre ?? '').trim();
+function makeLiveContext(
+  routeCode: string,
+  destinationName: string,
+  routeType: 'troncal' | 'zonal'
+): LiveRequestContext {
   const isZonal = routeType === 'zonal';
-
   return {
     routeCode,
     destinationName,
@@ -110,6 +131,31 @@ function createLiveRequestContext(body: any): LiveRequestContext {
       : '/buses',
     postData: isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName }),
   };
+}
+
+/**
+ * Troncal matches by destination name; the catalog often holds several candidate
+ * strings for one route. Build one context per distinct candidate so the handler
+ * can try each until buses appear (parity with the main server). Zonal is keyed
+ * purely by route code.
+ */
+function createLiveRequestContexts(body: any): LiveRequestContext[] {
+  const routeType = body?.type === 'zonal' || body?.action === 'zonal' ? 'zonal' : 'troncal';
+  const routeCode = String(body?.ruta || '').trim();
+
+  if (routeType === 'zonal') {
+    return [makeLiveContext(routeCode, '', 'zonal')];
+  }
+
+  const primary = String(body?.Nombre ?? body?.nombre ?? '').trim();
+  const raw = Array.isArray(body?.nombreCandidates) ? body.nombreCandidates : [];
+  const names: string[] = [];
+  for (const value of [...raw, primary]) {
+    const name = String(value || '').trim();
+    if (name && !names.some((n) => n.toLowerCase() === name.toLowerCase())) names.push(name);
+  }
+  const list = names.length ? names : [''];
+  return list.map((name) => makeLiveContext(routeCode, name, 'troncal'));
 }
 
 function isLiveBusLike(value: unknown): boolean {
@@ -233,6 +279,18 @@ function requestTransmiLiveJson(context: LiveRequestContext): Promise<any[]> {
 }
 
 const app = express();
+app.use(
+  cors({
+    origin(origin, cb) {
+      // No Origin = non-browser caller (curl/server-to-server); allow at the CORS
+      // layer and let isAuthorized() gate it. Browser origins must be allow-listed.
+      cb(null, !origin || isAllowedOrigin(origin));
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-relay-secret'],
+    maxAge: 86_400,
+  })
+);
 app.use(express.json());
 
 app.get('/health', async (_req: Request, res: Response) => {
@@ -255,14 +313,34 @@ app.post('/buses', async (req: Request, res: Response) => {
       return;
     }
 
-    const context = createLiveRequestContext(req.body);
-    if (!context.routeCode) {
+    const contexts = createLiveRequestContexts(req.body);
+    if (!contexts[0]?.routeCode) {
       res.status(400).json({ success: false, error: 'ruta is required' });
       return;
     }
 
     const egress = await assertColombianEgress();
-    const buses = await requestTransmiLiveJson(context);
+
+    // Try each name candidate; return the first non-empty payload. An empty
+    // result from a candidate that *answered* is a valid "no buses right now";
+    // only surface an error if every candidate threw.
+    let buses: any[] = [];
+    let anyAnswered = false;
+    let lastError: Error | null = null;
+    for (const context of contexts) {
+      try {
+        const result = await requestTransmiLiveJson(context);
+        anyAnswered = true;
+        if (result.length) {
+          buses = result;
+          break;
+        }
+      } catch (error) {
+        lastError = error as Error;
+      }
+    }
+    if (!anyAnswered && lastError) throw lastError;
+
     res.json({
       success: true,
       count: buses.length,

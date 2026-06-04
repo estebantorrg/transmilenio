@@ -8,6 +8,9 @@ import type { MasterCatalogResponse } from '../types/catalog';
 import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+// Optional Colombia relay the browser calls directly (PC + mobile, no install):
+// browser → CO relay → live API, keeping the main server out of the live path.
+const LIVE_RELAY_URL = String(import.meta.env.VITE_LIVE_RELAY_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 60_000;
 const MASTER_CATALOG_TIMEOUT_MS = 300_000; // 5m for the heavy catalog
 
@@ -115,6 +118,31 @@ async function fetchJson<T>(
   throw lastError;
 }
 
+/**
+ * POSTs a live-bus request straight to the configured Colombia relay
+ * (`VITE_LIVE_RELAY_URL`). The relay adds CORS and egresses from a Colombian IP,
+ * so this works from any browser (PC or mobile) with no extension. Throws on
+ * non-2xx or network error so the caller can fall back to the main server.
+ */
+async function postLiveRelayDirect(payload: unknown): Promise<any> {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${LIVE_RELAY_URL}/buses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new ApiError('/buses (relay)', `Relay ${response.status} ${response.statusText}`, response.status);
+    }
+    return await response.json();
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 export const api = {
   getTroncalRoutes: () =>
     fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes'),
@@ -143,24 +171,35 @@ export const api = {
     routeType: 'troncal' | 'zonal' = 'troncal',
     nombreCandidates: string[] = []
   ): Promise<any> => {
-    // Preferred path: the "Live Bridge" extension fetches from the user's own
-    // Colombian connection, bypassing the server geofence and browser CORS.
+    const payload = { ruta, Nombre: nombre, nombreCandidates, type: routeType };
+
+    // Tier 1: Live Bridge extension — fetches from the user's own Colombian
+    // connection, bypassing the geofence and browser CORS with no relay load.
     if (await isLiveBridgeAvailable()) {
       try {
         return await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates);
       } catch (error) {
-        console.warn('[Live] Bridge request failed, falling back to server relay:', error);
+        console.warn('[Live] Bridge failed, trying direct relay:', error);
       }
     }
 
-    // Fallback: server relay (spec §4.2 graceful degradation). 0 retries — live
+    // Tier 2: Colombia relay called directly (PC + mobile, no install).
+    if (LIVE_RELAY_URL) {
+      try {
+        return await postLiveRelayDirect(payload);
+      } catch (error) {
+        console.warn('[Live] Direct relay failed, falling back to server:', error);
+      }
+    }
+
+    // Tier 3: main server relay (spec §4.2 graceful degradation). 0 retries — live
     // requests must not stack up behind the 15s polling window (spec §3.4).
     return fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ ruta, Nombre: nombre, nombreCandidates, type: routeType }),
+      body: JSON.stringify(payload),
     }, 0);
   },
 

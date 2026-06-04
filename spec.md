@@ -145,13 +145,14 @@ x-relay-secret: <secret>
 #### 5.2.1a Client-Direct Bridge (preferred)
 * Live requests are made from the **user's own browser** via the optional **Live Bridge** extension (`extension/`). Its background fetch is exempt from page CORS and egresses from the user's Colombian IP, satisfying both constraints with no server in the live path.
 * Transport: private `window.postMessage` channel `tm-live-bridge/v1` (page ⇄ content script ⇄ background worker). Client module: `client/src/services/liveBridge.ts`; the background worker only ever contacts the live host with fixed request shapes (no page-supplied URLs).
-* **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): Live Bridge → `/api/buses` (Colombia relay / direct, §5.2.2). Absent the extension the app degrades gracefully (spec §4.2) with no behavior change.
+* **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): Live Bridge extension → direct CO relay (`VITE_LIVE_RELAY_URL`, §5.2.2 browser-direct) → `/api/buses` (main server relay). Each tier degrades gracefully to the next (spec §4.2); absent both the extension and a configured relay, behavior is unchanged.
 
-#### 5.2.2 Relay Setup (server fallback)
-* Live tracking requires Colombia egress IP.
-* Environment: `TRANSMILENIO_COLOMBIA_RELAY_URL` and `TRANSMILENIO_COLOMBIA_RELAY_SECRET`.
+#### 5.2.2 Relay Setup
+* Live tracking requires Colombia egress IP. Relay file: `server/src/colombia_live_relay.ts`. Recommended host: an always-on CO box or an **Oracle Cloud Always Free** VM in the **Bogotá** region, exposed over **HTTPS** (Tailscale Funnel / Cloudflare Tunnel — required, the app is https and mixed content is blocked).
 * Relay checks egress country using `https://www.cloudflare.com/cdn-cgi/trace` (cached 30s).
 * Egress `/health` responses: `200` (Colombia), `451` (outside CO), `503` (check error).
+* **Browser-direct mode (preferred, PC + mobile, no install):** set `RELAY_CLIENT_ORIGINS` (comma-separated app origins). The relay serves CORS for those origins and the browser calls it straight (`VITE_LIVE_RELAY_URL` on the client). Allow-listed browser origins need no secret; the relay returns only public, CO-gated bus positions. The relay runs the troncal name-candidate loop itself.
+* **Server-relay mode (fallback):** `TRANSMILENIO_COLOMBIA_RELAY_URL` + `TRANSMILENIO_COLOMBIA_RELAY_SECRET` — the main server signs and forwards (spec §3.1).
 
 #### 5.2.3 Endpoint Requests
 * **Troncal**: `POST /buses` with body `{"ruta": "<code-e.g.-B75>", "Nombre": "<name>"}`.

@@ -48,32 +48,52 @@ request never touches the server. See [`extension/README.md`](./extension/README
 When the extension is absent, the app automatically falls back to the server relay
 below.
 
-#### Fallback: Colombia relay (server-side)
+#### Cross-platform: browser-direct Colombia relay (PC + mobile, no install)
 
-Use a tiny relay on any machine connected to a Colombian network:
+Run the relay on a **Colombian-egress** host and let the browser call it
+directly. Works on every device with no per-user setup; the main server drops
+out of the live path. Recommended free host: an **Oracle Cloud Always Free** VM
+in the **Bogotá** region (datacenter uptime, $0 forever).
+
+The relay must be served over **HTTPS** — the app is https and browsers block an
+https page from calling an http relay (mixed content). **Tailscale Funnel** gives
+a free, stable `https://<machine>.<tailnet>.ts.net` URL with no domain to buy.
+
+**On the CO host (Oracle VM):**
 
 ```bash
-set TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
-npm --prefix server run relay:co
+# 1. Run the relay, allow-listing your web app's origin so it serves CORS.
+RELAY_CLIENT_ORIGINS=https://transmilenio.onrender.com npm --prefix server run relay:co
+# (defaults to port 8787)
+
+# 2. Expose it over HTTPS with a stable free URL.
+tailscale funnel 8787
+# → https://<machine>.<tailnet>.ts.net
 ```
 
-Expose that relay with a free outbound tunnel, for example:
+**On the client** (`client/.env`), point at that HTTPS URL:
 
 ```bash
-cloudflared tunnel --url http://localhost:8787
+VITE_LIVE_RELAY_URL=https://<machine>.<tailnet>.ts.net
 ```
 
-Then configure the main server:
+The relay verifies its own egress country before every live request window and
+returns HTTP `451` if egress is not `CO`. Requests to the official live API are
+made by the Colombian relay/browser — never by Render, Google Apps Script, or
+Cloudflare Workers (all non-CO).
+
+> Have an always-on machine in Bogotá instead of a cloud VM? Run the exact same
+> two commands on it — Oracle is only for guaranteed uptime.
+
+#### Fallback: server-side relay
+
+The main server can also forward to the relay (instead of the browser calling it
+directly). Set on the main server:
 
 ```bash
-TRANSMILENIO_COLOMBIA_RELAY_URL=https://your-relay.trycloudflare.com
+TRANSMILENIO_COLOMBIA_RELAY_URL=https://<machine>.<tailnet>.ts.net
 TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
 ```
-
-The relay checks its own egress country before every live request window and
-returns HTTP 451 if the egress is not `CO`. Requests to the official live API are
-made by the Colombian relay, not by Render, Google Apps Script, or Cloudflare
-Workers.
 
 ---
 
