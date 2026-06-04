@@ -46,7 +46,7 @@ Browser (MapLibre GL JS) → Express API (Node.js) → Master Catalog (Local JSO
 
 ### 2.3 Architecture Rules
 
-* **Client Isolation**: Vite client is presentation layer only. Manages MapLibre layers, search states, timeline renderings. Requests `/api/*` from backend, never calls external transit APIs directly.
+* **Client Isolation**: Vite client is presentation layer only. Manages MapLibre layers, search states, timeline renderings. Requests `/api/*` from backend, never calls external transit APIs directly. **Exception — live tracking (§5.2):** when the Live Bridge extension is present, the client routes live-bus requests through it so they originate from the *user's* Colombian connection; the page itself still never `fetch`es the live API (browser CORS forbids it), and absent the extension it falls back to `/api/buses`.
 * **Express Engine**: Backend Express API is data aggregator and query cache. Sole component reading master catalog JSON or calling external ArcGIS/TransMi endpoints.
 * **Relay Separation**: Live vehicle positions routed through separate Colombia-based relay for geographic API constraints. Main Express backend communicates with relay using authorization secret.
 
@@ -140,8 +140,14 @@ x-relay-secret: <secret>
 
 #### 5.2.1 Target API Host
 * **Base Host**: `https://tmsa-transmiapp-shvpc.uc.r.appspot.com`
+* **Constraints (verified)**: The host is **CO-IP geofenced** (non-CO egress → `401`/`451`) and serves **no CORS** — `OPTIONS` preflight → `403 Invalid CORS request`, response carries no `Access-Control-Allow-Origin`. A normal page `fetch` therefore cannot read it; only `Appid` is a required request header (`User-Agent`/`uuid`/`version` are not).
 
-#### 5.2.2 Relay Setup
+#### 5.2.1a Client-Direct Bridge (preferred)
+* Live requests are made from the **user's own browser** via the optional **Live Bridge** extension (`extension/`). Its background fetch is exempt from page CORS and egresses from the user's Colombian IP, satisfying both constraints with no server in the live path.
+* Transport: private `window.postMessage` channel `tm-live-bridge/v1` (page ⇄ content script ⇄ background worker). Client module: `client/src/services/liveBridge.ts`; the background worker only ever contacts the live host with fixed request shapes (no page-supplied URLs).
+* **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): Live Bridge → `/api/buses` (Colombia relay / direct, §5.2.2). Absent the extension the app degrades gracefully (spec §4.2) with no behavior change.
+
+#### 5.2.2 Relay Setup (server fallback)
 * Live tracking requires Colombia egress IP.
 * Environment: `TRANSMILENIO_COLOMBIA_RELAY_URL` and `TRANSMILENIO_COLOMBIA_RELAY_SECRET`.
 * Relay checks egress country using `https://www.cloudflare.com/cdn-cgi/trace` (cached 30s).
@@ -316,5 +322,5 @@ System aligns with spec when:
 * **Journey Planning**: Journey planning (origin/destination route calculation) explicitly within project scope.
 
 ### 6.2 Architectural Rules
-* **Live Tracking Consolidation**: Live tracking must consolidate to bypass individual relay server infrastructure.
+* **Live Tracking Consolidation**: Live tracking must consolidate to bypass individual relay server infrastructure. **In progress (§5.2.1a):** the Live Bridge extension moves the live request onto the user's Colombian connection, removing the server from the live path when installed; the relay remains only as fallback.
 * **Sync Separation**: Route variant diff calculations must not be embedded inside Express sync action.

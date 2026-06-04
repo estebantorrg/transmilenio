@@ -5,6 +5,7 @@ import type {
   TroncalStationFeature,
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
+import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 60_000;
@@ -136,19 +137,32 @@ export const api = {
   getRouteDetail: (code: string) =>
     fetchJson<any>(`/troncal/route/${code}`),
 
-  getLiveBuses: (
+  getLiveBuses: async (
     ruta: string,
     nombre: string,
     routeType: 'troncal' | 'zonal' = 'troncal',
     nombreCandidates: string[] = []
-  ) =>
-    fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
+  ): Promise<any> => {
+    // Preferred path: the "Live Bridge" extension fetches from the user's own
+    // Colombian connection, bypassing the server geofence and browser CORS.
+    if (await isLiveBridgeAvailable()) {
+      try {
+        return await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates);
+      } catch (error) {
+        console.warn('[Live] Bridge request failed, falling back to server relay:', error);
+      }
+    }
+
+    // Fallback: server relay (spec §4.2 graceful degradation). 0 retries — live
+    // requests must not stack up behind the 15s polling window (spec §3.4).
+    return fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ ruta, Nombre: nombre, nombreCandidates, type: routeType }),
-    }, 0),
+    }, 0);
+  },
 
   /** Approximate location from the client IP — fallback when native geolocation is blocked. */
   getGeoIp: () =>

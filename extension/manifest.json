@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "TransMilenio Explorer — Live Bridge",
+  "version": "1.0.0",
+  "description": "Fetches live bus positions for TransMilenio Explorer directly from your own (Colombian) connection, bypassing the server geofence and browser CORS.",
+  "host_permissions": [
+    "https://tmsa-transmiapp-shvpc.uc.r.appspot.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://localhost/*",
+        "http://127.0.0.1/*",
+        "https://transmilenio.onrender.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ]
+}

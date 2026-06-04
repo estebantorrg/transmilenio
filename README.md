@@ -35,8 +35,20 @@ This project is built with a modern tech stack (Vite + Node.js) and features a r
 
 ### Live Tracking From Colombia
 
-Live bus tracking is Colombia-origin only. The main server no longer relies on fake
-`X-Forwarded-For` headers or non-Colombian cloud fetchers.
+The official live-bus endpoint is **CO-IP geofenced** and serves **no CORS**, so a
+normal web page cannot read it and a non-Colombian server is rejected by the
+geofence.
+
+#### Preferred: Live Bridge extension (uses *your* connection)
+
+Install the [`extension/`](./extension) browser extension (one-time, **Load
+unpacked**). Live tracking then runs **from your own browser**: the extension's
+background fetch bypasses page CORS *and* carries your Colombian egress IP, so the
+request never touches the server. See [`extension/README.md`](./extension/README.md).
+When the extension is absent, the app automatically falls back to the server relay
+below.
+
+#### Fallback: Colombia relay (server-side)
 
 Use a tiny relay on any machine connected to a Colombian network:
 
