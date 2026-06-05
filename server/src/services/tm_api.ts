@@ -754,7 +754,9 @@ export const LIVE_TRACKING_VERSION = 'colombia-relay-v1';
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
 const COLOMBIA_RELAY_TIMEOUT_MS = 12_000;
 const CO_PROXY_READY_TIMEOUT_MS = 18_000;
-const MAX_CO_PROXY_ATTEMPTS = 8;
+// Free CO proxies run 4.5–14s; be patient and race several so the fastest wins.
+const LIVE_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS || 14_000);
+const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH || 5);
 
 interface LiveRequestContext {
   routeCode: string;
@@ -903,12 +905,18 @@ function requestLiveJson(
   headers: Record<string, string | number>,
   postData: string,
   timeoutMs: number,
-  agent?: https.Agent
+  agent?: https.Agent,
+  signal?: AbortSignal
 ): Promise<any[]> {
   const requestLib = url.protocol === 'http:' ? http : https;
   const source = `${url.protocol}//${url.hostname}${url.pathname}`;
 
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error(`${source}: aborted`));
+      return;
+    }
+
     const req = requestLib.request({
       hostname: url.hostname,
       port: url.port || (url.protocol === 'http:' ? 80 : 443),
@@ -921,6 +929,7 @@ function requestLiveJson(
       const chunks: Buffer[] = [];
       res.on('data', (chunk: Buffer) => chunks.push(chunk));
       res.on('end', async () => {
+        cleanup();
         const raw = Buffer.concat(chunks);
 
         if (res.statusCode !== 200) {
@@ -936,8 +945,19 @@ function requestLiveJson(
       });
     });
 
-    req.on('error', reject);
+    // Let a parallel race cancel the losers as soon as a winner resolves.
+    const onAbort = () => {
+      req.destroy(new Error(`${source}: aborted`));
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+
+    req.on('error', (err) => {
+      cleanup();
+      reject(err);
+    });
     req.on('timeout', () => {
+      cleanup();
       req.destroy();
       reject(new Error(`${source}: Request timed out`));
     });
@@ -988,47 +1008,87 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext): Prom
   return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS);
 }
 
+function buildProxyHeaders(context: LiveRequestContext): Record<string, string | number> {
+  const headers: Record<string, string | number> = {
+    'Accept-Encoding': 'identity',
+    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    'Connection': 'Keep-Alive',
+    'Host': LIVE_API_HOST,
+    'User-Agent': 'okhttp/4.12.0',
+    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+    'version': '2.9.5',
+    'Content-Length': Buffer.byteLength(context.postData),
+  };
+  if (context.postData) headers['Content-Type'] = 'application/json; charset=UTF-8';
+  return headers;
+}
+
+/** Resolves with the first promise to fulfil; rejects only if every one rejects. */
+function firstFulfilled<T>(promises: Promise<T>[]): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    let pending = promises.length;
+    if (pending === 0) {
+      reject(new Error('no candidates'));
+      return;
+    }
+    const errors: string[] = [];
+    for (const p of promises) {
+      p.then(resolve, (error) => {
+        errors.push(String(error?.message || error));
+        if (--pending === 0) reject(new Error(errors.join(' | ')));
+      });
+    }
+  });
+}
+
+/**
+ * Races the best N proxies in parallel for one request. Free CO proxies are
+ * slow and unreliable, so firing several at once and taking the fastest valid
+ * response dramatically beats trying them one by one. The winner is rewarded
+ * (latency recorded), genuine losers are penalised, and the still-pending ones
+ * are aborted the moment a winner resolves.
+ */
 async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Promise<any[]> {
   const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
-  const readyCount = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
-  if (readyCount === 0) {
-    throw new Error('No Colombian proxy available');
-  }
+  const ready = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
+  if (ready === 0) throw new Error('No Colombian proxy available');
 
-  const attempts = Math.min(Math.max(readyCount, 1), MAX_CO_PROXY_ATTEMPTS);
-  let lastError: Error | null = null;
+  const proxies = ProxyManager.getProxies(CO_PROXY_RACE_WIDTH);
+  if (proxies.length === 0) throw new Error('No Colombian proxy available');
 
-  for (let attempt = 1; attempt <= attempts; attempt++) {
-    const proxy = ProxyManager.getWorkingProxy();
-    if (!proxy) break;
+  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
+  const headers = buildProxyHeaders(context);
+  const controller = new AbortController();
 
+  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy RACEx${proxies.length}`);
+
+  const attempts = proxies.map(async (proxy) => {
+    const started = Date.now();
     try {
-      const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-      const postData = context.postData;
-      const headers: Record<string, string | number> = {
-        'Accept-Encoding': 'identity',
-        'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-        'Connection': 'Keep-Alive',
-        'Host': LIVE_API_HOST,
-        'User-Agent': 'okhttp/4.12.0',
-        'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-        'version': '2.9.5',
-        'Content-Length': Buffer.byteLength(postData),
-      };
-      if (postData) {
-        headers['Content-Type'] = 'application/json; charset=UTF-8';
-      }
-
-      console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy ${proxy.ip}:${proxy.port}`);
-      return await requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, new SimpleProxyAgent(proxy.ip, proxy.port));
-    } catch (error: any) {
-      lastError = error;
-      ProxyManager.reportFailure(proxy.ip, proxy.port);
-      console.warn(`[TM API] CO proxy attempt ${attempt}/${attempts} failed: ${error.message}`);
+      const buses = await requestLiveJson(
+        url,
+        headers,
+        context.postData,
+        LIVE_PROXY_TIMEOUT_MS,
+        new SimpleProxyAgent(proxy.ip, proxy.port),
+        controller.signal
+      );
+      ProxyManager.reportSuccess(proxy.ip, proxy.port, Date.now() - started);
+      return buses;
+    } catch (error) {
+      // Aborted losers are not genuine failures; don't penalise them.
+      if (!controller.signal.aborted) ProxyManager.reportFailure(proxy.ip, proxy.port);
+      throw error;
     }
-  }
+  });
 
-  throw lastError ?? new Error('No Colombian proxy responded');
+  try {
+    const buses = await firstFulfilled(attempts);
+    controller.abort(); // cancel the slower in-flight proxies
+    return buses;
+  } catch {
+    throw new Error(`All ${proxies.length} CO proxies failed`);
+  }
 }
 
 /**
@@ -1075,17 +1135,25 @@ async function runLiveStrategy(
   errors: string[],
   shouldAbort?: (error: any) => boolean
 ): Promise<any[] | null> {
+  // Troncal matches by destination name; a wrong candidate returns an empty
+  // (not an error). So keep trying candidates for a NON-empty hit, remembering
+  // a valid empty as the fallback. Return null only if every candidate threw —
+  // that signals a transport failure and lets the next strategy take over.
+  let emptyResult: any[] | null = null;
   for (const context of contexts) {
     try {
       const buses = await fetcher(context);
-      console.log(`[TM API] ${label} candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-      return buses;
+      if (buses.length > 0) {
+        console.log(`[TM API] ${label} candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
+        return buses;
+      }
+      emptyResult = buses;
     } catch (error: any) {
       errors.push(`[${label} ${context.candidateName}] ${error.message}`);
       if (shouldAbort?.(error)) break;
     }
   }
-  return null;
+  return emptyResult;
 }
 
 export async function fetchLiveBuses(

@@ -8,6 +8,20 @@ import type { Duplex } from 'stream';
 // because the per-request timeout only covers the post-connect phase.
 const PROXY_CONNECT_TIMEOUT_MS = 8000;
 
+// Verification budget. Real free CO proxies observed at 4.5–14s latency, so the
+// test must be patient enough to keep the slow-but-working ones.
+const TEST_TIMEOUT_MS = 12_000;
+const TEST_BATCH = 50;
+
+// Pool maintenance.
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // full re-scrape cadence
+const TOP_UP_INTERVAL_MS = 90 * 1000; // keep-warm check
+const TARGET_POOL_SIZE = 12; // re-scrape eagerly below this
+const MAX_TEST_CANDIDATES = 500; // bound work per refresh
+const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
+
+const LIVE_TEST_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+
 export class SimpleProxyAgent extends https.Agent {
   public proxyHost: string;
   public proxyPort: number;
@@ -76,69 +90,103 @@ export class SimpleProxyAgent extends https.Agent {
   }
 }
 
-interface ProxyItem {
+export interface ProxyItem {
   ip: string;
   port: number;
 }
 
+interface ProxyStat extends ProxyItem {
+  success: number;
+  failure: number;
+  latencyMs: number; // EMA of successful round-trips
+  lastOkAt: number;
+}
+
+function keyOf(ip: string, port: number): string {
+  return `${ip}:${port}`;
+}
+
 class ProxyManagerClass {
-  private verifiedProxies: ProxyItem[] = [];
+  private pool = new Map<string, ProxyStat>();
   private isTesting = false;
-  private checkInterval: NodeJS.Timeout | null = null;
   private refreshPromise: Promise<void> | null = null;
 
   constructor() {
-    // Start background refresh immediately
     this.refreshPromise = this.refresh().catch((err) => console.error('[ProxyManager] Init error:', err));
-    this.checkInterval = setInterval(() => this.refresh(), 15 * 60 * 1000); // 15 mins
-  }
-
-  public getWorkingProxy(): ProxyItem | null {
-    if (this.verifiedProxies.length === 0) return null;
-    // Pick the first one (round-robin style by shifting and pushing back)
-    const proxy = this.verifiedProxies.shift();
-    if (proxy) {
-      this.verifiedProxies.push(proxy);
-      return proxy;
-    }
-    return null;
-  }
-
-  public reportFailure(ip: string, port: number) {
-    console.log(`[ProxyManager] Removing failed proxy: ${ip}:${port}`);
-    this.verifiedProxies = this.verifiedProxies.filter(p => !(p.ip === ip && p.port === port));
-    if (this.verifiedProxies.length === 0) {
-      console.warn('[ProxyManager] No working proxies left! Triggering immediate refresh...');
-      this.refresh().catch((err) => console.error('[ProxyManager] Immediate refresh error:', err));
-    }
+    setInterval(() => this.refresh().catch(() => {}), REFRESH_INTERVAL_MS);
+    setInterval(() => {
+      // Keep-warm: re-scrape eagerly whenever the verified pool runs low.
+      if (this.pool.size < TARGET_POOL_SIZE) this.refresh().catch(() => {});
+    }, TOP_UP_INTERVAL_MS);
   }
 
   public getVerifiedCount(): number {
-    return this.verifiedProxies.length;
+    return this.pool.size;
   }
 
-  public getStats(): { verifiedCount: number; refreshing: boolean } {
-    return {
-      verifiedCount: this.verifiedProxies.length,
-      refreshing: this.isTesting,
-    };
+  public getStats(): { verifiedCount: number; refreshing: boolean; top: Array<{ proxy: string; latencyMs: number; success: number; failure: number }> } {
+    const top = [...this.pool.values()]
+      .sort((a, b) => this.score(b) - this.score(a))
+      .slice(0, 5)
+      .map((p) => ({ proxy: keyOf(p.ip, p.port), latencyMs: p.latencyMs, success: p.success, failure: p.failure }));
+    return { verifiedCount: this.pool.size, refreshing: this.isTesting, top };
+  }
+
+  /**
+   * Returns the best `n` proxies (highest score) without removing them, so the
+   * caller can race several in parallel. Scoring favours high success rate, low
+   * latency, and recent confirmation.
+   */
+  public getProxies(n: number): ProxyItem[] {
+    return [...this.pool.values()]
+      .sort((a, b) => this.score(b) - this.score(a))
+      .slice(0, Math.max(1, n))
+      .map((p) => ({ ip: p.ip, port: p.port }));
+  }
+
+  private score(p: ProxyStat): number {
+    const total = p.success + p.failure;
+    const rate = total ? p.success / total : 0.5;
+    const speed = p.latencyMs ? Math.max(0, 1 - p.latencyMs / TEST_TIMEOUT_MS) : 0.3;
+    const fresh = Math.max(0, 1 - (Date.now() - p.lastOkAt) / (5 * 60 * 1000));
+    return rate * 0.6 + speed * 0.25 + fresh * 0.15;
+  }
+
+  public reportSuccess(ip: string, port: number, latencyMs: number): void {
+    const k = keyOf(ip, port);
+    const p = this.pool.get(k);
+    if (!p) {
+      this.pool.set(k, { ip, port, success: 1, failure: 0, latencyMs, lastOkAt: Date.now() });
+      return;
+    }
+    p.success++;
+    p.lastOkAt = Date.now();
+    p.latencyMs = p.latencyMs ? Math.round(p.latencyMs * 0.7 + latencyMs * 0.3) : latencyMs;
+  }
+
+  public reportFailure(ip: string, port: number): void {
+    const k = keyOf(ip, port);
+    const p = this.pool.get(k);
+    if (!p) return;
+    p.failure++;
+    // Evict proxies that never worked, or that fail far more than they succeed.
+    if ((p.success === 0 && p.failure >= 3) || p.failure - p.success >= 4) {
+      this.pool.delete(k);
+    }
+    if (this.pool.size < TARGET_POOL_SIZE) this.refresh().catch(() => {});
   }
 
   public async waitForReady(timeoutMs = 12_000): Promise<number> {
-    if (this.verifiedProxies.length > 0) return this.verifiedProxies.length;
+    if (this.pool.size > 0) return this.pool.size;
 
-    const refresh = this.isTesting
-      ? this.refreshPromise
-      : this.refresh();
-
+    const refresh = this.isTesting ? this.refreshPromise : this.refresh();
     if (refresh) {
       await Promise.race([
         refresh.catch(() => undefined),
         new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
       ]);
     }
-
-    return this.verifiedProxies.length;
+    return this.pool.size;
   }
 
   public refresh(): Promise<void> {
@@ -146,27 +194,26 @@ class ProxyManagerClass {
     this.isTesting = true;
 
     this.refreshPromise = (async () => {
-      console.log('[ProxyManager] Refreshing Colombian proxy list...');
-
+      console.log('[ProxyManager] Refreshing Colombian proxy pool...');
       try {
-        const fetched = await this.fetchColombianProxies();
-        console.log(`[ProxyManager] Fetched ${fetched.length} proxies. Verifying...`);
-        
-        const verified: ProxyItem[] = [];
-        const batchSize = 20;
-        
-        for (let i = 0; i < fetched.length; i += batchSize) {
-          const batch = fetched.slice(i, i + batchSize);
-          const results = await Promise.all(batch.map(p => this.testProxy(p.ip, p.port)));
-          results.forEach((ok, idx) => {
-            if (ok) verified.push(batch[idx]);
+        const candidates = await this.fetchCandidates();
+        console.log(`[ProxyManager] ${candidates.length} candidates. Verifying against live API (geofence filters to CO)...`);
+
+        let verified = 0;
+        for (let i = 0; i < candidates.length; i += TEST_BATCH) {
+          const batch = candidates.slice(i, i + TEST_BATCH);
+          const results = await Promise.all(batch.map((p) => this.testProxy(p.ip, p.port)));
+          results.forEach((latency, idx) => {
+            if (latency !== null) {
+              // Add to the pool immediately so waitForReady() can return early.
+              this.reportSuccess(batch[idx].ip, batch[idx].port, latency);
+              verified++;
+            }
           });
         }
-
-        this.verifiedProxies = verified;
-        console.log(`[ProxyManager] Refresh complete. ${this.verifiedProxies.length} proxies verified and ready.`);
+        console.log(`[ProxyManager] Refresh complete. ${verified} newly verified; pool size ${this.pool.size}.`);
       } catch (err: any) {
-        console.error('[ProxyManager] Failed to refresh proxies:', err.message);
+        console.error('[ProxyManager] Refresh failed:', err.message);
       } finally {
         this.isTesting = false;
       }
@@ -175,120 +222,170 @@ class ProxyManagerClass {
     return this.refreshPromise;
   }
 
-  private async fetchColombianProxies(): Promise<ProxyItem[]> {
-    const list: ProxyItem[] = [];
-    
-    // Source 1: Geonode API
+  /**
+   * Gathers candidates from several free sources. CO-tagged sources go first
+   * (highest hit rate); a bounded slice of a global list tops up to catch CO
+   * proxies the tagged lists miss. The live-API test is the real CO filter.
+   */
+  private async fetchCandidates(): Promise<ProxyItem[]> {
+    const tagged = new Map<string, ProxyItem>();
+    const add = (map: Map<string, ProxyItem>, ip: string, port: number) => {
+      if (ip && Number.isFinite(port) && port > 0) map.set(keyOf(ip, port), { ip, port });
+    };
+
+    // Source: Geonode (CO, paginated JSON).
+    for (const page of [1, 2, 3]) {
+      try {
+        const data = await this.fetchJson(
+          `https://proxylist.geonode.com/api/proxy-list?limit=100&page=${page}&sort_by=lastChecked&sort_type=desc&country=CO&protocols=http`
+        );
+        if (Array.isArray(data?.data)) {
+          for (const item of data.data) add(tagged, String(item.ip), Number(item.port));
+        }
+      } catch (err: any) {
+        console.warn(`[ProxyManager] Geonode p${page} failed: ${err.message}`);
+      }
+    }
+
+    // Source: ProxyScrape (CO).
     try {
-      const geonodeUrl = 'https://proxylist.geonode.com/api/proxy-list?limit=40&page=1&sort_by=lastChecked&sort_type=desc&country=CO&protocols=http';
-      const geonodeData = await this.fetchJson(geonodeUrl);
-      if (geonodeData?.data && Array.isArray(geonodeData.data)) {
-        geonodeData.data.forEach((item: any) => {
-          if (item.ip && item.port) {
-            list.push({ ip: item.ip, port: Number(item.port) });
-          }
-        });
+      const text = await this.fetchText(
+        'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=10000&country=CO&ssl=all&anonymity=all'
+      );
+      for (const [ip, port] of this.parsePairs(text)) add(tagged, ip, port);
+    } catch (err: any) {
+      console.warn(`[ProxyManager] ProxyScrape failed: ${err.message}`);
+    }
+
+    // Source: proxy-list.download (CO).
+    try {
+      const text = await this.fetchText('https://www.proxy-list.download/api/v1/get?type=http&country=CO');
+      for (const [ip, port] of this.parsePairs(text)) add(tagged, ip, port);
+    } catch (err: any) {
+      console.warn(`[ProxyManager] proxy-list.download failed: ${err.message}`);
+    }
+
+    // Global top-up (bounded, shuffled) — geofence test keeps only CO exits.
+    const global = new Map<string, ProxyItem>();
+    try {
+      const text = await this.fetchText('https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt');
+      for (const [ip, port] of this.parsePairs(text)) {
+        const k = keyOf(ip, port);
+        if (!tagged.has(k)) add(global, ip, port);
       }
     } catch (err: any) {
-      console.warn(`[ProxyManager] Source Geonode failed: ${err.message}`);
+      console.warn(`[ProxyManager] Global list failed: ${err.message}`);
     }
 
-    // Source 2: ProxyScrape API
-    try {
-      const scrapeUrl = 'https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=5000&country=CO&ssl=all&anonymity=all';
-      const text = await this.fetchText(scrapeUrl);
-      const lines = text.split('\n');
-      lines.forEach(line => {
-        const parts = line.trim().split(':');
-        if (parts.length === 2) {
-          const ip = parts[0];
-          const port = Number(parts[1]);
-          if (ip && !isNaN(port)) {
-            // Avoid duplicates
-            if (!list.some(p => p.ip === ip && p.port === port)) {
-              list.push({ ip, port });
-            }
-          }
-        }
-      });
-    } catch (err: any) {
-      console.warn(`[ProxyManager] Source ProxyScrape failed: ${err.message}`);
-    }
-
-    return list;
+    const fill = this.shuffle([...global.values()]).slice(0, MAX_GLOBAL_FILL);
+    const all = [...tagged.values(), ...fill];
+    return all.slice(0, MAX_TEST_CANDIDATES);
   }
 
-  private async testProxy(ip: string, port: number): Promise<boolean> {
+  /** Resolves with round-trip latency (ms) if the proxy reaches the live API from CO, else null. */
+  private testProxy(ip: string, port: number): Promise<number | null> {
     return new Promise((resolve) => {
-      const agent = new SimpleProxyAgent(ip, port);
-      
-      const req = https.request({
-        hostname: 'tmsa-transmiapp-shvpc.uc.r.appspot.com',
-        port: 443,
-        path: '/location/ruta?ruta=111',
-        method: 'POST',
-        headers: {
-          'Content-Length': 0,
-          'Accept-Encoding': 'identity',
-          'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-          'User-Agent': 'okhttp/4.12.0',
-          'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-          'version': '2.9.5',
-        },
-        agent,
-        timeout: 8000, // 8 seconds timeout to allow slow but functional proxies to succeed
-      }, (res) => {
-        let body = '';
-        res.on('data', chunk => body += chunk);
-        res.on('end', () => {
-          if (res.statusCode !== 200) {
-            resolve(false);
-            return;
-          }
-          try {
-            const parsed = JSON.parse(body);
-            if (parsed?.status === 401 || parsed?.title === 'Unauthorized') {
-              resolve(false);
-            } else if (body.includes('latitude') || body.includes('longitude')) {
-              resolve(true);
-            } else {
-              resolve(false);
-            }
-          } catch (e) {
-            resolve(false);
-          }
-        });
-      });
+      const started = Date.now();
+      let done = false;
+      const finish = (value: number | null) => {
+        if (!done) {
+          done = true;
+          resolve(value);
+        }
+      };
 
-      req.on('error', () => resolve(false));
+      const agent = new SimpleProxyAgent(ip, port);
+      const req = https.request(
+        {
+          hostname: LIVE_TEST_HOST,
+          port: 443,
+          path: '/location/ruta?ruta=111',
+          method: 'POST',
+          headers: {
+            'Content-Length': 0,
+            'Accept-Encoding': 'identity',
+            Appid: '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+            'User-Agent': 'okhttp/4.12.0',
+            uuid: 'fd1be953-d85e-4c63-8c23-234f143f445d',
+            version: '2.9.5',
+          },
+          agent,
+          timeout: TEST_TIMEOUT_MS,
+        },
+        (res) => {
+          let body = '';
+          res.on('data', (chunk) => (body += chunk));
+          res.on('end', () => {
+            if (res.statusCode !== 200) return finish(null);
+            try {
+              const parsed = JSON.parse(body);
+              if (parsed?.status === 401 || parsed?.title === 'Unauthorized') return finish(null);
+            } catch {
+              // not JSON → fall through to the coord check below
+            }
+            finish(body.includes('latitude') && body.includes('longitude') ? Date.now() - started : null);
+          });
+        }
+      );
+
+      req.on('error', () => finish(null));
       req.on('timeout', () => {
         req.destroy();
-        resolve(false);
+        finish(null);
       });
-
       req.end();
     });
   }
 
+  private parsePairs(text: string): Array<[string, number]> {
+    const out: Array<[string, number]> = [];
+    const re = /(\d{1,3}(?:\.\d{1,3}){3}):(\d{2,5})/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(text)) !== null) out.push([m[1], Number(m[2])]);
+    return out;
+  }
+
+  private shuffle<T>(arr: T[]): T[] {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
   private fetchJson(url: string): Promise<any> {
     return new Promise((resolve, reject) => {
-      https.get(url, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      https
+        .get(url, { timeout: 10_000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (e) {
+              reject(e);
+            }
+          });
+        })
+        .on('error', reject)
+        .on('timeout', function (this: http.ClientRequest) {
+          this.destroy(new Error('timeout'));
         });
-      }).on('error', reject);
     });
   }
 
   private fetchText(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      https.get(url, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => resolve(data));
-      }).on('error', reject);
+      https
+        .get(url, { timeout: 10_000 }, (res) => {
+          let data = '';
+          res.on('data', (chunk) => (data += chunk));
+          res.on('end', () => resolve(data));
+        })
+        .on('error', reject)
+        .on('timeout', function (this: http.ClientRequest) {
+          this.destroy(new Error('timeout'));
+        });
     });
   }
 }

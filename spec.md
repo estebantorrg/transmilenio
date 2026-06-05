@@ -85,7 +85,7 @@ x-relay-secret: <secret>
 ### 4.2 Vite Client (Graceful Degradation)
 * **Outage Fallback**: Master catalog is critical. If loading fails, blocking UI overlay shown.
 * **ArcGIS Failure**: If ArcGIS troncal routes/corridors fail, map still renders routes using coordinates from catalog traces.
-* **Live Outage**: If live tracking fails, route detail panel continues displaying static timeline stops.
+* **Live Outage**: If live tracking fails, route detail panel continues displaying static timeline stops. If a recent fix is cached (§5.2.5), the server serves it tagged `stale`/`asOf` and the client shows the last positions with a "datos de HH:MM" indicator rather than blanking the map.
 
 ### 4.3 Database & Catalog Writes
 * **Atomic Writing**: `syncMasterCatalog()` writes to temp file (`master_catalog.json.tmp`), atomic rename once successful.
@@ -162,7 +162,15 @@ x-relay-secret: <secret>
 #### 5.2.4 Normalization & Polling
 * Normalizes response keys (`data`, `buses`, `vehiculos`, `lat`/`lng`) into unified model.
 * Polling triggered in 15s intervals. Overlapping requests avoided via `fetchInFlight` locks.
-* **Name Candidates**: Backend tries multiple destination/origin candidate strings sequentially to hit troncal APIs.
+* **Name Candidates**: Backend tries destination/origin candidate strings for troncal, preferring the first **non-empty** hit (a wrong name returns empty, not an error); falls through only when every candidate's transport throws.
+
+#### 5.2.5 Public CO Proxy Resilience (no card / host / install)
+When no CO egress is otherwise available, set `TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1` and the main server reaches the live API through free public Colombian proxies. Hardened for the inherent flakiness of free proxies:
+* **Pool** (`proxy_manager.ts`): scrapes multiple sources (Geonode CO pages, ProxyScrape CO, proxy-list.download CO, + a bounded global top-up). Every candidate is verified against the live API — the **geofence is the filter** (only CO exits return coordinates). Verified proxies are scored by success rate, latency, and recency; the pool is kept warm (10-min full refresh + 90-s top-up below `TARGET_POOL_SIZE`) and failing proxies are evicted.
+* **Race**: each live request fires the best `CO_PROXY_RACE_WIDTH` (default 5) proxies in parallel and takes the fastest valid response; slower in-flight proxies are aborted. Per-proxy timeout `LIVE_PROXY_TIMEOUT_MS` (default 14 s; observed proxies 3–14 s).
+* **Last-known cache** (`/api/buses`): the most recent non-empty fix per `routeType:ruta` is cached (10-min TTL). If every upstream path is momentarily down, the server serves it tagged `stale: true` + `asOf` instead of a blank map; the client renders it with a "datos de HH:MM" indicator (spec §4.2).
+* **Observability**: `GET /api/health` exposes `proxyPool` (verified count, top proxies w/ latency) and `liveCacheEntries` when the fallback is enabled.
+* **Honest limitation**: free proxies are best-effort; live tracking is intermittent. Reliable CO egress requires a card (cloud), a CO device, or a per-user install (extension/native) — see §5.2.1a / §5.2.2.
 
 ---
 

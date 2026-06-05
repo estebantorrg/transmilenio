@@ -303,7 +303,7 @@ function showRouteDetail(route: RouteListItem): void {
   panel.classList.remove('hidden');
 }
 
-export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error'): void {
+export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number): void {
   const card = document.getElementById('live-tracking-status');
   const dotEl = card?.querySelector('.live-status-dot');
   const textEl = card?.querySelector('.live-status-text');
@@ -340,6 +340,19 @@ export function updateLiveBusStatus(count: number, status: 'loading' | 'success'
       textEl.textContent = 'Error al rastrear buses en vivo';
       chipEl.textContent = 'Atrasado';
       break;
+    case 'stale': {
+      // Cached positions served during an upstream outage.
+      dotEl.classList.add('stale');
+      chipEl.classList.add('stale');
+      const at = typeof asOf === 'number'
+        ? new Date(asOf).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
+        : '';
+      textEl.textContent = at
+        ? `Mostrando ${count} bus${count > 1 ? 'es' : ''} (datos de ${at})`
+        : `Mostrando ${count} bus${count > 1 ? 'es' : ''} (datos recientes)`;
+      chipEl.textContent = 'Demorado';
+      break;
+    }
   }
 }
 

@@ -277,7 +277,7 @@ export function startBusTracking(
   destinationName: string,
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[] = [],
-  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
+  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
 ): void {
   injectMarkerStyles();
   stopBusTracking();
@@ -302,7 +302,7 @@ async function fetchAndRenderBuses(
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[],
   sessionId: number,
-  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error') => void
+  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
 ): Promise<void> {
   if (fetchInFlight) {
     console.debug(`[Tracking] Skipping poll for ${routeCode}; previous live request still pending`);
@@ -371,10 +371,14 @@ async function fetchAndRenderBuses(
 
     activeMarkers = nextMarkers;
 
+    // Server tags `stale` when it served last-known positions during an upstream
+    // outage (spec §4.2) — render them, but flag the data as delayed.
+    const stale = !!(res && (res as any).stale);
+    const asOf = res && typeof (res as any).asOf === 'number' ? (res as any).asOf : undefined;
     if (buses.length === 0) {
       onUpdate?.(0, 'empty');
     } else {
-      onUpdate?.(buses.length, 'success');
+      onUpdate?.(buses.length, stale ? 'stale' : 'success', asOf);
     }
   } catch (err) {
     console.error(`[Tracking] Failed to fetch live buses for ${routeCode}:`, err);

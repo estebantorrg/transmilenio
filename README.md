@@ -95,6 +95,30 @@ TRANSMILENIO_COLOMBIA_RELAY_URL=https://<machine>.<tailnet>.ts.net
 TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
 ```
 
+#### Zero-setup fallback: public Colombian proxies
+
+No card, host, device, or install? Let the main server reach the live API through
+free public Colombian proxies:
+
+```bash
+TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1
+```
+
+The server scrapes several free proxy sources, **verifies each against the live
+API** (only Colombian exits return data — the geofence is the filter), keeps a
+warm scored pool, and **races the fastest few** proxies per request. A
+**last-known-position cache** serves the most recent fix (tagged "datos de HH:MM")
+whenever every proxy is momentarily down, so the map never blanks. Pool health is
+visible at `GET /api/health` → `proxyPool`.
+
+> **Honest limitation:** free proxies are best-effort — live tracking will be
+> **intermittent**, not solid. There is no free way to make it reliable without a
+> card (cloud), a Colombian device, or a per-user install. This is the floor of
+> what's achievable with none of those.
+
+Tunables: `LIVE_PROXY_TIMEOUT_MS` (default `14000`), `CO_PROXY_RACE_WIDTH`
+(default `5`).
+
 ---
 
 ## 🚀 Getting Started

@@ -1219,6 +1219,11 @@ body {
   color: var(--status-delayed-fg);
 }
 
+.live-status-chip.stale {
+  background: #3A2F12;
+  color: #D8A23A;
+}
+
 .live-status-dot {
   width: 8px;
   height: 8px;
@@ -1243,6 +1248,10 @@ body {
 
 .live-status-dot.error {
   background: #EF4444; /* red */
+}
+
+.live-status-dot.stale {
+  background: #D8A23A; /* amber — cached/delayed data */
 }
 
 .live-status-text {

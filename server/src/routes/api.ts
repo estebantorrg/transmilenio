@@ -11,6 +11,14 @@ const router = Router();
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+/**
+ * Last-known live-bus positions per route. When every upstream path (direct,
+ * relay, CO proxies) is momentarily down, we serve the most recent real fix
+ * tagged `stale` instead of a blank map (spec §4.2 graceful degradation).
+ */
+const liveBusCache = new Map<string, { buses: any[]; at: number }>();
+const LIVE_BUS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
 async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promise<any> {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -160,21 +168,36 @@ router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
 });
 
 router.post('/buses', async (req: Request, res: Response) => {
+  const ruta = req.body.ruta;
+  const nombre = req.body.Nombre ?? req.body.nombre ?? '';
+  const nombreCandidates = Array.isArray(req.body.nombreCandidates) ? req.body.nombreCandidates : [];
+  const routeType: 'troncal' | 'zonal' = req.body.type === 'zonal' ? 'zonal' : 'troncal';
+  const cacheKey = `${routeType}:${ruta}`;
+
+  if (!ruta) {
+    res.status(400).json({ success: false, error: 'ruta is required' });
+    return;
+  }
+
   try {
-    const { ruta } = req.body;
-    const nombre = req.body.Nombre ?? req.body.nombre ?? '';
-    const nombreCandidates = Array.isArray(req.body.nombreCandidates) ? req.body.nombreCandidates : [];
-    const routeType = req.body.type === 'zonal' ? 'zonal' : 'troncal';
     console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}" type=${routeType}`);
-    if (!ruta) {
-      res.status(400).json({ success: false, error: 'ruta is required' });
-      return;
-    }
-    const buses = await tmApi.fetchLiveBuses(ruta, nombre, routeType as 'troncal' | 'zonal', nombreCandidates);
+    const buses = await tmApi.fetchLiveBuses(ruta, nombre, routeType, nombreCandidates);
     console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}"`);
-    res.json({ success: true, count: buses.length, data: buses });
+    // Cache only non-empty fixes; an empty result is a valid "no buses now".
+    if (buses.length > 0) liveBusCache.set(cacheKey, { buses, at: Date.now() });
+    res.json({ success: true, count: buses.length, data: buses, stale: false });
   } catch (error: any) {
     console.error('[/buses] Error fetching live buses:', error);
+
+    // Graceful degradation: serve the last known positions if still fresh.
+    const cached = liveBusCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < LIVE_BUS_CACHE_TTL) {
+      const ageS = Math.round((Date.now() - cached.at) / 1000);
+      console.log(`[/buses] Serving last-known ${cached.buses.length} buses for "${cacheKey}" (stale ${ageS}s)`);
+      res.json({ success: true, count: cached.buses.length, data: cached.buses, stale: true, asOf: cached.at });
+      return;
+    }
+
     const msg = error.message || '';
     const payload: Record<string, any> = { success: false };
     if (req.query.debug === '1') {
@@ -279,16 +302,30 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/health', (_req: Request, res: Response) => {
-  res.json({
+router.get('/health', async (_req: Request, res: Response) => {
+  const body: Record<string, any> = {
     status: 'ok',
     cacheEntries: cache.size,
+    liveCacheEntries: liveBusCache.size,
     catalogStations: Object.keys(tmApi.getCatalog().stations || {}).length,
     catalogStale: tmApi.isCatalogStale(),
     liveTrackingVersion: tmApi.LIVE_TRACKING_VERSION,
     syncInProgress: tmApi.isSyncInProgress(),
     uptime: process.uptime(),
-  });
+  };
+
+  // Surface the proxy pool only when the fallback is enabled (importing it boots
+  // the background scraper, so we don't load it otherwise).
+  if (process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1') {
+    try {
+      const { ProxyManager } = await import('../services/proxy_manager.js');
+      body.proxyPool = ProxyManager.getStats();
+    } catch {
+      /* pool stats are best-effort */
+    }
+  }
+
+  res.json(body);
 });
 
 export default router;

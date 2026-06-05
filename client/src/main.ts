@@ -685,7 +685,7 @@ async function main(): Promise<void> {
         route.liveNameCandidates[0] || route.catalogNombre || route.name || route.destination,
         route.type,
         route.liveNameCandidates,
-        (count, status) => updateLiveBusStatus(count, status)
+        (count, status, asOf) => updateLiveBusStatus(count, status, asOf)
       );
 
       if (route.geometry && route.geometry.paths) {
