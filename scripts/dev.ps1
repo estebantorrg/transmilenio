@@ -25,7 +25,7 @@ try {
   $processes += Start-AppProcess -Name "Vite client" -WorkingDirectory (Join-Path $root "client")
 
   Write-Host ""
-  Write-Host "API:    http://localhost:3001"
+  Write-Host "API:    http://localhost:3002"
   Write-Host "Client: http://localhost:5173"
   Write-Host "Press Ctrl+C to stop both processes."
   Write-Host ""

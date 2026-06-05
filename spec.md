@@ -40,15 +40,16 @@ These rules govern every change. Violations block merge.
 
 ```
 Browser (MapLibre GL JS) → Express API (Node.js) → Master Catalog (Local JSON)
-                                ↓             ↓
-                          ArcGIS Server   Colombia Live Relay
+        │                          ↓             ↓
+        │                    ArcGIS Server   Colombia Live Relay / public CO proxy
+        └─ live (§5.2.1a): Live Bridge extension / CO relay direct → TransMi live API
 ```
 
 ### 2.3 Architecture Rules
 
 * **Client Isolation**: Vite client is presentation layer only. Manages MapLibre layers, search states, timeline renderings. Requests `/api/*` from backend, never calls external transit APIs directly. **Exception — live tracking (§5.2):** when the Live Bridge extension is present, the client routes live-bus requests through it so they originate from the *user's* Colombian connection; the page itself still never `fetch`es the live API (browser CORS forbids it), and absent the extension it falls back to `/api/buses`.
 * **Express Engine**: Backend Express API is data aggregator and query cache. Sole component reading master catalog JSON or calling external ArcGIS/TransMi endpoints.
-* **Relay Separation**: Live vehicle positions routed through separate Colombia-based relay for geographic API constraints. Main Express backend communicates with relay using authorization secret.
+* **Relay Separation**: Live vehicle positions routed through a separate Colombia-based relay for geographic API constraints. The main Express backend authorizes server→relay requests with a secret (§3.1); in browser-direct mode the relay instead trusts allow-listed origins via CORS (§5.2.2).
 
 ---
 
@@ -78,9 +79,9 @@ x-relay-secret: <secret>
 ## 4. Error Handling & Resilience
 
 ### 4.1 Express API
-* **No Silent Failures**: Unhandled exceptions caught and logged. Errors written to `error.log`.
-* **Structured Responses**: Error endpoints return `{ status: "error", message: string }`.
-* **Resilient Upstream Handling**: If ArcGIS/TransMi APIs timeout or error, API returns structured HTTP fallback status — no crashes, no leaked stack traces.
+* **No Silent Failures**: Unhandled exceptions are caught and logged server-side; clients never receive stack traces.
+* **Structured Responses**: Routing/unknown-endpoint errors return `{ status: "error", message: string }`; data endpoints return `{ success: false, error: string }`.
+* **Resilient Upstream Handling**: If ArcGIS/TransMi APIs timeout or error, API returns a structured HTTP fallback status — no crashes, no leaked stack traces.
 
 ### 4.2 Vite Client (Graceful Degradation)
 * **Outage Fallback**: Master catalog is critical. If loading fails, blocking UI overlay shown.
@@ -156,7 +157,7 @@ x-relay-secret: <secret>
 
 #### 5.2.3 Endpoint Requests
 * **Troncal**: `POST /buses` with body `{"ruta": "<code-e.g.-B75>", "Nombre": "<name>"}`.
-  * Headers: `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea`, `User-Agent: okhttp/4.12.0`, `version: 2.9.5`.
+  * Headers: `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` (only required one — §5.2.1), plus `User-Agent: okhttp/4.12.0`, `version: 2.9.5`, `uuid` sent by the server/proxy paths for parity. Browser-based paths (extension/relay-direct) send `Appid` + `Content-Type` only.
 * **Zonal**: `POST /location/ruta?ruta=<route_code>` with empty body.
 
 #### 5.2.4 Normalization & Polling
@@ -220,17 +221,19 @@ Aggregates route tags from ArcGIS `consulta_paraderos_rutas` and catalog fallbac
 
 #### 5.5.1 API Endpoints
 All mounted on `/api`:
-* `GET /api/health`: Exposes catalog status (`stale`, `syncInProgress`), cache entry counts, system uptime.
+* `GET /api/health`: Exposes catalog status (`catalogStale`, `syncInProgress`, `catalogStations`), ArcGIS + live cache entry counts (`cacheEntries`, `liveCacheEntries`), `liveTrackingVersion`, uptime, and — when the public-proxy fallback is enabled — `proxyPool` stats (§5.2.5).
 * `GET /api/debug-buses`: Test payload endpoint (tests route `1` / `Universidades`).
-* `/api/troncal/routes`, `/api/troncal/stations`, `/api/troncal/route/:code`, `/api/troncal/station/:code`, `/api/zonal/routes`, `/api/zonal/stops`, `/api/zonal/stop-routes`, `POST /api/buses`.
+* `GET /api/geoip`: Approximate client location from IP (fallback when native geolocation is blocked; zero PII stored — §3.3).
+* `GET /api/troncal/routes`, `/api/troncal/stations`, `/api/troncal/corridors`, `/api/troncal/master-catalog`, `/api/troncal/route/:code`, `/api/troncal/station/:code`, `POST /api/troncal/sync`, `/api/zonal/routes`, `/api/zonal/stops`, `/api/zonal/stop-routes`, `POST /api/buses`.
 
 #### 5.5.2 Caching & Timeouts
 * **Caching**: ArcGIS endpoints cached in-memory with 10-minute TTL.
 * **Timeouts**:
   * Catalog API request: 15s.
-  * Official live API request: 9s.
+  * Official live API request (direct): 9s.
   * Colombia relay query: 12s.
-  * Public proxy fallback validation: 18s.
+  * Public live proxy request: 14s (`LIVE_PROXY_TIMEOUT_MS`), raced across the best `CO_PROXY_RACE_WIDTH` (5) proxies.
+  * Public proxy pool readiness wait: 18s; per-proxy verification test: 12s.
   * Relay health checks: 5s.
 
 #### 5.5.3 Port Standardization
@@ -315,7 +318,7 @@ System aligns with spec when:
 1. **Catalog Fallback**: Client loads and initiates search from local master catalog.
 2. **Interactive Search**: Users search/select routes, showing correct traces, schedules, timelines.
 3. **Layer Integration**: Station popups render wagon assignments. Zonal stops map correct routes.
-4. **Relay Operations**: Live tracking routes queries to Colombia relay, showing loading/tracking/empty/error states.
+4. **Live Operations**: Live tracking resolves through the cascade (Live Bridge extension → CO relay direct → server `/api/buses` → public CO proxy), showing loading/tracking/empty/error/stale states.
 5. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
 
 ## 6. Future Goals & Rules

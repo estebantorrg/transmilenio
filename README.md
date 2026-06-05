@@ -1,7 +1,5 @@
 # TransMilenio Explorer 🚌
 
-![TransMilenio Explorer Mockup](./assets/mockup.png)
-
 ## Overview
 **TransMilenio Explorer** is a high-performance, premium web application designed to visualize and explore the TransMilenio and SITP transit network in Bogotá, Colombia. It provides a real-time-like experience for checking routes, station layouts, and wagon distributions using an interactive map interface.
 
