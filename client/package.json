@@ -10,7 +10,9 @@
   },
   "dependencies": {
     "@turf/turf": "^7.3.5",
-    "maplibre-gl": "^4.7.0"
+    "@types/three": "^0.184.1",
+    "maplibre-gl": "^4.7.0",
+    "three": "^0.184.0"
   },
   "devDependencies": {
     "typescript": "^5.6.0",

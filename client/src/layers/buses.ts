@@ -1,19 +1,27 @@
 /**
  * Live Bus Tracking Layer
  *
- * Fetches real-time bus locations and renders them on the map
- * using gorgeous high-performance glassmorphic markers with pulsing glows.
+ * Fetches real-time bus locations and renders each one as a 3D bus model
+ * (`bus.glb`) via the MapLibre custom WebGL layer in `busModelLayer.ts`.
+ * The same model is used for every bus type (troncal / zonal / alimentador).
+ * Bus details are shown in a popup when a model is clicked (pixel-picked).
  */
 
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
 import { escapeHTML } from '../utils/html';
+import { setBusModels, clearBusModels, type LiveBusInput } from './busModelLayer';
 
-let activeMarkers: maplibregl.Marker[] = [];
 let trackingInterval: number | null = null;
-let styleInjected = false;
 let fetchInFlight = false;
 let trackingSessionId = 0;
+
+// Current frame's buses + context, kept for click-to-popup picking.
+let currentBuses: LiveBus[] = [];
+let currentRouteType: 'troncal' | 'zonal' = 'troncal';
+let busPopup: maplibregl.Popup | null = null;
+let clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
+let boundMap: maplibregl.Map | null = null;
 
 type LiveBus = {
   id: string;
@@ -115,147 +123,6 @@ function extractLiveBuses(response: any, routeCode: string): LiveBus[] | null {
     .filter((bus): bus is LiveBus => bus !== null);
 }
 
-// ─── Style Injection ─────────────────────────────────────
-
-function injectMarkerStyles(): void {
-  if (styleInjected) return;
-  styleInjected = true;
-
-  const style = document.createElement('style');
-  style.id = 'live-bus-marker-styles';
-  style.textContent = `
-    .live-bus-marker {
-      /* MUST be absolute: MapLibre positions markers via transform translate().
-         With position:relative the markers stay in document flow and stack
-         vertically, so the translate lands them off by the stack height
-         (correct X, drifting Y) — worse the further you zoom out. */
-      position: absolute;
-      width: 58px;
-      height: 58px;
-      cursor: pointer;
-      z-index: 120;
-    }
-    .bus-badge-container {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .bus-badge-circle {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: rgba(10, 15, 30, 0.88);
-      backdrop-filter: blur(4px);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
-      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-      z-index: 2;
-    }
-    .live-bus-marker:hover .bus-badge-circle {
-      transform: scale(1.18);
-      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.7);
-    }
-    .bus-badge-circle.troncal {
-      border: 2px solid #EF4444; /* TransMi Red */
-    }
-    .bus-badge-circle.zonal {
-      border: 2px solid #3B82F6; /* SITP Blue */
-    }
-    .bus-emoji {
-      font-size: 30px;
-      line-height: 1;
-      user-select: none;
-    }
-    .bus-badge-glow {
-      position: absolute;
-      width: 54px;
-      height: 54px;
-      border-radius: 50%;
-      filter: blur(6px);
-      animation: bus-pulse-anim 1.8s infinite alternate ease-in-out;
-      z-index: 1;
-      opacity: 0.75;
-    }
-    .bus-badge-glow.troncal {
-      background: rgba(239, 68, 68, 0.45);
-    }
-    .bus-badge-glow.zonal {
-      background: rgba(59, 130, 246, 0.45);
-    }
-    .bus-direction-indicator {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      z-index: 3;
-      pointer-events: none;
-      transition: transform 0.3s ease;
-    }
-    .direction-arrow {
-      position: absolute;
-      top: -3px;
-      left: calc(50% - 5px);
-      width: 0;
-      height: 0;
-      border-left: 5px solid transparent;
-      border-right: 5px solid transparent;
-      border-bottom: 8px solid #10B981; /* Neon green indicator */
-      filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5));
-    }
-    .bus-popup-card {
-      padding: 10px 12px;
-      font-family: 'Inter', system-ui, sans-serif;
-      min-width: 150px;
-    }
-    .bus-popup-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: #F8FAFC;
-      margin-bottom: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .bus-popup-system {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-weight: 600;
-      padding: 2px 5px;
-      border-radius: 3px;
-      background: rgba(255,255,255,0.08);
-    }
-    .bus-popup-system.troncal {
-      color: #F87171;
-    }
-    .bus-popup-system.zonal {
-      color: #60A5FA;
-    }
-    .bus-popup-row {
-      font-size: 11px;
-      color: #94A3B8;
-      display: flex;
-      justify-content: space-between;
-      margin-top: 3px;
-    }
-    .bus-popup-value {
-      color: #E2E8F0;
-      font-weight: 500;
-    }
-    @keyframes bus-pulse-anim {
-      0% { transform: scale(0.9); opacity: 0.45; }
-      100% { transform: scale(1.22); opacity: 0.9; }
-    }
-  `;
-  document.head.appendChild(style);
-}
-
 // ─── Tracking API Logic ──────────────────────────────────
 
 export function stopBusTracking(): void {
@@ -267,8 +134,14 @@ export function stopBusTracking(): void {
     trackingInterval = null;
   }
 
-  activeMarkers.forEach((marker) => marker.remove());
-  activeMarkers = [];
+  currentBuses = [];
+  if (boundMap) {
+    clearBusModels(boundMap);
+    if (clickHandler) boundMap.off('click', clickHandler);
+  }
+  clickHandler = null;
+  busPopup?.remove();
+  busPopup = null;
 }
 
 export function startBusTracking(
@@ -279,12 +152,31 @@ export function startBusTracking(
   nombreCandidates: string[] = [],
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
 ): void {
-  injectMarkerStyles();
   stopBusTracking();
 
   console.log(`[Tracking] Started live tracking for ${routeCode} -> ${destinationName}`);
   const sessionId = ++trackingSessionId;
-  
+  currentRouteType = routeType;
+  boundMap = map;
+
+  // Click-to-inspect: pick the nearest bus model to the click in screen space.
+  clickHandler = (e) => {
+    let best: LiveBus | null = null;
+    let bestDist = Infinity;
+    for (const bus of currentBuses) {
+      const p = map.project([bus.longitude, bus.latitude]);
+      const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
+      if (d < bestDist) { bestDist = d; best = bus; }
+    }
+    if (best && bestDist < 26) {
+      if (!busPopup) {
+        busPopup = new maplibregl.Popup({ className: 'tm-popup', closeButton: true, closeOnClick: true, maxWidth: '240px', offset: 18 });
+      }
+      busPopup.setLngLat([best.longitude, best.latitude]).setHTML(buildBusPopupHTML(best, currentRouteType)).addTo(map);
+    }
+  };
+  map.on('click', clickHandler);
+
   // Initial fetch
   onUpdate?.(0, 'loading');
   fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
@@ -313,11 +205,10 @@ async function fetchAndRenderBuses(
 
   try {
     const res = await api.getLiveBuses(routeCode, destinationName, routeType, nombreCandidates);
-    
+
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null || sessionId !== trackingSessionId) return;
 
-    console.log(`[Tracking] Raw API response for ${routeCode}:`, JSON.stringify(res).slice(0, 500));
     const buses = extractLiveBuses(res, routeCode);
     if (!buses) {
       console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
@@ -326,50 +217,15 @@ async function fetchAndRenderBuses(
     }
 
     console.log(`[Tracking] Fetched ${buses.length} live buses for ${routeCode}`);
+    currentBuses = buses;
 
-    // Map existing markers by bus ID to update them smoothly instead of rebuilding everything
-    const busMap = new Map<string, LiveBus>();
-    buses.forEach((bus) => {
-      busMap.set(bus.id, bus);
-    });
-
-    // Remove markers for buses that are no longer active
-    const nextMarkers: maplibregl.Marker[] = [];
-    activeMarkers.forEach((marker) => {
-      const el = marker.getElement();
-      const busId = el.getAttribute('data-bus-id');
-      if (busId && busMap.has(busId)) {
-        const bus = busMap.get(busId)!;
-        // Smoothly update location
-        marker.setLngLat([bus.longitude, bus.latitude]);
-        
-        // Update direction arrow angle
-        const arrow = el.querySelector('.bus-direction-indicator') as HTMLElement;
-        if (arrow && bus.angulo != null) {
-          arrow.style.transform = `rotate(${bus.angulo}deg)`;
-        }
-        
-        // Update popup info in case lasttime changed
-        const popup = marker.getPopup();
-        if (popup) {
-          popup.setHTML(buildBusPopupHTML(bus, routeType));
-        }
-        
-        nextMarkers.push(marker);
-        busMap.delete(busId); // Handled
-      } else {
-        marker.remove();
-      }
-    });
-
-    // Add new markers for newly discovered buses
-    busMap.forEach((bus) => {
-      const marker = createBusMarker(bus, routeType);
-      marker.addTo(map);
-      nextMarkers.push(marker);
-    });
-
-    activeMarkers = nextMarkers;
+    const inputs: LiveBusInput[] = buses.map((bus) => ({
+      id: bus.id,
+      lng: bus.longitude,
+      lat: bus.latitude,
+      heading: bus.angulo,
+    }));
+    setBusModels(map, inputs);
 
     // Server tags `stale` when it served last-known positions during an upstream
     // outage (spec §4.2) — render them, but flag the data as delayed.
@@ -392,12 +248,12 @@ async function fetchAndRenderBuses(
   }
 }
 
-// ─── Helper Functions ────────────────────────────────────
+// ─── Popup ───────────────────────────────────────────────
 
 function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
   const sysClass = routeType === 'troncal' ? 'troncal' : 'zonal';
   const sysLabel = bus.nombre_sistema || (routeType === 'troncal' ? 'TransMilenio' : 'SITP Zonal');
-  
+
   return `
     <div class="bus-popup-card">
       <div class="bus-popup-title">
@@ -419,50 +275,4 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
       </div>` : ''}
     </div>
   `;
-}
-
-function createBusMarker(bus: LiveBus, routeType: 'troncal' | 'zonal'): maplibregl.Marker {
-  const el = document.createElement('div');
-  el.className = 'live-bus-marker';
-  el.setAttribute('data-bus-id', String(bus.id));
-
-  const sysClass = routeType === 'troncal' ? 'troncal' : 'zonal';
-  const angulo = bus.angulo != null ? bus.angulo : 0;
-
-  el.innerHTML = `
-    <div class="bus-badge-container">
-      <div class="bus-badge-glow ${sysClass}"></div>
-      <div class="bus-badge-circle ${sysClass}">
-        <span class="bus-emoji">🚌</span>
-      </div>
-      <div class="bus-direction-indicator" style="transform: rotate(${angulo}deg);">
-        <div class="direction-arrow"></div>
-      </div>
-    </div>
-  `;
-
-  // Create popup for bus info
-  const popup = new maplibregl.Popup({
-    className: 'tm-popup',
-    closeButton: false,
-    closeOnClick: false,
-    focusAfterOpen: false,
-    maxWidth: '220px',
-    offset: 16,
-  }).setHTML(buildBusPopupHTML(bus, routeType));
-
-  const marker = new maplibregl.Marker({
-    element: el,
-    anchor: 'center',
-  }).setLngLat([bus.longitude, bus.latitude]).setPopup(popup);
-
-  // Show popup on hover
-  el.addEventListener('mouseenter', () => {
-    if (!marker.getPopup().isOpen()) marker.togglePopup();
-  });
-  el.addEventListener('mouseleave', () => {
-    if (marker.getPopup().isOpen()) marker.togglePopup();
-  });
-
-  return marker;
 }

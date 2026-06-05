@@ -31,7 +31,7 @@ These rules govern every change. Violations block merge.
 
 | Layer | Technology |
 |---|---|
-| **Frontend Client** | Vite 5 + TypeScript + MapLibre GL JS |
+| **Frontend Client** | Vite 5 + TypeScript + MapLibre GL JS + three.js (3D bus layer, §5.2.6) |
 | **Backend API** | Node.js + Express + TypeScript (compiled to ESModule) |
 | **Data Sync / Exec** | tsx (TypeScript Execute) + PowerShell scripts |
 | **Data / Cache** | Local JSON (`master_catalog.json`) + In-memory TTL caches |
@@ -172,6 +172,15 @@ When no CO egress is otherwise available, set `TRANSMILENIO_ALLOW_PUBLIC_CO_PROX
 * **Last-known cache** (`/api/buses`): the most recent non-empty fix per `routeType:ruta` is cached (10-min TTL). If every upstream path is momentarily down, the server serves it tagged `stale: true` + `asOf` instead of a blank map; the client renders it with a "datos de HH:MM" indicator (spec §4.2).
 * **Observability**: `GET /api/health` exposes `proxyPool` (verified count, top proxies w/ latency) and `liveCacheEntries` when the fallback is enabled.
 * **Honest limitation**: free proxies are best-effort; live tracking is intermittent. Reliable CO egress requires a card (cloud), a CO device, or a per-user install (extension/native) — see §5.2.1a / §5.2.2.
+
+#### 5.2.6 3D Bus Models
+Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (three.js).
+* **Asset**: source `buscar.glb` (Draco-compressed geometry + webp texture). `scripts/bake-bus-pivot.mjs` bakes the node translation so the pivot is the **exact bottom-center of the wheels** (world `centerX = 0`, `minY = 0`, `centerZ = 0` — never the front), emitting `client/public/models/bus.glb`. The Draco buffer is never decoded server-side; the mandatory POSITION `min/max` + node TRS give the bbox.
+* **Renderer**: `client/src/layers/busModelLayer.ts` — a `CustomLayerInterface` (`type:'custom'`, `renderingMode:'3d'`) that loads the model once (`GLTFLoader` + `DRACOLoader`, decoder served from `/draco/`) and places one clone per bus at its `MercatorCoordinate` (altitude 0 → wheels on ground). **One model is used for all bus types** (troncal / zonal / alimentador). Positions/headings lerp between 15-s polls; missing buses are removed.
+* **Pivot rule (non-negotiable)**: bottom-center of the wheels. Placement uses the pivot directly — no front offset.
+* **Interaction**: click pixel-picks the nearest bus (`map.project`) → info popup.
+* **Tunables** (`busModelLayer.ts`): `MODEL_SCALE` (visual size over true meters), `HEADING_OFFSET_DEG` / `HEADING_SIGN` (calibrate nose-to-travel from `angulo`), `BASE_TILT` (glTF Y-up → mercator Z-up). Heading/scale need a one-time calibration against live on-map data.
+* **Dependency**: `three` (client). Draco decoder files copied to `client/public/draco/`.
 
 ---
 
