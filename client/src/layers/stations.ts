@@ -42,18 +42,19 @@ export function isVisibleTroncalStation(station: TroncalStationFeature): boolean
 
 // ─── Route Tag Formatting ───────────────────────────────
 
-function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
+function groupCatalogRoutesByCode(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
   const groups = new Map<string, { code: string; primary: CatalogRoute; routes: CatalogRoute[] }>();
 
   for (const route of routes) {
     const codeKey = normalizeRouteCodeForMatch(route.codigo);
     if (!codeKey) continue;
 
-    // Key by code AND direction (destination name). A route that serves a wagon
-    // in both directions — common for rutas fáciles like "1" → Universidades /
-    // Portal Eldorado — must keep each end as its own clickable tag instead of
-    // collapsing into a single tag that can only reach one direction.
-    const key = `${codeKey}|${normalizeStationName(route.nombre)}`;
+    // Key by route code ONLY. A "ruta dual" serves a wagon in both directions
+    // (same código, different destination name); collapse both ends into a
+    // single tag so dual routes aren't duplicated (e.g. "L81 L81"). The tag is
+    // still clickable by code and reaches the route either way — no direction is
+    // dropped (both names are kept in the tooltip).
+    const key = codeKey;
 
     const group = groups.get(key);
     if (group) {
@@ -70,7 +71,7 @@ function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: st
 }
 
 function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
-  const groups = groupCatalogRoutesByDirection(routes);
+  const groups = groupCatalogRoutesByCode(routes);
   const visibleGroups = groups.slice(0, limit);
   const hiddenCount = groups.length - visibleGroups.length;
   const tags = visibleGroups
@@ -123,7 +124,7 @@ function buildWagonSectionsHtml(wagons: ResolvedCatalogWagons): string {
     .filter(([, routes]) => routes.length > 0)
     .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
     .map(([label, routes]) => {
-      const count = groupCatalogRoutesByDirection(routes).length;
+      const count = groupCatalogRoutesByCode(routes).length;
       return `
           <div class="popup-wagon-section">
             <div class="popup-wagon-label">${wagonSectionLabel(label, routes)}<span class="popup-count">${count}</span></div>
