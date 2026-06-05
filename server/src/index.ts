@@ -40,7 +40,20 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const clientDist = path.resolve(__dirname, '../../client/dist');
-app.use(express.static(clientDist));
+app.use(express.static(clientDist, {
+  setHeaders(res, filePath) {
+    // Vite fingerprints everything under /assets/ — cache hard & forever.
+    if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    } else if (filePath.endsWith('index.html')) {
+      // Always revalidate the shell so new asset hashes are picked up on deploy.
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      // Unhashed public assets (models, draco, icons) — cache a day.
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    }
+  },
+}));
 
 // Root API test path
 app.get('/api', (_req, res) => {

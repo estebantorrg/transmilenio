@@ -236,7 +236,10 @@ All mounted on `/api`:
 * `GET /api/troncal/routes`, `/api/troncal/stations`, `/api/troncal/corridors`, `/api/troncal/master-catalog`, `/api/troncal/route/:code`, `/api/troncal/station/:code`, `POST /api/troncal/sync`, `/api/zonal/routes`, `/api/zonal/stops`, `/api/zonal/stop-routes`, `POST /api/buses`.
 
 #### 5.5.2 Caching & Timeouts
-* **Caching**: ArcGIS endpoints cached in-memory with 10-minute TTL.
+* **Caching**:
+  * ArcGIS endpoints cached in-memory with 10-minute TTL.
+  * **Static assets** (`server/src/index.ts`): fingerprinted `/assets/*` served `Cache-Control: public, max-age=31536000, immutable`; `index.html` `no-cache` (so new asset hashes are picked up on deploy); other public files (models, draco, icons) `max-age=86400`.
+  * **Service worker** (`client/public/sw.js`, registered in `main.ts`): cache-first for hashed assets + models/draco/fonts, stale-while-revalidate for `/api/troncal/master-catalog`, network-first for the HTML shell. Live `/api/*` is never cached. Versioned cache (`tm-cache-v1`); old versions purged on `activate`.
 * **Timeouts**:
   * Catalog API request: 15s.
   * Official live API request (direct): 9s.

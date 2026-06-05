@@ -170,7 +170,7 @@ export function startBusTracking(
     }
     if (best && bestDist < 26) {
       if (!busPopup) {
-        busPopup = new maplibregl.Popup({ className: 'tm-popup', closeButton: true, closeOnClick: true, maxWidth: '240px', offset: 18 });
+        busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: true, maxWidth: '230px', offset: 18 });
       }
       busPopup.setLngLat([best.longitude, best.latitude]).setHTML(buildBusPopupHTML(best, currentRouteType)).addTo(map);
     }
@@ -255,23 +255,20 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
   const sysLabel = bus.nombre_sistema || (routeType === 'troncal' ? 'TransMilenio' : 'SITP Zonal');
 
   return `
-    <div class="bus-popup-card">
-      <div class="bus-popup-title">
-        <span>🚌 ${escapeHTML(bus.label)}</span>
-        <span class="bus-popup-system ${sysClass}">${escapeHTML(sysLabel)}</span>
+    <div class="bus-popup">
+      <div class="bus-popup-head">
+        <span class="bus-popup-dot ${sysClass}"></span>
+        <span class="bus-popup-id">${escapeHTML(bus.label)}</span>
+        <span class="bus-popup-sys ${sysClass}">${escapeHTML(sysLabel)}</span>
       </div>
-      <div class="bus-popup-row">
-        <span>Última act.</span>
-        <span class="bus-popup-value">${escapeHTML(bus.lasttime || 'Reciente')}</span>
-      </div>
-      <div class="bus-popup-row">
-        <span>Ángulo</span>
-        <span class="bus-popup-value">${bus.angulo != null ? `${bus.angulo}°` : '—'}</span>
+      <div class="bus-popup-meta">
+        <span>Última actualización</span>
+        <strong>${escapeHTML(bus.lasttime || 'Reciente')}</strong>
       </div>
       ${bus.posicion != null ? `
-      <div class="bus-popup-row">
-        <span>Progreso</span>
-        <span class="bus-popup-value">${(bus.posicion / 1000).toFixed(2)} km</span>
+      <div class="bus-popup-meta">
+        <span>Recorrido</span>
+        <strong>${(bus.posicion / 1000).toFixed(1)} km</strong>
       </div>` : ''}
     </div>
   `;

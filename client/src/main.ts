@@ -846,5 +846,14 @@ async function main(): Promise<void> {
   });
 }
 
+// Speed up repeat loads: cache the app shell, hashed assets, and the heavy
+// master catalog (see public/sw.js). Registered after load so it never blocks
+// first paint; failures are non-fatal.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('[SW] registration failed', err));
+  });
+}
+
 // Launch!
 main().catch(console.error);

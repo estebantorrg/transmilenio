@@ -265,7 +265,7 @@ function showRouteDetail(route: RouteListItem): void {
           <span class="live-status-dot pulse loading"></span>
           <span class="live-status-text">Conectando con buses en vivo...</span>
         </div>
-        <span class="live-status-chip loading">En vivo</span>
+        <span class="live-status-chip loading">Buscando…</span>
       </div>
     </div>
 
@@ -320,25 +320,27 @@ export function updateLiveBusStatus(count: number, status: 'loading' | 'success'
       dotEl.classList.add('pulse', 'loading');
       chipEl.classList.add('loading');
       textEl.textContent = 'Conectando con buses en vivo...';
-      chipEl.textContent = 'En vivo';
+      chipEl.textContent = 'Buscando…';
       break;
     case 'success':
+      // Truthful state: buses ARE live. We have no schedule-adherence data, so
+      // the chip reports liveness/count, never fake punctuality.
       dotEl.classList.add('pulse');
       chipEl.classList.add('success');
       textEl.textContent = `Rastreando ${count} bus${count > 1 ? 'es' : ''} en vivo`;
-      chipEl.textContent = 'A tiempo';
+      chipEl.textContent = `${count} en vivo`;
       break;
     case 'empty':
       dotEl.classList.add('empty');
       chipEl.classList.add('empty');
       textEl.textContent = 'Sin buses activos en este momento';
-      chipEl.textContent = 'Inactivo';
+      chipEl.textContent = 'Sin buses';
       break;
     case 'error':
       dotEl.classList.add('error');
       chipEl.classList.add('error');
-      textEl.textContent = 'Error al rastrear buses en vivo';
-      chipEl.textContent = 'Atrasado';
+      textEl.textContent = 'No se pudo conectar con el rastreo en vivo';
+      chipEl.textContent = 'Sin señal';
       break;
     case 'stale': {
       // Cached positions served during an upstream outage.
