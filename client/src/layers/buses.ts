@@ -253,23 +253,24 @@ async function fetchAndRenderBuses(
 function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
   const sysClass = routeType === 'troncal' ? 'troncal' : 'zonal';
   const sysLabel = bus.nombre_sistema || (routeType === 'troncal' ? 'TransMilenio' : 'SITP Zonal');
+  const code = bus.ruta_extraida ? escapeHTML(bus.ruta_extraida) : '•';
+  const dest = bus.destino_limpio ? `→ ${escapeHTML(bus.destino_limpio)}` : escapeHTML(sysLabel);
+  const km = bus.posicion != null ? `${(bus.posicion / 1000).toFixed(1)} km` : null;
 
   return `
-    <div class="bus-popup">
-      <div class="bus-popup-head">
-        <span class="bus-popup-dot ${sysClass}"></span>
-        <span class="bus-popup-id">${escapeHTML(bus.label)}</span>
-        <span class="bus-popup-sys ${sysClass}">${escapeHTML(sysLabel)}</span>
+    <div class="bus-popup ${sysClass}">
+      <div class="bus-popup-top">
+        <span class="bus-popup-badge">${code}</span>
+        <div class="bus-popup-titles">
+          <div class="bus-popup-id">${escapeHTML(bus.label)}</div>
+          <div class="bus-popup-dest">${dest}</div>
+        </div>
       </div>
-      <div class="bus-popup-meta">
-        <span>Última actualización</span>
-        <strong>${escapeHTML(bus.lasttime || 'Reciente')}</strong>
+      <div class="bus-popup-rows">
+        <div class="bus-popup-row"><span>Sistema</span><strong>${escapeHTML(sysLabel)}</strong></div>
+        <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(bus.lasttime || 'Reciente')}</strong></div>
+        ${km ? `<div class="bus-popup-row"><span>Recorrido</span><strong>${km}</strong></div>` : ''}
       </div>
-      ${bus.posicion != null ? `
-      <div class="bus-popup-meta">
-        <span>Recorrido</span>
-        <strong>${(bus.posicion / 1000).toFixed(1)} km</strong>
-      </div>` : ''}
     </div>
   `;
 }

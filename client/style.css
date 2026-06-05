@@ -283,71 +283,82 @@ body {
 }
 
 /* ─── Live bus popup ───────────────────────────────────── */
-/* Override the wide station-popup width — bus popups carry little info. */
+/* Override the wide station-popup width/padding for the compact bus card. */
 .tm-bus-popup .maplibregl-popup-content {
   width: auto !important;
-  min-width: 180px !important;
-  max-width: 230px !important;
-  padding: 12px 13px !important;
+  min-width: 210px !important;
+  max-width: 256px !important;
+  padding: 0 !important;
   max-height: none !important;
+  overflow: hidden !important;
+}
+.tm-bus-popup .maplibregl-popup-close-button {
+  z-index: 2;
+  color: rgba(255, 255, 255, 0.85) !important;
 }
 
-.bus-popup {
-  font-family: var(--font-family);
-}
+.bus-popup { font-family: var(--font-family); }
 
-.bus-popup-head {
+/* Header band — route badge + bus id + destination, tinted by system. */
+.bus-popup-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
+  gap: 11px;
+  padding: 13px 30px 13px 13px; /* right room for the close × */
 }
+.bus-popup.troncal .bus-popup-top { background: linear-gradient(90deg, rgba(216, 16, 45, 0.22), rgba(216, 16, 45, 0)); }
+.bus-popup.zonal .bus-popup-top { background: linear-gradient(90deg, rgba(56, 189, 248, 0.20), rgba(56, 189, 248, 0)); }
 
-.bus-popup-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+.bus-popup-badge {
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+  min-width: 38px;
+  height: 36px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  box-shadow: var(--shadow-sm);
 }
-.bus-popup-dot.troncal { background: var(--tm-red); }
-.bus-popup-dot.zonal { background: var(--tm-blue); }
+.bus-popup.troncal .bus-popup-badge { background: var(--tm-red); }
+.bus-popup.zonal .bus-popup-badge { background: var(--tm-blue-dark); }
 
+.bus-popup-titles { min-width: 0; }
 .bus-popup-id {
   font-size: 0.95rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
+  line-height: 1.15;
   font-variant-numeric: tabular-nums;
 }
-
-.bus-popup-sys {
-  margin-left: auto;
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 3px 7px;
-  border-radius: 99px;
+.bus-popup-dest {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.bus-popup-sys.troncal { background: rgba(216, 16, 45, 0.16); color: var(--tm-red-light); }
-.bus-popup-sys.zonal { background: rgba(56, 189, 248, 0.16); color: var(--tm-blue); }
 
-.bus-popup-meta {
+.bus-popup-rows { padding: 6px 13px 12px; }
+.bus-popup-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 14px;
   padding: 5px 0;
-  border-top: 1px solid var(--border-subtle);
   font-size: 0.76rem;
+  border-top: 1px solid var(--border-subtle);
 }
-
-.bus-popup-meta span {
-  color: var(--text-tertiary);
-}
-
-.bus-popup-meta strong {
+.bus-popup-row:first-child { border-top: none; }
+.bus-popup-row span { color: var(--text-tertiary); }
+.bus-popup-row strong {
   color: var(--text-secondary);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

@@ -26,8 +26,11 @@ const SCALE_REF_ZOOM = 15;        // at/above this zoom, no extra boost
 const MAX_ZOOM_BOOST = 64;        // cap on the zoomed-out enlargement
 const POLL_MS = 15000;            // tween duration = live poll interval (§3.4)
 const BASE_TILT = Math.PI / 2;    // glTF Y-up → MapLibre mercator Z-up
-const HEADING_OFFSET_DEG = 180;   // fallback heading (stationary) from `angulo`
-const HEADING_SIGN = -1;
+// `angulo` is a compass bearing (0=N, clockwise) — verified against motion.
+// Model nose is +Z, which BASE_TILT maps to mercator north at rotation.z=0, so
+// the mercator rotation about up equals the bearing directly.
+const HEADING_OFFSET_DEG = 0;
+const HEADING_SIGN = 1;
 const DEG2RAD = Math.PI / 180;
 
 export interface LiveBusInput {
@@ -190,14 +193,16 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
     const merc = maplibregl.MercatorCoordinate.fromLngLat({ lng: bus.lng, lat: bus.lat }, 0);
     const meter = merc.meterInMercatorCoordinateUnits();
     const to: Vec3 = { x: merc.x, y: merc.y, z: merc.z };
-    const providedRot = headingToRot(bus.heading ?? 0);
+    const hasHeading = bus.heading != null && Number.isFinite(bus.heading);
+    const providedRot = hasHeading ? headingToRot(bus.heading as number) : null;
 
     let obj = buses.get(bus.id);
     if (!obj) {
       const group = new THREE.Group();
       if (template) group.add(buildInner());
       scene?.add(group);
-      obj = { group, from: to, to, rotFrom: providedRot, rotTo: providedRot, start: now, duration: POLL_MS, meter };
+      const r0 = providedRot ?? 0;
+      obj = { group, from: to, to, rotFrom: r0, rotTo: r0, start: now, duration: POLL_MS, meter };
       buses.set(bus.id, obj);
       continue;
     }
@@ -206,12 +211,13 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
     const cur = sample(obj, now);
     const dx = to.x - cur.x;
     const dy = to.y - cur.y;
-    const moved = Math.hypot(dx, dy) > meter * 3; // > ~3 m
     obj.from = { x: cur.x, y: cur.y, z: cur.z };
     obj.to = to;
     obj.rotFrom = cur.rot;
-    // Face the travel direction; keep prior heading when essentially stationary.
-    obj.rotTo = moved ? Math.atan2(dx, -dy) : cur.rot;
+    // Prefer the accurate telemetry bearing (`angulo`); fall back to travel
+    // direction only when the bearing is missing.
+    const moved = Math.hypot(dx, dy) > meter * 3; // > ~3 m
+    obj.rotTo = providedRot != null ? providedRot : (moved ? Math.atan2(dx, -dy) : cur.rot);
     obj.start = now;
     obj.duration = POLL_MS;
     obj.meter = meter;
