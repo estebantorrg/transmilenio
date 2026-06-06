@@ -19,7 +19,6 @@ let trackingSessionId = 0;
 // Current frame's buses + context, kept for click-to-popup picking.
 let currentBuses: LiveBus[] = [];
 let currentRouteType: 'troncal' | 'zonal' = 'troncal';
-let currentExpectedDestinos: string[] = [];
 let currentRouteColor = '#FB2C17';
 // Selected trip's stops, ordered origin→destination, for next-stop lookup.
 let currentRouteStops: PopupStop[] = [];
@@ -130,36 +129,32 @@ function extractLiveBuses(response: any, routeCode: string): LiveBus[] | null {
     .filter((bus): bus is LiveBus => bus !== null);
 }
 
-/** Normalize a destination string for loose matching (drop case/accents/punctuation/spaces). */
-function normDestKey(value?: string): string {
-  return (value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]/g, '');
-}
+const DIRECTION_TOLERANCE_DEG = 90;
 
 /**
- * Keep only buses doing the SELECTED trip of the route.
+ * Keep only buses travelling the SELECTED trip's direction.
  *
  * The live API returns BOTH directions of a route whenever the requested
- * `Nombre` doesn't exactly match one of its destinations — common for rutas
- * fáciles (number-only codes) whose catalog name differs from the API's
- * `destino_limpio` (e.g. "Portal El Dorado" vs "Portal Eldorado"). So a route
- * tracked toward Universidades also shows Portal-bound buses. We filter by the
- * selected direction's destination(s) using loose substring matching.
+ * `Nombre` doesn't match a destination — and catalog names often differ from,
+ * or are absent vs, the API's `destino_limpio` (route 6: catalog carries no
+ * destination; the API returns "Portal 80"/"Universidades"), so matching on the
+ * destination string is unreliable. Instead we classify each bus geometrically:
+ * its heading (`angulo`) must align (within `DIRECTION_TOLERANCE_DEG`) with the
+ * route's forward direction at the bus's nearest stop. Validated on live data —
+ * it separates the two directions cleanly (forward diffs ~0–17°, reverse ~167–179°).
  *
- * Safety: if nothing matches (our direction strings don't line up with the API
- * destinos at all) we keep every bus rather than blank the map.
+ * Safety: with fewer than two stops, or a bus that reports no heading, we can't
+ * classify, so the bus is kept rather than blanking the map.
  */
-function filterBusesByDirection(buses: LiveBus[], expectedDestinos: string[]): LiveBus[] {
-  const keys = expectedDestinos.map(normDestKey).filter((k) => k.length >= 3);
-  if (keys.length === 0) return buses;
+function filterBusesByDirection(buses: LiveBus[], stops: PopupStop[]): LiveBus[] {
+  if (stops.length < 2) return buses;
 
   const matched = buses.filter((bus) => {
-    const dest = normDestKey(bus.destino_limpio);
-    if (!dest) return true; // bus has no destination tag → can't exclude it
-    return keys.some((k) => k.includes(dest) || dest.includes(k));
+    const heading = Number.isFinite(bus.angulo as number) ? (bus.angulo as number) : null;
+    if (heading == null) return true; // no heading → can't classify → keep
+    const fwd = forwardBearingAtNearestStop(bus, stops);
+    if (fwd == null) return true;
+    return angleDiff(heading, fwd) <= DIRECTION_TOLERANCE_DEG;
   });
 
   return matched.length > 0 ? matched : buses;
@@ -205,7 +200,6 @@ export function startBusTracking(
   destinationName: string,
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[] = [],
-  expectedDestinos: string[] = [],
   routeColor = '#FB2C17',
   stops: PopupStop[] = [],
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
@@ -215,7 +209,6 @@ export function startBusTracking(
   console.log(`[Tracking] Started live tracking for ${routeCode} -> ${destinationName}`);
   const sessionId = ++trackingSessionId;
   currentRouteType = routeType;
-  currentExpectedDestinos = expectedDestinos;
   currentRouteColor = routeColor || '#FB2C17';
   currentRouteStops = stops;
   boundMap = map;
@@ -274,7 +267,7 @@ async function fetchAndRenderBuses(
 
     // Drop the opposite-direction buses the live API mixes in (see
     // filterBusesByDirection) so only the selected trip is tracked.
-    const buses = filterBusesByDirection(extracted, currentExpectedDestinos);
+    const buses = filterBusesByDirection(extracted, currentRouteStops);
 
     console.log(`[Tracking] ${extracted.length} live buses for ${routeCode}; ${buses.length} after direction filter`);
     currentBuses = buses;
@@ -345,6 +338,34 @@ function angleDiff(a: number, b: number): number {
   return d > 180 ? 360 - d : d;
 }
 
+/** Index of the stop nearest the bus (straight-line), or -1 if no stops. */
+function nearestStopIndex(bus: LiveBus, stops: PopupStop[]): number {
+  let nearIdx = -1;
+  let nearDist = Infinity;
+  for (let i = 0; i < stops.length; i++) {
+    const [lng, lat] = stops[i].coordinate;
+    const d = haversineMeters(bus.longitude, bus.latitude, lng, lat);
+    if (d < nearDist) { nearDist = d; nearIdx = i; }
+  }
+  return nearIdx;
+}
+
+/**
+ * Bearing of the route's forward direction (toward the destination) at the
+ * bus's nearest stop — the segment leaving that stop, or entering it at the
+ * terminal. `null` when it can't be resolved.
+ */
+function forwardBearingAtNearestStop(bus: LiveBus, stops: PopupStop[]): number | null {
+  const ni = nearestStopIndex(bus, stops);
+  if (ni < 0) return null;
+  const j = ni < stops.length - 1 ? ni + 1 : ni;
+  const i = j === ni ? ni - 1 : ni;
+  if (i < 0 || j >= stops.length || i === j) return null;
+  const [aLng, aLat] = stops[i].coordinate;
+  const [bLng, bLat] = stops[j].coordinate;
+  return bearingDeg(aLng, aLat, bLng, bLat);
+}
+
 /**
  * Next stop on the selected trip for a live bus. Stops are ordered
  * origin→destination, so the next stop is the nearest stop — bumped one forward
@@ -355,13 +376,7 @@ function angleDiff(a: number, b: number): number {
 function computeNextStop(bus: LiveBus, stops: PopupStop[]): { stop: PopupStop; meters: number } | null {
   if (stops.length === 0) return null;
 
-  let nearIdx = -1;
-  let nearDist = Infinity;
-  for (let i = 0; i < stops.length; i++) {
-    const [lng, lat] = stops[i].coordinate;
-    const d = haversineMeters(bus.longitude, bus.latitude, lng, lat);
-    if (d < nearDist) { nearDist = d; nearIdx = i; }
-  }
+  const nearIdx = nearestStopIndex(bus, stops);
   if (nearIdx < 0) return null;
 
   let idx = nearIdx;

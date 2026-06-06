@@ -679,17 +679,14 @@ async function main(): Promise<void> {
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
       route.liveNameCandidates = getLiveNameCandidates(route);
-      // Selected-trip destination identifiers — used to drop opposite-direction
-      // buses the live API mixes in for rutas duales/fáciles.
-      const lastStop = route.stops && route.stops.length ? route.stops[route.stops.length - 1].nombre : '';
-      const expectedDestinos = [route.destination, lastStop].filter((s): s is string => Boolean(s));
+      // Opposite-direction buses the live API mixes in for rutas duales/fáciles
+      // are dropped geometrically by filterBusesByDirection using these stops.
       startBusTracking(
         map,
         route.code,
         route.liveNameCandidates[0] || route.catalogNombre || route.name || route.destination,
         route.type,
         route.liveNameCandidates,
-        expectedDestinos,
         getRouteAccentColor(route),
         (route.stops ?? []).map((s) => ({ nombre: s.nombre, coordinate: s.coordinate })),
         (count, status, asOf) => updateLiveBusStatus(count, status, asOf)
