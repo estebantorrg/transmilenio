@@ -1,6 +1,5 @@
 import type { CatalogRoute, CatalogStation, MasterCatalog } from '../types/catalog';
 import type { TroncalStationFeature } from '../types/transmilenio';
-import { normalizeRouteCodeForMatch } from '../utils/routeColors';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
 const TERMINAL_PLATFORM_RADIUS_M = 180;
@@ -497,105 +496,6 @@ function resolveOne(feature: TroncalStationFeature, indexes: ResolverIndexes): R
   );
 }
 
-// ─── Directional wagon merge ────────────────────────────────
-//
-// TransMilenio principle: a route serves a station in BOTH directions (if B72
-// stops here, so does H72; if number 7 stops here, it stops both ways). The
-// source data files each direction on its own platform/wagon, so the two
-// directions of one route end up split across wagons — wagon A shows B50 / 7,
-// wagon B shows C50 / 4.
-//
-// Two wagons that share a LETTERED route number (B50 ↔ C50 → number 50) are the
-// two directions of the SAME corridor, so we MERGE them into one section. The
-// merged section lists each route once (pairs together: B50+C50, plus
-// number-only 4/6/7) — never the same route in two sections, so nothing is
-// duplicated. Wagons that share no lettered number are different corridors
-// (e.g. Nariño A=`{3,B72,H72}` vs B=`{B75,C15,H15,H75}`) and stay separate.
-
-function isTroncalService(route: CatalogRoute): boolean {
-  return String(route.tipoServicio || '').toUpperCase() === 'TRONCAL';
-}
-
-/** Trailing number of a route code: B72 → "72", C50 → "50", "7" → "7". */
-function routeNumber(code: string): string {
-  const match = String(code || '').match(/(\d+)$/);
-  return match ? String(parseInt(match[1], 10)) : '';
-}
-
-function hasLetter(code: string): boolean {
-  return /[A-Za-z]/.test(code);
-}
-
-function mergeDirectionalWagons(station: ResolvedCatalogStation): void {
-  const labels = Object.keys(station.wagons);
-  if (labels.length < 2) return;
-
-  // Lettered troncal route numbers present in each wagon.
-  const letteredNumbers: Record<string, Set<string>> = {};
-  for (const label of labels) {
-    const set = new Set<string>();
-    for (const route of station.wagons[label]) {
-      if (isTroncalService(route) && hasLetter(route.codigo)) {
-        const num = routeNumber(route.codigo);
-        if (num) set.add(num);
-      }
-    }
-    letteredNumbers[label] = set;
-  }
-
-  // Union-find: wagons sharing a lettered number are one corridor (both ways).
-  const parent: Record<string, string> = {};
-  labels.forEach((l) => (parent[l] = l));
-  const find = (x: string): string => (parent[x] === x ? x : (parent[x] = find(parent[x])));
-  for (let i = 0; i < labels.length; i++) {
-    for (let j = i + 1; j < labels.length; j++) {
-      if ([...letteredNumbers[labels[i]]].some((n) => letteredNumbers[labels[j]].has(n))) {
-        parent[find(labels[i])] = find(labels[j]);
-      }
-    }
-  }
-  const groups = new Map<string, string[]>();
-  for (const label of labels) {
-    const root = find(label);
-    const list = groups.get(root) ?? [];
-    list.push(label);
-    groups.set(root, list);
-  }
-
-  // Rebuild sections, one per corridor. A troncal code already shown in an
-  // earlier section is never repeated (covers number-only routes that touch
-  // more than one corridor at a complex station), so no route is ever shown in
-  // two sections — even when no merge happened.
-  // Within a section, dual-direction variants of one código are kept and the
-  // chip renderer de-dupes them by código (preserving both names in the tooltip).
-  const placedTroncal = new Set<string>();
-  const merged: ResolvedCatalogWagons = {};
-  const orderedGroups = [...groups.values()].sort((a, b) => a.slice().sort().join().localeCompare(b.slice().sort().join()));
-
-  for (const group of orderedGroups) {
-    group.sort();
-    const sectionTroncal = new Set<string>();
-    const routes: ResolvedCatalogRoute[] = [];
-    for (const label of group) {
-      for (const route of station.wagons[label]) {
-        if (isTroncalService(route)) {
-          const key = normalizeRouteCodeForMatch(route.codigo);
-          if (key && placedTroncal.has(key)) continue; // already in another section
-          if (key) sectionTroncal.add(key);
-        }
-        routes.push(route);
-      }
-    }
-    for (const key of sectionTroncal) placedTroncal.add(key);
-    merged[group.join(' / ')] = routes;
-  }
-
-  station.wagons = merged;
-  station.audit.wagonCount = Object.keys(merged).length;
-  station.audit.routeCount = countUniqueRoutes(merged);
-  station.audit.routeMappingCount = countRouteMappings(merged);
-}
-
 export function resolveStationCatalog(
   stations: TroncalStationFeature[],
   catalog: MasterCatalog
@@ -608,11 +508,6 @@ export function resolveStationCatalog(
     const resolved = resolveOne(station, indexes);
     stationsByKey[resolved.stationKey] = resolved;
     audit.push(resolved.audit);
-  }
-
-  // Merge same-corridor direction wagons so both-direction routes show once.
-  for (const resolved of Object.values(stationsByKey)) {
-    mergeDirectionalWagons(resolved);
   }
 
   return { stationsByKey, audit };
