@@ -99,14 +99,14 @@ function initCardBalancePanel(): void {
   });
 
   input?.addEventListener('input', () => {
-    input.value = input.value.replace(/\D/g, '').slice(0, 20);
+    input.value = groupCardDigits(input.value.replace(/\D/g, '').slice(0, 20));
   });
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!input) return;
 
-    const numeroTarjeta = input.value.trim();
+    const numeroTarjeta = input.value.replace(/\D/g, '');
     if (!/^\d{8,20}$/.test(numeroTarjeta)) {
       renderCardBalanceError('Ingresa un numero de tarjeta valido.');
       return;
@@ -203,6 +203,10 @@ function renderCardBalanceError(message: string): void {
   `;
 }
 
+function groupCardDigits(value: string): string {
+  return String(value ?? '').replace(/\D/g, '').replace(/(.{4})(?=.)/g, '$1 ');
+}
+
 function formatCOP(value: string | number | undefined): string {
   if (value == null || value === '') return 'Sin dato';
   const amount = Number(String(value).replace(/[^\d-]/g, ''));
@@ -254,14 +258,12 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
 
     <div class="card-source-warning">
       <span class="card-source-chip">NFC ausente</span>
-      <span>El POST /lectura_tarjeta no trae la memoria de la tarjeta. Saldo actual y movimientos recientes requieren lectura NFC local.</span>
+      <span>Este saldo es el que tiene registrado el servidor. El saldo mas reciente y los ultimos movimientos solo aparecen al acercar la tarjeta al celular.</span>
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">Tarjeta</div>
-      <div class="detail-row"><span class="detail-row-label">Numero</span><span class="detail-row-value">${escapeHTML(data.numeroTarjeta)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">consultar</span><span class="detail-row-value">${escapeHTML(data.consultar)}</span></div>
-      <div class="detail-row"><span class="detail-row-label">Host</span><span class="detail-row-value">${escapeHTML(data.sources.server.host)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">Numero</span><span class="detail-row-value">${escapeHTML(groupCardDigits(data.numeroTarjeta))}</span></div>
     </div>
 
     <div class="detail-section">
