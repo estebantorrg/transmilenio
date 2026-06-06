@@ -497,90 +497,105 @@ function resolveOne(feature: TroncalStationFeature, indexes: ResolverIndexes): R
   );
 }
 
-// ─── Directional sibling completion ────────────────────────
+// ─── Directional route completion ──────────────────────────
 //
-// TransMilenio principle: a route number is shared only by its round-trip pair
-// (e.g. B72/H72), and both directions serve the SAME stations. The source data
-// files each direction on its own platform/wagon, so a wagon frequently lists
-// only one of the pair ("C50" present, "B50" absent). We complete the missing
-// directional sibling per wagon so both codes show at every station the route
-// serves — without ever adding a code already present (display still de-dupes by
-// código), so no route is duplicated.
+// TransMilenio principle: a route serves a station in BOTH directions (if B72
+// stops here, so does H72; if number 7 stops here, it stops both ways). The
+// source data files each direction on its own platform/wagon, so a wagon often
+// lists only one side — stations show "C50" without "B50", or number-only "7"
+// on one platform but "4" on the other.
+//
+// Two wagons that share a LETTERED route number (e.g. B50 in one wagon, C50 in
+// the other) are the two directions of the same corridor; for those, the full
+// troncal route set is identical both ways, so we union their codes. This fills
+// both lettered pairs (B50/C50, B11/G11, D24/J24) AND number-only fácil routes
+// (4/7) that the source split across platforms. Wagons that share no lettered
+// number are different corridors (e.g. Nariño A vs B) and are left untouched. A
+// code already present is never re-added (display also de-dupes by código), so
+// no route is duplicated.
 
 function isTroncalService(route: CatalogRoute): boolean {
   return String(route.tipoServicio || '').toUpperCase() === 'TRONCAL';
 }
 
-/** Trailing number of a route code: B72 → "72", C50 → "50". */
+/** Trailing number of a route code: B72 → "72", C50 → "50", "7" → "7". */
 function routeNumber(code: string): string {
   const match = String(code || '').match(/(\d+)$/);
   return match ? String(parseInt(match[1], 10)) : '';
 }
 
-interface DirectionalPairs {
-  sibling: Map<string, string>;         // normalized code → its directional sibling code
-  repByCode: Map<string, CatalogRoute>; // normalized code → a representative route (color/nombre)
+function hasLetter(code: string): boolean {
+  return /[A-Za-z]/.test(code);
 }
 
-function buildDirectionalPairs(catalog: MasterCatalog): DirectionalPairs {
-  const repByCode = new Map<string, CatalogRoute>();
-  const byNumber = new Map<string, Set<string>>();
+interface WagonInfo {
+  letteredNumbers: Set<string>;
+  byCode: Map<string, ResolvedCatalogRoute>;
+}
 
-  for (const station of Object.values(catalog.stations || {})) {
-    for (const routes of Object.values(station.wagons || {})) {
-      for (const route of routes as CatalogRoute[]) {
-        if (!isTroncalService(route)) continue;
-        const key = normalizeRouteCodeForMatch(route.codigo);
-        if (!key) continue;
-        if (!repByCode.has(key)) repByCode.set(key, route);
+function completeDirectionalSiblings(station: ResolvedCatalogStation): void {
+  const labels = Object.keys(station.wagons);
+  if (labels.length < 2) return;
+
+  const info: Record<string, WagonInfo> = {};
+  for (const label of labels) {
+    const letteredNumbers = new Set<string>();
+    const byCode = new Map<string, ResolvedCatalogRoute>();
+    for (const route of station.wagons[label]) {
+      if (!isTroncalService(route)) continue;
+      const key = normalizeRouteCodeForMatch(route.codigo);
+      if (key && !byCode.has(key)) byCode.set(key, route);
+      if (hasLetter(route.codigo)) {
         const num = routeNumber(route.codigo);
-        if (!num) continue;
-        let set = byNumber.get(num);
-        if (!set) { set = new Set(); byNumber.set(num, set); }
-        set.add(key);
+        if (num) letteredNumbers.add(num);
       }
     }
+    info[label] = { letteredNumbers, byCode };
   }
 
-  // Only 2-code numbers are true directional pairs. Numbers with >2 troncal
-  // codes are distinct routes that merely reuse a number; number-only fácil
-  // routes have no lettered sibling. Both are left untouched.
-  const sibling = new Map<string, string>();
-  for (const set of byNumber.values()) {
-    if (set.size !== 2) continue;
-    const [a, b] = [...set];
-    sibling.set(a, b);
-    sibling.set(b, a);
+  // Union-find wagons that share a lettered route number (same corridor).
+  const parent: Record<string, string> = {};
+  labels.forEach((l) => (parent[l] = l));
+  const find = (x: string): string => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+  for (let i = 0; i < labels.length; i++) {
+    for (let j = i + 1; j < labels.length; j++) {
+      const a = info[labels[i]].letteredNumbers;
+      const b = info[labels[j]].letteredNumbers;
+      if ([...a].some((n) => b.has(n))) parent[find(labels[i])] = find(labels[j]);
+    }
+  }
+  const groups = new Map<string, string[]>();
+  for (const label of labels) {
+    const root = find(label);
+    const list = groups.get(root) ?? [];
+    list.push(label);
+    groups.set(root, list);
   }
 
-  return { sibling, repByCode };
-}
-
-function completeDirectionalSiblings(station: ResolvedCatalogStation, pairs: DirectionalPairs): void {
   let changed = false;
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
 
-  for (const [wagonLabel, routes] of Object.entries(station.wagons)) {
-    const present = new Set(routes.map((route) => normalizeRouteCodeForMatch(route.codigo)));
-    const additions: ResolvedCatalogRoute[] = [];
-
-    for (const route of routes) {
-      const siblingCode = pairs.sibling.get(normalizeRouteCodeForMatch(route.codigo));
-      if (!siblingCode || present.has(siblingCode)) continue;
-      const rep = pairs.repByCode.get(siblingCode);
-      if (!rep) continue;
-      present.add(siblingCode); // guard against adding the same sibling twice
-      additions.push({
-        ...rep,
-        sourceStopCode: route.sourceStopCode,
-        sourceStopId: route.sourceStopId,
-        sourceStopName: route.sourceStopName,
-        sourceStopAddress: route.sourceStopAddress,
-      });
+    // Union of every troncal code across the corridor's wagons.
+    const unionCodes = new Map<string, ResolvedCatalogRoute>();
+    for (const label of group) {
+      for (const [key, route] of info[label].byCode) {
+        if (!unionCodes.has(key)) unionCodes.set(key, route);
+      }
     }
 
-    if (additions.length) {
-      station.wagons[wagonLabel] = routes.concat(additions);
-      changed = true;
+    for (const label of group) {
+      const present = info[label].byCode;
+      const additions: ResolvedCatalogRoute[] = [];
+      for (const [key, rep] of unionCodes) {
+        if (present.has(key)) continue;
+        present.set(key, rep);
+        additions.push({ ...rep }); // same station, different platform — clone to avoid aliasing
+      }
+      if (additions.length) {
+        station.wagons[label] = station.wagons[label].concat(additions);
+        changed = true;
+      }
     }
   }
 
@@ -604,10 +619,9 @@ export function resolveStationCatalog(
     audit.push(resolved.audit);
   }
 
-  // Enforce the directional-pair principle across every resolved station.
-  const pairs = buildDirectionalPairs(catalog);
+  // Enforce the both-directions principle within every resolved station.
   for (const resolved of Object.values(stationsByKey)) {
-    completeDirectionalSiblings(resolved, pairs);
+    completeDirectionalSiblings(resolved);
   }
 
   return { stationsByKey, audit };
