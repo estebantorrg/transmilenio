@@ -691,6 +691,7 @@ async function main(): Promise<void> {
         route.liveNameCandidates,
         expectedDestinos,
         getRouteAccentColor(route),
+        (route.stops ?? []).map((s) => ({ nombre: s.nombre, coordinate: s.coordinate })),
         (count, status, asOf) => updateLiveBusStatus(count, status, asOf)
       );
 

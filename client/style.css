@@ -361,6 +361,13 @@ body {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.bus-popup-next span { white-space: nowrap; }
+.bus-popup-next strong {
+  color: var(--text-primary);
+  font-weight: 700;
+  text-align: right;
+  max-width: 64%;
+}
 
 /* ─── Sidebar ──────────────────────────────────────────── */
 

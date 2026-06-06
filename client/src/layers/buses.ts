@@ -21,10 +21,14 @@ let currentBuses: LiveBus[] = [];
 let currentRouteType: 'troncal' | 'zonal' = 'troncal';
 let currentExpectedDestinos: string[] = [];
 let currentRouteColor = '#FB2C17';
+// Selected trip's stops, ordered origin→destination, for next-stop lookup.
+let currentRouteStops: PopupStop[] = [];
 let selectedBusId: string | null = null;
 let busPopup: maplibregl.Popup | null = null;
 let clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
 let boundMap: maplibregl.Map | null = null;
+
+type PopupStop = { nombre: string; coordinate: [number, number] };
 
 type LiveBus = {
   id: string;
@@ -173,6 +177,7 @@ export function stopBusTracking(): void {
   }
 
   currentBuses = [];
+  currentRouteStops = [];
   selectedBusId = null;
   if (boundMap) {
     clearBusModels(boundMap); // also clears the follow hook
@@ -202,6 +207,7 @@ export function startBusTracking(
   nombreCandidates: string[] = [],
   expectedDestinos: string[] = [],
   routeColor = '#FB2C17',
+  stops: PopupStop[] = [],
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
 ): void {
   stopBusTracking();
@@ -211,6 +217,7 @@ export function startBusTracking(
   currentRouteType = routeType;
   currentExpectedDestinos = expectedDestinos;
   currentRouteColor = routeColor || '#FB2C17';
+  currentRouteStops = stops;
   boundMap = map;
 
   // Click-to-inspect: pick the nearest bus model to the click in screen space.
@@ -308,6 +315,72 @@ async function fetchAndRenderBuses(
   }
 }
 
+// ─── Next-stop resolution ────────────────────────────────
+
+const DEG2RAD = Math.PI / 180;
+const EARTH_R = 6371000; // metres
+
+function haversineMeters(aLng: number, aLat: number, bLng: number, bLat: number): number {
+  const dLat = (bLat - aLat) * DEG2RAD;
+  const dLng = (bLng - aLng) * DEG2RAD;
+  const la1 = aLat * DEG2RAD;
+  const la2 = bLat * DEG2RAD;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
+  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/** Initial compass bearing (0=N, clockwise) from A to B, matching telemetry `angulo`. */
+function bearingDeg(aLng: number, aLat: number, bLng: number, bLat: number): number {
+  const la1 = aLat * DEG2RAD;
+  const la2 = bLat * DEG2RAD;
+  const dLng = (bLng - aLng) * DEG2RAD;
+  const y = Math.sin(dLng) * Math.cos(la2);
+  const x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLng);
+  return (Math.atan2(y, x) / DEG2RAD + 360) % 360;
+}
+
+/** Smallest absolute difference between two compass bearings (0–180). */
+function angleDiff(a: number, b: number): number {
+  const d = Math.abs(a - b) % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/**
+ * Next stop on the selected trip for a live bus. Stops are ordered
+ * origin→destination, so the next stop is the nearest stop — bumped one forward
+ * when the telemetry heading shows the bus has already passed that nearest stop
+ * (bearing to it points backwards). Heading-agnostic fallback (no `angulo`):
+ * the nearest stop. Works the same for troncal and zonal.
+ */
+function computeNextStop(bus: LiveBus, stops: PopupStop[]): { stop: PopupStop; meters: number } | null {
+  if (stops.length === 0) return null;
+
+  let nearIdx = -1;
+  let nearDist = Infinity;
+  for (let i = 0; i < stops.length; i++) {
+    const [lng, lat] = stops[i].coordinate;
+    const d = haversineMeters(bus.longitude, bus.latitude, lng, lat);
+    if (d < nearDist) { nearDist = d; nearIdx = i; }
+  }
+  if (nearIdx < 0) return null;
+
+  let idx = nearIdx;
+  const heading = Number.isFinite(bus.angulo as number) ? (bus.angulo as number) : null;
+  if (heading != null && nearIdx < stops.length - 1) {
+    const [lng, lat] = stops[nearIdx].coordinate;
+    const toNear = bearingDeg(bus.longitude, bus.latitude, lng, lat);
+    if (angleDiff(heading, toNear) > 90) idx = nearIdx + 1; // nearest is behind → already passed
+  }
+
+  const stop = stops[idx];
+  const [lng, lat] = stop.coordinate;
+  return { stop, meters: haversineMeters(bus.longitude, bus.latitude, lng, lat) };
+}
+
+function formatDistance(meters: number): string {
+  return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
 // ─── Popup ───────────────────────────────────────────────
 
 function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
@@ -316,6 +389,11 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
   const code = bus.ruta_extraida ? escapeHTML(bus.ruta_extraida) : '•';
   const dest = bus.destino_limpio ? `→ ${escapeHTML(bus.destino_limpio)}` : escapeHTML(sysLabel);
   const km = bus.posicion != null ? `${(bus.posicion / 1000).toFixed(1)} km` : null;
+
+  const next = computeNextStop(bus, currentRouteStops);
+  const nextRow = next
+    ? `<div class="bus-popup-row bus-popup-next"><span>Próxima parada</span><strong>${escapeHTML(next.stop.nombre)} · ${formatDistance(next.meters)}</strong></div>`
+    : '';
 
   return `
     <div class="bus-popup ${sysClass}">
@@ -327,6 +405,7 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
         </div>
       </div>
       <div class="bus-popup-rows">
+        ${nextRow}
         <div class="bus-popup-row"><span>Sistema</span><strong>${escapeHTML(sysLabel)}</strong></div>
         <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(bus.lasttime || 'Reciente')}</strong></div>
         ${km ? `<div class="bus-popup-row"><span>Recorrido</span><strong>${km}</strong></div>` : ''}
