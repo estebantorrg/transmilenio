@@ -10,7 +10,7 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
 import { escapeHTML } from '../utils/html';
-import { setBusModels, clearBusModels, type LiveBusInput } from './busModelLayer';
+import { setBusModels, clearBusModels, setFollow, type LiveBusInput } from './busModelLayer';
 
 let trackingInterval: number | null = null;
 let fetchInFlight = false;
@@ -19,6 +19,9 @@ let trackingSessionId = 0;
 // Current frame's buses + context, kept for click-to-popup picking.
 let currentBuses: LiveBus[] = [];
 let currentRouteType: 'troncal' | 'zonal' = 'troncal';
+let currentExpectedDestinos: string[] = [];
+let currentRouteColor = '#FB2C17';
+let selectedBusId: string | null = null;
 let busPopup: maplibregl.Popup | null = null;
 let clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
 let boundMap: maplibregl.Map | null = null;
@@ -123,6 +126,41 @@ function extractLiveBuses(response: any, routeCode: string): LiveBus[] | null {
     .filter((bus): bus is LiveBus => bus !== null);
 }
 
+/** Normalize a destination string for loose matching (drop case/accents/punctuation/spaces). */
+function normDestKey(value?: string): string {
+  return (value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Keep only buses doing the SELECTED trip of the route.
+ *
+ * The live API returns BOTH directions of a route whenever the requested
+ * `Nombre` doesn't exactly match one of its destinations — common for rutas
+ * fáciles (number-only codes) whose catalog name differs from the API's
+ * `destino_limpio` (e.g. "Portal El Dorado" vs "Portal Eldorado"). So a route
+ * tracked toward Universidades also shows Portal-bound buses. We filter by the
+ * selected direction's destination(s) using loose substring matching.
+ *
+ * Safety: if nothing matches (our direction strings don't line up with the API
+ * destinos at all) we keep every bus rather than blank the map.
+ */
+function filterBusesByDirection(buses: LiveBus[], expectedDestinos: string[]): LiveBus[] {
+  const keys = expectedDestinos.map(normDestKey).filter((k) => k.length >= 3);
+  if (keys.length === 0) return buses;
+
+  const matched = buses.filter((bus) => {
+    const dest = normDestKey(bus.destino_limpio);
+    if (!dest) return true; // bus has no destination tag → can't exclude it
+    return keys.some((k) => k.includes(dest) || dest.includes(k));
+  });
+
+  return matched.length > 0 ? matched : buses;
+}
+
 // ─── Tracking API Logic ──────────────────────────────────
 
 export function stopBusTracking(): void {
@@ -135,13 +173,25 @@ export function stopBusTracking(): void {
   }
 
   currentBuses = [];
+  selectedBusId = null;
   if (boundMap) {
-    clearBusModels(boundMap);
+    clearBusModels(boundMap); // also clears the follow hook
     if (clickHandler) boundMap.off('click', clickHandler);
   }
   clickHandler = null;
   busPopup?.remove();
   busPopup = null;
+}
+
+/** Open (or move) the info popup on a bus and make it follow the bus each frame. */
+function openBusPopup(map: maplibregl.Map, bus: LiveBus): void {
+  selectedBusId = bus.id;
+  if (!busPopup) {
+    busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: true, maxWidth: '230px', offset: 18 });
+    busPopup.on('close', () => { selectedBusId = null; setFollow(null, null); });
+  }
+  busPopup.setLngLat([bus.longitude, bus.latitude]).setHTML(buildBusPopupHTML(bus, currentRouteType)).addTo(map);
+  setFollow(bus.id, (ll) => busPopup?.setLngLat([ll.lng, ll.lat]));
 }
 
 export function startBusTracking(
@@ -150,6 +200,8 @@ export function startBusTracking(
   destinationName: string,
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[] = [],
+  expectedDestinos: string[] = [],
+  routeColor = '#FB2C17',
   onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
 ): void {
   stopBusTracking();
@@ -157,6 +209,8 @@ export function startBusTracking(
   console.log(`[Tracking] Started live tracking for ${routeCode} -> ${destinationName}`);
   const sessionId = ++trackingSessionId;
   currentRouteType = routeType;
+  currentExpectedDestinos = expectedDestinos;
+  currentRouteColor = routeColor || '#FB2C17';
   boundMap = map;
 
   // Click-to-inspect: pick the nearest bus model to the click in screen space.
@@ -168,12 +222,7 @@ export function startBusTracking(
       const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
       if (d < bestDist) { bestDist = d; best = bus; }
     }
-    if (best && bestDist < 26) {
-      if (!busPopup) {
-        busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: true, maxWidth: '230px', offset: 18 });
-      }
-      busPopup.setLngLat([best.longitude, best.latitude]).setHTML(buildBusPopupHTML(best, currentRouteType)).addTo(map);
-    }
+    if (best && bestDist < 26) openBusPopup(map, best);
   };
   map.on('click', clickHandler);
 
@@ -209,14 +258,18 @@ async function fetchAndRenderBuses(
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null || sessionId !== trackingSessionId) return;
 
-    const buses = extractLiveBuses(res, routeCode);
-    if (!buses) {
+    const extracted = extractLiveBuses(res, routeCode);
+    if (!extracted) {
       console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
       onUpdate?.(0, 'error');
       return;
     }
 
-    console.log(`[Tracking] Fetched ${buses.length} live buses for ${routeCode}`);
+    // Drop the opposite-direction buses the live API mixes in (see
+    // filterBusesByDirection) so only the selected trip is tracked.
+    const buses = filterBusesByDirection(extracted, currentExpectedDestinos);
+
+    console.log(`[Tracking] ${extracted.length} live buses for ${routeCode}; ${buses.length} after direction filter`);
     currentBuses = buses;
 
     const inputs: LiveBusInput[] = buses.map((bus) => ({
@@ -226,6 +279,13 @@ async function fetchAndRenderBuses(
       heading: bus.angulo,
     }));
     setBusModels(map, inputs);
+
+    // Keep the open popup in sync with the latest fix (or close it if its bus left).
+    if (selectedBusId) {
+      const sel = buses.find((b) => b.id === selectedBusId);
+      if (sel) busPopup?.setHTML(buildBusPopupHTML(sel, currentRouteType));
+      else busPopup?.remove();
+    }
 
     // Server tags `stale` when it served last-known positions during an upstream
     // outage (spec §4.2) — render them, but flag the data as delayed.
@@ -260,7 +320,7 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
   return `
     <div class="bus-popup ${sysClass}">
       <div class="bus-popup-top">
-        <span class="bus-popup-badge">${code}</span>
+        <span class="bus-popup-badge" style="background:${escapeHTML(currentRouteColor)}">${code}</span>
         <div class="bus-popup-titles">
           <div class="bus-popup-id">${escapeHTML(bus.label)}</div>
           <div class="bus-popup-dest">${dest}</div>

@@ -325,8 +325,6 @@ body {
   font-variant-numeric: tabular-nums;
   box-shadow: var(--shadow-sm);
 }
-.bus-popup.troncal .bus-popup-badge { background: var(--tm-red); }
-.bus-popup.zonal .bus-popup-badge { background: var(--tm-blue-dark); }
 
 .bus-popup-titles { min-width: 0; }
 .bus-popup-id {

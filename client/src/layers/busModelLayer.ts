@@ -1,15 +1,18 @@
 /**
  * 3D Bus Model Layer
  *
- * Renders `bus.glb` (Draco + webp, pivot baked to bottom-center of the wheels)
- * for every live bus, in a single MapLibre custom WebGL layer via three.js.
- * One model is used for ALL bus types (troncal / zonal / alimentador).
+ * Renders every live bus as a 3D model in one MapLibre custom WebGL layer
+ * (three.js). One model family is used for ALL bus types.
  *
- * Motion: positions are tweened from the previous fix to the new one across the
- * poll interval, so buses glide continuously instead of snapping every 15 s.
- * Heading is derived from the travel direction; size adapts to zoom so buses
- * stay visible when zoomed out; rendering uses a per-frame local origin to avoid
- * mercator float-precision jitter while the map moves.
+ * - LOD: a light model (`bus_lod.glb`) loads immediately and is shown when
+ *   zoomed out; the full model (`bus.glb`) is lazy-loaded the first time the
+ *   user zooms in past `LOD_ZOOM` and shown from then on at close range.
+ * - Motion: positions tween from the previous fix to the new one across the
+ *   poll interval (glide, no snapping); heading uses the telemetry `angulo`.
+ * - Declump: buses sharing a spot are fanned out in a small ring so they don't
+ *   stack into one blob.
+ * - Precision: rendered relative to a per-frame local origin (no mercator jitter).
+ * - Follow: the open popup tracks its bus every frame via `setFollow`.
  */
 
 import * as THREE from 'three';
@@ -17,21 +20,22 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import maplibregl from 'maplibre-gl';
 
-const MODEL_URL = '/models/bus.glb';
+const MODEL_URL_LOD = '/models/bus_lod.glb';
+const MODEL_URL_FULL = '/models/bus.glb';
 const DRACO_PATH = '/draco/';
 
 // Tunables ───────────────────────────────────────────────────────────────────
 const MODEL_SCALE = 5;            // size multiplier over true meters (close-up)
 const SCALE_REF_ZOOM = 15;        // at/above this zoom, no extra boost
 const MAX_ZOOM_BOOST = 64;        // cap on the zoomed-out enlargement
+const LOD_ZOOM = 15.5;            // ≥ this → full model; below → LOD
 const POLL_MS = 15000;            // tween duration = live poll interval (§3.4)
 const BASE_TILT = Math.PI / 2;    // glTF Y-up → MapLibre mercator Z-up
 // `angulo` is a compass bearing (0=N, clockwise) — verified against motion.
-// Model nose is +Z, which BASE_TILT maps to mercator north at rotation.z=0, so
-// the mercator rotation about up equals the bearing directly.
 const HEADING_OFFSET_DEG = 0;
 const HEADING_SIGN = 1;
 const DEG2RAD = Math.PI / 180;
+const DECLUMP_RING = 0.62;        // fan radius as a fraction of the model footprint
 
 export interface LiveBusInput {
   id: string;
@@ -44,6 +48,8 @@ interface Vec3 { x: number; y: number; z: number; }
 
 interface BusObj {
   group: THREE.Group;
+  lod?: THREE.Object3D;
+  full?: THREE.Object3D;
   from: Vec3;
   to: Vec3;
   rotFrom: number;
@@ -58,10 +64,16 @@ const LAYER_ID = 'live-bus-models';
 let renderer: THREE.WebGLRenderer | null = null;
 let scene: THREE.Scene | null = null;
 let camera: THREE.Camera | null = null;
-let template: THREE.Object3D | null = null;
-let modelLoading = false;
+let maxAniso = 1;
+let templateLOD: THREE.Object3D | null = null;
+let templateFull: THREE.Object3D | null = null;
+let lodLoading = false;
+let fullLoading = false;
 const buses = new Map<string, BusObj>();
 let mapRef: maplibregl.Map | null = null;
+
+let followId: string | null = null;
+let followCb: ((lngLat: { lng: number; lat: number }) => void) | null = null;
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.min(hi, Math.max(lo, v));
@@ -73,12 +85,10 @@ function shortestAngleLerp(a: number, b: number, t: number): number {
   return a + d * t;
 }
 
-/** Fallback mercator rotation (about +Z) from a compass bearing, used only when a bus is stationary. */
 function headingToRot(headingDeg: number): number {
   return (HEADING_SIGN * headingDeg + HEADING_OFFSET_DEG) * DEG2RAD;
 }
 
-/** Sample a bus's interpolated position + heading at time `now`. */
 function sample(b: BusObj, now: number): { x: number; y: number; z: number; rot: number } {
   const t = clamp((now - b.start) / b.duration, 0, 1);
   return {
@@ -89,10 +99,52 @@ function sample(b: BusObj, now: number): { x: number; y: number; z: number; rot:
   };
 }
 
-function buildInner(): THREE.Object3D {
-  const inner = (template as THREE.Object3D).clone(true);
-  inner.rotation.x = BASE_TILT; // glTF Y-up → MapLibre mercator Z-up
-  return inner;
+/** Force the model opaque (no see-through) + crisp texture. One material covers the bus. */
+function prepModel(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    const mats = Array.isArray(mesh.material) ? mesh.material : mesh.material ? [mesh.material] : [];
+    for (const m of mats) {
+      const mat = m as THREE.MeshStandardMaterial;
+      mat.transparent = false;
+      mat.depthWrite = true;
+      mat.depthTest = true;
+      mat.opacity = 1;
+      mat.alphaTest = 0;
+      if (mat.map) mat.map.anisotropy = maxAniso;
+      mat.needsUpdate = true;
+    }
+  });
+}
+
+function tilted(template: THREE.Object3D): THREE.Object3D {
+  const o = template.clone(true);
+  o.rotation.x = BASE_TILT; // glTF Y-up → mercator Z-up
+  return o;
+}
+
+/** Attach whichever model templates are ready to a bus group (idempotent). */
+function attachModels(b: BusObj): void {
+  if (templateLOD && !b.lod) {
+    b.lod = tilted(templateLOD);
+    b.group.add(b.lod);
+  }
+  if (templateFull && !b.full) {
+    b.full = tilted(templateFull);
+    b.full.visible = false;
+    b.group.add(b.full);
+  }
+}
+
+function loadModel(url: string, onReady: (obj: THREE.Object3D) => void): void {
+  const draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
+  const loader = new GLTFLoader().setDRACOLoader(draco);
+  loader.load(
+    url,
+    (gltf) => { prepModel(gltf.scene); onReady(gltf.scene); mapRef?.triggerRepaint(); },
+    undefined,
+    (err) => console.error('[BusModel] failed to load', url, err)
+  );
 }
 
 const customLayer: maplibregl.CustomLayerInterface = {
@@ -114,30 +166,12 @@ const customLayer: maplibregl.CustomLayerInterface = {
     renderer = new THREE.WebGLRenderer({ canvas: map.getCanvas(), context: gl as WebGLRenderingContext, antialias: true });
     renderer.autoClear = false;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    maxAniso = renderer.capabilities.getMaxAnisotropy();
 
-    if (!template && !modelLoading) {
-      modelLoading = true;
-      const draco = new DRACOLoader().setDecoderPath(DRACO_PATH);
-      const loader = new GLTFLoader().setDRACOLoader(draco);
-      loader.load(
-        MODEL_URL,
-        (gltf) => {
-          template = gltf.scene;
-          // Crisper texture at glancing map angles; reduces shimmer on move.
-          template.traverse((o) => {
-            const mat = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-            if (mat && mat.map) { mat.map.anisotropy = maxAniso; mat.map.needsUpdate = true; }
-          });
-          modelLoading = false;
-          for (const [, b] of buses) {
-            if (b.group.children.length === 0) b.group.add(buildInner());
-          }
-          mapRef?.triggerRepaint();
-        },
-        undefined,
-        (err) => { modelLoading = false; console.error('[BusModel] failed to load', MODEL_URL, err); }
-      );
+    // Load the lightweight LOD immediately; the full model is lazy (see render()).
+    if (!templateLOD && !lodLoading) {
+      lodLoading = true;
+      loadModel(MODEL_URL_LOD, (obj) => { templateLOD = obj; lodLoading = false; for (const [, b] of buses) attachModels(b); });
     }
   },
 
@@ -147,15 +181,35 @@ const customLayer: maplibregl.CustomLayerInterface = {
     if (!m) return;
 
     const now = performance.now();
-    // Local origin (map centre) keeps object coordinates small → no float jitter.
+    const zoom = mapRef.getZoom();
     const origin = maplibregl.MercatorCoordinate.fromLngLat(mapRef.getCenter(), 0);
-    const boost = clamp(Math.pow(2, SCALE_REF_ZOOM - mapRef.getZoom()), 1, MAX_ZOOM_BOOST);
+    const boost = clamp(Math.pow(2, SCALE_REF_ZOOM - zoom), 1, MAX_ZOOM_BOOST);
 
-    for (const [, b] of buses) {
-      const s = sample(b, now);
-      b.group.position.set(s.x - origin.x, s.y - origin.y, s.z - origin.z);
+    // Lazy-load the full model the first time the user is zoomed in close.
+    if (zoom >= LOD_ZOOM && !templateFull && !fullLoading) {
+      fullLoading = true;
+      loadModel(MODEL_URL_FULL, (obj) => { templateFull = obj; fullLoading = false; for (const [, b] of buses) attachModels(b); });
+    }
+    const useFull = zoom >= LOD_ZOOM && !!templateFull;
+
+    // Sample all buses, then declump any that share a spot.
+    const list = [...buses.values()];
+    const states = list.map((b) => ({ b, s: sample(b, now), ox: 0, oy: 0, scale: b.meter * MODEL_SCALE * boost }));
+    declump(states);
+
+    for (const st of states) {
+      const { b, s } = st;
+      b.group.position.set(s.x + st.ox - origin.x, s.y + st.oy - origin.y, s.z - origin.z);
       b.group.rotation.z = s.rot;
-      b.group.scale.setScalar(b.meter * MODEL_SCALE * boost);
+      b.group.scale.setScalar(st.scale);
+      if (b.lod) b.lod.visible = !useFull;
+      if (b.full) b.full.visible = useFull;
+    }
+
+    // Keep the open popup glued to its bus (declumped position included).
+    if (followId && followCb) {
+      const st = states.find((x) => x.b === buses.get(followId!));
+      if (st) followCb(new maplibregl.MercatorCoordinate(st.s.x + st.ox, st.s.y + st.oy, st.s.z).toLngLat());
     }
 
     camera.projectionMatrix = new THREE.Matrix4()
@@ -164,7 +218,6 @@ const customLayer: maplibregl.CustomLayerInterface = {
     renderer.resetState();
     renderer.render(scene, camera);
 
-    // Keep animating while any bus is on screen (drives the tween between polls).
     if (buses.size > 0) mapRef.triggerRepaint();
   },
 
@@ -175,6 +228,30 @@ const customLayer: maplibregl.CustomLayerInterface = {
     renderer = null; scene = null; camera = null;
   },
 };
+
+/** Fan out buses that overlap so a cluster doesn't render as one blob. */
+function declump(states: Array<{ b: BusObj; s: { x: number; y: number; z: number; rot: number }; ox: number; oy: number; scale: number }>): void {
+  const used = new Array(states.length).fill(false);
+  for (let i = 0; i < states.length; i++) {
+    if (used[i]) continue;
+    const cluster = [i];
+    used[i] = true;
+    const reach = states[i].scale; // ~ model footprint in mercator units
+    for (let j = i + 1; j < states.length; j++) {
+      if (used[j]) continue;
+      const dx = states[j].s.x - states[i].s.x;
+      const dy = states[j].s.y - states[i].s.y;
+      if (Math.hypot(dx, dy) < reach) { cluster.push(j); used[j] = true; }
+    }
+    if (cluster.length < 2) continue;
+    const r = reach * DECLUMP_RING;
+    cluster.forEach((idx, k) => {
+      const a = (k / cluster.length) * Math.PI * 2;
+      states[idx].ox = Math.cos(a) * r;
+      states[idx].oy = Math.sin(a) * r;
+    });
+  }
+}
 
 export function ensureBusLayer(map: maplibregl.Map): void {
   mapRef = map;
@@ -199,23 +276,20 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
     let obj = buses.get(bus.id);
     if (!obj) {
       const group = new THREE.Group();
-      if (template) group.add(buildInner());
-      scene?.add(group);
       const r0 = providedRot ?? 0;
       obj = { group, from: to, to, rotFrom: r0, rotTo: r0, start: now, duration: POLL_MS, meter };
+      attachModels(obj);
+      scene?.add(group);
       buses.set(bus.id, obj);
       continue;
     }
 
-    // Tween from where the bus currently *is* (mid-interpolation) to the new fix.
     const cur = sample(obj, now);
     const dx = to.x - cur.x;
     const dy = to.y - cur.y;
     obj.from = { x: cur.x, y: cur.y, z: cur.z };
     obj.to = to;
     obj.rotFrom = cur.rot;
-    // Prefer the accurate telemetry bearing (`angulo`); fall back to travel
-    // direction only when the bearing is missing.
     const moved = Math.hypot(dx, dy) > meter * 3; // > ~3 m
     obj.rotTo = providedRot != null ? providedRot : (moved ? Math.atan2(dx, -dy) : cur.rot);
     obj.start = now;
@@ -233,8 +307,16 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
   map.triggerRepaint();
 }
 
+/** Make the open popup track a bus every frame; pass (null, null) to stop. */
+export function setFollow(id: string | null, cb: ((lngLat: { lng: number; lat: number }) => void) | null): void {
+  followId = id;
+  followCb = cb;
+}
+
 export function clearBusModels(map: maplibregl.Map): void {
   for (const [, obj] of buses) scene?.remove(obj.group);
   buses.clear();
+  followId = null;
+  followCb = null;
   map.triggerRepaint();
 }

@@ -164,6 +164,7 @@ x-relay-secret: <secret>
 * Normalizes response keys (`data`, `buses`, `vehiculos`, `lat`/`lng`) into unified model.
 * Polling triggered in 15s intervals. Overlapping requests avoided via `fetchInFlight` locks.
 * **Name Candidates**: Backend tries destination/origin candidate strings for troncal, preferring the first **non-empty** hit (a wrong name returns empty, not an error); falls through only when every candidate's transport throws.
+* **Direction filter (client)**: The live API returns **both directions** of a route whenever the requested `Nombre` doesn't exactly match a destination — common for rutas duales/fáciles (number-only codes) whose catalog name differs from the API `destino_limpio` (e.g. "Portal El Dorado" vs "Portal Eldorado"). `buses.ts` → `filterBusesByDirection` keeps only buses whose `destino_limpio` loosely matches the **selected trip's** destination(s), so the opposite trip is not shown. Falls back to all buses if nothing matches (never blanks the map).
 
 #### 5.2.5 Public CO Proxy Resilience (no card / host / install)
 When no CO egress is otherwise available, set `TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1` and the main server reaches the live API through free public Colombian proxies. Hardened for the inherent flakiness of free proxies:
@@ -176,10 +177,15 @@ When no CO egress is otherwise available, set `TRANSMILENIO_ALLOW_PUBLIC_CO_PROX
 #### 5.2.6 3D Bus Models
 Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (three.js).
 * **Asset**: source `buscar.glb` (Draco-compressed geometry + webp texture). `scripts/bake-bus-pivot.mjs` bakes the node translation so the pivot is the **exact bottom-center of the wheels** (world `centerX = 0`, `minY = 0`, `centerZ = 0` — never the front), emitting `client/public/models/bus.glb`. The Draco buffer is never decoded server-side; the mandatory POSITION `min/max` + node TRS give the bbox.
-* **Renderer**: `client/src/layers/busModelLayer.ts` — a `CustomLayerInterface` (`type:'custom'`, `renderingMode:'3d'`) that loads the model once (`GLTFLoader` + `DRACOLoader`, decoder served from `/draco/`) and places one clone per bus at its `MercatorCoordinate` (altitude 0 → wheels on ground). **One model is used for all bus types** (troncal / zonal / alimentador). Positions/headings lerp between 15-s polls; missing buses are removed.
+* **Renderer**: `client/src/layers/busModelLayer.ts` — a `CustomLayerInterface` (`type:'custom'`, `renderingMode:'3d'`) that places one clone per bus at its `MercatorCoordinate` (altitude 0 → wheels on ground). **One model family is used for all bus types** (troncal / zonal / alimentador).
+* **LOD**: `bus_lod.glb` (also pivot-baked from `busscar_LOD.glb`) loads immediately and renders when zoomed out; the full `bus.glb` is **lazy-loaded** the first time the user zooms in past `LOD_ZOOM` and shown from then on at close range.
+* **Motion**: positions tween from the previous fix to the new one across the poll interval (glide, no snapping). Heading uses the telemetry `angulo` (compass bearing; nose is +Z → `rotation.z = angulo`).
+* **Opaque**: model materials forced opaque on load (`transparent=false`, `depthWrite=true`) so buses are never see-through; max texture anisotropy.
+* **Declump**: buses sharing a spot are fanned out in a small ring (`declump()`) so a cluster doesn't render as one blob.
+* **Precision**: rendered relative to a per-frame local origin (map centre) → no mercator float jitter while panning.
 * **Pivot rule (non-negotiable)**: bottom-center of the wheels. Placement uses the pivot directly — no front offset.
-* **Interaction**: click pixel-picks the nearest bus (`map.project`) → info popup.
-* **Tunables** (`busModelLayer.ts`): `MODEL_SCALE` (visual size over true meters), `HEADING_OFFSET_DEG` / `HEADING_SIGN` (calibrate nose-to-travel from `angulo`), `BASE_TILT` (glTF Y-up → mercator Z-up). Heading/scale need a one-time calibration against live on-map data.
+* **Interaction**: click pixel-picks the nearest bus → info popup. The popup **follows its bus every frame** (`setFollow`) and its route badge is tinted with the route's own color (`getRouteAccentColor`), not a fixed red.
+* **Tunables** (`busModelLayer.ts`): `MODEL_SCALE`, `SCALE_REF_ZOOM` + `MAX_ZOOM_BOOST` (stay visible zoomed out), `LOD_ZOOM`, `DECLUMP_RING`, `BASE_TILT` (glTF Y-up → mercator Z-up).
 * **Dependency**: `three` (client). Draco decoder files copied to `client/public/draco/`.
 
 ---

@@ -17,8 +17,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SRC = path.resolve(__dirname, '../buscar.glb');
-const OUT = path.resolve(__dirname, '../client/public/models/bus.glb');
+// Usage: node bake-bus-pivot.mjs [srcRelToRepo] [outRelToRepo]
+// Defaults bake the full model; pass args to bake the LOD too.
+const SRC = path.resolve(__dirname, '..', process.argv[2] || 'buscar.glb');
+const OUT = path.resolve(__dirname, '..', process.argv[3] || 'client/public/models/bus.glb');
 
 function align4(n) { return (n + 3) & ~3; }
 
