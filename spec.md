@@ -217,6 +217,7 @@ Reconciles ArcGIS points with TransMi catalog stops.
      * Ricaurte Calle 13 → stop `TM0069` wagons `D`, `E`, `F`.
   3. Exact ID match.
   4. Name and distance proximity.
+* **Directional sibling completion** (`completeDirectionalSiblings`): A TransMilenio route number is shared only by its round-trip pair (e.g. B72/H72), and both directions serve the same stations. The source data files each direction on its own platform/wagon, so a wagon often lists only one of the pair (`C50` present, `B50` absent). After resolution, the missing directional sibling is added to every wagon that has its pair — only for **2-code numbers** (true pairs; numbers with >2 troncal codes are distinct routes, number-only fácil routes have no lettered sibling), and never adding a code already present, so no route is duplicated (display still de-dupes by código — §5.4.x tags). Verified on the catalog: 356 per-wagon gaps → 0, 0 new duplicates.
 * **Audit**: Diagnostic output exposed via `window.__tmStationAudit`.
 
 #### 5.4.2 Zonal Stop Resolver
