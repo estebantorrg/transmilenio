@@ -165,6 +165,15 @@ export const api = {
   getRouteDetail: (code: string) =>
     fetchJson<any>(`/troncal/route/${code}`),
 
+  readCardBalance: (numeroTarjeta: string, consultar: 'true' | 'false' = 'false') =>
+    fetchJson<CardBalanceResponse>('/card/read', 15_000, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ numero_tarjeta: numeroTarjeta, consultar }),
+    }, 0),
+
   getLiveBuses: async (
     ruta: string,
     nombre: string,
@@ -214,5 +223,44 @@ export interface GeoIpResponse {
   latitude?: number;
   longitude?: number;
   city?: string;
+  error?: string;
+}
+
+export interface CardBalanceMovement {
+  source: 'server' | 'card';
+  numeroTarjeta: string;
+  type: string;
+  amount?: string;
+  finalBalance?: string;
+  occurredAt?: string;
+}
+
+export interface CardBalanceRead {
+  numeroTarjeta: string;
+  consultar: 'true' | 'false';
+  balance?: string;
+  balanceSource?: 'server' | 'card';
+  asOf?: string;
+  movements: CardBalanceMovement[];
+  sources: {
+    server: {
+      status: 'ok';
+      host: string;
+      path: string;
+      method: 'POST';
+      requestBody: { numero_tarjeta: string; consultar: 'true' | 'false' };
+      requestHeaders: Record<string, string>;
+      count: number;
+    };
+    card: {
+      status: 'unavailable';
+      reason: string;
+    };
+  };
+}
+
+export interface CardBalanceResponse {
+  success: boolean;
+  data?: CardBalanceRead;
   error?: string;
 }

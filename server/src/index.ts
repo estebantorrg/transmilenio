@@ -70,6 +70,7 @@ app.get('/api', (_req, res) => {
       'GET /api/zonal/routes',
       'GET /api/zonal/stops',
       'GET /api/zonal/stop-routes',
+      'POST /api/card/read',
       'GET /api/health',
     ],
   });

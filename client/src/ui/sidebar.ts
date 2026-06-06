@@ -6,6 +6,7 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
+import { api, type CardBalanceRead, type CardBalanceMovement } from '../services/api';
 
 /** Short uppercase family label shown under the route name (TRONCAL / ZONAL / …). */
 function routeTypeLabel(route: RouteListItem): string {
@@ -74,6 +75,200 @@ export function initSidebar(options: {
     closeRouteDetail();
     onRouteDeselect?.();
   });
+
+  initCardBalancePanel();
+}
+
+let cardRequestSeq = 0;
+let cardPanelReturnToDetail = false;
+
+function initCardBalancePanel(): void {
+  const openBtn = document.getElementById('card-balance-open') as HTMLButtonElement | null;
+  const closeBtn = document.getElementById('card-detail-close') as HTMLButtonElement | null;
+  const form = document.getElementById('card-balance-form') as HTMLFormElement | null;
+  const input = document.getElementById('card-number-input') as HTMLInputElement | null;
+  const clearBtn = document.getElementById('card-number-clear') as HTMLButtonElement | null;
+
+  openBtn?.addEventListener('click', openCardBalancePanel);
+  closeBtn?.addEventListener('click', closeCardBalancePanel);
+  clearBtn?.addEventListener('click', () => {
+    if (!input) return;
+    input.value = '';
+    input.focus();
+    renderCardBalanceEmpty();
+  });
+
+  input?.addEventListener('input', () => {
+    input.value = input.value.replace(/\D/g, '').slice(0, 20);
+  });
+
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!input) return;
+
+    const numeroTarjeta = input.value.trim();
+    if (!/^\d{8,20}$/.test(numeroTarjeta)) {
+      renderCardBalanceError('Ingresa un numero de tarjeta valido.');
+      return;
+    }
+
+    const requestId = ++cardRequestSeq;
+    setCardBalanceLoading(true);
+    renderCardBalanceLoading();
+    try {
+      const response = await api.readCardBalance(numeroTarjeta, 'false');
+      if (requestId !== cardRequestSeq) return;
+      if (!response.success || !response.data) {
+        renderCardBalanceError(response.error || 'No se pudo leer el saldo.');
+        return;
+      }
+      renderCardBalanceResult(response.data);
+    } catch (error) {
+      if (requestId !== cardRequestSeq) return;
+      renderCardBalanceError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (requestId === cardRequestSeq) setCardBalanceLoading(false);
+    }
+  });
+}
+
+function openCardBalancePanel(): void {
+  const sidebar = document.getElementById('sidebar')!;
+  const routePanel = document.getElementById('route-detail')!;
+  const cardPanel = document.getElementById('card-detail')!;
+  cardPanelReturnToDetail = sidebar.classList.contains('detail-open') && !routePanel.classList.contains('hidden');
+
+  sidebar.classList.remove('detail-open');
+  sidebar.classList.add('card-open');
+  routePanel.classList.add('hidden');
+  cardPanel.classList.remove('hidden');
+
+  const input = document.getElementById('card-number-input') as HTMLInputElement | null;
+  window.setTimeout(() => input?.focus(), 0);
+}
+
+function closeCardBalancePanel(): void {
+  const sidebar = document.getElementById('sidebar')!;
+  const routePanel = document.getElementById('route-detail')!;
+  const cardPanel = document.getElementById('card-detail')!;
+
+  cardPanel.classList.add('hidden');
+  sidebar.classList.remove('card-open');
+
+  if (cardPanelReturnToDetail && selectedRouteId) {
+    routePanel.classList.remove('hidden');
+    sidebar.classList.add('detail-open');
+  }
+  cardPanelReturnToDetail = false;
+}
+
+function setCardBalanceLoading(loading: boolean): void {
+  const submit = document.getElementById('card-balance-submit') as HTMLButtonElement | null;
+  const openBtn = document.getElementById('card-balance-open') as HTMLButtonElement | null;
+  submit?.classList.toggle('loading', loading);
+  if (submit) submit.disabled = loading;
+  openBtn?.classList.toggle('loading', loading);
+}
+
+function renderCardBalanceEmpty(): void {
+  const result = document.getElementById('card-balance-result');
+  if (!result) return;
+  result.innerHTML = `
+    <div class="card-empty-state">
+      <div class="card-empty-title">Sin consulta</div>
+      <div class="card-empty-text">La respuesta del servidor se muestra separada de la lectura NFC local.</div>
+    </div>
+  `;
+}
+
+function renderCardBalanceLoading(): void {
+  const result = document.getElementById('card-balance-result');
+  if (!result) return;
+  result.innerHTML = `
+    <div class="card-loading-state">
+      <span class="footer-action-spinner visible" aria-hidden="true"></span>
+      <span>Consultando servidor oficial...</span>
+    </div>
+  `;
+}
+
+function renderCardBalanceError(message: string): void {
+  const result = document.getElementById('card-balance-result');
+  if (!result) return;
+  result.innerHTML = `
+    <div class="card-error-state">
+      <div class="card-empty-title">No se pudo consultar</div>
+      <div class="card-empty-text">${escapeHTML(message)}</div>
+    </div>
+  `;
+}
+
+function formatCOP(value: string | number | undefined): string {
+  if (value == null || value === '') return 'Sin dato';
+  const amount = Number(String(value).replace(/[^\d-]/g, ''));
+  if (!Number.isFinite(amount)) return String(value);
+  return `$${new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(amount)}`;
+}
+
+function formatCardDate(value: string | undefined): string {
+  if (!value) return 'Sin fecha';
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2}:\d{2})(?: UTC)?$/);
+  if (!match) return value;
+  return `${match[3]}/${match[2]}/${match[1]} ${match[4]}`;
+}
+
+function cardSourceLabel(source: CardBalanceMovement['source'] | CardBalanceRead['balanceSource']): string {
+  return source === 'card' ? 'Tarjeta NFC' : 'Servidor app oficial';
+}
+
+function renderCardMovement(movement: CardBalanceMovement): string {
+  return `
+    <div class="card-movement ${movement.source}">
+      <div class="card-movement-main">
+        <span>${escapeHTML(formatCardDate(movement.occurredAt))}</span>
+        <span>${escapeHTML(movement.type || 'Movimiento')}</span>
+      </div>
+      <div class="card-movement-line">Monto: ${movement.amount ? escapeHTML(formatCOP(movement.amount)) : 'no enviado por servidor'}</div>
+      <div class="card-movement-line">Saldo final: ${escapeHTML(formatCOP(movement.finalBalance))}</div>
+      <div class="card-movement-source">${escapeHTML(cardSourceLabel(movement.source))}</div>
+    </div>
+  `;
+}
+
+function renderCardBalanceResult(data: CardBalanceRead): void {
+  const result = document.getElementById('card-balance-result');
+  if (!result) return;
+
+  const movements = data.movements.length
+    ? data.movements.map(renderCardMovement).join('')
+    : '<div class="card-empty-state compact">Sin movimientos en respuesta.</div>';
+
+  result.innerHTML = `
+    <div class="card-balance-summary">
+      <div class="card-balance-label">Saldo reportado</div>
+      <div class="card-balance-amount">${escapeHTML(formatCOP(data.balance))}</div>
+      <div class="card-balance-meta">
+        ${escapeHTML(cardSourceLabel(data.balanceSource))} · ${escapeHTML(formatCardDate(data.asOf))}
+      </div>
+    </div>
+
+    <div class="card-source-warning">
+      <span class="card-source-chip">NFC ausente</span>
+      <span>El POST /lectura_tarjeta no trae la memoria de la tarjeta. Saldo actual y movimientos recientes requieren lectura NFC local.</span>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Tarjeta</div>
+      <div class="detail-row"><span class="detail-row-label">Numero</span><span class="detail-row-value">${escapeHTML(data.numeroTarjeta)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">consultar</span><span class="detail-row-value">${escapeHTML(data.consultar)}</span></div>
+      <div class="detail-row"><span class="detail-row-label">Host</span><span class="detail-row-value">${escapeHTML(data.sources.server.host)}</span></div>
+    </div>
+
+    <div class="detail-section">
+      <div class="detail-section-title">Movimientos (${data.movements.length})</div>
+      <div class="card-movement-list">${movements}</div>
+    </div>
+  `;
 }
 
 export function setRoutes(routes: RouteListItem[]): void {

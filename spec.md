@@ -240,7 +240,26 @@ All mounted on `/api`:
 * `GET /api/health`: Exposes catalog status (`catalogStale`, `syncInProgress`, `catalogStations`), ArcGIS + live cache entry counts (`cacheEntries`, `liveCacheEntries`), `liveTrackingVersion`, uptime, and — when the public-proxy fallback is enabled — `proxyPool` stats (§5.2.5).
 * `GET /api/debug-buses`: Test payload endpoint (tests route `1` / `Universidades`).
 * `GET /api/geoip`: Approximate client location from IP (fallback when native geolocation is blocked; zero PII stored — §3.3).
-* `GET /api/troncal/routes`, `/api/troncal/stations`, `/api/troncal/corridors`, `/api/troncal/master-catalog`, `/api/troncal/route/:code`, `/api/troncal/station/:code`, `POST /api/troncal/sync`, `/api/zonal/routes`, `/api/zonal/stops`, `/api/zonal/stop-routes`, `POST /api/buses`.
+* `GET /api/troncal/routes`, `/api/troncal/stations`, `/api/troncal/corridors`, `/api/troncal/master-catalog`, `/api/troncal/route/:code`, `/api/troncal/station/:code`, `POST /api/troncal/sync`, `/api/zonal/routes`, `/api/zonal/stops`, `/api/zonal/stop-routes`, `POST /api/buses`, `POST /api/card/read`.
+
+#### 5.5.1a Lectura de saldo
+* **Upstream host**: `https://tmsa-transmiapp-shvpc.uc.r.appspot.com`.
+* **Endpoint**: `POST /lectura_tarjeta`.
+* **Request body**: `{"numero_tarjeta":"<digits>","consultar":"false"}`. `consultar` is a string (`"true"` / `"false"`), not a boolean.
+* **Required observed headers**:
+  ```text
+  Accept-Encoding: gzip
+  Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea
+  Connection: Keep-Alive
+  Content-Type: application/json; charset=UTF-8
+  Host: tmsa-transmiapp-shvpc.uc.r.appspot.com
+  User-Agent: okhttp/4.12.0
+  uuid: fd1be953-d85e-4c63-8c23-234f143f445d
+  version: 2.9.5
+  ```
+  `Content-Length` must be computed from the exact JSON body bytes.
+* **Server contract**: `/api/card/read` validates the card number, sends the exact upstream shape, decodes gzip, does not cache, and never logs or stores the full card number.
+* **Source separation**: `/lectura_tarjeta` returns the server ledger only. The official mobile UI can show newer balance and multiple movements after a phone tap because it reads NFC card memory locally. Web/server code must not infer or fabricate those hidden card movements from the server response. Any future NFC/native bridge must merge as `source:"card"` with provenance distinct from `source:"server"`.
 
 #### 5.5.2 Caching & Timeouts
 * **Caching**:
@@ -338,7 +357,8 @@ System aligns with spec when:
 2. **Interactive Search**: Users search/select routes, showing correct traces, schedules, timelines.
 3. **Layer Integration**: Station popups render wagon assignments. Zonal stops map correct routes.
 4. **Live Operations**: Live tracking resolves through the cascade (Live Bridge extension → CO relay direct → server `/api/buses` → public CO proxy), showing loading/tracking/empty/error/stale states.
-5. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
+5. **Card Balance**: Lectura de saldo reproduces the observed `/lectura_tarjeta` request, labels server-only data as such, and never presents missing NFC card-memory movements as verified data.
+6. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
 
 ## 6. Future Goals & Rules
 
