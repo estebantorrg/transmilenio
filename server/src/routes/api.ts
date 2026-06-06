@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
+import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
 
 const router = Router();
 
@@ -225,6 +226,30 @@ router.post('/buses', async (req: Request, res: Response) => {
 // network location provider is blocked, returning POSITION_UNAVAILABLE).
 // Resolves the *client's* IP to an approximate coordinate. Nothing is stored
 // (spec §3.3 — zero PII storage); the client only calls /api/* (spec §2.3).
+
+router.post('/card/read', async (req: Request, res: Response) => {
+  const rawCardNumber = req.body?.numero_tarjeta ?? req.body?.numeroTarjeta ?? req.body?.cardNumber;
+  const consultar = req.body?.consultar ?? 'false';
+  const masked = rawCardNumber ? maskCardNumber(String(rawCardNumber)) : '(missing)';
+
+  try {
+    console.log(`[/card/read] Request: numero_tarjeta="${masked}" consultar="${consultar}"`);
+    const data = await fetchCardBalance(rawCardNumber, consultar);
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({ success: true, data });
+  } catch (error: any) {
+    const status = error instanceof CardBalanceError ? error.statusCode : 500;
+    console.error(`[/card/read] Error for "${masked}":`, error?.message || error);
+    res.status(status).json({
+      success: false,
+      error: status === 400
+        ? error.message
+        : status === 504
+          ? 'Card balance lookup timed out'
+          : 'Failed to read card balance',
+    });
+  }
+});
 
 const GEOIP_TIMEOUT_MS = 5_000;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;

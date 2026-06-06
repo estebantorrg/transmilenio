@@ -110,8 +110,57 @@
       <div id="route-detail-content"></div>
     </div>
 
+    <!-- Card Balance Panel -->
+    <div id="card-detail" class="card-detail hidden">
+      <button id="card-detail-close" class="route-detail-close">&lt;- Volver</button>
+      <div class="card-detail-content">
+        <div class="detail-header">
+          <div class="detail-badge zonal">Saldo</div>
+          <div class="detail-name">Lectura de saldo</div>
+          <div class="detail-subtitle">Tarjeta tullave</div>
+        </div>
+
+        <form id="card-balance-form" class="card-balance-form">
+          <label class="card-input-label" for="card-number-input">Numero de tarjeta</label>
+          <div class="card-input-row">
+            <input
+              id="card-number-input"
+              class="search-input card-number-input"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              maxlength="20"
+              autocomplete="off"
+              placeholder="1010000278369129"
+            />
+            <button id="card-number-clear" class="search-clear card-number-clear" type="button" aria-label="Limpiar">x</button>
+          </div>
+          <button id="card-balance-submit" class="footer-action card-balance-submit" type="submit">
+            <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
+            </svg>
+            <span class="footer-action-label">Consultar</span>
+            <span class="footer-action-spinner" aria-hidden="true"></span>
+          </button>
+        </form>
+
+        <div id="card-balance-result" class="card-balance-result">
+          <div class="card-empty-state">
+            <div class="card-empty-title">Sin consulta</div>
+            <div class="card-empty-text">La respuesta del servidor se muestra separada de la lectura NFC local.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Footer actions -->
     <div class="sidebar-footer">
+      <button id="card-balance-open" class="footer-action" type="button">
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
+        </svg>
+        <span class="footer-action-label">Saldo tarjeta</span>
+        <span class="footer-action-spinner" aria-hidden="true"></span>
+      </button>
       <button id="nearby-stations" class="footer-action" type="button">
         <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.6"/>
