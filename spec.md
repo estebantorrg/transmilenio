@@ -21,7 +21,7 @@ These rules govern every change. Violations block merge.
 |---|---|
 | **R1 — Zero band-aid fixes** | Every defect fixed at root cause. No try/catch swallowing symptoms. No commented-out code, no `// TODO: revisit`, no `eslint-disable` silencing warnings. If proper fix too large for current change, open tracked issue. |
 | **R2 — Clean, performant, maintainable** | Every change preserves: (a) **cleanliness** — no dead code, no duplicated logic; (b) **performance** — no blocking ops on Node event loop, optimized client-side MapLibre render; (c) **maintainability** — clean function signatures, clear naming, config documented in this spec. |
-| **R3 — Conventional Commits mandate** | All codebase changes committed and pushed using Conventional Commits. Titles follow `type(scope): subject` (≤72 chars) with valid types (feat, fix, docs, style, refactor, perf, test, chore). |
+| **R3 — Mainline Conventional Commits mandate** | All codebase changes committed and pushed directly to `main` using Conventional Commits unless the user explicitly requests a different branch, pull request, or release flow. Titles follow `type(scope): subject` (≤72 chars) with valid types (feat, fix, docs, style, refactor, perf, test, chore). |
 
 ---
 
