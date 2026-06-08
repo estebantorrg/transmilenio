@@ -542,6 +542,22 @@ export function isCatalogStale(): boolean {
 
 // ─── Catalog Merge ──────────────────────────────────────
 
+function cleanRouteName(name: string | null | undefined): string {
+  if (!name) return '';
+  return name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase()
+    .replace(/\bCICLOVIA\b/g, '')
+    .replace(/[^A-Z0-9]/g, '')
+    .trim();
+}
+
+function isDuplicateRoute(a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }): boolean {
+  if (a.codigo.toUpperCase().trim() !== b.codigo.toUpperCase().trim()) return false;
+  return cleanRouteName(a.nombre) === cleanRouteName(b.nombre);
+}
+
 /**
  * Non-destructively merges a freshly fetched catalog over the previous one.
  *
@@ -557,19 +573,19 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
     routes: { ...fresh.routes },
   };
 
-  // Routes: union by code; within a code, union variants by id (fresh wins).
+  // Routes: union by code; within a code, union variants by normalized name (fresh wins).
   for (const [code, oldVariants] of Object.entries(previous.routes || {})) {
     const freshVariants = merged.routes[code];
     if (!freshVariants) {
       merged.routes[code] = oldVariants;
       continue;
     }
-    const freshIds = new Set(freshVariants.map((v) => String(v.id)));
-    const retained = oldVariants.filter((v) => !freshIds.has(String(v.id)));
+    const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
+    const retained = oldVariants.filter((v) => !freshKeys.has(cleanRouteName(v.nombre)));
     if (retained.length > 0) merged.routes[code] = [...freshVariants, ...retained];
   }
 
-  // Stations: union by code; union wagons; within a wagon, union route refs by id.
+  // Stations: union by code; union wagons; within a wagon, union route refs by normalized code+name.
   for (const [stationCode, oldStation] of Object.entries(previous.stations || {})) {
     const freshStation = merged.stations[stationCode];
     if (!freshStation) {
@@ -583,8 +599,8 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
         mergedWagons[wagon] = oldRoutes;
         continue;
       }
-      const ids = new Set(freshRoutes.map((r) => String(r.id)));
-      const retained = oldRoutes.filter((r) => !ids.has(String(r.id)));
+      const freshKeys = new Set(freshRoutes.map((r) => `${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
+      const retained = oldRoutes.filter((r) => !freshKeys.has(`${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
       if (retained.length > 0) mergedWagons[wagon] = [...freshRoutes, ...retained];
     }
     merged.stations[stationCode] = { ...freshStation, wagons: mergedWagons };
@@ -670,7 +686,7 @@ export async function syncMasterCatalog(): Promise<void> {
             
             // Add route if not already present (prevent duplicates)
             const exists = newCatalog.stations[stationCode].wagons[wagonLabel].some(
-              (r) => (r.id && r.id === route.id) || (!r.id && r.codigo === route.codigo && r.nombre === route.nombre)
+              (r) => isDuplicateRoute(r, route)
             );
             if (!exists) {
               newCatalog.stations[stationCode].wagons[wagonLabel].push({
@@ -691,22 +707,27 @@ export async function syncMasterCatalog(): Promise<void> {
             newCatalog.routes[route.codigo] = [];
           }
           
-          newCatalog.routes[route.codigo].push({
-            id: route.id,
-            codigo: route.codigo,
-            nombre: route.nombre,
-            color: routeColor,
-            sistema: sistema || route.sistema,
-            tipoServicio: tipoServicio || route.tipoServicio,
-            horarios,
-            stops: recorrido.map(s => ({
-              nombre: s.nombre,
-              codigo: s.codigo,
-              coordenada: s.coordenada,
-              posicion: s.posicion
-            })),
-            trazado
-          });
+          const routeExists = newCatalog.routes[route.codigo].some(
+            (r) => cleanRouteName(r.nombre) === cleanRouteName(route.nombre)
+          );
+          if (!routeExists) {
+            newCatalog.routes[route.codigo].push({
+              id: route.id,
+              codigo: route.codigo,
+              nombre: route.nombre,
+              color: routeColor,
+              sistema: sistema || route.sistema,
+              tipoServicio: tipoServicio || route.tipoServicio,
+              horarios,
+              stops: recorrido.map(s => ({
+                nombre: s.nombre,
+                codigo: s.codigo,
+                coordenada: s.coordenada,
+                posicion: s.posicion
+              })),
+              trazado
+            });
+          }
 
           console.log(
             `[TM API] [${progress}] ${route.codigo} (${route.nombre}) — ${recorrido.length} stops, ${stopsAdded} new mappings`

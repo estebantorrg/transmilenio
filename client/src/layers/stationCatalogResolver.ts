@@ -226,10 +226,16 @@ function buildIndexes(catalog: MasterCatalog): ResolverIndexes {
 }
 
 function routeIdentity(route: CatalogRoute): string {
+  const nameStep1 = (route.nombre || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toUpperCase();
+  const nameStep2 = nameStep1.replace(/\bCICLOVIA\b/g, '').trim();
+  const cleanName = nameStep2.replace(/[^A-Z0-9]/g, '');
+
   return [
-    route.id ?? '',
-    normalizeStationName(route.codigo),
-    normalizeStationName(route.nombre),
+    route.codigo.toLowerCase().replace(/[^a-z0-9]/g, ''),
+    cleanName,
   ].join('|');
 }
 
