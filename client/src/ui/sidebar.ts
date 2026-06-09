@@ -292,10 +292,7 @@ function filterRoutes(query: string): void {
   const filtered = allRoutes.filter(
     (r) =>
       r.code.toLowerCase().includes(q) ||
-      r.name.toLowerCase().includes(q) ||
-      r.origin.toLowerCase().includes(q) ||
-      r.destination.toLowerCase().includes(q) ||
-      (r.operator && r.operator.toLowerCase().includes(q))
+      r.name.toLowerCase().includes(q)
   );
 
   renderRouteList(filtered);
