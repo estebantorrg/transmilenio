@@ -311,37 +311,51 @@ function sliceRouteGeometry(
     return fallback;
   }
 
-  // Flatten all paths in the multi-line string
-  const allCoords = route.geometry.paths.flat() as [number, number][];
-  if (allCoords.length === 0) return fallback;
+  let bestPath: [number, number][] | null = null;
+  let bestScore = Infinity;
+  let bestIdxA = 0;
+  let bestIdxB = 0;
 
-  // Find index in coordinates closest to the origin and destination stops
-  let idxA = 0;
-  let idxB = 0;
-  let minDistA = Infinity;
-  let minDistB = Infinity;
+  for (const path of route.geometry.paths) {
+    const coords = path as [number, number][];
+    if (coords.length === 0) continue;
 
-  for (let i = 0; i < allCoords.length; i++) {
-    const coord = allCoords[i];
-    const distA = getDistance(coord, fromStop.coordinate);
-    const distB = getDistance(coord, toStop.coordinate);
+    let idxA = 0;
+    let idxB = 0;
+    let minDistA = Infinity;
+    let minDistB = Infinity;
 
-    if (distA < minDistA) {
-      minDistA = distA;
-      idxA = i;
+    for (let i = 0; i < coords.length; i++) {
+      const coord = coords[i];
+      const distA = getDistance(coord, fromStop.coordinate);
+      const distB = getDistance(coord, toStop.coordinate);
+
+      if (distA < minDistA) {
+        minDistA = distA;
+        idxA = i;
+      }
+      if (distB < minDistB) {
+        minDistB = distB;
+        idxB = i;
+      }
     }
-    if (distB < minDistB) {
-      minDistB = distB;
-      idxB = i;
+
+    const score = minDistA + minDistB;
+    if (score < bestScore) {
+      bestScore = score;
+      bestPath = coords;
+      bestIdxA = idxA;
+      bestIdxB = idxB;
     }
   }
 
-  // Slice coordinate sequence
-  if (idxA <= idxB) {
-    const sliced = allCoords.slice(idxA, idxB + 1);
+  if (!bestPath) return fallback;
+
+  if (bestIdxA <= bestIdxB) {
+    const sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
     return sliced.length >= 2 ? sliced : fallback;
   } else {
-    const sliced = allCoords.slice(idxB, idxA + 1).reverse();
+    const sliced = bestPath.slice(bestIdxB, bestIdxA + 1).reverse();
     return sliced.length >= 2 ? sliced : fallback;
   }
 }
@@ -573,6 +587,11 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     for (const edge of edges) {
       if (edge.type === 'troncal' && mode === 'zonal') continue;
       if (edge.type === 'zonal' && mode === 'troncal') continue;
+
+      // Prevent consecutive walking segments & immediate walks from the start stop
+      if (edge.type === 'walking' && (current.routeCode === 'start' || current.routeCode === 'walking')) {
+        continue;
+      }
 
       let edgeTime = edge.time;
       let edgeCost = edge.time;
