@@ -1007,7 +1007,7 @@ function buildColombiaRelayBody(context: LiveRequestContext): string {
   });
 }
 
-async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext): Promise<any[]> {
+async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   const relayUrl = getConfiguredColombiaRelayUrl();
   if (!relayUrl) {
     throw new Error(
@@ -1026,7 +1026,7 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext): Prom
   if (secret) headers.Authorization = `Bearer ${secret}`;
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO relay ${url.origin}`);
-  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS);
+  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, undefined, signal);
 }
 
 function buildProxyHeaders(context: LiveRequestContext): Record<string, string | number> {
@@ -1069,7 +1069,7 @@ function firstFulfilled<T>(promises: Promise<T>[]): Promise<T> {
  * (latency recorded), genuine losers are penalised, and the still-pending ones
  * are aborted the moment a winner resolves.
  */
-async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Promise<any[]> {
+async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
   const ready = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
   if (ready === 0) throw new Error('No Colombian proxy available');
@@ -1080,6 +1080,10 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Pro
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
   const headers = buildProxyHeaders(context);
   const controller = new AbortController();
+
+  // Link parent signal so the overall timeout can cancel the proxy race.
+  const onParentAbort = () => controller.abort();
+  signal?.addEventListener('abort', onParentAbort, { once: true });
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy RACEx${proxies.length}`);
 
@@ -1109,6 +1113,8 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Pro
     return buses;
   } catch {
     throw new Error(`All ${proxies.length} CO proxies failed`);
+  } finally {
+    signal?.removeEventListener('abort', onParentAbort);
   }
 }
 
@@ -1118,7 +1124,7 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext): Pro
  * relay or proxy. From a non-Colombian host the geofence answers 401/451, which
  * fails fast and falls through to the relay below.
  */
-async function fetchLiveBusesDirect(context: LiveRequestContext): Promise<any[]> {
+async function fetchLiveBusesDirect(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
   const postData = context.postData;
   const headers: Record<string, string | number> = {
@@ -1136,7 +1142,7 @@ async function fetchLiveBusesDirect(context: LiveRequestContext): Promise<any[]>
   }
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=DIRECT`);
-  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS);
+  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, undefined, signal);
 }
 
 /** A non-Colombian egress is rejected by the geofence — no candidate will fare
@@ -1145,35 +1151,84 @@ function isGeofenceRejection(error: any): boolean {
   return /Status: (401|451)/.test(String(error?.message || ''));
 }
 
+/** Overall budget for the entire live-bus cascade (all strategies + candidates).
+ *  Must be under the client's 15 s timeout so the server answers before the
+ *  browser gives up, leaving room for the stale-cache fallback. */
+const LIVE_OVERALL_TIMEOUT_MS = 14_500;
+
 /**
- * Runs one transport strategy across every name candidate, returning the first
- * successful payload (even when empty) or `null` if all candidates failed.
+ * Runs one transport strategy across every name candidate **in parallel**,
+ * returning the first non-empty payload (or a valid empty one) or `null` if
+ * all candidates failed.
+ *
+ * The old sequential loop burned the full per-request timeout for *each*
+ * candidate when the upstream was dead, easily exceeding 60 s total and
+ * triggering the client-side abort.  Parallelising means wall-clock time
+ * equals one request, not N×one request.
  */
 async function runLiveStrategy(
   label: string,
-  fetcher: (context: LiveRequestContext) => Promise<any[]>,
+  fetcher: (context: LiveRequestContext, signal?: AbortSignal) => Promise<any[]>,
   contexts: LiveRequestContext[],
   errors: string[],
-  shouldAbort?: (error: any) => boolean
+  shouldAbort?: (error: any) => boolean,
+  signal?: AbortSignal
 ): Promise<any[] | null> {
-  // Troncal matches by destination name; a wrong candidate returns an empty
-  // (not an error). So keep trying candidates for a NON-empty hit, remembering
-  // a valid empty as the fallback. Return null only if every candidate threw —
-  // that signals a transport failure and lets the next strategy take over.
-  let emptyResult: any[] | null = null;
-  for (const context of contexts) {
+  if (contexts.length === 0) return null;
+
+  // Fast-path: single candidate (zonal or single-name troncal).
+  if (contexts.length === 1) {
     try {
-      const buses = await fetcher(context);
-      if (buses.length > 0) {
-        console.log(`[TM API] ${label} candidate "${context.candidateName}" succeeded with ${buses.length} buses`);
-        return buses;
-      }
-      emptyResult = buses;
+      return await fetcher(contexts[0], signal);
     } catch (error: any) {
-      errors.push(`[${label} ${context.candidateName}] ${error.message}`);
-      if (shouldAbort?.(error)) break;
+      errors.push(`[${label} ${contexts[0].candidateName}] ${error.message}`);
+      return null;
     }
   }
+
+  // Multi-candidate: fire all in parallel, take the first non-empty hit.
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort();
+  signal?.addEventListener('abort', onParentAbort, { once: true });
+
+  type Outcome = { buses: any[]; candidate: string } | { error: any; candidate: string };
+
+  const settled = await Promise.allSettled(
+    contexts.map(async (ctx): Promise<Outcome> => {
+      try {
+        const buses = await fetcher(ctx, controller.signal);
+        return { buses, candidate: ctx.candidateName };
+      } catch (error: any) {
+        return { error, candidate: ctx.candidateName };
+      }
+    })
+  );
+
+  signal?.removeEventListener('abort', onParentAbort);
+
+  // Evaluate results: prefer the first non-empty bus list; remember any valid
+  // empty result as fallback; collect errors from genuine failures.
+  let emptyResult: any[] | null = null;
+  let geofenced = false;
+  for (const result of settled) {
+    if (result.status !== 'fulfilled') continue;
+    const outcome = result.value;
+    if ('buses' in outcome) {
+      if (outcome.buses.length > 0) {
+        console.log(`[TM API] ${label} candidate "${outcome.candidate}" succeeded with ${outcome.buses.length} buses`);
+        controller.abort(); // cancel stragglers
+        return outcome.buses;
+      }
+      emptyResult = outcome.buses;
+    } else {
+      errors.push(`[${label} ${outcome.candidate}] ${outcome.error?.message ?? outcome.error}`);
+      if (shouldAbort?.(outcome.error)) geofenced = true;
+    }
+  }
+
+  controller.abort();
+  // A geofenced rejection means no candidate on this transport will ever work.
+  if (geofenced && emptyResult === null) return null;
   return emptyResult;
 }
 
@@ -1194,19 +1249,27 @@ export async function fetchLiveBuses(
     throw new Error('ruta is required');
   }
 
-  // 1. Direct (works when the backend egress is Colombian).
-  const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection);
-  if (direct) return direct;
+  // Overall budget: abort everything if the cascade exceeds the wall-clock cap.
+  const overallController = new AbortController();
+  const overallTimer = setTimeout(() => overallController.abort(), LIVE_OVERALL_TIMEOUT_MS);
 
-  // 2. Colombia relay (for non-Colombian hosts with a relay configured).
-  const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors);
-  if (relay) return relay;
+  try {
+    // 1. Direct (works when the backend egress is Colombian).
+    const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, overallController.signal);
+    if (direct) return direct;
 
-  // 3. Public Colombian proxy (opt-in best-effort fallback).
-  if (allowPublicColombianProxyFallback()) {
-    const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors);
-    if (proxy) return proxy;
+    // 2. Colombia relay (for non-Colombian hosts with a relay configured).
+    const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, overallController.signal);
+    if (relay) return relay;
+
+    // 3. Public Colombian proxy (opt-in best-effort fallback).
+    if (allowPublicColombianProxyFallback()) {
+      const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, undefined, overallController.signal);
+      if (proxy) return proxy;
+    }
+
+    throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
+  } finally {
+    clearTimeout(overallTimer);
   }
-
-  throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
 }

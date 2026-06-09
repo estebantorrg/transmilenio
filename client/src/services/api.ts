@@ -12,6 +12,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, ''
 // browser → CO relay → live API, keeping the main server out of the live path.
 const LIVE_RELAY_URL = String(import.meta.env.VITE_LIVE_RELAY_URL || '').replace(/\/$/, '');
 const REQUEST_TIMEOUT_MS = 60_000;
+const LIVE_TRACKING_TIMEOUT_MS = 15_000;
 const MASTER_CATALOG_TIMEOUT_MS = 300_000; // 5m for the heavy catalog
 
 const MAX_RETRIES = 4;
@@ -126,7 +127,7 @@ async function fetchJson<T>(
  */
 async function postLiveRelayDirect(payload: unknown): Promise<any> {
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = window.setTimeout(() => controller.abort(), LIVE_TRACKING_TIMEOUT_MS);
   try {
     const response = await fetch(`${LIVE_RELAY_URL}/buses`, {
       method: 'POST',
@@ -203,7 +204,7 @@ export const api = {
 
     // Tier 3: main server relay (spec §4.2 graceful degradation). 0 retries — live
     // requests must not stack up behind the 15s polling window (spec §3.4).
-    return fetchJson<any>('/buses', REQUEST_TIMEOUT_MS, {
+    return fetchJson<any>('/buses', LIVE_TRACKING_TIMEOUT_MS, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
