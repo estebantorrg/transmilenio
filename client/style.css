@@ -779,17 +779,23 @@ body {
   display: none !important;
 }
 
+.sidebar.detail-open .sidebar-tabs,
 .sidebar.detail-open .search-container,
 .sidebar.detail-open .layer-toggles,
 .sidebar.detail-open .route-list-header,
 .sidebar.detail-open .route-list,
+.sidebar.detail-open .planner-panel,
+.sidebar.detail-open .card-detail,
 .sidebar.detail-open .sidebar-footer,
+.sidebar.card-open .sidebar-tabs,
 .sidebar.card-open .search-container,
 .sidebar.card-open .layer-toggles,
 .sidebar.card-open .route-list-header,
 .sidebar.card-open .route-list,
+.sidebar.card-open .planner-panel,
+.sidebar.card-open .route-detail,
 .sidebar.card-open .sidebar-footer {
-  display: none;
+  display: none !important;
 }
 
 .card-detail {
@@ -801,10 +807,6 @@ body {
 }
 
 .card-detail.hidden {
-  display: none !important;
-}
-
-.sidebar.card-open .planner-panel {
   display: none !important;
 }
 
@@ -1800,6 +1802,10 @@ body {
 @keyframes pulse {
   0% { opacity: 0.8; }
   100% { opacity: 1; }
+}
+
+.input-group {
+  position: relative;
 }
 
 .input-wrapper {

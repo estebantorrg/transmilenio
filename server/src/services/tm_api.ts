@@ -517,6 +517,7 @@ export function getCatalogLight(): any {
         horarios: route.horarios,
         origin,
         destination,
+        stops: route.stops || [],
         trazado: simplifyTraceForLight(route.trazado),
       };
     });

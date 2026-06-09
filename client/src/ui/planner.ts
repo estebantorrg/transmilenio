@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, type JourneyPlan, type JourneyStep } from '../services/router';
+import { findRoutes, getDistance, initRouter, fetchWalkingPath, type JourneyPlan, type JourneyStep } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
@@ -428,6 +428,11 @@ function calculateRoute(): void {
 
       btnCalculate.classList.remove('loading');
       renderResults(calculatedPlans);
+      
+      // Asynchronously load real street-level walking paths from OSRM
+      enrichWalkingGeometries(calculatedPlans).catch(err => {
+        console.error('[Planner] Failed walking enrichment:', err);
+      });
     } catch (err) {
       console.error('[Planner] Calculation failed:', err);
       btnCalculate.classList.remove('loading');
@@ -441,7 +446,7 @@ function calculateRoute(): void {
   }, 100);
 }
 
-function renderResults(plans: JourneyPlan[]): void {
+function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
   const container = document.getElementById('planner-results')!;
   
   if (plans.length === 0) {
@@ -516,9 +521,48 @@ function renderResults(plans: JourneyPlan[]): void {
     });
   });
 
-  // Select the best plan (index 0) by default
-  selectPlan(0, cards);
+  const selectIndex = (preserveSelection && activePlanIndex !== null && activePlanIndex < plans.length)
+    ? activePlanIndex
+    : 0;
+
+  selectPlan(selectIndex, cards);
 }
+
+async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
+  const promises: Promise<void>[] = [];
+
+  plans.forEach((plan) => {
+    plan.steps.forEach((step) => {
+      if (step.type === 'walk' && step.path && step.path.length === 2) {
+        const [from, to] = step.path;
+        const p = fetchWalkingPath(from, to).then((res) => {
+          step.path = res.coordinates;
+          step.distance = res.distance;
+          step.time = res.time;
+        });
+        promises.push(p);
+      }
+    });
+  });
+
+  if (promises.length === 0) return;
+
+  try {
+    await Promise.all(promises);
+    
+    // Recalculate totals for all plans
+    plans.forEach((plan) => {
+      plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
+      plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
+    });
+
+    // Re-render UI and update map preserving active selection
+    renderResults(plans, true);
+  } catch (error) {
+    console.error('[Planner] Error enriching walking paths:', error);
+  }
+}
+
 
 function selectPlan(index: number, cards: NodeListOf<Element>): void {
   activePlanIndex = index;

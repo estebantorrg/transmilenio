@@ -799,3 +799,45 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
 
   return plans;
 }
+
+export interface WalkingPathResult {
+  coordinates: [number, number][];
+  distance: number;
+  time: number;
+}
+
+const walkingCache = new Map<string, WalkingPathResult>();
+
+export async function fetchWalkingPath(from: [number, number], to: [number, number]): Promise<WalkingPathResult> {
+  const key = `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+  const cached = walkingCache.get(key);
+  if (cached) return cached;
+
+  const url = `https://router.project-osrm.org/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}?overview=full&geometries=geojson`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`OSRM status ${response.status}`);
+    const data = await response.json();
+    if (data.code === 'Ok' && data.routes?.[0]) {
+      const route = data.routes[0];
+      const result: WalkingPathResult = {
+        coordinates: route.geometry.coordinates as [number, number][],
+        distance: route.distance, // in meters
+        time: route.duration / 60, // duration is in seconds, convert to minutes
+      };
+      walkingCache.set(key, result);
+      return result;
+    }
+  } catch (error) {
+    console.warn('[Router] Failed to fetch walking path from OSRM:', error);
+  }
+  
+  // Fallback to straight line
+  const distance = getDistance(from, to);
+  return {
+    coordinates: [from, to],
+    distance,
+    time: distance / 75,
+  };
+}
+
