@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
+import { geocodeAddress } from '../services/geocode.js';
 
 const router = Router();
 
@@ -298,6 +299,22 @@ router.get('/geoip', async (req: Request, res: Response) => {
     });
   } finally {
     clearTimeout(timeout);
+  }
+});
+
+router.get('/geocode', async (req: Request, res: Response) => {
+  const query = req.query.q;
+  if (typeof query !== 'string' || !query) {
+    res.status(400).json({ success: false, error: 'Query parameter "q" is required' });
+    return;
+  }
+
+  try {
+    const candidates = await geocodeAddress(query);
+    res.json({ success: true, count: candidates.length, candidates });
+  } catch (error: any) {
+    console.error(`[/geocode] Error for "${query}":`, error?.message || error);
+    res.status(500).json({ success: false, error: 'Failed to geocode address' });
   }
 });
 

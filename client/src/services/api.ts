@@ -216,6 +216,10 @@ export const api = {
   /** Approximate location from the client IP — fallback when native geolocation is blocked. */
   getGeoIp: () =>
     fetchJson<GeoIpResponse>('/geoip', 8_000, undefined, 1),
+
+  /** Query Bogotá-bounded geocoding API. */
+  geocodeAddress: (q: string) =>
+    fetchJson<any>(`/geocode?q=${encodeURIComponent(q)}`, 8_000, undefined, 1),
 };
 
 export interface GeoIpResponse {

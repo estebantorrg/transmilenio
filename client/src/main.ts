@@ -28,6 +28,8 @@ import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteBy
 import { startBusTracking, stopBusTracking } from './layers/buses';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
+import { initPlanner } from './ui/planner';
+import { initRouter } from './services/router';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
@@ -778,6 +780,7 @@ async function main(): Promise<void> {
   // 4. Done with initial render!
   console.log('🎉 TransMilenio Explorer initial render ready!');
   hideLoading();
+  initPlanner(map, routeList);
 
   // 5. Background Loading: fetch Zonal Stops and Zonal stop-route mappings asynchronously
   Promise.allSettled([
@@ -841,6 +844,9 @@ async function main(): Promise<void> {
           stations: stationCount,
           stops: stopsCount,
         });
+
+        // Rebuild the routing graph with the fully enriched zonal stops
+        initRouter(routeList);
 
         console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
       }

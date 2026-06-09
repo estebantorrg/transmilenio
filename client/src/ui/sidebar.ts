@@ -495,6 +495,12 @@ function showRouteDetail(route: RouteListItem): void {
 
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
+
+  // Switch to explore tab if route is selected
+  const tabExplore = document.getElementById('tab-explore');
+  if (tabExplore && !tabExplore.classList.contains('active')) {
+    tabExplore.click();
+  }
 }
 
 export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number): void {

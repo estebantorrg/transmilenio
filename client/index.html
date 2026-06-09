@@ -49,60 +49,147 @@
       </button>
     </div>
 
-    <!-- Search -->
-    <div class="search-container">
-      <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      <input type="text" id="search-input" class="search-input" placeholder="Busca rutas, estaciones, o destinos" autocomplete="off" />
-      <button id="search-clear" class="search-clear hidden" aria-label="Clear search">✕</button>
+    <!-- Tabs -->
+    <div class="sidebar-tabs">
+      <button id="tab-explore" class="tab-btn active" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span>Explorar</span>
+      </button>
+      <button id="tab-planner" class="tab-btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <span>Planear</span>
+      </button>
     </div>
 
-    <!-- Layer Toggles -->
-    <div class="layer-toggles">
-      <div class="layer-toggles-title">Capas del mapa</div>
-      <label class="toggle-item" id="toggle-troncal">
-        <input type="checkbox" checked data-layer="troncal" />
-        <span class="toggle-check check-troncal"></span>
-        <div class="toggle-text">
-          <div class="toggle-label">Rutas troncales</div>
-          <div class="toggle-desc">Líneas principales de TransMilenio</div>
-        </div>
-        <span class="toggle-count" id="count-troncal">—</span>
-      </label>
-      <label class="toggle-item" id="toggle-zonal">
-        <input type="checkbox" data-layer="zonal" />
-        <span class="toggle-check check-zonal"></span>
-        <div class="toggle-text">
-          <div class="toggle-label">Rutas zonales</div>
-          <div class="toggle-desc">Buses SITP que circulan por barrios</div>
-        </div>
-        <span class="toggle-count" id="count-zonal">—</span>
-      </label>
-      <label class="toggle-item" id="toggle-stations">
-        <input type="checkbox" checked data-layer="stations" />
-        <span class="toggle-check check-stations"></span>
-        <div class="toggle-text">
-          <div class="toggle-label">Estaciones troncales</div>
-          <div class="toggle-desc">Paradas del sistema troncal</div>
-        </div>
-        <span class="toggle-count" id="count-stations">—</span>
-      </label>
-      <label class="toggle-item" id="toggle-stops">
-        <input type="checkbox" data-layer="stops" />
-        <span class="toggle-check check-stops"></span>
-        <div class="toggle-text">
-          <div class="toggle-label">Paraderos zonales</div>
-          <div class="toggle-desc">Paradas de buses SITP en calle</div>
-        </div>
-        <span class="toggle-count" id="count-stops">—</span>
-      </label>
+    <!-- Explore Panel -->
+    <div id="explore-panel" class="explore-panel">
+      <!-- Search -->
+      <div class="search-container">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="search-input" class="search-input" placeholder="Busca rutas, estaciones, o destinos" autocomplete="off" />
+        <button id="search-clear" class="search-clear hidden" aria-label="Clear search">✕</button>
+      </div>
+
+      <!-- Layer Toggles -->
+      <div class="layer-toggles">
+        <div class="layer-toggles-title">Capas del mapa</div>
+        <label class="toggle-item" id="toggle-troncal">
+          <input type="checkbox" checked data-layer="troncal" />
+          <span class="toggle-check check-troncal"></span>
+          <div class="toggle-text">
+            <div class="toggle-label">Rutas troncales</div>
+            <div class="toggle-desc">Líneas principales de TransMilenio</div>
+          </div>
+          <span class="toggle-count" id="count-troncal">—</span>
+        </label>
+        <label class="toggle-item" id="toggle-zonal">
+          <input type="checkbox" data-layer="zonal" />
+          <span class="toggle-check check-zonal"></span>
+          <div class="toggle-text">
+            <div class="toggle-label">Rutas zonales</div>
+            <div class="toggle-desc">Buses SITP que circulan por barrios</div>
+          </div>
+          <span class="toggle-count" id="count-zonal">—</span>
+        </label>
+        <label class="toggle-item" id="toggle-stations">
+          <input type="checkbox" checked data-layer="stations" />
+          <span class="toggle-check check-stations"></span>
+          <div class="toggle-text">
+            <div class="toggle-label">Estaciones troncales</div>
+            <div class="toggle-desc">Paradas del sistema troncal</div>
+          </div>
+          <span class="toggle-count" id="count-stations">—</span>
+        </label>
+        <label class="toggle-item" id="toggle-stops">
+          <input type="checkbox" data-layer="stops" />
+          <span class="toggle-check check-stops"></span>
+          <div class="toggle-text">
+            <div class="toggle-label">Paraderos zonales</div>
+            <div class="toggle-desc">Paradas de buses SITP en calle</div>
+          </div>
+          <span class="toggle-count" id="count-stops">—</span>
+        </label>
+      </div>
+
+      <!-- Route List -->
+      <div class="route-list-header">
+        <h3>Rutas</h3>
+        <span class="route-list-count" id="route-list-count"></span>
+      </div>
+      <div id="route-list" class="route-list"></div>
     </div>
 
-    <!-- Route List -->
-    <div class="route-list-header">
-      <h3>Rutas</h3>
-      <span class="route-list-count" id="route-list-count"></span>
+    <!-- Planner Panel -->
+    <div id="planner-panel" class="planner-panel hidden">
+      <div class="planner-inputs">
+        <div class="input-group">
+          <div class="input-label-row">
+            <label for="plan-origin-input">Desde</label>
+            <button id="btn-origin-map" class="map-pick-btn" type="button" title="Marcar en mapa">Mapa</button>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" id="plan-origin-input" class="search-input" placeholder="Origen: Estación, dirección o mapa" autocomplete="off" />
+            <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button id="plan-origin-clear" class="search-clear hidden" type="button">✕</button>
+          </div>
+          <div id="origin-autocomplete" class="autocomplete-dropdown hidden"></div>
+        </div>
+
+        <div class="swap-row">
+          <button id="btn-swap-locations" class="swap-btn" type="button" title="Intercambiar origen y destino">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
+          </button>
+        </div>
+
+        <div class="input-group">
+          <div class="input-label-row">
+            <label for="plan-destination-input">Hacia</label>
+            <button id="btn-destination-map" class="map-pick-btn" type="button" title="Marcar en mapa">Mapa</button>
+          </div>
+          <div class="input-wrapper">
+            <input type="text" id="plan-destination-input" class="search-input" placeholder="Destino: Estación, dirección o mapa" autocomplete="off" />
+            <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <button id="plan-destination-clear" class="search-clear hidden" type="button">✕</button>
+          </div>
+          <div id="destination-autocomplete" class="autocomplete-dropdown hidden"></div>
+        </div>
+      </div>
+
+      <div class="planner-options">
+        <div class="planner-option-row">
+          <label for="plan-transport-mode">Transporte</label>
+          <select id="plan-transport-mode" class="planner-select">
+            <option value="mix">Todos (Mixto SITP/TM)</option>
+            <option value="troncal">Solo TransMilenio</option>
+            <option value="zonal">Solo SITP Zonal</option>
+          </select>
+        </div>
+        <div class="planner-option-row checkbox-row">
+          <label class="toggle-item-compact">
+            <input type="checkbox" id="plan-min-walk-checkbox" />
+            <span class="toggle-check-compact"></span>
+            <span class="toggle-text-compact">Caminar lo menos posible</span>
+          </label>
+        </div>
+      </div>
+
+      <button id="btn-calculate-route" class="footer-action planner-calculate-btn" type="button">
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <span class="footer-action-label">Buscar Ruta</span>
+        <span class="footer-action-spinner" aria-hidden="true"></span>
+      </button>
+
+      <div id="planner-results" class="planner-results">
+        <div class="planner-empty-state">
+          <div class="card-empty-title">Planifica tu viaje</div>
+          <div class="card-empty-text">Elige tu origen y destino para encontrar la mejor ruta en TransMilenio y SITP.</div>
+        </div>
+      </div>
     </div>
-    <div id="route-list" class="route-list"></div>
 
     <!-- Route Detail Panel (shown when a route is selected) -->
     <div id="route-detail" class="route-detail hidden">
