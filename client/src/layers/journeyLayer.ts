@@ -4,11 +4,15 @@ import { getRouteAccentColor } from '../utils/routeColors';
 import type { RouteListItem } from '../types/transmilenio';
 
 const JOURNEY_LAYERS = [
+  'journey-path-glow',
   'journey-path-casing',
   'journey-path-line',
+  'journey-walk-glow',
+  'journey-walk-casing',
+  'journey-walk-line',
   'journey-stops-glow',
   'journey-stops-circle',
-  'journey-stops-labels'
+  'journey-stops-labels',
 ];
 
 /**
@@ -17,8 +21,14 @@ const JOURNEY_LAYERS = [
 export function addJourneyLayer(map: maplibregl.Map): void {
   if (map.getSource('journey-path')) return;
 
-  // Path source
+  // Transit path source
   map.addSource('journey-path', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  });
+
+  // Walking path source (separate to avoid dasharray expression issues)
+  map.addSource('journey-walk', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   });
@@ -31,11 +41,33 @@ export function addJourneyLayer(map: maplibregl.Map): void {
 
   const beforeId = map.getLayer('stations-circle') ? 'stations-circle' : undefined;
 
-  // Casing layer for path line
+  // ── Transit path layers (3-layer glow stack) ──
+
+  // Outer glow (wide, blurred, colored)
+  map.addLayer({
+    id: 'journey-path-glow',
+    type: 'line',
+    source: 'journey-path',
+    filter: ['==', ['get', 'type'], 'ride'],
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 14, 14, 22, 17, 30],
+      'line-opacity': 0.18,
+      'line-blur': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 10, 17, 14],
+    },
+  }, beforeId);
+
+  // Dark casing
   map.addLayer({
     id: 'journey-path-casing',
     type: 'line',
     source: 'journey-path',
+    filter: ['==', ['get', 'type'], 'ride'],
     layout: {
       'line-cap': 'round',
       'line-join': 'round',
@@ -48,11 +80,12 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     },
   }, beforeId);
 
-  // Core path line layer
+  // Core colored line
   map.addLayer({
     id: 'journey-path-line',
     type: 'line',
     source: 'journey-path',
+    filter: ['==', ['get', 'type'], 'ride'],
     layout: {
       'line-cap': 'round',
       'line-join': 'round',
@@ -61,15 +94,65 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 5.5, 17, 8],
-      // Dotted line for walking segments, solid for riding
-      'line-dasharray': [
-        'case',
-        ['==', ['get', 'type'], 'walk'],
-        ['literal', [1.5, 1.5]],
-        ['literal', [1, 0]],
-      ],
     },
   }, beforeId);
+
+  // ── Walking path layers (3-layer glow stack, dashed) ──
+
+  // Outer glow for walking
+  map.addLayer({
+    id: 'journey-walk-glow',
+    type: 'line',
+    source: 'journey-walk',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#38BDF8',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 24],
+      'line-opacity': 0.12,
+      'line-blur': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 12],
+    },
+  }, beforeId);
+
+  // Casing for walking
+  map.addLayer({
+    id: 'journey-walk-casing',
+    type: 'line',
+    source: 'journey-walk',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#0C1425',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 11],
+      'line-opacity': 0.7,
+      'line-dasharray': [2, 2],
+    },
+  }, beforeId);
+
+  // Core dashed line for walking
+  map.addLayer({
+    id: 'journey-walk-line',
+    type: 'line',
+    source: 'journey-walk',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#38BDF8',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 4, 17, 6],
+      'line-dasharray': [2, 2],
+    },
+  }, beforeId);
+
+  // ── Stop marker layers ──
 
   // Outer glow for stops
   map.addLayer({
@@ -78,9 +161,9 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     source: 'journey-stops',
     layout: { 'visibility': 'none' },
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 8, 14, 12, 17, 16],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 10, 14, 14, 17, 18],
       'circle-color': ['get', 'color'],
-      'circle-opacity': 0.3,
+      'circle-opacity': 0.35,
       'circle-blur': 0.6,
     },
   });
@@ -92,7 +175,7 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     source: 'journey-stops',
     layout: { 'visibility': 'none' },
     paint: {
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 4.5, 14, 7, 17, 9],
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 7.5, 17, 10],
       'circle-color': ['get', 'color'],
       'circle-stroke-color': '#FFFFFF',
       'circle-stroke-width': 2.5,
@@ -108,26 +191,42 @@ export function addJourneyLayer(map: maplibregl.Map): void {
       'text-field': ['get', 'label'],
       'text-font': ['Open Sans Bold'],
       'text-size': ['interpolate', ['linear'], ['zoom'], 10, 9, 14, 11, 17, 13],
-      'text-offset': [0, -1.4],
+      'text-offset': [0, -1.6],
       'text-anchor': 'bottom',
-      'text-allow-overlap': false,
+      'text-allow-overlap': true,
       'visibility': 'none',
     },
     paint: {
       'text-color': '#FFFFFF',
       'text-halo-color': '#050812',
-      'text-halo-width': 1.8,
+      'text-halo-width': 2,
     },
   });
 }
 
 /**
- * Returns the hex color for a route code.
+ * Per-segment color palette for distinct tramos.
+ * Each ride segment gets a unique vibrant color from this palette.
+ */
+const TRAMO_COLORS = [
+  '#FF6B6B', // coral red
+  '#4ECDC4', // teal
+  '#FFD93D', // golden yellow
+  '#6C5CE7', // purple
+  '#00B894', // mint green
+  '#FD79A8', // pink
+  '#0984E3', // blue
+  '#E17055', // burnt orange
+  '#00CEC9', // cyan
+  '#A29BFE', // lavender
+];
+
+/**
+ * Returns the hex color for a route code, or picks from tramo palette.
  */
 function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal'): string {
-  if (routeCode === 'walking') return '#94A3B8'; // Slate gray
-  
-  // Create dummy RouteListItem to resolve color
+  if (routeCode === 'walking') return '#38BDF8';
+
   const dummyRoute: Partial<RouteListItem> = {
     code: routeCode,
     type: routeType || 'troncal',
@@ -136,48 +235,88 @@ function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal'): s
 }
 
 /**
+ * Assigns distinct colors to each ride segment, using route accent color
+ * but falling back to palette if multiple segments share the same route color.
+ */
+export function assignSegmentColors(plan: JourneyPlan): string[] {
+  const colors: string[] = [];
+  const usedColors = new Set<string>();
+  let paletteIdx = 0;
+
+  for (const step of plan.steps) {
+    if (step.type === 'walk') {
+      colors.push('#38BDF8');
+      continue;
+    }
+
+    let color = getRouteColorHex(step.routeCode || '', step.routeType);
+
+    // If this color is already used by a previous ride segment, pick from palette
+    if (usedColors.has(color)) {
+      color = TRAMO_COLORS[paletteIdx % TRAMO_COLORS.length];
+      paletteIdx++;
+    }
+
+    usedColors.add(color);
+    colors.push(color);
+  }
+
+  return colors;
+}
+
+/**
  * Draws the selected journey plan path on the map.
  */
 export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
-  addJourneyLayer(map); // Safety check
+  addJourneyLayer(map);
 
   const pathSource = map.getSource('journey-path') as maplibregl.GeoJSONSource;
+  const walkSource = map.getSource('journey-walk') as maplibregl.GeoJSONSource;
   const stopsSource = map.getSource('journey-stops') as maplibregl.GeoJSONSource;
-  if (!pathSource || !stopsSource) return;
+  if (!pathSource || !walkSource || !stopsSource) return;
 
-  const pathFeatures: GeoJSON.Feature[] = [];
+  const transitFeatures: GeoJSON.Feature[] = [];
+  const walkFeatures: GeoJSON.Feature[] = [];
   const stopFeatures: GeoJSON.Feature[] = [];
 
-  // 1. Compile path segments
+  // Assign distinct colors per segment
+  const segmentColors = assignSegmentColors(plan);
+
+  // 1. Compile path segments into separate sources
   plan.steps.forEach((step, index) => {
-    if (step.path && step.path.length >= 2) {
-      const color = step.type === 'walk' ? '#38BDF8' : getRouteColorHex(step.routeCode || '', step.routeType);
-      
-      pathFeatures.push({
-        type: 'Feature',
-        properties: {
-          type: step.type,
-          color,
-          routeCode: step.routeCode || 'walk',
-        },
-        geometry: {
-          type: 'LineString',
-          coordinates: step.path,
-        },
-      });
+    if (!step.path || step.path.length < 2) return;
+
+    const color = segmentColors[index];
+    const feature: GeoJSON.Feature = {
+      type: 'Feature',
+      properties: {
+        type: step.type,
+        color,
+        routeCode: step.routeCode || 'walk',
+        index,
+      },
+      geometry: {
+        type: 'LineString',
+        coordinates: step.path,
+      },
+    };
+
+    if (step.type === 'walk') {
+      walkFeatures.push(feature);
+    } else {
+      transitFeatures.push(feature);
     }
   });
 
-  // 2. Compile stop markers
-  // Origin Stop (first step start point)
+  // 2. Compile stop markers with clear boarding/alighting labels
   const firstStep = plan.steps[0];
-  if (firstStep && firstStep.path && firstStep.path.length > 0) {
+  if (firstStep?.path?.length) {
     stopFeatures.push({
       type: 'Feature',
       properties: {
         kind: 'start',
         label: 'Origen',
-        color: '#10B981', // Emerald green
+        color: '#10B981',
       },
       geometry: {
         type: 'Point',
@@ -186,15 +325,14 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     });
   }
 
-  // Destination Stop (last step end point)
   const lastStep = plan.steps[plan.steps.length - 1];
-  if (lastStep && lastStep.path && lastStep.path.length > 0) {
+  if (lastStep?.path?.length) {
     stopFeatures.push({
       type: 'Feature',
       properties: {
         kind: 'end',
         label: 'Destino',
-        color: '#EF4444', // Red
+        color: '#EF4444',
       },
       geometry: {
         type: 'Point',
@@ -203,26 +341,48 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     });
   }
 
-  // Intermediate transfer stops
-  for (let i = 0; i < plan.steps.length - 1; i++) {
-    const currentStep = plan.steps[i];
-    const nextStep = plan.steps[i + 1];
+  // Intermediate boarding, alighting, and transfer markers
+  for (let i = 0; i < plan.steps.length; i++) {
+    const step = plan.steps[i];
+    const prevStep = i > 0 ? plan.steps[i - 1] : null;
+    const nextStep = i < plan.steps.length - 1 ? plan.steps[i + 1] : null;
 
-    if (currentStep.path && currentStep.path.length > 0 && nextStep.path && nextStep.path.length > 0) {
-      const coord = currentStep.path[currentStep.path.length - 1];
-      
-      // If transferring from ride -> ride, or walk -> ride
-      if (currentStep.type !== nextStep.type || (currentStep.type === 'ride' && currentStep.routeCode !== nextStep.routeCode)) {
+    if (step.type === 'ride' && step.path && step.path.length > 0) {
+      const color = segmentColors[i];
+
+      // Boarding marker at start of this ride (unless it's the very first step = origin)
+      if (i > 0) {
         stopFeatures.push({
           type: 'Feature',
           properties: {
-            kind: 'transfer',
-            label: nextStep.type === 'ride' ? `Subir a ${nextStep.routeCode}` : 'Bajar y caminar',
-            color: '#F59E0B', // Amber orange
+            kind: 'board',
+            label: `Subir a ${step.routeCode}`,
+            color,
           },
           geometry: {
             type: 'Point',
-            coordinates: coord,
+            coordinates: step.path[0],
+          },
+        });
+      }
+
+      // Alighting marker at end of this ride (unless it's the very last step = destination)
+      if (i < plan.steps.length - 1) {
+        const alightLabel = nextStep?.type === 'ride'
+          ? `Transferir a ${nextStep.routeCode}`
+          : `Bajar de ${step.routeCode}`;
+        const alightColor = nextStep?.type === 'ride' ? '#F59E0B' : color;
+
+        stopFeatures.push({
+          type: 'Feature',
+          properties: {
+            kind: nextStep?.type === 'ride' ? 'transfer' : 'alight',
+            label: alightLabel,
+            color: alightColor,
+          },
+          geometry: {
+            type: 'Point',
+            coordinates: step.path[step.path.length - 1],
           },
         });
       }
@@ -232,7 +392,12 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
   // Update sources
   pathSource.setData({
     type: 'FeatureCollection',
-    features: pathFeatures,
+    features: transitFeatures,
+  });
+
+  walkSource.setData({
+    type: 'FeatureCollection',
+    features: walkFeatures,
   });
 
   stopsSource.setData({
@@ -247,7 +412,7 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     }
   });
 
-  // Dim background layers to pop out the journey path (similar to highlightRoute)
+  // Dim background layers
   if (map.getLayer('troncal-corridors-line')) map.setPaintProperty('troncal-corridors-line', 'line-opacity', 0.08);
   if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.04);
   if (map.getLayer('troncal-corridors-labels')) map.setPaintProperty('troncal-corridors-labels', 'text-opacity', 0.08);
@@ -279,8 +444,10 @@ export function clearJourneyPath(map: maplibregl.Map): void {
   });
 
   const pathSource = map.getSource('journey-path') as maplibregl.GeoJSONSource;
+  const walkSource = map.getSource('journey-walk') as maplibregl.GeoJSONSource;
   const stopsSource = map.getSource('journey-stops') as maplibregl.GeoJSONSource;
   if (pathSource) pathSource.setData({ type: 'FeatureCollection', features: [] });
+  if (walkSource) walkSource.setData({ type: 'FeatureCollection', features: [] });
   if (stopsSource) stopsSource.setData({ type: 'FeatureCollection', features: [] });
 
   // Restore opacity for background layers

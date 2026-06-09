@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
 import { findRoutes, getDistance, initRouter, type JourneyPlan, type JourneyStep } from '../services/router';
-import { drawJourneyPath, clearJourneyPath } from '../layers/journeyLayer';
+import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import type { RouteListItem } from '../types/transmilenio';
@@ -459,12 +459,13 @@ function renderResults(plans: JourneyPlan[]): void {
   container.innerHTML = plans
     .map((plan, index) => {
       // Build summary badges HTML
+      const segmentColors = assignSegmentColors(plan);
       const badgesHtml = plan.steps
-        .map((step) => {
+        .map((step, stepIdx) => {
           if (step.type === 'walk') {
             return `<span class="journey-card-badge walk">🚶 ${Math.round(step.distance)}m</span>`;
           } else {
-            const color = safeColor(getRouteColorHex(step.routeCode || '', step.routeType));
+            const color = safeColor(segmentColors[stepIdx]);
             return `
               <span class="journey-card-badge" style="background:${color};">
                 ${escapeHTML(step.routeCode || '')}
@@ -552,6 +553,7 @@ function selectPlan(index: number, cards: NodeListOf<Element>): void {
 }
 
 function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
+  const segmentColors = assignSegmentColors(plan);
   container.innerHTML = plan.steps
     .map((step, i) => {
       const isFirst = i === 0;
@@ -573,7 +575,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
         `;
       } else {
         // Ride step
-        const routeColor = getRouteColorHex(step.routeCode || '', step.routeType);
+        const routeColor = segmentColors[i];
         const accentStyle = `color:${safeColor(routeColor)};font-weight:800;`;
         
         const isTroncal = step.routeType === 'troncal';
