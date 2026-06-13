@@ -862,3 +862,9 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
 export function getGraphAdjacency() {
   return graphAdjacency;
 }
+
+export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
+  const fromStop = uniqueStops.get(fromCode);
+  const toStop = uniqueStops.get(toCode);
+  return !!(fromStop && toStop && fromStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(fromStop, toStop));
+}

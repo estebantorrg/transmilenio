@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, fetchWalkingPath, type JourneyPlan, type JourneyStep } from '../services/router';
+import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan, type JourneyStep } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
@@ -534,6 +534,10 @@ async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
   plans.forEach((plan) => {
     plan.steps.forEach((step) => {
       if (step.type === 'walk' && step.path && step.path.length === 2) {
+        if (isTunnelTransfer(step.fromCode, step.toCode)) {
+          // Keep straight line geometry, distance, and time for tunnel transfers
+          return;
+        }
         const [from, to] = step.path;
         const p = fetchWalkingPath(from, to).then((res) => {
           step.path = res.coordinates;
@@ -605,6 +609,10 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
       const stepDotClass = isFirst ? 'start' : isLast ? 'end' : 'transfer';
 
       if (step.type === 'walk') {
+        const isTunnel = isTunnelTransfer(step.fromCode, step.toCode);
+        const title = isTunnel
+          ? `Cruzar túnel de transferencia a ${escapeHTML(step.toName)}`
+          : `Caminar hasta ${escapeHTML(step.toName)}`;
         return `
           <div class="journey-step-item">
             <div class="journey-step-timeline">
@@ -612,7 +620,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
               ${!isLast ? '<div class="journey-step-line walk"></div>' : ''}
             </div>
             <div class="journey-step-content">
-              <div class="journey-step-title">Caminar hasta ${escapeHTML(step.toName)}</div>
+              <div class="journey-step-title">${title}</div>
               <div class="journey-step-desc">Aprox. <strong>${Math.round(step.distance)} m</strong> (${Math.round(step.time)} min)</div>
             </div>
           </div>
