@@ -323,6 +323,7 @@ interface DijkstraState {
   walkDistance: number;
   transfers: number;
   parentKey: string | null;
+  hasRidden: boolean;
 }
 
 interface RawLeg {
@@ -570,6 +571,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       walkDistance: start.distance,
       transfers: 0,
       parentKey: null,
+      hasRidden: false,
     };
     
     const key = makeKey(start.nodeCode, 'start');
@@ -599,11 +601,6 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       if (edge.type === 'troncal' && mode === 'zonal') continue;
       if (edge.type === 'zonal' && mode === 'troncal') continue;
 
-      // Prevent consecutive walking segments & immediate walks from the start stop
-      if (edge.type === 'walking' && (current.routeCode === 'start' || current.routeCode === 'walking')) {
-        continue;
-      }
-
       let edgeTime = edge.time;
       let edgeCost = edge.time;
       let isTransfer = false;
@@ -612,13 +609,18 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         const fromStop = uniqueStops.get(current.nodeCode);
         const toStop = uniqueStops.get(edge.to);
         const isTunnel = fromStop && toStop && fromStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(fromStop, toStop);
+        
+        if (!isTunnel && (current.routeCode === 'start' || current.routeCode === 'walking')) {
+          continue;
+        }
+
         if (isTunnel) {
           edgeCost = edgeTime * 1.5;
         } else {
           edgeCost = edgeTime * walkWeight;
         }
       } else {
-        if (current.routeCode !== 'start' && current.routeCode !== edge.routeCode) {
+        if (current.hasRidden && current.routeCode !== edge.routeCode) {
           edgeCost += transferPenalty;
           isTransfer = true;
         }
@@ -643,6 +645,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           walkDistance: nextWalkDistance,
           transfers: nextTransfers,
           parentKey: currentKey,
+          hasRidden: current.hasRidden || (edge.type !== 'walking'),
         };
         stateRegistry.set(nextKey, nextState);
         queue.push(nextState, nextCost);
@@ -854,4 +857,8 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
     distance,
     time: distance / 75,
   };
+}
+
+export function getGraphAdjacency() {
+  return graphAdjacency;
 }
