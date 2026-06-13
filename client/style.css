@@ -1815,12 +1815,14 @@ body {
 }
 
 .input-wrapper .search-input {
-  padding-right: 70px;
+  padding-right: 78px;
 }
 
 .gps-btn {
   position: absolute;
-  right: 36px;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
   background: transparent;
   border: none;
   color: var(--text-secondary);
@@ -1836,6 +1838,16 @@ body {
 .gps-btn:hover {
   color: var(--tm-green);
   background: rgba(16, 185, 129, 0.12);
+}
+
+.input-wrapper .search-clear {
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.input-wrapper .search-clear:not(.hidden) ~ .gps-btn {
+  right: 36px;
 }
 
 .swap-row {

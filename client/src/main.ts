@@ -31,7 +31,7 @@ import { setRouteTypeIndex } from './utils/routeType';
 import { initPlanner } from './ui/planner';
 import { initRouter } from './services/router';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
-import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
+import type { CatalogRoute, MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
 
@@ -104,6 +104,50 @@ function isCicloviaName(text: string | null | undefined): boolean {
 
 type RouteStop = NonNullable<RouteListItem['stops']>[number];
 
+interface SplitStopNode {
+  code: string;
+  sourceCode: string;
+  name: string;
+  direccion: string;
+  coordinate: [number, number];
+  wagons: Set<string>;
+}
+
+const VERIFIED_SPLIT_STOP_NODES: SplitStopNode[] = [
+  {
+    code: '09110',
+    sourceCode: 'TM0013',
+    name: 'AV. Jimenez - Caracas',
+    direccion: 'CL 13 - CL 11',
+    coordinate: [-74.08042807, 4.60287397],
+    wagons: new Set(['A', 'B', 'C']),
+  },
+  {
+    code: '14003',
+    sourceCode: 'TM0013',
+    name: 'AV. Jimenez - CL 13',
+    direccion: 'CL 13 - Caracas',
+    coordinate: [-74.07910861, 4.60304793],
+    wagons: new Set(['D', 'E']),
+  },
+  {
+    code: '07111',
+    sourceCode: 'TM0069',
+    name: 'Ricaurte - NQS',
+    direccion: 'KR 30 - CL 10',
+    coordinate: [-74.09386888, 4.6116862],
+    wagons: new Set(['A', 'B', 'C']),
+  },
+  {
+    code: '12003',
+    sourceCode: 'TM0069',
+    name: 'Ricaurte - CL 13',
+    direccion: 'CL 13 - KR 28',
+    coordinate: [-74.09048002, 4.61301485],
+    wagons: new Set(['D', 'E', 'F']),
+  },
+];
+
 function isStationStopCode(code: string | null | undefined): boolean {
   return /^TM\d+$/i.test(String(code || '').trim());
 }
@@ -112,14 +156,56 @@ function stopKind(code: string | null | undefined): 'station' | 'stop' {
   return isStationStopCode(code) ? 'station' : 'stop';
 }
 
-function parseCatalogStop(stop: any): RouteStop | null {
+function catalogRouteMatches(left: CatalogRoute, right: CatalogRoute): boolean {
+  if (left.id && right.id && String(left.id) === String(right.id)) return true;
+  return normalizeRouteCodeForMatch(left.codigo) === normalizeRouteCodeForMatch(right.codigo) &&
+    cleanRouteText(left.nombre) === cleanRouteText(right.nombre);
+}
+
+function splitNodeForRouteStop(
+  stop: any,
+  route: CatalogRoute | null | undefined,
+  catalog: MasterCatalog
+): SplitStopNode | null {
+  if (!route || !stop?.codigo) return null;
+
+  const sourceCode = String(stop.codigo).toUpperCase();
+  const splitNodes = VERIFIED_SPLIT_STOP_NODES.filter((node) => node.sourceCode === sourceCode);
+  if (splitNodes.length === 0) return null;
+
+  const sourceStation = catalog.stations?.[sourceCode];
+  if (!sourceStation?.wagons) return null;
+
+  for (const [wagonLabel, routes] of Object.entries(sourceStation.wagons)) {
+    const splitNode = splitNodes.find((node) => node.wagons.has(wagonLabel));
+    if (!splitNode) continue;
+    if (routes.some((candidate) => catalogRouteMatches(candidate, route))) return splitNode;
+  }
+
+  return null;
+}
+
+function parseCatalogStop(stop: any, route?: CatalogRoute, catalog?: MasterCatalog): RouteStop | null {
   if (!stop?.coordenada || typeof stop.coordenada !== 'string' || !stop.coordenada.includes(',')) return null;
   const [lat, lng] = stop.coordenada.split(',').map(Number);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
+  const splitNode = catalog ? splitNodeForRouteStop(stop, route, catalog) : null;
+  if (splitNode) {
+    return {
+      nombre: splitNode.name,
+      codigo: splitNode.code,
+      sourceCode: splitNode.sourceCode,
+      coordinate: splitNode.coordinate,
+      direccion: splitNode.direccion,
+      kind: 'station',
+    };
+  }
+
   return {
     nombre: stop.nombre,
     codigo: stop.codigo,
+    sourceCode: stop.codigo,
     coordinate: [lng, lat] as [number, number],
     direccion: stop.direccion,
     kind: stopKind(stop.codigo),
@@ -189,7 +275,7 @@ function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       const subType = isDual ? 'dual' : isAlimentador ? 'alimentador' : type;
 
       const rawStops = route.stops || [];
-      const stops = dedupeStops(rawStops.map(parseCatalogStop).filter((stop): stop is RouteStop => Boolean(stop)));
+      const stops = dedupeStops(rawStops.map((stop) => parseCatalogStop(stop, route, catalog)).filter((stop): stop is RouteStop => Boolean(stop)));
       const origin = route.origin || rawStops[0]?.nombre || code;
       const destination = route.destination || rawStops[rawStops.length - 1]?.nombre || route.nombre;
       
@@ -668,7 +754,7 @@ async function main(): Promise<void> {
               const detailGeometry = traceToGeometry(variant.trazado);
               if (detailGeometry) route.geometry = detailGeometry;
               if (routeHasDualStops(vStops)) route.subType = 'dual';
-              route.stops = dedupeStops(vStops.map(parseCatalogStop).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
+              route.stops = dedupeStops(vStops.map((stop: any) => parseCatalogStop(stop, variant, catalog)).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
             }
           }
         } catch (error) {

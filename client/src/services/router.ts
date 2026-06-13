@@ -12,6 +12,7 @@ export interface GraphEdge {
 export interface RouteStop {
   nombre: string;
   codigo: string;
+  sourceCode?: string;
   coordinate: [number, number];
   kind: 'station' | 'stop';
   direccion?: string;
@@ -52,6 +53,39 @@ export interface RouteSearchParams {
 let uniqueStops = new Map<string, RouteStop>();
 let graphAdjacency = new Map<string, GraphEdge[]>();
 let rawRoutesList: RouteListItem[] = [];
+
+const WALK_SPEED_M_PER_MINUTE = 75;
+const WALK_TRANSFER_THRESHOLD_M = 320;
+const MAX_WALK_NEIGHBORS = 4;
+const ACCESS_SEARCH_RADIUS_M = 1500;
+const ACCESS_CANDIDATE_LIMIT = 12;
+const WALK_COST_WEIGHT = 20.0;
+const MIN_WALK_COST_WEIGHT = 50.0;
+const TRANSFER_PENALTY_MINUTES = 8.0;
+
+const STATION_TUNNEL_CONNECTIONS = new Set([
+  tunnelKey('07111', '12003'),
+  tunnelKey('14005', '06111'),
+  tunnelKey('TM0121', 'TM0122'),
+]);
+
+function tunnelKey(a: string, b: string): string {
+  return [a, b].sort().join('|');
+}
+
+function hasTunnelConnection(a: RouteStop, b: RouteStop): boolean {
+  return STATION_TUNNEL_CONNECTIONS.has(tunnelKey(a.codigo, b.codigo));
+}
+
+function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boolean {
+  if (fromStop.kind === 'station' && toStop.kind === 'station') {
+    if (fromStop.sourceCode && toStop.sourceCode && fromStop.sourceCode === toStop.sourceCode) {
+      return true;
+    }
+    return hasTunnelConnection(fromStop, toStop);
+  }
+  return true;
+}
 
 /**
  * Calculates geographic distance in meters between two coordinates using the Haversine formula.
@@ -94,6 +128,7 @@ export function initRouter(routes: RouteListItem[]): void {
         uniqueStops.set(stop.codigo, {
           nombre: stop.nombre,
           codigo: stop.codigo,
+          sourceCode: stop.sourceCode,
           coordinate: stop.coordinate,
           kind: stop.kind || 'stop',
           direccion: stop.direccion,
@@ -105,6 +140,9 @@ export function initRouter(routes: RouteListItem[]): void {
         }
         if (stop.direccion && !existing.direccion) {
           existing.direccion = stop.direccion;
+        }
+        if (stop.sourceCode && !existing.sourceCode) {
+          existing.sourceCode = stop.sourceCode;
         }
       }
     }
@@ -148,12 +186,24 @@ export function initRouter(routes: RouteListItem[]): void {
     }
   }
 
-  // 3. Add Walking edges between nearby stops (distance <= 400m)
-  // Limit to top 5 closest neighbors per stop to avoid dense graph bloating
+  // 3. Add short transfer walks. Station-to-station links are only verified tunnels.
   let walkingEdgesCount = 0;
   const stopsArray = Array.from(uniqueStops.values());
-  const walkThreshold = 400; // meters
-  const walkSpeed = 75; // meters/minute (4.5 km/h)
+
+  const addWalkingEdge = (fromCode: string, toCode: string, distance: number): void => {
+    const edges = graphAdjacency.get(fromCode) || [];
+    if (edges.some((edge) => edge.type === 'walking' && edge.to === toCode)) return;
+    edges.push({
+      to: toCode,
+      routeCode: 'walking',
+      routeId: 'walking',
+      type: 'walking',
+      distance,
+      time: distance / WALK_SPEED_M_PER_MINUTE,
+    });
+    graphAdjacency.set(fromCode, edges);
+    walkingEdgesCount++;
+  };
 
   for (let i = 0; i < stopsArray.length; i++) {
     const fromStop = stopsArray[i];
@@ -162,6 +212,7 @@ export function initRouter(routes: RouteListItem[]): void {
     for (let j = 0; j < stopsArray.length; j++) {
       if (i === j) continue;
       const toStop = stopsArray[j];
+      if (!canCreateWalkingTransfer(fromStop, toStop)) continue;
 
       // Quick bounding box check before heavy math
       const dLat = Math.abs(toStop.coordinate[1] - fromStop.coordinate[1]);
@@ -169,28 +220,24 @@ export function initRouter(routes: RouteListItem[]): void {
       if (dLat > 0.0055 || dLon > 0.0055) continue; // ~600m bounding box threshold
 
       const distance = getDistance(fromStop.coordinate, toStop.coordinate);
-      if (distance <= walkThreshold) {
+      if (distance <= WALK_TRANSFER_THRESHOLD_M) {
         neighbors.push({ stopCode: toStop.codigo, distance });
       }
     }
 
-    // Sort neighbors by distance and take top 5
+    // Sort neighbors by distance and take nearest few to keep transfers sane.
     neighbors.sort((a, b) => a.distance - b.distance);
-    const closest = neighbors.slice(0, 5);
+    neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, n.distance));
+  }
 
-    const edges = graphAdjacency.get(fromStop.codigo) || [];
-    for (const n of closest) {
-      edges.push({
-        to: n.stopCode,
-        routeCode: 'walking',
-        routeId: 'walking',
-        type: 'walking',
-        distance: n.distance,
-        time: n.distance / walkSpeed,
-      });
-      walkingEdgesCount++;
-    }
-    graphAdjacency.set(fromStop.codigo, edges);
+  for (const key of STATION_TUNNEL_CONNECTIONS) {
+    const [fromCode, toCode] = key.split('|');
+    const fromStop = uniqueStops.get(fromCode);
+    const toStop = uniqueStops.get(toCode);
+    if (!fromStop || !toStop) continue;
+    const distance = getDistance(fromStop.coordinate, toStop.coordinate);
+    addWalkingEdge(fromCode, toCode, distance);
+    addWalkingEdge(toCode, fromCode, distance);
   }
 
   console.log(
@@ -461,81 +508,49 @@ function isStopCompatible(stop: RouteStop, mode: 'mix' | 'troncal' | 'zonal'): b
   return true;
 }
 
+function findAccessNodes(
+  coordinate: [number, number],
+  mode: 'mix' | 'troncal' | 'zonal',
+  selectedStopCode?: string
+): { nodeCode: string; distance: number }[] {
+  const selectedCode = String(selectedStopCode || '').trim();
+  if (selectedCode) {
+    const exact = uniqueStops.get(selectedCode);
+    if (exact && isStopCompatible(exact, mode)) {
+      return [{ nodeCode: exact.codigo, distance: 0 }];
+    }
+
+    const sourceMatches = Array.from(uniqueStops.values())
+      .filter((stop) => stop.sourceCode === selectedCode && isStopCompatible(stop, mode))
+      .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }))
+      .sort((a, b) => a.distance - b.distance);
+    if (sourceMatches.length > 0) return sourceMatches;
+  }
+
+  const compatibleStops = Array.from(uniqueStops.values())
+    .filter((stop) => isStopCompatible(stop, mode))
+    .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }))
+    .sort((a, b) => a.distance - b.distance);
+
+  const nearby = compatibleStops
+    .filter((candidate) => candidate.distance <= ACCESS_SEARCH_RADIUS_M)
+    .slice(0, ACCESS_CANDIDATE_LIMIT);
+  if (nearby.length > 0) return nearby;
+
+  return compatibleStops.slice(0, Math.min(5, ACCESS_CANDIDATE_LIMIT));
+}
+
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const { origin, destination, originStopCode, destStopCode, mode, minWalk } = params;
 
   // 1. Identify starting nodes
-  const startNodes: { nodeCode: string; distance: number }[] = [];
-  if (originStopCode && uniqueStops.has(originStopCode)) {
-    startNodes.push({ nodeCode: originStopCode, distance: 0 });
-  } else {
-    // Find compatible stops within 1500m of origin
-    const maxRadius = 1500;
-    for (const stop of uniqueStops.values()) {
-      if (!isStopCompatible(stop, mode)) continue;
-      const distance = getDistance(origin, stop.coordinate);
-      if (distance <= maxRadius) {
-        startNodes.push({ nodeCode: stop.codigo, distance });
-      }
-    }
-    // If none within 1500m, take 5 closest compatible stops in network
-    if (startNodes.length === 0) {
-      const sorted = Array.from(uniqueStops.values())
-        .filter((s) => isStopCompatible(s, mode))
-        .map((s) => ({ s, d: getDistance(origin, s.coordinate) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 5);
-      sorted.forEach((item) => {
-        startNodes.push({ nodeCode: item.s.codigo, distance: item.d });
-      });
-    }
-    // Final fallback: any stops regardless of mode if no compatible stops exist
-    if (startNodes.length === 0) {
-      const sorted = Array.from(uniqueStops.values())
-        .map((s) => ({ s, d: getDistance(origin, s.coordinate) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 5);
-      sorted.forEach((item) => {
-        startNodes.push({ nodeCode: item.s.codigo, distance: item.d });
-      });
-    }
-  }
+  const startNodes = findAccessNodes(origin, mode, originStopCode);
+  if (startNodes.length === 0) return [];
 
   // 2. Identify destination nodes
   const destNodes = new Map<string, number>(); // nodeCode -> walkDistance
-  if (destStopCode && uniqueStops.has(destStopCode)) {
-    destNodes.set(destStopCode, 0);
-  } else {
-    const maxRadius = 1500;
-    for (const stop of uniqueStops.values()) {
-      if (!isStopCompatible(stop, mode)) continue;
-      const distance = getDistance(destination, stop.coordinate);
-      if (distance <= maxRadius) {
-        destNodes.set(stop.codigo, distance);
-      }
-    }
-    // If none within 1500m, take 5 closest compatible stops
-    if (destNodes.size === 0) {
-      const sorted = Array.from(uniqueStops.values())
-        .filter((s) => isStopCompatible(s, mode))
-        .map((s) => ({ s, d: getDistance(destination, s.coordinate) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 5);
-      sorted.forEach((item) => {
-        destNodes.set(item.s.codigo, item.d);
-      });
-    }
-    // Final fallback: any stops
-    if (destNodes.size === 0) {
-      const sorted = Array.from(uniqueStops.values())
-        .map((s) => ({ s, d: getDistance(destination, s.coordinate) }))
-        .sort((a, b) => a.d - b.d)
-        .slice(0, 5);
-      sorted.forEach((item) => {
-        destNodes.set(item.s.codigo, item.d);
-      });
-    }
-  }
+  findAccessNodes(destination, mode, destStopCode).forEach((node) => destNodes.set(node.nodeCode, node.distance));
+  if (destNodes.size === 0) return [];
 
   // 3. Multi-criteria Dijkstra
   const queue = new MinHeap<DijkstraState>();
@@ -543,12 +558,11 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const stateRegistry = new Map<string, DijkstraState>();
   const makeKey = (nodeCode: string, routeCode: string) => `${nodeCode}|${routeCode}`;
 
-  const walkSpeed = 75; // meters/minute
-  const walkWeight = minWalk ? 15.0 : 1.5;
+  const walkWeight = minWalk ? MIN_WALK_COST_WEIGHT : WALK_COST_WEIGHT;
 
   // Push starting states
   for (const start of startNodes) {
-    const walkTime = start.distance / walkSpeed;
+    const walkTime = start.distance / WALK_SPEED_M_PER_MINUTE;
     const cost = walkTime * walkWeight;
     const state: DijkstraState = {
       nodeCode: start.nodeCode,
@@ -569,7 +583,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   const results: DijkstraState[] = [];
   const maxRoutesCount = 3;
-  const transferPenalty = 8.0;
+  const transferPenalty = TRANSFER_PENALTY_MINUTES;
 
   while (!queue.isEmpty()) {
     const current = queue.pop()!;
@@ -649,7 +663,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         routeId: 'walking',
         type: 'walking',
         distance: destWalkDist,
-        time: destWalkDist / walkSpeed,
+        time: destWalkDist / WALK_SPEED_M_PER_MINUTE,
       });
       
       uniqueStops.set('END', {
@@ -702,7 +716,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         routeId: 'walking',
         type: 'walking',
         distance: startWalk.distance,
-        time: startWalk.distance / walkSpeed,
+        time: startWalk.distance / WALK_SPEED_M_PER_MINUTE,
       });
 
       uniqueStops.set('START', {
@@ -746,13 +760,16 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     }
   }
 
-  return finalPlans;
+  return finalPlans.sort((a, b) =>
+    a.walkDistance - b.walkDistance ||
+    a.transfers - b.transfers ||
+    a.totalTime - b.totalTime
+  );
 }
 
 function createWalkingFallbackPlan(origin: [number, number], destination: [number, number]): JourneyPlan {
   const distance = getDistance(origin, destination);
-  const walkSpeed = 75; // 4.5 km/h
-  const time = distance / walkSpeed;
+  const time = distance / WALK_SPEED_M_PER_MINUTE;
   return {
     totalTime: Math.round(time),
     walkDistance: Math.round(distance),
@@ -785,13 +802,7 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
   // 1. Primary search
   let plans = findRoutesCore(params);
 
-  // 2. Fallback to mixed mode if no plans found under specific mode
-  if (plans.length === 0 && mode !== 'mix') {
-    console.log(`[Router] No routes found for mode "${mode}". Retrying with "mix" mode.`);
-    plans = findRoutesCore({ ...params, mode: 'mix' });
-  }
-
-  // 3. Fallback to walking-only plan if still no plans found
+  // 2. Fallback to walking-only plan if no transit exists under the selected filter.
   if (plans.length === 0) {
     console.log('[Router] No transit routes found. Falling back to walking-only plan.');
     plans = [createWalkingFallbackPlan(origin, destination)];
@@ -840,4 +851,3 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
     time: distance / 75,
   };
 }
-

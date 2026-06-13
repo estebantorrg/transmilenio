@@ -112,6 +112,7 @@ export interface RouteListItem {
   stops?: Array<{
     nombre: string;
     codigo: string;
+    sourceCode?: string;
     coordinate: [number, number];
     direccion?: string;
     kind?: 'station' | 'stop';

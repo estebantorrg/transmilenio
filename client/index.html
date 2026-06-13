@@ -129,10 +129,10 @@
           </div>
           <div class="input-wrapper">
             <input type="text" id="plan-origin-input" class="search-input" placeholder="Origen: Estación, dirección o mapa" autocomplete="off" />
+            <button id="plan-origin-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
-            <button id="plan-origin-clear" class="search-clear hidden" type="button">✕</button>
           </div>
           <div id="origin-autocomplete" class="autocomplete-dropdown hidden"></div>
         </div>
@@ -150,10 +150,10 @@
           </div>
           <div class="input-wrapper">
             <input type="text" id="plan-destination-input" class="search-input" placeholder="Destino: Estación, dirección o mapa" autocomplete="off" />
+            <button id="plan-destination-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
-            <button id="plan-destination-clear" class="search-clear hidden" type="button">✕</button>
           </div>
           <div id="destination-autocomplete" class="autocomplete-dropdown hidden"></div>
         </div>
@@ -170,7 +170,7 @@
         </div>
         <div class="planner-option-row checkbox-row">
           <label class="toggle-item-compact">
-            <input type="checkbox" id="plan-min-walk-checkbox" />
+            <input type="checkbox" id="plan-min-walk-checkbox" checked />
             <span class="toggle-check-compact"></span>
             <span class="toggle-text-compact">Caminar lo menos posible</span>
           </label>
