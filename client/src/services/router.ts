@@ -72,7 +72,7 @@ const STATION_TUNNEL_CONNECTIONS = new Set([
 const TUNNEL_PATHS: { [key: string]: [number, number][] } = {
   [tunnelKey('07111', '12003')]: [
     [-74.09048002, 4.61301485],
-    [-74.09386888, 4.61301485],
+    [-74.092152, 4.614508],
     [-74.09386888, 4.6116862],
   ],
   [tunnelKey('TM0121', 'TM0122')]: [
