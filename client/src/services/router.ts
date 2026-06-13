@@ -31,6 +31,7 @@ export interface JourneyStep {
   stopCount?: number;
   stops?: string[]; // Intermediate stop names (excluding boarding/alighting)
   path?: [number, number][]; // Coordinates for this leg
+  isTunnel?: boolean;
 }
 
 export interface JourneyPlan {
@@ -473,6 +474,7 @@ function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
       }
 
       // Add Walk step
+      const isTunnel = hasTunnelConnection(fromStop, toStop);
       steps.push({
         type: 'walk',
         fromName: fromStop.nombre,
@@ -482,6 +484,7 @@ function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
         distance,
         time,
         path: walkPath,
+        isTunnel,
       });
     } else {
       // Transit leg

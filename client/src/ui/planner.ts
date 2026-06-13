@@ -536,6 +536,7 @@ async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
       if (step.type === 'walk' && step.path && step.path.length === 2) {
         if (isTunnelTransfer(step.fromCode, step.toCode)) {
           // Keep straight line geometry, distance, and time for tunnel transfers
+          step.isTunnel = true;
           return;
         }
         const [from, to] = step.path;

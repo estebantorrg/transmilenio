@@ -10,6 +10,9 @@ const JOURNEY_LAYERS = [
   'journey-walk-glow',
   'journey-walk-casing',
   'journey-walk-line',
+  'journey-tunnel-glow',
+  'journey-tunnel-casing',
+  'journey-tunnel-line',
   'journey-stops-glow',
   'journey-stops-circle',
   'journey-stops-labels',
@@ -29,6 +32,12 @@ export function addJourneyLayer(map: maplibregl.Map): void {
 
   // Walking path source (separate to avoid dasharray expression issues)
   map.addSource('journey-walk', {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: [] },
+  });
+
+  // Tunnel path source (separate to avoid dasharray/color conflicts)
+  map.addSource('journey-tunnel', {
     type: 'geojson',
     data: { type: 'FeatureCollection', features: [] },
   });
@@ -152,6 +161,57 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     },
   }, beforeId);
 
+  // Outer glow for tunnel (solid red)
+  map.addLayer({
+    id: 'journey-tunnel-glow',
+    type: 'line',
+    source: 'journey-tunnel',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#FB2C17',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 24],
+      'line-opacity': 0.15,
+      'line-blur': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 12],
+    },
+  }, beforeId);
+
+  // Casing for tunnel (solid red)
+  map.addLayer({
+    id: 'journey-tunnel-casing',
+    type: 'line',
+    source: 'journey-tunnel',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#0C1425',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 11],
+      'line-opacity': 0.8,
+    },
+  }, beforeId);
+
+  // Core solid red line for tunnel
+  map.addLayer({
+    id: 'journey-tunnel-line',
+    type: 'line',
+    source: 'journey-tunnel',
+    layout: {
+      'line-cap': 'round',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': '#FB2C17',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 2.5, 14, 4, 17, 6],
+    },
+  }, beforeId);
+
   // ── Stop marker layers ──
 
   // Outer glow for stops
@@ -272,11 +332,13 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
 
   const pathSource = map.getSource('journey-path') as maplibregl.GeoJSONSource;
   const walkSource = map.getSource('journey-walk') as maplibregl.GeoJSONSource;
+  const tunnelSource = map.getSource('journey-tunnel') as maplibregl.GeoJSONSource;
   const stopsSource = map.getSource('journey-stops') as maplibregl.GeoJSONSource;
-  if (!pathSource || !walkSource || !stopsSource) return;
+  if (!pathSource || !walkSource || !tunnelSource || !stopsSource) return;
 
   const transitFeatures: GeoJSON.Feature[] = [];
   const walkFeatures: GeoJSON.Feature[] = [];
+  const tunnelFeatures: GeoJSON.Feature[] = [];
   const stopFeatures: GeoJSON.Feature[] = [];
 
   // Assign distinct colors per segment
@@ -302,7 +364,11 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     };
 
     if (step.type === 'walk') {
-      walkFeatures.push(feature);
+      if (step.isTunnel) {
+        tunnelFeatures.push(feature);
+      } else {
+        walkFeatures.push(feature);
+      }
     } else {
       transitFeatures.push(feature);
     }
@@ -400,6 +466,11 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     features: walkFeatures,
   });
 
+  tunnelSource.setData({
+    type: 'FeatureCollection',
+    features: tunnelFeatures,
+  });
+
   stopsSource.setData({
     type: 'FeatureCollection',
     features: stopFeatures,
@@ -445,9 +516,11 @@ export function clearJourneyPath(map: maplibregl.Map): void {
 
   const pathSource = map.getSource('journey-path') as maplibregl.GeoJSONSource;
   const walkSource = map.getSource('journey-walk') as maplibregl.GeoJSONSource;
+  const tunnelSource = map.getSource('journey-tunnel') as maplibregl.GeoJSONSource;
   const stopsSource = map.getSource('journey-stops') as maplibregl.GeoJSONSource;
   if (pathSource) pathSource.setData({ type: 'FeatureCollection', features: [] });
   if (walkSource) walkSource.setData({ type: 'FeatureCollection', features: [] });
+  if (tunnelSource) tunnelSource.setData({ type: 'FeatureCollection', features: [] });
   if (stopsSource) stopsSource.setData({ type: 'FeatureCollection', features: [] });
 
   // Restore opacity for background layers
