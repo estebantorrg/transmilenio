@@ -69,6 +69,18 @@ const STATION_TUNNEL_CONNECTIONS = new Set([
   tunnelKey('TM0121', 'TM0122'),
 ]);
 
+const TUNNEL_PATHS: { [key: string]: [number, number][] } = {
+  [tunnelKey('07111', '12003')]: [
+    [-74.09048002, 4.61301485],
+    [-74.09365, 4.61312],
+    [-74.09386888, 4.6116862],
+  ],
+  [tunnelKey('TM0121', 'TM0122')]: [
+    [-74.0684003997693, 4.602459798238067],
+    [-74.0671115606689, 4.6048826151965505],
+  ]
+};
+
 function tunnelKey(a: string, b: string): string {
   return [a, b].sort().join('|');
 }
@@ -162,11 +174,11 @@ export function initRouter(routes: RouteListItem[]): void {
 
       const distance = getDistance(fromStop.coordinate, toStop.coordinate);
       
-      // Travel times: 
-      // Troncal: 25 km/h = 416.7 m/min. Dwell time: 30s (0.5m)
-      // Zonal: 15 km/h = 250.0 m/min. Dwell time: 18s (0.3m)
-      const speed = route.type === 'troncal' ? 416.7 : 250.0;
-      const dwell = route.type === 'troncal' ? 0.5 : 0.3;
+      // Travel times (effective speed accounts for traffic, track curvature, queueing):
+      // Troncal: 15 km/h = 250.0 m/min. Dwell time: 60s (1.0m)
+      // Zonal: 10 km/h = 166.7 m/min. Dwell time: 36s (0.6m)
+      const speed = route.type === 'troncal' ? 250.0 : 166.7;
+      const dwell = route.type === 'troncal' ? 1.0 : 0.6;
       const time = (distance / speed) + dwell;
 
       const edges = graphAdjacency.get(fromStop.codigo) || [];
@@ -202,6 +214,26 @@ export function initRouter(routes: RouteListItem[]): void {
     walkingEdgesCount++;
   };
 
+  for (const key of STATION_TUNNEL_CONNECTIONS) {
+    const [fromCode, toCode] = key.split('|');
+    const fromStop = uniqueStops.get(fromCode);
+    const toStop = uniqueStops.get(toCode);
+    if (!fromStop || !toStop) continue;
+
+    let distance = getDistance(fromStop.coordinate, toStop.coordinate);
+    if (TUNNEL_PATHS[key]) {
+      const coords = TUNNEL_PATHS[key];
+      let pathDist = 0;
+      for (let idx = 0; idx < coords.length - 1; idx++) {
+        pathDist += getDistance(coords[idx], coords[idx + 1]);
+      }
+      distance = pathDist;
+    }
+
+    addWalkingEdge(fromCode, toCode, distance);
+    addWalkingEdge(toCode, fromCode, distance);
+  }
+
   for (let i = 0; i < stopsArray.length; i++) {
     const fromStop = stopsArray[i];
     const neighbors: { stopCode: string; distance: number }[] = [];
@@ -225,16 +257,6 @@ export function initRouter(routes: RouteListItem[]): void {
     // Sort neighbors by distance and take nearest few to keep transfers sane.
     neighbors.sort((a, b) => a.distance - b.distance);
     neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, n.distance));
-  }
-
-  for (const key of STATION_TUNNEL_CONNECTIONS) {
-    const [fromCode, toCode] = key.split('|');
-    const fromStop = uniqueStops.get(fromCode);
-    const toStop = uniqueStops.get(toCode);
-    if (!fromStop || !toStop) continue;
-    const distance = getDistance(fromStop.coordinate, toStop.coordinate);
-    addWalkingEdge(fromCode, toCode, distance);
-    addWalkingEdge(toCode, fromCode, distance);
   }
 
   console.log(
@@ -426,6 +448,24 @@ function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
         currentStep = null;
       }
       
+      const key = tunnelKey(fromStop.codigo, toStop.codigo);
+      let walkPath = [fromStop.coordinate, toStop.coordinate];
+      let distance = leg.distance;
+      let time = leg.time;
+
+      if (TUNNEL_PATHS[key]) {
+        const coords = TUNNEL_PATHS[key];
+        const isReversed = getDistance(fromStop.coordinate, coords[0]) > getDistance(fromStop.coordinate, coords[coords.length - 1]);
+        walkPath = isReversed ? [...coords].reverse() : coords;
+
+        let pathDist = 0;
+        for (let idx = 0; idx < walkPath.length - 1; idx++) {
+          pathDist += getDistance(walkPath[idx], walkPath[idx + 1]);
+        }
+        distance = pathDist;
+        time = pathDist / WALK_SPEED_M_PER_MINUTE;
+      }
+
       // Add Walk step
       steps.push({
         type: 'walk',
@@ -433,9 +473,9 @@ function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
         fromCode: fromStop.codigo,
         toName: toStop.nombre,
         toCode: toStop.codigo,
-        distance: leg.distance,
-        time: leg.time,
-        path: [fromStop.coordinate, toStop.coordinate],
+        distance,
+        time,
+        path: walkPath,
       });
     } else {
       // Transit leg
