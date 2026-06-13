@@ -79,9 +79,6 @@ function hasTunnelConnection(a: RouteStop, b: RouteStop): boolean {
 
 function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boolean {
   if (fromStop.kind === 'station' && toStop.kind === 'station') {
-    if (fromStop.sourceCode && toStop.sourceCode && fromStop.sourceCode === toStop.sourceCode) {
-      return true;
-    }
     return hasTunnelConnection(fromStop, toStop);
   }
   return true;
@@ -612,7 +609,14 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       let isTransfer = false;
 
       if (edge.type === 'walking') {
-        edgeCost = edgeTime * walkWeight;
+        const fromStop = uniqueStops.get(current.nodeCode);
+        const toStop = uniqueStops.get(edge.to);
+        const isTunnel = fromStop && toStop && fromStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(fromStop, toStop);
+        if (isTunnel) {
+          edgeCost = edgeTime * 1.5;
+        } else {
+          edgeCost = edgeTime * walkWeight;
+        }
       } else {
         if (current.routeCode !== 'start' && current.routeCode !== edge.routeCode) {
           edgeCost += transferPenalty;

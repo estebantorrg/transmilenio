@@ -780,6 +780,7 @@ body {
 }
 
 .sidebar.detail-open .sidebar-tabs,
+.sidebar.detail-open .explore-panel,
 .sidebar.detail-open .search-container,
 .sidebar.detail-open .layer-toggles,
 .sidebar.detail-open .route-list-header,
@@ -788,6 +789,7 @@ body {
 .sidebar.detail-open .card-detail,
 .sidebar.detail-open .sidebar-footer,
 .sidebar.card-open .sidebar-tabs,
+.sidebar.card-open .explore-panel,
 .sidebar.card-open .search-container,
 .sidebar.card-open .layer-toggles,
 .sidebar.card-open .route-list-header,
