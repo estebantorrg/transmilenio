@@ -61,6 +61,7 @@ const MAX_WALK_NEIGHBORS = 4;
 const ACCESS_SEARCH_RADIUS_M = 1500;
 const ACCESS_CANDIDATE_LIMIT = 12;
 const WALK_COST_WEIGHT = 20.0;
+const MAX_TRANSFERS = 3;
 const MIN_WALK_COST_WEIGHT = 50.0;
 const TRANSFER_PENALTY_MINUTES = 8.0;
 
@@ -412,8 +413,10 @@ function sliceRouteGeometry(
       }
     }
 
+    // Only accept if indices are in correct order (from before to along the path)
+    // to avoid reverse-direction geometry
     const score = minDistA + minDistB;
-    if (score < bestScore) {
+    if (idxA <= idxB && score < bestScore) {
       bestScore = score;
       bestPath = coords;
       bestIdxA = idxA;
@@ -423,13 +426,19 @@ function sliceRouteGeometry(
 
   if (!bestPath) return fallback;
 
-  if (bestIdxA <= bestIdxB) {
-    const sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
-    return sliced.length >= 2 ? sliced : fallback;
-  } else {
-    const sliced = bestPath.slice(bestIdxB, bestIdxA + 1).reverse();
-    return sliced.length >= 2 ? sliced : fallback;
+  const sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
+  if (sliced.length < 2) return fallback;
+
+  // Sanity check: if the sliced path is unreasonably long compared to
+  // straight-line distance, the geometry snapped to the wrong segment.
+  const straightDist = getDistance(fromStop.coordinate, toStop.coordinate);
+  let slicedDist = 0;
+  for (let k = 0; k < sliced.length - 1; k++) {
+    slicedDist += getDistance(sliced[k], sliced[k + 1]);
   }
+  if (straightDist > 0 && slicedDist > straightDist * 4) return fallback;
+
+  return sliced;
 }
 
 /**
@@ -648,6 +657,15 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       if (edge.type === 'troncal' && mode === 'zonal') continue;
       if (edge.type === 'zonal' && mode === 'troncal') continue;
 
+      // CRITICAL: Troncal routes can ONLY be boarded/alighted at stations.
+      // A paradero (zonal stop) cannot physically serve troncal buses.
+      if (edge.type === 'troncal') {
+        const fromNode = uniqueStops.get(current.nodeCode);
+        const toNode = uniqueStops.get(edge.to);
+        if (fromNode && fromNode.kind !== 'station') continue;
+        if (toNode && toNode.kind !== 'station') continue;
+      }
+
       let edgeTime = edge.time;
       let edgeCost = edge.time;
       let isTransfer = false;
@@ -668,6 +686,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         }
       } else {
         if (current.hasRidden && current.routeCode !== edge.routeCode) {
+          // Hard cap on transfers — prevent absurd multi-transfer routes
+          if (current.transfers >= MAX_TRANSFERS) continue;
           edgeCost += transferPenalty;
           isTransfer = true;
         }
@@ -798,11 +818,20 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   uniqueStops.delete('START');
   uniqueStops.delete('END');
 
-  // Deduplicate and filter plans
+  // Deduplicate, validate, and filter plans
   const finalPlans: JourneyPlan[] = [];
   const seenRouteKeys = new Set<string>();
 
   for (const plan of plans) {
+    // Validate: reject plans where troncal rides start/end at non-station nodes
+    const hasInvalidTroncalBoarding = plan.steps.some((step) => {
+      if (step.type !== 'ride' || step.routeType !== 'troncal') return false;
+      const fromNode = uniqueStops.get(step.fromCode);
+      const toNode = uniqueStops.get(step.toCode);
+      return (fromNode && fromNode.kind !== 'station') || (toNode && toNode.kind !== 'station');
+    });
+    if (hasInvalidTroncalBoarding) continue;
+
     const routeKey = plan.steps
       .filter((s) => s.type === 'ride')
       .map((s) => `${s.routeCode}|${s.fromCode}|${s.toCode}`)
@@ -815,9 +844,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   }
 
   return finalPlans.sort((a, b) =>
-    a.walkDistance - b.walkDistance ||
     a.transfers - b.transfers ||
-    a.totalTime - b.totalTime
+    a.totalTime - b.totalTime ||
+    a.walkDistance - b.walkDistance
   );
 }
 
