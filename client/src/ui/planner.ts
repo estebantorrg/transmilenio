@@ -583,8 +583,11 @@ function selectPlan(index: number, cards: NodeListOf<Element>): void {
       step.path.forEach((coord) => bounds.extend(coord));
     }
   });
+  const isMobile = window.innerWidth <= 768;
   mapInstance.fitBounds(bounds, {
-    padding: { top: 60, bottom: 60, left: 400, right: 60 },
+    padding: isMobile
+      ? { top: 60, bottom: 20, left: 30, right: 30 }
+      : { top: 60, bottom: 60, left: 400, right: 60 },
     maxZoom: 15,
   });
 

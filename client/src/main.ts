@@ -836,7 +836,8 @@ async function main(): Promise<void> {
             bounds.extend([lng, lat]);
           });
         });
-        map.fitBounds(bounds, { padding: { top: 60, bottom: 60, left: 400, right: 60 }, maxZoom: 15 });
+        const isMobile = window.innerWidth <= 768;
+        map.fitBounds(bounds, { padding: isMobile ? { top: 40, bottom: 20, left: 30, right: 30 } : { top: 60, bottom: 60, left: 400, right: 60 }, maxZoom: 15 });
       }
     },
     onRouteDeselect: () => {

@@ -9,6 +9,7 @@
   --tm-red-light: #FF5A6E;
   --tm-red-dark: #A00C22;
   --tm-blue: #38BDF8;
+  --tm-blue-light: #7DD3FC;
   --tm-blue-dark: #0284C7;
   --tm-cyan: #22D3EE;
   --tm-green: #5DB57B;
@@ -1479,13 +1480,18 @@ body {
 
 /* ─── Responsive ──────────────────────────────────────── */
 
+/* ─── Mobile & Tablet Responsive ────────────────────── */
+
 @media (max-width: 768px) {
   :root {
     --sidebar-width: 100vw;
   }
 
+  /* ── Sidebar becomes bottom sheet ── */
   .sidebar {
-    height: 50vh;
+    height: 55vh;
+    min-height: 260px;
+    max-height: 70vh;
     width: 100vw;
     top: auto;
     bottom: 0;
@@ -1494,10 +1500,377 @@ body {
     border: none;
     border-top: 1px solid var(--border-card);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
   }
 
   .sidebar.collapsed {
-    transform: translateY(calc(100% - 60px));
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    transform: translateY(calc(100% - 56px));
+  }
+
+  /* Drag handle visual cue */
+  .sidebar-header {
+    padding: 8px 14px 8px;
+    position: relative;
+  }
+
+  .sidebar-header::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 99px;
+    background: var(--border-medium);
+  }
+
+  .brand-logo {
+    width: 36px;
+    height: 36px;
+  }
+
+  .brand-title {
+    font-size: var(--font-size-sm);
+  }
+
+  .brand-subtitle {
+    font-size: var(--font-size-xs);
+  }
+
+  /* ── Sidebar toggle: right-side collapse ── */
+  .sidebar-toggle {
+    width: 28px;
+    height: 28px;
+  }
+
+  .sidebar.collapsed .sidebar-toggle svg {
+    transform: rotate(-90deg);
+  }
+
+  .sidebar:not(.collapsed) .sidebar-toggle svg {
+    transform: rotate(90deg);
+  }
+
+  /* ── Tabs ── */
+  .sidebar-tabs {
+    padding: 3px;
+    gap: 3px;
+  }
+
+  .tab-btn {
+    padding: 8px 6px;
+    font-size: var(--font-size-xs);
+    gap: 5px;
+  }
+
+  .tab-btn svg {
+    width: 15px;
+    height: 15px;
+  }
+
+  /* ── Search ── */
+  .search-container {
+    padding: 8px 12px;
+  }
+
+  .search-input {
+    height: 40px;
+    font-size: var(--font-size-sm);
+  }
+
+  .search-icon {
+    left: 24px;
+  }
+
+  /* ── Layer toggles compact ── */
+  .layer-toggles {
+    padding: 6px 12px;
+  }
+
+  .toggle-item {
+    padding: 3px 8px;
+    gap: 8px;
+  }
+
+  .toggle-desc {
+    display: none;
+  }
+
+  .toggle-label {
+    font-size: var(--font-size-xs);
+  }
+
+  .layer-toggles-title {
+    font-size: 0.6rem;
+    margin-bottom: 2px;
+  }
+
+  /* ── Route list ── */
+  .route-list {
+    padding: 0 6px 6px;
+  }
+
+  .route-list-header {
+    padding: 8px 12px 4px;
+  }
+
+  .route-item {
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .route-item-badge {
+    min-width: 40px;
+    height: 22px;
+    font-size: var(--font-size-xs);
+    padding: 0 8px;
+  }
+
+  /* ── Route detail panel ── */
+  .route-detail-close {
+    padding: 10px 12px;
+  }
+
+  #route-detail-content,
+  .card-detail-content {
+    padding: 14px 12px;
+  }
+
+  .detail-badge {
+    padding: 5px 11px;
+    font-size: var(--font-size-sm);
+  }
+
+  .detail-name {
+    font-size: var(--font-size-md);
+  }
+
+  .detail-header {
+    margin-bottom: 14px;
+  }
+
+  .live-tracking-status {
+    padding: 8px 10px;
+    margin-top: 10px;
+  }
+
+  .live-status-text {
+    font-size: 0.72rem;
+  }
+
+  .live-status-chip {
+    font-size: 0.55rem;
+    padding: 2px 6px;
+  }
+
+  .stops-timeline {
+    max-height: 200px;
+  }
+
+  /* ── Footer ── */
+  .sidebar-footer {
+    padding: 8px 12px 10px;
+    gap: 6px;
+  }
+
+  .footer-action {
+    padding: 9px 11px;
+    font-size: var(--font-size-xs);
+    gap: 8px;
+  }
+
+  .footer-action-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ── Planner panel ── */
+  .planner-panel {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .planner-inputs {
+    padding: 10px;
+  }
+
+  .input-wrapper .search-input {
+    padding-right: 68px;
+    font-size: var(--font-size-xs);
+  }
+
+  .map-pick-btn {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+
+  .planner-calculate-btn {
+    padding: 10px;
+  }
+
+  /* ── Planner results ── */
+  .journey-option-card {
+    padding: 10px;
+  }
+
+  .journey-duration {
+    font-size: var(--font-size-sm);
+  }
+
+  .journey-step-item {
+    gap: 8px;
+    min-height: 40px;
+  }
+
+  /* ── Autocomplete dropdown ── */
+  .autocomplete-dropdown {
+    max-height: 160px;
+  }
+
+  .autocomplete-item {
+    padding: 8px 8px;
+    gap: 6px;
+  }
+
+  .autocomplete-name {
+    font-size: var(--font-size-xs);
+  }
+
+  .autocomplete-meta {
+    font-size: 0.6rem;
+  }
+
+  /* ── Card balance ── */
+  .card-balance-amount {
+    font-size: 1.6rem;
+  }
+
+  /* ── Map popups ── */
+  .maplibregl-popup-content {
+    width: calc(280px * var(--tm-scale, 1)) !important;
+    min-width: calc(260px * var(--tm-scale, 1)) !important;
+    max-width: calc(300px * var(--tm-scale, 1)) !important;
+    max-height: 40vh;
+  }
+
+  /* ── Map controls pushed above sidebar ── */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: 56vh !important;
+  }
+
+  .maplibregl-ctrl-top-right {
+    top: 10px !important;
+    right: 10px !important;
+  }
+
+  /* ── Planner options ── */
+  .planner-option-row {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .planner-select {
+    width: 100%;
+    max-width: none;
+  }
+
+  /* ── Swap button ── */
+  .swap-row {
+    height: 20px;
+  }
+
+  .swap-btn {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* ─── Small phones (≤ 400px) ─────────────────────────── */
+
+@media (max-width: 400px) {
+  .sidebar {
+    height: 50vh;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-logo {
+    width: 28px;
+    height: 28px;
+  }
+
+  .brand-title {
+    font-size: var(--font-size-xs);
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .tab-btn span {
+    display: none;
+  }
+
+  .tab-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .footer-action-label {
+    font-size: 0.68rem;
+  }
+
+  .planner-inputs {
+    padding: 8px;
+  }
+
+  .input-label-row label {
+    font-size: 0.6rem;
+  }
+
+  .journey-meta-row {
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
+/* ─── Tablet landscape (769–1024px) ─────────────────── */
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  :root {
+    --sidebar-width: 320px;
+  }
+
+  .sidebar {
+    top: 10px;
+    left: 10px;
+    bottom: 10px;
+  }
+
+  .search-input {
+    height: 40px;
+  }
+
+  .toggle-desc {
+    display: none;
+  }
+
+  .route-item {
+    padding: 8px 10px;
+  }
+
+  .maplibregl-popup-content {
+    width: calc(300px * var(--tm-scale, 1)) !important;
+    min-width: calc(280px * var(--tm-scale, 1)) !important;
+    max-width: calc(320px * var(--tm-scale, 1)) !important;
   }
 }
 
@@ -1912,8 +2285,8 @@ body {
 .autocomplete-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 8px 10px;
   cursor: pointer;
   transition: background var(--transition-fast);
   border-bottom: 1px solid var(--border-subtle);
@@ -2059,6 +2432,10 @@ body {
   background: linear-gradient(135deg, var(--tm-red), var(--tm-red-dark));
   border-color: rgba(251, 44, 23, 0.4);
   margin-top: 4px;
+}
+
+.planner-calculate-btn .footer-action-icon {
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .planner-calculate-btn:hover {
