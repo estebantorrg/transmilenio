@@ -527,8 +527,11 @@ function initNearbyStations(map: maplibregl.Map): void {
     if (btn.classList.contains('loading')) return;
     btn.classList.add('loading');
     try {
-      const { longitude, latitude } = await resolveUserLocation();
-      placeUser(longitude, latitude);
+      const result = await resolveUserLocation();
+      placeUser(result.longitude, result.latitude);
+      if (result.source === 'ip') {
+        restore('Ubicación aproximada (IP)');
+      }
     } catch (error) {
       console.warn('[Nearby] could not resolve location:', error);
       restore('No se pudo ubicarte');
@@ -539,26 +542,35 @@ function initNearbyStations(map: maplibregl.Map): void {
 }
 
 /**
- * Resolves the user's location. Tries the browser's native geolocation first
- * (precise, permission-gated); if it is unavailable or blocked — e.g. the OS
- * network-location provider errors out with POSITION_UNAVAILABLE — falls back
- * to coarse IP-based location via the backend (/api/geoip).
+ * Resolves the user's location with maximum accuracy. Strategy:
+ *
+ * 1. Try browser native geolocation (GPS / WiFi / cell). Watch for up to
+ *    GEO_MAX_WAIT_MS, keeping the most accurate sample. Settle early once
+ *    accuracy ≤ GEO_TARGET_ACCURACY_M.
+ * 2. If native geolocation outright fails (API missing, permission denied,
+ *    POSITION_UNAVAILABLE with zero fixes), fall back to IP-based via
+ *    /api/geoip — but only as last resort because IP is city-center (~2 km).
+ * 3. A native fix — even a coarse one (200–500 m) — is ALWAYS better than
+ *    IP geolocation. Never prefer IP over any native result.
  */
-function resolveUserLocation(): Promise<{ longitude: number; latitude: number }> {
+function resolveUserLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' | 'ip' }> {
   return getNativeLocation().catch((nativeError) => {
     console.warn('[Nearby] native geolocation failed, falling back to IP:', nativeError?.message ?? nativeError);
     return getIpLocation();
   });
 }
 
-// Resolve once GPS reaches this accuracy; otherwise keep the best fix seen
-// within the time budget. A one-shot getCurrentPosition often returns the
-// coarse first fix (network/WiFi, ~100–200 m) before the GPS hardware
-// converges — watching and keeping the most accurate sample fixes that.
-const GEO_TARGET_ACCURACY_M = 35;
-const GEO_MAX_WAIT_MS = 15_000;
+// Target: GPS-grade accuracy. On mobile with clear sky this is ~5–15 m.
+// On desktop/laptop WiFi it's typically 20–100 m (still far better than IP).
+const GEO_TARGET_ACCURACY_M = 20;
+// Total budget. GPS hardware can take 10–30 s for a cold fix — give it time.
+const GEO_MAX_WAIT_MS = 20_000;
+// After this many ms, if we already have *any* fix below COARSE_THRESHOLD,
+// accept it rather than waiting the full budget.
+const GEO_COARSE_ACCEPT_MS = 8_000;
+const GEO_COARSE_THRESHOLD_M = 150;
 
-function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
+function getNativeLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new Error('Geolocation API unavailable'));
@@ -568,32 +580,67 @@ function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
     let best: GeolocationPosition | null = null;
     let settled = false;
 
-    const finish = (): void => {
+    const finish = (reason: string): void => {
       if (settled) return;
       settled = true;
       navigator.geolocation.clearWatch(watchId);
-      window.clearTimeout(timer);
+      window.clearTimeout(maxTimer);
+      if (coarseTimer != null) window.clearTimeout(coarseTimer);
       if (best) {
-        resolve({ longitude: best.coords.longitude, latitude: best.coords.latitude });
+        console.info(
+          `[Nearby] native fix (${reason}): ` +
+          `[${best.coords.latitude.toFixed(6)}, ${best.coords.longitude.toFixed(6)}] ` +
+          `accuracy ±${Math.round(best.coords.accuracy)}m`
+        );
+        resolve({
+          longitude: best.coords.longitude,
+          latitude: best.coords.latitude,
+          accuracy: best.coords.accuracy,
+          source: 'gps',
+        });
       } else {
         reject(new Error('No position acquired'));
       }
     };
 
-    const timer = window.setTimeout(finish, GEO_MAX_WAIT_MS);
+    // Hard deadline — use whatever we have (or fail).
+    const maxTimer = window.setTimeout(() => finish('max-wait'), GEO_MAX_WAIT_MS);
+
+    // Soft deadline — accept a coarse fix rather than waiting forever.
+    let coarseTimer: number | undefined;
+    const startCoarseTimer = (): void => {
+      if (coarseTimer != null) return;
+      coarseTimer = window.setTimeout(() => {
+        if (best && best.coords.accuracy <= GEO_COARSE_THRESHOLD_M) {
+          finish('coarse-accept');
+        }
+      }, GEO_COARSE_ACCEPT_MS);
+    };
 
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos;
-        // Good enough — stop early instead of burning the full budget.
-        if (pos.coords.accuracy <= GEO_TARGET_ACCURACY_M) finish();
+        if (!best || pos.coords.accuracy < best.coords.accuracy) {
+          best = pos;
+          console.debug(
+            `[Nearby] fix update: ±${Math.round(pos.coords.accuracy)}m ` +
+            `[${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}]`
+          );
+        }
+        // Excellent fix — stop immediately.
+        if (pos.coords.accuracy <= GEO_TARGET_ACCURACY_M) {
+          finish('target-accuracy');
+          return;
+        }
+        // We have at least one fix; start the coarse-accept countdown.
+        startCoarseTimer();
       },
       (error) => {
         // Only fail if no fix ever arrived; otherwise keep the best we have.
         if (!best) {
           settled = true;
           navigator.geolocation.clearWatch(watchId);
-          window.clearTimeout(timer);
+          window.clearTimeout(maxTimer);
+          if (coarseTimer != null) window.clearTimeout(coarseTimer);
           reject(error);
         }
       },
@@ -603,13 +650,15 @@ function getNativeLocation(): Promise<{ longitude: number; latitude: number }> {
   });
 }
 
-async function getIpLocation(): Promise<{ longitude: number; latitude: number }> {
+async function getIpLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'ip' }> {
   const res = await api.getGeoIp();
   if (!res.success || typeof res.longitude !== 'number' || typeof res.latitude !== 'number') {
     throw new Error(res.error ?? 'IP geolocation failed');
   }
-  return { longitude: res.longitude, latitude: res.latitude };
+  console.warn('[Nearby] using IP geolocation — accuracy is city-level (~2 km)');
+  return { longitude: res.longitude, latitude: res.latitude, source: 'ip' };
 }
+
 
 // ─── Main ─────────────────────────────────────────────────
 
