@@ -239,26 +239,35 @@ export function addStationsLayer(
 
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
-    features: visibleStations.map((s) => ({
-      type: 'Feature',
-      properties: {
-        stationKey: buildStationKey(s),
-        name: s.attributes.nombre_estacion,
-        stationCode: s.attributes.numero_estacion,
-        stationNode: stationNode(s),
-        corridor: s.attributes.troncal_estacion,
-        location: s.attributes.ubicacion_estacion,
-        wifi: s.attributes.componente_wifi,
-        bike: s.attributes.biciestacion_estacion === '1',
-        bikeCapacity: s.attributes.capacidad_biciestacion_estacion,
-        wagons: s.attributes.numero_vagones_estacion,
-        stationType: s.attributes.tipo_estacion,
-      },
-      geometry: {
-        type: 'Point',
-        coordinates: [s.geometry.x, s.geometry.y],
-      },
-    })),
+    features: visibleStations.map((s) => {
+      const key = buildStationKey(s);
+      const resolved = _resolvedStations[key];
+      // Use resolved name from verified splits so split stations
+      // (e.g. Av. Jiménez Caracas vs Av. Jiménez CL 13) show distinct labels.
+      const displayName = resolved?.matchMethod.startsWith('verified-split')
+        ? resolved.stationName
+        : s.attributes.nombre_estacion;
+      return {
+        type: 'Feature',
+        properties: {
+          stationKey: key,
+          name: displayName,
+          stationCode: s.attributes.numero_estacion,
+          stationNode: stationNode(s),
+          corridor: s.attributes.troncal_estacion,
+          location: s.attributes.ubicacion_estacion,
+          wifi: s.attributes.componente_wifi,
+          bike: s.attributes.biciestacion_estacion === '1',
+          bikeCapacity: s.attributes.capacidad_biciestacion_estacion,
+          wagons: s.attributes.numero_vagones_estacion,
+          stationType: s.attributes.tipo_estacion,
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [s.geometry.x, s.geometry.y],
+        },
+      };
+    }),
   };
 
   map.addSource('stations', { type: 'geojson', data: geojson });

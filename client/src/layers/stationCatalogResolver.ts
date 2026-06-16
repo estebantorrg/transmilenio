@@ -29,6 +29,7 @@ interface VerifiedSplit {
   wagons: string[];
   stationNodes: string[];
   stationNames: string[];
+  displayName: string;
   note: string;
 }
 
@@ -98,6 +99,7 @@ const VERIFIED_SPLITS: VerifiedSplit[] = [
     wagons: ['A', 'B', 'C'],
     stationNodes: ['9110'],
     stationNames: ['AVJIMENEZCARACAS'],
+    displayName: 'AV. Jiménez - Caracas',
     note: 'Official app stop TM0013 combines Avenida Jimenez; ArcGIS exposes Caracas as its own 3-wagon point.',
   },
   {
@@ -106,6 +108,7 @@ const VERIFIED_SPLITS: VerifiedSplit[] = [
     wagons: ['D', 'E'],
     stationNodes: ['14003'],
     stationNames: ['AVJIMENEZCL13'],
+    displayName: 'AV. Jiménez - CL 13',
     note: 'Official app stop TM0013 combines Avenida Jimenez; ArcGIS exposes Calle 13 as its own 2-wagon point.',
   },
   {
@@ -114,6 +117,7 @@ const VERIFIED_SPLITS: VerifiedSplit[] = [
     wagons: ['A', 'B', 'C'],
     stationNodes: ['7111'],
     stationNames: ['RICAURTENQS'],
+    displayName: 'Ricaurte - NQS',
     note: 'Official app stop TM0069 combines Ricaurte; ArcGIS exposes NQS as its own 3-wagon point.',
   },
   {
@@ -122,6 +126,7 @@ const VERIFIED_SPLITS: VerifiedSplit[] = [
     wagons: ['D', 'E', 'F'],
     stationNodes: ['12003'],
     stationNames: ['RICAURTECL13'],
+    displayName: 'Ricaurte - CL 13',
     note: 'Official app stop TM0069 combines Ricaurte; ArcGIS exposes Calle 13 as its own 3-wagon point.',
   },
 ];
@@ -333,9 +338,16 @@ function makeResolvedStation(
   const sourceStopIds = sourceStops.map((stop) => stop.id);
   const usedStopCodes = new Set(sourceStopCodes);
 
+  // For verified splits, use the split's display name so each half gets
+  // a distinct label on the map (e.g. "AV. Jiménez - Caracas" vs "AV. Jiménez - CL 13").
+  const split = matchMethod.startsWith('verified-split')
+    ? VERIFIED_SPLITS.find((s) => s.matchMethod === matchMethod)
+    : undefined;
+  const resolvedName = split?.displayName || stationName(feature);
+
   const audit: StationCatalogAudit = {
     stationKey: buildStationKey(feature),
-    stationName: stationName(feature),
+    stationName: resolvedName,
     stationCode: stationCode(feature),
     stationNode: stationNode(feature),
     matchMethod,
