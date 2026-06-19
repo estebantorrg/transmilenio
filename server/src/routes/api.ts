@@ -256,15 +256,30 @@ const GEOIP_TIMEOUT_MS = 5_000;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
 
 function getClientIp(req: Request): string | null {
+  const xForwardedFor = req.headers['x-forwarded-for'];
+  if (xForwardedFor) {
+    const ips = (Array.isArray(xForwardedFor) ? xForwardedFor : String(xForwardedFor).split(','))
+      .map((ip) => ip.trim())
+      .filter(Boolean);
+    for (const ip of ips) {
+      if (!PRIVATE_IP_RE.test(ip)) return ip;
+    }
+  }
+
+  const xRealIp = req.headers['x-real-ip'];
+  if (xRealIp && typeof xRealIp === 'string') {
+    const ip = xRealIp.trim();
+    if (!PRIVATE_IP_RE.test(ip)) return ip;
+  }
+
   const ip = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '').trim();
-  // Loopback / private ranges can't be geolocated — let the upstream fall back
-  // to the request source IP instead of sending a useless private address.
   if (!ip || PRIVATE_IP_RE.test(ip)) return null;
   return ip;
 }
 
 router.get('/geoip', async (req: Request, res: Response) => {
   const ip = getClientIp(req);
+  console.log(`[/geoip] Request from IP: "${ip || 'unknown (using server IP)'}"`);
   const url = ip
     ? `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`
     : 'https://get.geojs.io/v1/ip/geo.json';

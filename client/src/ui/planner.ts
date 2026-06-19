@@ -349,6 +349,16 @@ function initInputHandlers(): void {
 }
 
 async function resolveLocation(): Promise<{ longitude: number; latitude: number }> {
+  const minLat = 4.4;
+  const maxLat = 4.85;
+  const minLng = -74.25;
+  const maxLng = -73.95;
+  const bogotaCenter = { longitude: -74.1071, latitude: 4.6486 };
+
+  const isWithinBogota = (lng: number, lat: number) => {
+    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
+  };
+
   // Try GPS
   if ('geolocation' in navigator) {
     try {
@@ -358,19 +368,32 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
           timeout: 7000,
         });
       });
-      return { longitude: pos.coords.longitude, latitude: pos.coords.latitude };
+      const lng = pos.coords.longitude;
+      const lat = pos.coords.latitude;
+      if (isWithinBogota(lng, lat)) {
+        return { longitude: lng, latitude: lat };
+      }
     } catch {
       /* fallback to geoip */
     }
   }
 
   // Fallback to IP GeoIP
-  const geoip = await api.getGeoIp();
-  if (geoip.success && geoip.longitude != null && geoip.latitude != null) {
-    return { longitude: geoip.longitude, latitude: geoip.latitude };
+  try {
+    const geoip = await api.getGeoIp();
+    if (geoip.success && geoip.longitude != null && geoip.latitude != null) {
+      const lng = geoip.longitude;
+      const lat = geoip.latitude;
+      if (isWithinBogota(lng, lat)) {
+        return { longitude: lng, latitude: lat };
+      }
+    }
+  } catch {
+    /* fallback to center */
   }
 
-  throw new Error('Location lookup failed');
+  // Fallback to central Bogotá if both GPS/IP fail or are out of bounds (e.g. testing from outside Bogotá/Colombia)
+  return bogotaCenter;
 }
 
 /**

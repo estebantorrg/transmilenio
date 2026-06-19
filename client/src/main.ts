@@ -485,6 +485,19 @@ function buildRouteList(
 
 // ─── Nearby Stations (geolocation) ────────────────────────
 
+const BOGOTA_BOUNDS = {
+  minLat: 4.4,
+  maxLat: 4.85,
+  minLng: -74.25,
+  maxLng: -73.95,
+};
+const BOGOTA_CENTER: [number, number] = [-74.1071, 4.6486];
+
+function isWithinBogota(lng: number, lat: number): boolean {
+  return lat >= BOGOTA_BOUNDS.minLat && lat <= BOGOTA_BOUNDS.maxLat &&
+         lng >= BOGOTA_BOUNDS.minLng && lng <= BOGOTA_BOUNDS.maxLng;
+}
+
 /**
  * Wires the "Estaciones cerca" footer action: locates the user, recenters
  * the map on their position and opens the popup for the closest troncal
@@ -528,8 +541,21 @@ function initNearbyStations(map: maplibregl.Map): void {
     btn.classList.add('loading');
     try {
       const result = await resolveUserLocation();
-      placeUser(result.longitude, result.latitude);
-      if (result.source === 'ip') {
+      let lng = result.longitude;
+      let lat = result.latitude;
+      let isFallback = false;
+      
+      if (!isWithinBogota(lng, lat)) {
+        lng = BOGOTA_CENTER[0];
+        lat = BOGOTA_CENTER[1];
+        isFallback = true;
+      }
+      
+      placeUser(lng, lat);
+      
+      if (isFallback) {
+        restore('Ubicación: Bogotá Centro');
+      } else if (result.source === 'ip') {
         restore('Ubicación aproximada (IP)');
       }
     } catch (error) {
