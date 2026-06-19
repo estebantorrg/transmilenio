@@ -413,10 +413,8 @@ function sliceRouteGeometry(
       }
     }
 
-    // Only accept if indices are in correct order (from before to along the path)
-    // to avoid reverse-direction geometry
     const score = minDistA + minDistB;
-    if (idxA <= idxB && score < bestScore) {
+    if (score < bestScore) {
       bestScore = score;
       bestPath = coords;
       bestIdxA = idxA;
@@ -426,7 +424,13 @@ function sliceRouteGeometry(
 
   if (!bestPath) return fallback;
 
-  const sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
+  let sliced: [number, number][];
+  if (bestIdxA <= bestIdxB) {
+    sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
+  } else {
+    sliced = bestPath.slice(bestIdxB, bestIdxA + 1).reverse();
+  }
+
   if (sliced.length < 2) return fallback;
 
   // Sanity check: if the sliced path is unreasonably long compared to
@@ -436,7 +440,8 @@ function sliceRouteGeometry(
   for (let k = 0; k < sliced.length - 1; k++) {
     slicedDist += getDistance(sliced[k], sliced[k + 1]);
   }
-  if (straightDist > 0 && slicedDist > straightDist * 4) return fallback;
+  // Allow up to 8x straight distance for winding routes (or ignore if straight distance is small)
+  if (straightDist > 100 && slicedDist > straightDist * 8) return fallback;
 
   return sliced;
 }
