@@ -48,6 +48,7 @@ export interface RouteSearchParams {
   destStopCode?: string;
   mode: 'mix' | 'troncal' | 'zonal';
   minWalk: boolean;
+  sortBy?: 'transfers' | 'time' | 'walk';
 }
 
 // Global router state
@@ -570,45 +571,68 @@ function isStopCompatible(stop: RouteStop, mode: 'mix' | 'troncal' | 'zonal'): b
 function findAccessNodes(
   coordinate: [number, number],
   mode: 'mix' | 'troncal' | 'zonal',
-  selectedStopCode?: string
+  selectedStopCode?: string,
+  minWalk: boolean = false
 ): { nodeCode: string; distance: number }[] {
   const selectedCode = String(selectedStopCode || '').trim();
+  const candidates: { nodeCode: string; distance: number }[] = [];
+  const seenCodes = new Set<string>();
+
   if (selectedCode) {
     const exact = uniqueStops.get(selectedCode);
     if (exact && isStopCompatible(exact, mode)) {
-      return [{ nodeCode: exact.codigo, distance: 0 }];
+      candidates.push({ nodeCode: exact.codigo, distance: 0 });
+      seenCodes.add(exact.codigo);
     }
 
     const sourceMatches = Array.from(uniqueStops.values())
-      .filter((stop) => stop.sourceCode === selectedCode && isStopCompatible(stop, mode))
-      .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }))
-      .sort((a, b) => a.distance - b.distance);
-    if (sourceMatches.length > 0) return sourceMatches;
+      .filter((stop) => stop.sourceCode === selectedCode && isStopCompatible(stop, mode));
+    for (const stop of sourceMatches) {
+      if (!seenCodes.has(stop.codigo)) {
+        candidates.push({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) });
+        seenCodes.add(stop.codigo);
+      }
+    }
   }
 
+  // If the user does NOT want to minimize walking, we allow walking up to 400m (1-2 mins) to alternative stops/stations.
+  // This opens up direct or fewer-transfer routes.
+  const alternativeStopsRadius = minWalk ? 0 : 400;
+
   const compatibleStops = Array.from(uniqueStops.values())
-    .filter((stop) => isStopCompatible(stop, mode))
-    .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }))
-    .sort((a, b) => a.distance - b.distance);
+    .filter((stop) => isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo))
+    .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }));
 
-  const nearby = compatibleStops
-    .filter((candidate) => candidate.distance <= ACCESS_SEARCH_RADIUS_M)
-    .slice(0, ACCESS_CANDIDATE_LIMIT);
-  if (nearby.length > 0) return nearby;
+  const searchRadius = selectedCode ? alternativeStopsRadius : ACCESS_SEARCH_RADIUS_M;
+  const limit = selectedCode ? 6 : ACCESS_CANDIDATE_LIMIT;
 
-  return compatibleStops.slice(0, Math.min(5, ACCESS_CANDIDATE_LIMIT));
+  if (searchRadius > 0) {
+    const nearby = compatibleStops
+      .filter((candidate) => candidate.distance <= searchRadius)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limit);
+    candidates.push(...nearby);
+  }
+
+  if (candidates.length > 0) {
+    return candidates.sort((a, b) => a.distance - b.distance);
+  }
+
+  // Fallback to absolute closest if none nearby
+  const sortedCompatible = compatibleStops.sort((a, b) => a.distance - b.distance);
+  return sortedCompatible.slice(0, Math.min(5, ACCESS_CANDIDATE_LIMIT));
 }
 
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
-  const { origin, destination, originStopCode, destStopCode, mode, minWalk } = params;
+  const { origin, destination, originStopCode, destStopCode, mode, minWalk, sortBy } = params;
 
   // 1. Identify starting nodes
-  const startNodes = findAccessNodes(origin, mode, originStopCode);
+  const startNodes = findAccessNodes(origin, mode, originStopCode, minWalk);
   if (startNodes.length === 0) return [];
 
   // 2. Identify destination nodes
   const destNodes = new Map<string, number>(); // nodeCode -> walkDistance
-  findAccessNodes(destination, mode, destStopCode).forEach((node) => destNodes.set(node.nodeCode, node.distance));
+  findAccessNodes(destination, mode, destStopCode, minWalk).forEach((node) => destNodes.set(node.nodeCode, node.distance));
   if (destNodes.size === 0) return [];
 
   // 3. Multi-criteria Dijkstra
@@ -848,11 +872,30 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     }
   }
 
-  return finalPlans.sort((a, b) =>
-    a.transfers - b.transfers ||
-    a.totalTime - b.totalTime ||
-    a.walkDistance - b.walkDistance
-  );
+  const sortCriteria = sortBy || 'transfers';
+
+  return finalPlans.sort((a, b) => {
+    if (sortCriteria === 'transfers') {
+      return (
+        a.transfers - b.transfers ||
+        a.totalTime - b.totalTime ||
+        a.walkDistance - b.walkDistance
+      );
+    } else if (sortCriteria === 'time') {
+      return (
+        a.totalTime - b.totalTime ||
+        a.transfers - b.transfers ||
+        a.walkDistance - b.walkDistance
+      );
+    } else {
+      // 'walk'
+      return (
+        a.walkDistance - b.walkDistance ||
+        a.totalTime - b.totalTime ||
+        a.transfers - b.transfers
+      );
+    }
+  });
 }
 
 function createWalkingFallbackPlan(origin: [number, number], destination: [number, number]): JourneyPlan {

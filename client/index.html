@@ -168,12 +168,13 @@
             <option value="zonal">Solo SITP Zonal</option>
           </select>
         </div>
-        <div class="planner-option-row checkbox-row">
-          <label class="toggle-item-compact">
-            <input type="checkbox" id="plan-min-walk-checkbox" checked />
-            <span class="toggle-check-compact"></span>
-            <span class="toggle-text-compact">Caminar lo menos posible</span>
-          </label>
+        <div class="planner-option-row">
+          <label for="plan-preference">Preferencia</label>
+          <select id="plan-preference" class="planner-select">
+            <option value="transfers" selected>Menos transbordos</option>
+            <option value="time">Más rápido (Tiempo)</option>
+            <option value="walk">Caminar lo menos posible</option>
+          </select>
         </div>
       </div>
 

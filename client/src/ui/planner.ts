@@ -413,7 +413,9 @@ function calculateRoute(): void {
 
   // Read configurations
   const mode = (document.getElementById('plan-transport-mode') as HTMLSelectElement).value as 'mix' | 'troncal' | 'zonal';
-  const minWalk = (document.getElementById('plan-min-walk-checkbox') as HTMLInputElement).checked;
+  const preference = (document.getElementById('plan-preference') as HTMLSelectElement).value as 'transfers' | 'time' | 'walk';
+  const minWalk = preference === 'walk';
+  const sortBy = preference;
 
   window.setTimeout(() => {
     try {
@@ -424,6 +426,7 @@ function calculateRoute(): void {
         destStopCode,
         mode,
         minWalk,
+        sortBy,
       });
 
       btnCalculate.classList.remove('loading');
