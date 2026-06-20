@@ -836,6 +836,10 @@ async function main(): Promise<void> {
     bringStopsLayerToFront(map);
   } catch (error) {
     console.error('❌ Error loading data:', error);
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+      overlay.classList.add('error-state');
+    }
     setLoadingStatus(`Error al cargar datos. ${getErrorMessage(error)}`);
     return;
   }

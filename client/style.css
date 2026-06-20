@@ -100,11 +100,15 @@ body {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: flex;
+  display: none; /* Hidden by default to avoid corny loading screen */
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
   transition: opacity 0.5s var(--ease-out), visibility 0.5s;
+}
+
+.loading-overlay.error-state {
+  display: flex; /* Display only if error */
 }
 
 .loading-overlay.fade-out {
