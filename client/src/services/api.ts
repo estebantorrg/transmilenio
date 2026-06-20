@@ -220,6 +220,14 @@ export const api = {
   /** Query Bogotá-bounded geocoding API. */
   geocodeAddress: (q: string) =>
     fetchJson<any>(`/geocode?q=${encodeURIComponent(q)}`, 8_000, undefined, 1),
+
+  getWalkingRoute: (from: [number, number], to: [number, number]) =>
+    fetchJson<WalkingRouteResponse>(
+      `/walking-route?from=${encodeURIComponent(from.join(','))}&to=${encodeURIComponent(to.join(','))}`,
+      10_000,
+      undefined,
+      1
+    ),
 };
 
 export interface GeoIpResponse {
@@ -228,6 +236,19 @@ export interface GeoIpResponse {
   latitude?: number;
   longitude?: number;
   city?: string;
+  error?: string;
+}
+
+export interface WalkingRouteResult {
+  coordinates: [number, number][];
+  distance: number;
+  time: number;
+  source: 'osrm';
+}
+
+export interface WalkingRouteResponse {
+  success: boolean;
+  data?: WalkingRouteResult;
   error?: string;
 }
 

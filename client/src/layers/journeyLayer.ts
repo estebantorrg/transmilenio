@@ -410,7 +410,6 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
   // Intermediate boarding, alighting, and transfer markers
   for (let i = 0; i < plan.steps.length; i++) {
     const step = plan.steps[i];
-    const prevStep = i > 0 ? plan.steps[i - 1] : null;
     const nextStep = i < plan.steps.length - 1 ? plan.steps[i + 1] : null;
 
     if (step.type === 'ride' && step.path && step.path.length > 0) {

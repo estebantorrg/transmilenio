@@ -1,35 +1,124 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan, type JourneyStep } from '../services/router';
+import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getRouteAccentColor } from '../utils/routeColors';
 import type { RouteListItem } from '../types/transmilenio';
 
 let mapInstance: maplibregl.Map;
-let rawRoutes: RouteListItem[] = [];
 
 // Selection states
 let originCoord: [number, number] | null = null;
 let originStopCode: string | undefined = undefined;
+let originSelectionText = '';
 
 let destCoord: [number, number] | null = null;
 let destStopCode: string | undefined = undefined;
+let destSelectionText = '';
 
 let mapPickMode: 'origin' | 'destination' | null = null;
 let activePlanIndex: number | null = null;
 let calculatedPlans: JourneyPlan[] = [];
+let plannerRequestSeq = 0;
+let originAutocompleteSeq = 0;
+let destAutocompleteSeq = 0;
+
+type PlannerEndpoint = 'origin' | 'destination';
+
+function getEndpointElements(endpoint: PlannerEndpoint): {
+  input: HTMLInputElement | null;
+  clear: HTMLElement | null;
+  autocomplete: HTMLElement | null;
+} {
+  const inputId = endpoint === 'origin' ? 'plan-origin-input' : 'plan-destination-input';
+  const clearId = endpoint === 'origin' ? 'plan-origin-clear' : 'plan-destination-clear';
+  const autocompleteId = endpoint === 'origin' ? 'origin-autocomplete' : 'destination-autocomplete';
+
+  return {
+    input: document.getElementById(inputId) as HTMLInputElement | null,
+    clear: document.getElementById(clearId),
+    autocomplete: document.getElementById(autocompleteId),
+  };
+}
+
+function renderPlannerPrompt(message = 'Elige tu origen y destino para encontrar la mejor ruta en TransMilenio y SITP.'): void {
+  const resultsContainer = document.getElementById('planner-results');
+  if (!resultsContainer) return;
+
+  resultsContainer.innerHTML = `
+    <div class="planner-empty-state">
+      <div class="card-empty-title">Planifica tu viaje</div>
+      <div class="card-empty-text">${escapeHTML(message)}</div>
+    </div>
+  `;
+}
+
+function invalidatePlannerResults(message?: string): void {
+  plannerRequestSeq++;
+  calculatedPlans = [];
+  activePlanIndex = null;
+  if (mapInstance) clearJourneyPath(mapInstance);
+  renderPlannerPrompt(message);
+}
+
+function setEndpointSelection(
+  endpoint: PlannerEndpoint,
+  label: string,
+  coord: [number, number],
+  code?: string
+): void {
+  const { input, clear, autocomplete } = getEndpointElements(endpoint);
+  if (input) input.value = label;
+  clear?.classList.remove('hidden');
+  autocomplete?.classList.add('hidden');
+
+  if (endpoint === 'origin') {
+    originCoord = coord;
+    originStopCode = code;
+    originSelectionText = label;
+  } else {
+    destCoord = coord;
+    destStopCode = code;
+    destSelectionText = label;
+  }
+
+  invalidatePlannerResults();
+}
+
+function clearEndpointSelection(endpoint: PlannerEndpoint, focus = false): void {
+  const { input, clear, autocomplete } = getEndpointElements(endpoint);
+  if (input) {
+    input.value = '';
+    if (focus) input.focus();
+  }
+  clear?.classList.add('hidden');
+  autocomplete?.classList.add('hidden');
+
+  if (endpoint === 'origin') {
+    originCoord = null;
+    originStopCode = undefined;
+    originSelectionText = '';
+  } else {
+    destCoord = null;
+    destStopCode = undefined;
+    destSelectionText = '';
+  }
+
+  invalidatePlannerResults();
+}
+
+function isPlannerVisible(): boolean {
+  return !document.getElementById('planner-panel')?.classList.contains('hidden');
+}
 
 /**
  * Initializes the Journey Planner UI controllers.
  */
 export function initPlanner(
   map: maplibregl.Map,
-  routes: RouteListItem[],
-  onStopSelect?: (stop: any, routeType: 'troncal' | 'zonal') => void
+  routes: RouteListItem[]
 ): void {
   mapInstance = map;
-  rawRoutes = routes;
 
   // Initialize routing graph
   initRouter(routes);
@@ -113,20 +202,7 @@ function initMapClickListener(): void {
     if (!mapPickMode) return;
 
     const coord: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    const inputId = mapPickMode === 'origin' ? 'plan-origin-input' : 'plan-destination-input';
-    const input = document.getElementById(inputId) as HTMLInputElement;
-
-    if (input) {
-      input.value = `Mapa: ${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`;
-      if (mapPickMode === 'origin') {
-        originCoord = coord;
-        originStopCode = undefined;
-      } else {
-        destCoord = coord;
-        destStopCode = undefined;
-      }
-      document.getElementById(`plan-${mapPickMode}-clear`)?.classList.remove('hidden');
-    }
+    setEndpointSelection(mapPickMode, `Mapa: ${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`, coord);
 
     setMapPickMode(null);
   });
@@ -155,21 +231,11 @@ function initInputHandlers(): void {
 
   // 1. Clears
   originClear.addEventListener('click', () => {
-    originInput.value = '';
-    originCoord = null;
-    originStopCode = undefined;
-    originClear.classList.add('hidden');
-    originAutocomplete.classList.add('hidden');
-    originInput.focus();
+    clearEndpointSelection('origin', true);
   });
 
   destClear.addEventListener('click', () => {
-    destInput.value = '';
-    destCoord = null;
-    destStopCode = undefined;
-    destClear.classList.add('hidden');
-    destAutocomplete.classList.add('hidden');
-    destInput.focus();
+    clearEndpointSelection('destination', true);
   });
 
   // Hide autocompletes on outside click
@@ -194,11 +260,19 @@ function initInputHandlers(): void {
 
   // 3. Autocomplete query debounced triggers
   const handleAutocomplete = async (
+    endpoint: PlannerEndpoint,
     query: string,
     dropdown: HTMLElement,
     onSelect: (name: string, coord: [number, number], code?: string) => void
   ) => {
     const trimmed = query.trim();
+    const requestSeq = endpoint === 'origin' ? ++originAutocompleteSeq : ++destAutocompleteSeq;
+    const isCurrentRequest = () => {
+      const latestSeq = endpoint === 'origin' ? originAutocompleteSeq : destAutocompleteSeq;
+      const latestValue = getEndpointElements(endpoint).input?.value.trim() ?? '';
+      return requestSeq === latestSeq && latestValue === trimmed;
+    };
+
     if (trimmed.length < 3) {
       dropdown.classList.add('hidden');
       return;
@@ -207,6 +281,7 @@ function initInputHandlers(): void {
     try {
       // Query local lookup + Nominatim + ArcGIS geocoder proxy
       const res = await api.geocodeAddress(trimmed);
+      if (!isCurrentRequest()) return;
       if (!res.success || !res.candidates || res.candidates.length === 0) {
         dropdown.innerHTML = `<div class="autocomplete-item"><div class="autocomplete-name">Sin resultados</div></div>`;
         dropdown.classList.remove('hidden');
@@ -247,59 +322,79 @@ function initInputHandlers(): void {
           onSelect(name, [lon, lat], code || undefined);
           dropdown.classList.add('hidden');
         });
-      });
+        });
     } catch (err) {
+      if (!isCurrentRequest()) return;
       console.error('[Planner] Geocode lookup error:', err);
     }
   };
 
   const debouncedOrigin = debounce((q: string) => {
-    handleAutocomplete(q, originAutocomplete, (name, coord, code) => {
-      originInput.value = name;
-      originCoord = coord;
-      originStopCode = code;
-      originClear.classList.remove('hidden');
+    handleAutocomplete('origin', q, originAutocomplete, (name, coord, code) => {
+      setEndpointSelection('origin', name, coord, code);
     });
   }, 300);
 
   const debouncedDest = debounce((q: string) => {
-    handleAutocomplete(q, destAutocomplete, (name, coord, code) => {
-      destInput.value = name;
-      destCoord = coord;
-      destStopCode = code;
-      destClear.classList.remove('hidden');
+    handleAutocomplete('destination', q, destAutocomplete, (name, coord, code) => {
+      setEndpointSelection('destination', name, coord, code);
     });
   }, 300);
 
   originInput.addEventListener('input', () => {
     originClear.classList.toggle('hidden', !originInput.value);
+    if (originInput.value !== originSelectionText) {
+      originCoord = null;
+      originStopCode = undefined;
+      originSelectionText = '';
+      originAutocomplete.classList.add('hidden');
+      invalidatePlannerResults('Selecciona un origen de la lista, del mapa o de tu ubicacion actual.');
+    }
     debouncedOrigin(originInput.value);
   });
 
   destInput.addEventListener('input', () => {
     destClear.classList.toggle('hidden', !destInput.value);
+    if (destInput.value !== destSelectionText) {
+      destCoord = null;
+      destStopCode = undefined;
+      destSelectionText = '';
+      destAutocomplete.classList.add('hidden');
+      invalidatePlannerResults('Selecciona un destino de la lista, del mapa o de tu ubicacion actual.');
+    }
     debouncedDest(destInput.value);
   });
 
   // 4. GPS buttons
   const handleGpsButton = async (
+    endpoint: PlannerEndpoint,
     btn: HTMLButtonElement,
     input: HTMLInputElement,
-    clearBtn: HTMLElement,
-    onSelect: (coord: [number, number]) => void
+    clearBtn: HTMLElement
   ) => {
     if (btn.classList.contains('loading')) return;
     btn.classList.add('loading');
     input.value = 'Obteniendo ubicación actual...';
+    clearBtn.classList.remove('hidden');
+    if (endpoint === 'origin') {
+      originCoord = null;
+      originStopCode = undefined;
+      originSelectionText = '';
+    } else {
+      destCoord = null;
+      destStopCode = undefined;
+      destSelectionText = '';
+    }
+    invalidatePlannerResults('Obteniendo ubicación actual...');
 
     try {
       const coord = await resolveLocation();
-      input.value = 'Mi ubicación actual';
-      clearBtn.classList.remove('hidden');
-      onSelect([coord.longitude, coord.latitude]);
+      setEndpointSelection(endpoint, 'Mi ubicación actual', [coord.longitude, coord.latitude]);
     } catch (err) {
       console.warn('[GPS] Failed to get user location:', err);
       input.value = 'No se pudo obtener ubicación';
+      clearBtn.classList.add('hidden');
+      invalidatePlannerResults('No se pudo obtener tu ubicación. Elige un punto manualmente.');
       window.setTimeout(() => {
         if (input.value === 'No se pudo obtener ubicación') input.value = '';
       }, 3000);
@@ -310,18 +405,12 @@ function initInputHandlers(): void {
 
   document.getElementById('btn-origin-gps')!.addEventListener('click', () => {
     const btn = document.getElementById('btn-origin-gps') as HTMLButtonElement;
-    handleGpsButton(btn, originInput, originClear, (coord) => {
-      originCoord = coord;
-      originStopCode = undefined;
-    });
+    handleGpsButton('origin', btn, originInput, originClear);
   });
 
   document.getElementById('btn-destination-gps')!.addEventListener('click', () => {
     const btn = document.getElementById('btn-destination-gps') as HTMLButtonElement;
-    handleGpsButton(btn, destInput, destClear, (coord) => {
-      destCoord = coord;
-      destStopCode = undefined;
-    });
+    handleGpsButton('destination', btn, destInput, destClear);
   });
 
   // 5. Swap
@@ -338,8 +427,13 @@ function initInputHandlers(): void {
     originStopCode = destStopCode;
     destStopCode = tempCode;
 
+    const tempSelectionText = originSelectionText;
+    originSelectionText = destSelectionText;
+    destSelectionText = tempSelectionText;
+
     originClear.classList.toggle('hidden', !originInput.value);
     destClear.classList.toggle('hidden', !destInput.value);
+    invalidatePlannerResults();
   });
 
   // 6. Calculate Route Button click
@@ -432,8 +526,12 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
 function calculateRoute(): void {
   const btnCalculate = document.getElementById('btn-calculate-route') as HTMLButtonElement;
   const resultsContainer = document.getElementById('planner-results')!;
+  const requestId = ++plannerRequestSeq;
 
   if (!originCoord || !destCoord) {
+    calculatedPlans = [];
+    activePlanIndex = null;
+    clearJourneyPath(mapInstance);
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
         <div class="card-empty-title" style="color: var(--tm-red-light);">Datos incompletos</div>
@@ -446,6 +544,9 @@ function calculateRoute(): void {
   // Calculate distance between origin and destination coordinates
   const distance = getDistance(originCoord, destCoord);
   if (distance < 50) {
+    calculatedPlans = [];
+    activePlanIndex = null;
+    clearJourneyPath(mapInstance);
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
         <div class="card-empty-title">Estás muy cerca</div>
@@ -471,6 +572,11 @@ function calculateRoute(): void {
   const sortBy = preference;
 
   window.setTimeout(() => {
+    if (requestId !== plannerRequestSeq) {
+      btnCalculate.classList.remove('loading');
+      return;
+    }
+
     try {
       calculatedPlans = findRoutes({
         origin: originCoord!,
@@ -486,10 +592,11 @@ function calculateRoute(): void {
       renderResults(calculatedPlans);
       
       // Asynchronously load real street-level walking paths from OSRM
-      enrichWalkingGeometries(calculatedPlans).catch(err => {
+      enrichWalkingGeometries(calculatedPlans, requestId).catch(err => {
         console.error('[Planner] Failed walking enrichment:', err);
       });
     } catch (err) {
+      if (requestId !== plannerRequestSeq) return;
       console.error('[Planner] Calculation failed:', err);
       btnCalculate.classList.remove('loading');
       resultsContainer.innerHTML = `
@@ -581,10 +688,10 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
     ? activePlanIndex
     : 0;
 
-  selectPlan(selectIndex, cards);
+  selectPlan(selectIndex, cards, isPlannerVisible());
 }
 
-async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
+async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number): Promise<void> {
   const promises: Promise<void>[] = [];
 
   plans.forEach((plan) => {
@@ -597,6 +704,7 @@ async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
         }
         const [from, to] = step.path;
         const p = fetchWalkingPath(from, to).then((res) => {
+          if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
           step.path = res.coordinates;
           step.distance = res.distance;
           step.time = res.time;
@@ -610,6 +718,7 @@ async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
 
   try {
     await Promise.all(promises);
+    if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
     
     // Recalculate totals for all plans
     plans.forEach((plan) => {
@@ -625,27 +734,32 @@ async function enrichWalkingGeometries(plans: JourneyPlan[]): Promise<void> {
 }
 
 
-function selectPlan(index: number, cards: NodeListOf<Element>): void {
+function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true): void {
   activePlanIndex = index;
   const plan = calculatedPlans[index];
 
-  // Draw path on map
-  drawJourneyPath(mapInstance, plan);
+  if (updateMap) {
+    drawJourneyPath(mapInstance, plan);
 
-  // Zoom map to fit the calculated path bounds
-  const bounds = new maplibregl.LngLatBounds();
-  plan.steps.forEach((step) => {
-    if (step.path) {
-      step.path.forEach((coord) => bounds.extend(coord));
+    const bounds = new maplibregl.LngLatBounds();
+    let hasBounds = false;
+    plan.steps.forEach((step) => {
+      step.path?.forEach((coord) => {
+        bounds.extend(coord);
+        hasBounds = true;
+      });
+    });
+
+    if (hasBounds) {
+      const isMobile = window.innerWidth <= 768;
+      mapInstance.fitBounds(bounds, {
+        padding: isMobile
+          ? { top: 60, bottom: 20, left: 30, right: 30 }
+          : { top: 60, bottom: 60, left: 400, right: 60 },
+        maxZoom: 15,
+      });
     }
-  });
-  const isMobile = window.innerWidth <= 768;
-  mapInstance.fitBounds(bounds, {
-    padding: isMobile
-      ? { top: 60, bottom: 20, left: 30, right: 30 }
-      : { top: 60, bottom: 60, left: 400, right: 60 },
-    maxZoom: 15,
-  });
+  }
 
   // Update card UI classes
   cards.forEach((card, i) => {
@@ -744,13 +858,4 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
         : `✕ Ocultar ${planStep.stops?.length} ${text}`;
     });
   });
-}
-
-function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal'): string {
-  if (routeCode === 'walking') return '#94A3B8';
-  const dummyRoute: Partial<RouteListItem> = {
-    code: routeCode,
-    type: routeType || 'troncal',
-  };
-  return getRouteAccentColor(dummyRoute as RouteListItem);
 }

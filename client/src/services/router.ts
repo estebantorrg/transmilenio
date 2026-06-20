@@ -1,3 +1,4 @@
+import { api } from './api';
 import type { RouteListItem } from '../types/transmilenio';
 
 export interface GraphEdge {
@@ -365,6 +366,10 @@ interface RawLeg {
   time: number;
 }
 
+function getStop(code: string, virtualStops?: Map<string, RouteStop>): RouteStop | undefined {
+  return virtualStops?.get(code) ?? uniqueStops.get(code);
+}
+
 /**
  * Slice coordinates of a route variant between two stops.
  */
@@ -450,15 +455,15 @@ function sliceRouteGeometry(
 /**
  * Collapses successive graph legs on the same route into a single Ride step.
  */
-function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
+function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>): JourneyStep[] {
   const steps: JourneyStep[] = [];
   if (legs.length === 0) return steps;
 
   let currentStep: JourneyStep | null = null;
 
   for (const leg of legs) {
-    const fromStop = uniqueStops.get(leg.fromNode);
-    const toStop = uniqueStops.get(leg.toNode);
+    const fromStop = getStop(leg.fromNode, virtualStops);
+    const toStop = getStop(leg.toNode, virtualStops);
     if (!fromStop || !toStop) continue;
 
     if (leg.type === 'walking') {
@@ -503,17 +508,15 @@ function buildJourneySteps(legs: RawLeg[]): JourneyStep[] {
       // Transit leg
       if (currentStep && currentStep.type === 'ride' && currentStep.routeCode === leg.routeCode) {
         // Extend existing ride step
+        if (currentStep.stops && fromStop.codigo !== currentStep.fromCode) {
+          const lastStop = currentStep.stops[currentStep.stops.length - 1];
+          if (lastStop !== fromStop.nombre) currentStep.stops.push(fromStop.nombre);
+        }
         currentStep.toName = toStop.nombre;
         currentStep.toCode = toStop.codigo;
         currentStep.distance += leg.distance;
         currentStep.time += leg.time;
         if (currentStep.stopCount !== undefined) currentStep.stopCount++;
-        if (currentStep.stops && currentStep.stops.length > 0) {
-          // Add old destination as intermediate stop
-          const lastIndex = currentStep.stops.length - 1;
-          // Only add if not already in the list
-          currentStep.stops.splice(lastIndex, 0, fromStop.nombre);
-        }
         
         // Append sliced coordinates
         const slice = sliceRouteGeometry(leg.routeId, leg.fromNode, leg.toNode);
@@ -639,7 +642,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const queue = new MinHeap<DijkstraState>();
   const bestCosts = new Map<string, number>();
   const stateRegistry = new Map<string, DijkstraState>();
-  const makeKey = (nodeCode: string, routeCode: string) => `${nodeCode}|${routeCode}`;
+  const makeKey = (nodeCode: string, routeCode: string, routeId: string) => `${nodeCode}|${routeCode}|${routeId}`;
 
   const walkWeight = minWalk ? MIN_WALK_COST_WEIGHT : WALK_COST_WEIGHT;
 
@@ -659,7 +662,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       hasRidden: false,
     };
     
-    const key = makeKey(start.nodeCode, 'start');
+    const key = makeKey(start.nodeCode, 'start', 'start');
     bestCosts.set(key, cost);
     stateRegistry.set(key, state);
     queue.push(state, cost);
@@ -671,7 +674,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   while (!queue.isEmpty()) {
     const current = queue.pop()!;
-    const currentKey = makeKey(current.nodeCode, current.routeCode);
+    const currentKey = makeKey(current.nodeCode, current.routeCode, current.routeId);
 
     const bestCost = bestCosts.get(currentKey);
     if (bestCost !== undefined && current.cost > bestCost) continue;
@@ -727,15 +730,17 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       const nextWalkDistance = current.walkDistance + (edge.type === 'walking' ? edge.distance : 0);
       const nextTransfers = current.transfers + (isTransfer ? 1 : 0);
 
-      const nextKey = makeKey(edge.to, edge.type === 'walking' ? 'walking' : edge.routeCode);
+      const nextRouteCode = edge.type === 'walking' ? 'walking' : edge.routeCode;
+      const nextRouteId = edge.type === 'walking' ? 'walking' : edge.routeId;
+      const nextKey = makeKey(edge.to, nextRouteCode, nextRouteId);
       const prevBest = bestCosts.get(nextKey);
 
       if (prevBest === undefined || nextCost < prevBest) {
         bestCosts.set(nextKey, nextCost);
         const nextState: DijkstraState = {
           nodeCode: edge.to,
-          routeCode: edge.type === 'walking' ? 'walking' : edge.routeCode,
-          routeId: edge.type === 'walking' ? 'walking' : edge.routeId,
+          routeCode: nextRouteCode,
+          routeId: nextRouteId,
           cost: nextCost,
           time: nextTime,
           walkDistance: nextWalkDistance,
@@ -754,6 +759,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   for (const targetState of results) {
     const legs: RawLeg[] = [];
+    const virtualStops = new Map<string, RouteStop>();
     let state = targetState;
 
     const destWalkDist = destNodes.get(state.nodeCode) || 0;
@@ -769,7 +775,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         time: destWalkDist / WALK_SPEED_M_PER_MINUTE,
       });
       
-      uniqueStops.set('END', {
+      virtualStops.set('END', {
         nombre: 'Destino',
         codigo: 'END',
         coordinate: destination,
@@ -784,7 +790,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       const edges = graphAdjacency.get(parent.nodeCode) || [];
       let edge = edges.find((e) => {
         const edgeRouteCode = e.type === 'walking' ? 'walking' : e.routeCode;
-        return e.to === state.nodeCode && edgeRouteCode === state.routeCode;
+        const edgeRouteId = e.type === 'walking' ? 'walking' : e.routeId;
+        return e.to === state.nodeCode && edgeRouteCode === state.routeCode && edgeRouteId === state.routeId;
       });
 
       if (!edge && edges.length > 0) {
@@ -822,7 +829,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         time: startWalk.distance / WALK_SPEED_M_PER_MINUTE,
       });
 
-      uniqueStops.set('START', {
+      virtualStops.set('START', {
         nombre: 'Origen',
         codigo: 'START',
         coordinate: origin,
@@ -833,7 +840,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     const totalTime = legs.reduce((sum, leg) => sum + leg.time, 0);
     const totalWalkDistance = legs.reduce((sum, leg) => sum + (leg.type === 'walking' ? leg.distance : 0), 0);
     const transfers = targetState.transfers;
-    const journeySteps = buildJourneySteps(legs);
+    const journeySteps = buildJourneySteps(legs, virtualStops);
 
     plans.push({
       totalTime: Math.round(totalTime),
@@ -842,10 +849,6 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       steps: journeySteps,
     });
   }
-
-  // Cleanup virtual nodes from uniqueStops map to prevent memory leak / state pollution
-  uniqueStops.delete('START');
-  uniqueStops.delete('END');
 
   // Deduplicate, validate, and filter plans
   const finalPlans: JourneyPlan[] = [];
@@ -955,23 +958,20 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
   const cached = walkingCache.get(key);
   if (cached) return cached;
 
-  const url = `https://router.project-osrm.org/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}?overview=full&geometries=geojson`;
   try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`OSRM status ${response.status}`);
-    const data = await response.json();
-    if (data.code === 'Ok' && data.routes?.[0]) {
-      const route = data.routes[0];
+    const data = await api.getWalkingRoute(from, to);
+    const route = data.data;
+    if (data.success && route && route.coordinates.length >= 2) {
       const result: WalkingPathResult = {
-        coordinates: route.geometry.coordinates as [number, number][],
-        distance: route.distance, // in meters
-        time: route.duration / 60, // duration is in seconds, convert to minutes
+        coordinates: route.coordinates,
+        distance: route.distance,
+        time: route.time,
       };
       walkingCache.set(key, result);
       return result;
     }
   } catch (error) {
-    console.warn('[Router] Failed to fetch walking path from OSRM:', error);
+    console.warn('[Router] Failed to fetch walking path from API:', error);
   }
   
   // Fallback to straight line

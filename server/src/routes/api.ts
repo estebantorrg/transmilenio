@@ -269,7 +269,32 @@ router.post('/card/read', async (req: Request, res: Response) => {
 });
 
 const GEOIP_TIMEOUT_MS = 5_000;
+const WALKING_ROUTE_TIMEOUT_MS = 9_000;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
+const BOGOTA_WALKING_BOUNDS = {
+  west: -74.25,
+  south: 4.4,
+  east: -73.95,
+  north: 4.85,
+};
+
+type LngLat = [number, number];
+
+function parseLngLatQuery(value: unknown): LngLat | null {
+  if (typeof value !== 'string') return null;
+  const [lngText, latText] = value.split(',');
+  const lng = Number(lngText);
+  const lat = Number(latText);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+  return [lng, lat];
+}
+
+function isWithinWalkingBounds([lng, lat]: LngLat): boolean {
+  return lng >= BOGOTA_WALKING_BOUNDS.west &&
+    lng <= BOGOTA_WALKING_BOUNDS.east &&
+    lat >= BOGOTA_WALKING_BOUNDS.south &&
+    lat <= BOGOTA_WALKING_BOUNDS.north;
+}
 
 function getClientIp(req: Request): string | null {
   const xForwardedFor = req.headers['x-forwarded-for'];
@@ -346,6 +371,90 @@ router.get('/geocode', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error(`[/geocode] Error for "${query}":`, error?.message || error);
     res.status(500).json({ success: false, error: 'Failed to geocode address' });
+  }
+});
+
+// ─── Walking Route Geometry ───────────────────────────────
+
+router.get('/walking-route', async (req: Request, res: Response) => {
+  const from = parseLngLatQuery(req.query.from);
+  const to = parseLngLatQuery(req.query.to);
+
+  if (!from || !to) {
+    res.status(400).json({ success: false, error: 'Query parameters "from" and "to" must be lng,lat pairs' });
+    return;
+  }
+
+  if (!isWithinWalkingBounds(from) || !isWithinWalkingBounds(to)) {
+    res.status(422).json({ success: false, error: 'Walking route coordinates must be within Bogota bounds' });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), WALKING_ROUTE_TIMEOUT_MS);
+  const url =
+    `https://router.project-osrm.org/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}` +
+    '?overview=full&geometries=geojson';
+
+  try {
+    const upstream = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'TransMilenioExplorer/1.0',
+      },
+      signal: controller.signal,
+    });
+
+    if (!upstream.ok) throw new Error(`OSRM HTTP ${upstream.status}`);
+
+    const data = await upstream.json() as {
+      code?: string;
+      routes?: Array<{
+        distance?: number;
+        duration?: number;
+        geometry?: { coordinates?: number[][] };
+      }>;
+    };
+    const route = data.routes?.[0];
+    const coordinates = route?.geometry?.coordinates;
+    if (
+      data.code !== 'Ok' ||
+      !route ||
+      !Array.isArray(coordinates) ||
+      coordinates.length < 2 ||
+      !Number.isFinite(route.distance) ||
+      !Number.isFinite(route.duration)
+    ) {
+      res.status(502).json({ success: false, error: 'Walking route upstream returned no usable route' });
+      return;
+    }
+    const distance = Number(route.distance);
+    const duration = Number(route.duration);
+    const normalizedCoordinates = coordinates.map(([lng, lat]) => [Number(lng), Number(lat)] as LngLat);
+    if (normalizedCoordinates.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
+      res.status(502).json({ success: false, error: 'Walking route upstream returned invalid coordinates' });
+      return;
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+      success: true,
+      data: {
+        coordinates: normalizedCoordinates,
+        distance,
+        time: duration / 60,
+        source: 'osrm',
+      },
+    });
+  } catch (error: any) {
+    const timedOut = error?.name === 'AbortError';
+    console.error('[/walking-route] Error:', error?.message || error);
+    res.status(timedOut ? 504 : 502).json({
+      success: false,
+      error: timedOut ? 'Walking route lookup timed out' : 'Walking route lookup failed',
+    });
+  } finally {
+    clearTimeout(timeout);
   }
 });
 
