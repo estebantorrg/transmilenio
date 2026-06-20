@@ -151,6 +151,11 @@ function inBogota(candidate: GeocodeCandidate): boolean {
     candidate.lat <= BOGOTA_BOUNDS.north;
 }
 
+function finiteNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function stripLocalScore(candidate: LocalCandidate): GeocodeCandidate {
   const { score: _score, ...rest } = candidate;
   return rest;
@@ -169,8 +174,10 @@ function searchLocalCatalog(query: string): LocalCandidate[] {
 
   for (const [fallbackCode, station] of Object.entries(catalog.stations || {})) {
     if (!station.coordenada || !station.coordenada.includes(',')) continue;
-    const [lat, lon] = station.coordenada.split(',').map(Number);
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const [latText, lonText] = station.coordenada.split(',');
+    const lat = finiteNumber(latText);
+    const lon = finiteNumber(lonText);
+    if (lat === null || lon === null) continue;
 
     // Skip generic stations that have verified split stations
     if (station.codigo === 'TM0013' || station.codigo === 'TM0069') continue;
@@ -220,12 +227,19 @@ async function fetchNominatim(query: string): Promise<GeocodeCandidate[]> {
   if (!Array.isArray(data)) return [];
 
   return data
-    .map((item: any) => ({
-      name: item.display_name.split(',').slice(0, 3).join(',').trim(),
-      lat: Number(item.lat),
-      lon: Number(item.lon),
-      type: item.class === 'railway' || item.type === 'station' ? ('station' as const) : ('place' as const),
-    }))
+    .map((item: any): GeocodeCandidate | null => {
+      if (typeof item?.display_name !== 'string') return null;
+      const lat = finiteNumber(item.lat);
+      const lon = finiteNumber(item.lon);
+      if (lat === null || lon === null) return null;
+      return {
+        name: item.display_name.split(',').slice(0, 3).join(',').trim(),
+        lat,
+        lon,
+        type: item.class === 'railway' || item.type === 'station' ? 'station' : 'place',
+      };
+    })
+    .filter((candidate): candidate is GeocodeCandidate => candidate !== null)
     .filter(inBogota);
 }
 
@@ -244,13 +258,21 @@ async function fetchArcGIS(query: string): Promise<GeocodeCandidate[]> {
   if (!Array.isArray(candidates)) return [];
 
   return candidates
-    .filter((c: any) => c.score >= 75)
-    .map((c: any) => ({
-      name: c.address,
-      lat: c.location.y,
-      lon: c.location.x,
-      type: 'place' as const,
-    }))
+    .map((c: any): GeocodeCandidate | null => {
+      const score = finiteNumber(c?.score);
+      const lat = finiteNumber(c?.location?.y);
+      const lon = finiteNumber(c?.location?.x);
+      if (score === null || score < 75 || lat === null || lon === null || typeof c?.address !== 'string') {
+        return null;
+      }
+      return {
+        name: c.address,
+        lat,
+        lon,
+        type: 'place',
+      };
+    })
+    .filter((candidate): candidate is GeocodeCandidate => candidate !== null)
     .filter(inBogota);
 }
 
