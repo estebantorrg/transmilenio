@@ -20,6 +20,7 @@ export function createMap(container: string): maplibregl.Map {
     pitch: 0,
     bearing: 0,
     antialias: true,
+    maxBounds: [[-74.25, 4.4], [-73.95, 4.85]], // Restrict users to Bogotá bounds
   });
 
   // Navigation controls (zoom + compass) — top right

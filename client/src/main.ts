@@ -566,26 +566,22 @@ function initNearbyStations(map: maplibregl.Map): void {
     btn.classList.add('loading');
     try {
       const result = await resolveUserLocation();
-      let lng = result.longitude;
-      let lat = result.latitude;
-      let isFallback = false;
+      const lng = result.longitude;
+      const lat = result.latitude;
       
       if (!isWithinBogota(lng, lat)) {
-        lng = BOGOTA_CENTER[0];
-        lat = BOGOTA_CENTER[1];
-        isFallback = true;
+        throw new Error('Ubicación fuera de los límites de Bogotá');
       }
       
       placeUser(lng, lat);
       
-      if (isFallback) {
-        restore('Ubicación: Bogotá Centro');
-      } else if (result.source === 'ip') {
+      if (result.source === 'ip') {
         restore('Ubicación aproximada (IP)');
       }
     } catch (error) {
       console.warn('[Nearby] could not resolve location:', error);
-      restore('No se pudo ubicarte');
+      const isOutOfBounds = error instanceof Error && error.message.includes('límites de Bogotá');
+      restore(isOutOfBounds ? 'Ubicación fuera de Bogotá' : 'No se pudo ubicarte');
     } finally {
       btn.classList.remove('loading');
     }
