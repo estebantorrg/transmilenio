@@ -35,6 +35,16 @@ import type { CatalogRoute, MasterCatalog, MasterCatalogResponse } from './types
 
 // ─── Status Updates ───────────────────────────────────────
 
+function updateProgress(percent: number, statusText: string): void {
+  const bar = document.getElementById('loading-bar-fill');
+  const status = document.getElementById('loading-status');
+  const percentText = document.getElementById('loading-percent');
+  
+  if (bar) bar.style.width = `${percent}%`;
+  if (status) status.textContent = statusText;
+  if (percentText) percentText.textContent = `${percent}%`;
+}
+
 function setLoadingStatus(text: string): void {
   const el = document.getElementById('loading-status');
   if (el) el.textContent = text;
@@ -712,7 +722,6 @@ function getNativeLocation(highAccuracy = true): Promise<{ longitude: number; la
         }
       },
       // High accuracy + no cached fix → device GPS, not a coarse network/IP guess.
-      { enableHighAccuracy: highAccuracy, timeout: GEO_MAX_WAIT_MS, maximumAge: 0 }
     );
   });
 }
@@ -739,7 +748,7 @@ async function main(): Promise<void> {
   ).catch(() => {});
 
   // 1. Initialize map
-  setLoadingStatus('Cargando mapa...');
+  updateProgress(5, 'Cargando mapa...');
   const map = createMap('map');
   if (import.meta.env.DEV) {
     (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
@@ -761,7 +770,7 @@ async function main(): Promise<void> {
   await wakeUpPromise;
 
   // 2. Fetch data from backend
-  setLoadingStatus('Conectando con el servidor (descargando catálogo maestro)...');
+  updateProgress(15, 'Conectando con el servidor...');
 
 
   let troncalRoutes: TroncalRouteFeature[] = [];
@@ -776,16 +785,22 @@ async function main(): Promise<void> {
     // 1. Fetch data in parallel. The cached master catalog is required; live
     // ArcGIS layers are allowed to degrade so the app can still open.
     // Zonal stops/mappings are loaded asynchronously in the background.
+    let currentProgress = 15;
+    const incrementProgress = (amount: number, msg: string) => {
+      currentProgress += amount;
+      updateProgress(currentProgress, msg);
+    };
+
     const [
       troncalRoutesResult,
       corridorsResult,
       stationsResult,
       catalogResult,
     ] = await Promise.allSettled([
-      api.getTroncalRoutes(),
-      api.getTroncalCorridors(),
-      api.getTroncalStations(),
-      api.getMasterCatalog(),
+      api.getTroncalRoutes().then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
+      api.getTroncalCorridors().then((res) => { incrementProgress(10, 'Descargando corredores...'); return res; }),
+      api.getTroncalStations().then((res) => { incrementProgress(10, 'Descargando estaciones...'); return res; }),
+      api.getMasterCatalog().then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
     const catalogRes = requireLoaded<MasterCatalogResponse>('Master catalog', catalogResult);
@@ -808,27 +823,26 @@ async function main(): Promise<void> {
     setRouteTypeIndex(catalog);
 
     // 2. Pre-calculate unified route list from API
-    setLoadingStatus('Procesando datos (esto puede tardar unos segundos)...');
+    updateProgress(80, 'Procesando catálogo...');
     routeList = buildRouteList(troncalRoutes, catalog);
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
 
     // 3. Add route/corridor layers
-    setLoadingStatus('Dibujando troncales...');
+    updateProgress(85, 'Dibujando troncales...');
     addTroncalCorridorsLayer(map, corridorsRes.features);
 
-    setLoadingStatus('Dibujando rutas troncales...');
+    updateProgress(90, 'Dibujando rutas...');
     addTroncalRoutesLayer(map, troncalListItems);
 
-    setLoadingStatus('Colocando estaciones...');
+    updateProgress(95, 'Renderizando estaciones...');
     addStationsLayer(map, stations);
     stationCount = stations.length;
 
     // 4. Mappings and Stops (Initialize empty stops layer first, background load will update it)
-    setLoadingStatus('Dibujando rutas zonales...');
+    updateProgress(98, 'Renderizando rutas zonales...');
     addZonalRoutesLayer(map, zonalListItems);
 
-    setLoadingStatus('Colocando paraderos...');
     addStopsLayer(map, [], new Map());
 
     bringTroncalLayersToFront(map);
@@ -986,8 +1000,11 @@ async function main(): Promise<void> {
 
   // 4. Done with initial render!
   console.log('🎉 TransMilenio Explorer initial render ready!');
-  hideLoading();
-  initPlanner(map, routeList);
+  updateProgress(100, '¡Listo!');
+  setTimeout(() => {
+    hideLoading();
+    initPlanner(map, routeList);
+  }, 400);
 
   // 5. Background Loading: fetch Zonal Stops and Zonal stop-route mappings asynchronously
   Promise.allSettled([
