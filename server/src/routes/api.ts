@@ -39,6 +39,7 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
 router.get('/troncal/routes', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('troncal-routes', queries.troncalRoutes);
+    res.setHeader('Cache-Control', 'public, max-age=600');
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching troncal routes:', error);
@@ -49,6 +50,7 @@ router.get('/troncal/routes', async (_req: Request, res: Response) => {
 router.get('/troncal/stations', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('troncal-stations', queries.troncalStations);
+    res.setHeader('Cache-Control', 'public, max-age=600');
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching troncal stations:', error);
@@ -59,6 +61,7 @@ router.get('/troncal/stations', async (_req: Request, res: Response) => {
 router.get('/troncal/corridors', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('troncal-corridors', queries.troncalCorridors);
+    res.setHeader('Cache-Control', 'public, max-age=600');
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching troncal corridors:', error);
@@ -68,11 +71,21 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 
 // ─── Master Catalog (from TransMi App API) ────────────────
 
-router.get('/troncal/master-catalog', async (_req: Request, res: Response) => {
+router.get('/troncal/master-catalog', async (req: Request, res: Response) => {
   try {
+    const loadedAt = tmApi.getCatalogLoadedAt() || 0;
+    const etag = `W/"catalog-${loadedAt}"`;
+    
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache
+    
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+
     const catalog = tmApi.getCatalogLight();
     const count = Object.keys(catalog.stations || {}).length;
-    res.setHeader('Cache-Control', 'public, max-age=300');
     res.json({
       success: true,
       data: catalog,
@@ -142,6 +155,7 @@ router.post('/troncal/sync', async (_req: Request, res: Response) => {
 router.get('/zonal/routes', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('zonal-routes', queries.zonalRoutes);
+    res.setHeader('Cache-Control', 'public, max-age=600');
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching zonal routes:', error);
@@ -152,6 +166,7 @@ router.get('/zonal/routes', async (_req: Request, res: Response) => {
 router.get('/zonal/stops', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('zonal-stops', queries.zonalStops);
+    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache for large stops payload
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching zonal stops:', error);
@@ -162,6 +177,7 @@ router.get('/zonal/stops', async (_req: Request, res: Response) => {
 router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
   try {
     const features = await getCachedOrFetch('zonal-stop-routes', queries.zonalStopRoutes);
+    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache for stop-route mappings
     res.json({ success: true, count: features.length, features });
   } catch (error) {
     console.error('Error fetching zonal stop routes:', error);

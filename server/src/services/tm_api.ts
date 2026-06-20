@@ -288,6 +288,10 @@ export function getCatalogFilePath(): string {
   return CATALOG_FILE;
 }
 
+export function getCatalogLoadedAt(): number {
+  return catalogLoadedAt;
+}
+
 async function writeCatalogAtomically(catalog: MasterCatalog): Promise<void> {
   await fs.mkdir(path.dirname(CATALOG_FILE), { recursive: true });
   const tempFile = `${CATALOG_FILE}.${process.pid}.${Date.now()}.tmp`;
