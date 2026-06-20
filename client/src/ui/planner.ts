@@ -651,7 +651,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
             </div>
           </div>
           <div class="journey-badges">${badgesHtml}</div>
-          <div id="journey-steps-${index}" class="journey-steps-list hidden"></div>
+          <div class="journey-steps-list hidden" data-plan-index="${index}"></div>
         </div>
       `;
     })
@@ -668,10 +668,12 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
       }
 
       const idx = Number((card as HTMLElement).dataset.index);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= calculatedPlans.length) return;
       
       // If clicking already active, just expand/collapse it
       if (activePlanIndex === idx) {
-        const stepsContainer = document.getElementById(`journey-steps-${idx}`)!;
+        const stepsContainer = card.querySelector<HTMLElement>('.journey-steps-list');
+        if (!stepsContainer) return;
         stepsContainer.classList.toggle('hidden');
         return;
       }
@@ -731,6 +733,7 @@ async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number):
 
 
 function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true): void {
+  if (!Number.isInteger(index) || index < 0 || index >= calculatedPlans.length) return;
   activePlanIndex = index;
   const plan = calculatedPlans[index];
 
@@ -760,7 +763,8 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
   // Update card UI classes
   cards.forEach((card, i) => {
     card.classList.toggle('active', i === index);
-    const stepsContainer = document.getElementById(`journey-steps-${i}`)!;
+    const stepsContainer = card.querySelector<HTMLElement>('.journey-steps-list');
+    if (!stepsContainer) return;
     if (i === index) {
       stepsContainer.classList.remove('hidden');
       renderTimelineSteps(plan, stepsContainer);
@@ -806,10 +810,10 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
 
         const stopsToggleHtml = step.stops && step.stops.length > 0
           ? `
-            <button class="journey-step-substops-btn" data-step-index="${i}">
+            <button type="button" class="journey-step-substops-btn" data-step-index="${i}" aria-expanded="false">
               <span>👁 Ver ${step.stops.length} ${step.stops.length === 1 ? 'estación intermedia' : 'estaciones intermedias'}</span>
             </button>
-            <ul id="substops-list-${i}" class="journey-step-substops-list hidden">
+            <ul class="journey-step-substops-list hidden">
               ${step.stops.map((s) => `<li>${escapeHTML(s)}</li>`).join('')}
             </ul>
           `
@@ -841,16 +845,21 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
   container.querySelectorAll('.journey-step-substops-btn').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const stepIdx = (btn as HTMLElement).dataset.stepIndex;
-      const list = document.getElementById(`substops-list-${stepIdx}`)!;
-      const labelSpan = btn.querySelector('span')!;
-      
+      const button = btn as HTMLButtonElement;
+      const stepIdx = Number(button.dataset.stepIndex);
+      if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= plan.steps.length) return;
+      const list = button.parentElement?.querySelector<HTMLElement>('.journey-step-substops-list');
+      if (!list) return;
+      const labelSpan = button.querySelector('span');
+      if (!labelSpan) return;
+
       const isHidden = list.classList.toggle('hidden');
-      const planStep = plan.steps[Number(stepIdx)];
+      button.setAttribute('aria-expanded', String(!isHidden));
+      const planStep = plan.steps[stepIdx];
       const text = planStep.stops?.length === 1 ? 'estación intermedia' : 'estaciones intermedias';
-      
-      labelSpan.textContent = isHidden 
-        ? `👁 Ver ${planStep.stops?.length} ${text}` 
+
+      labelSpan.textContent = isHidden
+        ? `👁 Ver ${planStep.stops?.length} ${text}`
         : `✕ Ocultar ${planStep.stops?.length} ${text}`;
     });
   });
