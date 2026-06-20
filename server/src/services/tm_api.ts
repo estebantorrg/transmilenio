@@ -300,7 +300,11 @@ async function writeCatalogAtomically(catalog: MasterCatalog): Promise<void> {
     await fs.writeFile(tempFile, JSON.stringify(catalog), 'utf-8');
     await fs.rename(tempFile, CATALOG_FILE);
   } catch (error) {
-    await fs.rm(tempFile, { force: true }).catch(() => {});
+    try {
+      await fs.rm(tempFile, { force: true });
+    } catch (cleanupError) {
+      console.warn('[TM API] Failed to remove temp catalog file:', cleanupError);
+    }
     throw error;
   }
 }

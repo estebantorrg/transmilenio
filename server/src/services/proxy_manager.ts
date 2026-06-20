@@ -113,10 +113,10 @@ class ProxyManagerClass {
 
   constructor() {
     this.refreshPromise = this.refresh().catch((err) => console.error('[ProxyManager] Init error:', err));
-    setInterval(() => this.refresh().catch(() => {}), REFRESH_INTERVAL_MS);
+    setInterval(() => this.refreshInBackground('scheduled'), REFRESH_INTERVAL_MS);
     setInterval(() => {
       // Keep-warm: re-scrape eagerly whenever the verified pool runs low.
-      if (this.pool.size < TARGET_POOL_SIZE) this.refresh().catch(() => {});
+      if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('top-up');
     }, TOP_UP_INTERVAL_MS);
   }
 
@@ -173,7 +173,13 @@ class ProxyManagerClass {
     if ((p.success === 0 && p.failure >= 3) || p.failure - p.success >= 4) {
       this.pool.delete(k);
     }
-    if (this.pool.size < TARGET_POOL_SIZE) this.refresh().catch(() => {});
+    if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('failure-top-up');
+  }
+
+  private refreshInBackground(reason: string): void {
+    this.refresh().catch((error) => {
+      console.error(`[ProxyManager] Background refresh failed (${reason}):`, error);
+    });
   }
 
   public async waitForReady(timeoutMs = 12_000): Promise<number> {

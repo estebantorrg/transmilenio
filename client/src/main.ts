@@ -769,7 +769,9 @@ async function main(): Promise<void> {
   //    Fire-and-forget: we don't need the result, just need the server to start booting.
   const wakeUpPromise = fetch(
     `${(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')}/health`
-  ).catch(() => {});
+  ).catch((error) => {
+    console.warn('[Startup] Backend wake-up ping failed:', error);
+  });
 
   // 1. Initialize map
   updateProgress(5, 'Cargando mapa...');
