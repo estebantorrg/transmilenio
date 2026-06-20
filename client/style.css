@@ -2176,27 +2176,55 @@ body {
 }
 
 .map-pick-btn {
-  background: transparent;
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 24px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(125, 211, 252, 0.22);
   color: var(--tm-blue-light);
   font-size: 11px;
   font-weight: 700;
+  line-height: 1;
   cursor: pointer;
-  padding: 2px 6px;
+  padding: 4px 7px;
   border-radius: 4px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  transition: background var(--transition-fast);
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .map-pick-btn:hover {
   background: rgba(59, 130, 246, 0.12);
+  border-color: rgba(125, 211, 252, 0.36);
 }
 
 .map-pick-btn.active {
   background: var(--tm-blue);
-  color: white;
+  border-color: var(--tm-blue-light);
+  color: #04111C;
   animation: pulse 1.5s infinite alternate ease-in-out;
+}
+
+.map-pick-icon {
+  flex: 0 0 auto;
+}
+
+.map-pick-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-pick-hint {
+  margin-top: -2px;
+  padding: 7px 9px;
+  border: 1px solid rgba(125, 211, 252, 0.32);
+  border-radius: var(--radius-sm);
+  background: rgba(56, 189, 248, 0.1);
+  color: var(--tm-blue-light);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 @keyframes pulse {

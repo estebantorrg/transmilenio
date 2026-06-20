@@ -26,6 +26,9 @@ let destAutocompleteSeq = 0;
 
 type PlannerEndpoint = 'origin' | 'destination';
 
+const MAP_PICK_DEFAULT_LABEL = 'Elegir en mapa';
+const MAP_PICK_ACTIVE_LABEL = 'Cancelar';
+
 function getEndpointElements(endpoint: PlannerEndpoint): {
   input: HTMLInputElement | null;
   clear: HTMLElement | null;
@@ -112,6 +115,44 @@ function isPlannerVisible(): boolean {
   return !document.getElementById('planner-panel')?.classList.contains('hidden');
 }
 
+function getEndpointText(endpoint: PlannerEndpoint): string {
+  return endpoint === 'origin' ? 'origen' : 'destino';
+}
+
+function updateMapPickButton(endpoint: PlannerEndpoint, active: boolean): void {
+  const button = document.getElementById(`btn-${endpoint}-map`) as HTMLButtonElement | null;
+  if (!button) return;
+
+  const endpointText = getEndpointText(endpoint);
+  const label = button.querySelector<HTMLElement>('.map-pick-label');
+
+  button.classList.toggle('active', active);
+  button.setAttribute('aria-pressed', String(active));
+  button.title = active
+    ? `Cancelar seleccion de ${endpointText} en el mapa`
+    : `Elegir ${endpointText} haciendo clic en el mapa`;
+  button.setAttribute(
+    'aria-label',
+    active ? `Cancelar seleccion de ${endpointText} en el mapa` : `Elegir ${endpointText} en el mapa`
+  );
+
+  if (label) label.textContent = active ? MAP_PICK_ACTIVE_LABEL : MAP_PICK_DEFAULT_LABEL;
+}
+
+function updateMapPickHint(mode: PlannerEndpoint | null): void {
+  const hint = document.getElementById('map-pick-hint');
+  if (!hint) return;
+
+  if (!mode) {
+    hint.textContent = '';
+    hint.classList.add('hidden');
+    return;
+  }
+
+  hint.textContent = `Haz clic en el mapa para fijar el ${getEndpointText(mode)}. Pulsa Cancelar para salir.`;
+  hint.classList.remove('hidden');
+}
+
 /**
  * Initializes the Journey Planner UI controllers.
  */
@@ -154,6 +195,7 @@ function initTabs(): void {
     tabPlanner.classList.remove('active');
     explorePanel.classList.remove('hidden');
     plannerPanel.classList.add('hidden');
+    setMapPickMode(null);
     
     // Clear active journey highlights from map when leaving planner
     clearJourneyPath(mapInstance);
@@ -188,14 +230,10 @@ function initTabs(): void {
 
 function setMapPickMode(mode: 'origin' | 'destination' | null): void {
   mapPickMode = mode;
-  if (mode) {
-    mapInstance.getCanvas().style.cursor = 'crosshair';
-    document.getElementById(`btn-${mode}-map`)?.classList.add('active');
-  } else {
-    mapInstance.getCanvas().style.cursor = '';
-    document.getElementById('btn-origin-map')?.classList.remove('active');
-    document.getElementById('btn-destination-map')?.classList.remove('active');
-  }
+  mapInstance.getCanvas().style.cursor = mode ? 'crosshair' : '';
+  updateMapPickButton('origin', mode === 'origin');
+  updateMapPickButton('destination', mode === 'destination');
+  updateMapPickHint(mode);
 }
 
 function initMapClickListener(): void {
@@ -203,7 +241,7 @@ function initMapClickListener(): void {
     if (!mapPickMode) return;
 
     const coord: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    setEndpointSelection(mapPickMode, `Mapa: ${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`, coord);
+    setEndpointSelection(mapPickMode, `Punto en mapa: ${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`, coord);
 
     setMapPickMode(null);
   });
