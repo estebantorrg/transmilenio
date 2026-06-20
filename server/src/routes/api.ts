@@ -11,6 +11,7 @@ const router = Router();
  * Route/station data rarely changes — cache for 10 minutes.
  */
 const cache = new Map<string, { data: any; timestamp: number }>();
+const inFlightCache = new Map<string, Promise<any>>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
 /**
@@ -28,10 +29,31 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
     return cached.data;
   }
 
+  const pending = inFlightCache.get(key);
+  if (pending) {
+    console.log(`[Cache] WAIT: ${key}`);
+    return pending;
+  }
+
   console.log(`[Cache] MISS: ${key} — fetching from ArcGIS...`);
-  const data = await fetcher();
-  cache.set(key, { data, timestamp: Date.now() });
-  return data;
+  const request = fetcher()
+    .then((data) => {
+      cache.set(key, { data, timestamp: Date.now() });
+      return data;
+    })
+    .catch((error) => {
+      if (cached) {
+        console.warn(`[Cache] STALE: ${key} after ArcGIS failure`, error);
+        return cached.data;
+      }
+      throw error;
+    })
+    .finally(() => {
+      inFlightCache.delete(key);
+    });
+
+  inFlightCache.set(key, request);
+  return request;
 }
 
 // ─── Troncal Endpoints ────────────────────────────────────
@@ -320,7 +342,7 @@ function getClientIp(req: Request): string | null {
 
 router.get('/geoip', async (req: Request, res: Response) => {
   const ip = getClientIp(req);
-  console.log(`[/geoip] Request from IP: "${ip || 'unknown (using server IP)'}"`);
+  console.log(`[/geoip] Request received; clientIpPresent=${Boolean(ip)}`);
   const url = ip
     ? `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`
     : 'https://get.geojs.io/v1/ip/geo.json';
@@ -359,9 +381,13 @@ router.get('/geoip', async (req: Request, res: Response) => {
 });
 
 router.get('/geocode', async (req: Request, res: Response) => {
-  const query = req.query.q;
-  if (typeof query !== 'string' || !query) {
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (!query) {
     res.status(400).json({ success: false, error: 'Query parameter "q" is required' });
+    return;
+  }
+  if (query.length > 120) {
+    res.status(400).json({ success: false, error: 'Query parameter "q" is too long' });
     return;
   }
 
@@ -369,7 +395,7 @@ router.get('/geocode', async (req: Request, res: Response) => {
     const candidates = await geocodeAddress(query);
     res.json({ success: true, count: candidates.length, candidates });
   } catch (error: any) {
-    console.error(`[/geocode] Error for "${query}":`, error?.message || error);
+    console.error(`[/geocode] Error for queryLength=${query.length}:`, error?.message || error);
     res.status(500).json({ success: false, error: 'Failed to geocode address' });
   }
 });
@@ -463,11 +489,11 @@ router.get('/walking-route', async (req: Request, res: Response) => {
 router.get('/debug-buses', async (req: Request, res: Response) => {
   const diagnostics: any = {};
   try {
-    diagnostics.env = {
-      TRANSMILENIO_API_URL: process.env.TRANSMILENIO_API_URL,
-      TRANSMILENIO_COLOMBIA_RELAY_URL: process.env.TRANSMILENIO_COLOMBIA_RELAY_URL,
-      TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY: process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY,
-      RENDER: process.env.RENDER
+    diagnostics.success = true;
+    diagnostics.config = {
+      relayConfigured: Boolean(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL),
+      publicProxyEnabled: process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1',
+      renderRuntime: Boolean(process.env.RENDER)
     };
 
     console.log('[/debug-buses] Attempting live fetch...');
@@ -475,12 +501,13 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
       const live = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
       diagnostics.live = { success: true, count: live.length };
     } catch (err: any) {
-      diagnostics.live = { success: false, message: err.message, code: err.code };
+      diagnostics.live = { success: false, error: 'Live fetch failed', code: err.code };
     }
 
+    res.setHeader('Cache-Control', 'no-store');
     res.json(diagnostics);
   } catch (err: any) {
-    res.status(500).json({ error: err.message, diagnostics });
+    res.status(500).json({ success: false, error: 'Debug buses failed', diagnostics });
   }
 });
 

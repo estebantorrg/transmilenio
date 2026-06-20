@@ -25,11 +25,9 @@ import {
   updateZonalRoutes,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus } from './ui/sidebar';
-import { startBusTracking, stopBusTracking } from './layers/buses';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
-import { initPlanner } from './ui/planner';
-import { initRouter } from './services/router';
+import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
 import type { CatalogRoute, MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
@@ -113,6 +111,47 @@ function isCicloviaName(text: string | null | undefined): boolean {
 }
 
 type RouteStop = NonNullable<RouteListItem['stops']>[number];
+type BusesModule = typeof import('./layers/buses');
+type PlannerModule = typeof import('./ui/planner');
+type RouterModule = typeof import('./services/router');
+
+let busesModulePromise: Promise<BusesModule> | null = null;
+let plannerModulePromise: Promise<PlannerModule> | null = null;
+let routerModulePromise: Promise<RouterModule> | null = null;
+
+function getBusesModule(): Promise<BusesModule> {
+  busesModulePromise ??= import('./layers/buses').catch((error) => {
+    busesModulePromise = null;
+    throw error;
+  });
+  return busesModulePromise;
+}
+
+async function stopLiveBusTracking(): Promise<void> {
+  if (!busesModulePromise) return;
+  try {
+    const buses = await busesModulePromise;
+    buses.stopBusTracking();
+  } catch (error) {
+    console.warn('[Live] Bus layer was not available to stop:', error);
+  }
+}
+
+function getPlannerModule(): Promise<PlannerModule> {
+  plannerModulePromise ??= import('./ui/planner').catch((error) => {
+    plannerModulePromise = null;
+    throw error;
+  });
+  return plannerModulePromise;
+}
+
+function getRouterModule(): Promise<RouterModule> {
+  routerModulePromise ??= import('./services/router').catch((error) => {
+    routerModulePromise = null;
+    throw error;
+  });
+  return routerModulePromise;
+}
 
 interface SplitStopNode {
   code: string;
@@ -540,8 +579,8 @@ function initNearbyStations(map: maplibregl.Map): void {
 
     userMarker.on('dragend', () => {
       const lngLat = userMarker!.getLngLat();
-      console.log('[Nearby] User updated exact location via drag:', lngLat);
-      localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: lngLat.lng, lat: lngLat.lat }));
+      console.log('[Nearby] User adjusted exact location via drag');
+      setSessionExactLocation(lngLat.lng, lngLat.lat, 'manual');
       placeUser(lngLat.lng, lngLat.lat, false);
     });
 
@@ -603,30 +642,22 @@ function initNearbyStations(map: maplibregl.Map): void {
 function resolveUserLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' | 'ip' }> {
   return getNativeLocation(true)
     .then((result) => {
-      // Save exact location on success
-      localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: result.longitude, lat: result.latitude }));
+      setSessionExactLocation(result.longitude, result.latitude, 'gps');
       return result;
     })
     .catch((highError) => {
       console.warn('[Nearby] native high-accuracy failed, trying low accuracy...', highError?.message ?? highError);
       return getNativeLocation(false)
         .then((result) => {
-          localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: result.longitude, lat: result.latitude }));
+          setSessionExactLocation(result.longitude, result.latitude, 'gps');
           return result;
         })
         .catch(async (lowError) => {
-          console.warn('[Nearby] native low-accuracy failed, checking cache...', lowError?.message ?? lowError);
-          try {
-            const cached = localStorage.getItem('tm-user-exact-location');
-            if (cached) {
-              const { lng, lat } = JSON.parse(cached);
-              if (isWithinBogota(lng, lat)) {
-                console.info('[Nearby] Using cached exact location:', lng, lat);
-                return { longitude: lng, latitude: lat, source: 'gps' as const };
-              }
-            }
-          } catch (cacheError) {
-            console.warn('[Nearby] failed to read from cache:', cacheError);
+          console.warn('[Nearby] native low-accuracy failed, checking session fix...', lowError?.message ?? lowError);
+          const cached = getSessionExactLocation();
+          if (cached && isWithinBogota(cached.lng, cached.lat)) {
+            console.info('[Nearby] Using session exact location');
+            return { longitude: cached.lng, latitude: cached.lat, source: 'gps' as const };
           }
           return await getIpLocation();
         });
@@ -662,7 +693,6 @@ function getNativeLocation(highAccuracy = true): Promise<{ longitude: number; la
       if (best) {
         console.info(
           `[Nearby] native fix (${reason}, highAccuracy=${highAccuracy}): ` +
-          `[${best.coords.latitude.toFixed(6)}, ${best.coords.longitude.toFixed(6)}] ` +
           `accuracy ±${Math.round(best.coords.accuracy)}m`
         );
         resolve({
@@ -694,10 +724,7 @@ function getNativeLocation(highAccuracy = true): Promise<{ longitude: number; la
       (pos) => {
         if (!best || pos.coords.accuracy < best.coords.accuracy) {
           best = pos;
-          console.debug(
-            `[Nearby] fix update: ±${Math.round(pos.coords.accuracy)}m ` +
-            `[${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}]`
-          );
+          console.debug(`[Nearby] fix update: ±${Math.round(pos.coords.accuracy)}m`);
         }
         // Excellent fix — stop immediately.
         if (pos.coords.accuracy <= GEO_TARGET_ACCURACY_M) {
@@ -736,6 +763,7 @@ async function getIpLocation(): Promise<{ longitude: number; latitude: number; a
 
 async function main(): Promise<void> {
   console.log('🚌 TransMilenio Explorer starting...');
+  clearLegacyExactLocation();
 
   // 0. Wake up the backend immediately (Render free tier sleeps after inactivity)
   //    Fire-and-forget: we don't need the result, just need the server to start booting.
@@ -866,7 +894,7 @@ async function main(): Promise<void> {
   initSidebar({
     onRouteSelect: async (route: RouteListItem) => {
       activeRouteId = route.id;
-      stopBusTracking();
+      await stopLiveBusTracking();
 
       // On-demand loading of catalog routes (geometries and stops)
       if (route.source === 'catalog' && (!route.geometry || !route.stops || route.stops.length === 0)) {
@@ -897,9 +925,18 @@ async function main(): Promise<void> {
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
       route.liveNameCandidates = getLiveNameCandidates(route);
+      let buses: BusesModule;
+      try {
+        buses = await getBusesModule();
+      } catch (error) {
+        console.error('[Live] Failed to load bus layer:', error);
+        updateLiveBusStatus(0, 'error');
+        return;
+      }
+      if (activeRouteId !== route.id) return;
       // Opposite-direction buses the live API mixes in for rutas duales/fáciles
       // are dropped geometrically by filterBusesByDirection using these stops.
-      startBusTracking(
+      buses.startBusTracking(
         map,
         route.code,
         route.liveNameCandidates[0] || route.catalogNombre || route.name || route.destination,
@@ -923,7 +960,7 @@ async function main(): Promise<void> {
     },
     onRouteDeselect: () => {
       activeRouteId = null;
-      stopBusTracking();
+      void stopLiveBusTracking();
       clearHighlight(map);
       updateSelectedRouteStops(map, [], 'zonal');
     },
@@ -999,7 +1036,9 @@ async function main(): Promise<void> {
   updateProgress(100, '¡Listo!');
   setTimeout(() => {
     hideLoading();
-    initPlanner(map, routeList);
+    getPlannerModule()
+      .then(({ initPlanner }) => initPlanner(map, routeList))
+      .catch((error) => console.error('[Planner] Failed to load planner module:', error));
   }, 400);
 
   // 5. Background Loading: fetch Zonal Stops and Zonal stop-route mappings asynchronously
@@ -1065,8 +1104,10 @@ async function main(): Promise<void> {
           stops: stopsCount,
         });
 
-        // Rebuild the routing graph with the fully enriched zonal stops
-        initRouter(routeList);
+        // Rebuild the routing graph with the fully enriched zonal stops.
+        getRouterModule()
+          .then(({ initRouter }) => initRouter(routeList))
+          .catch((error) => console.error('[Router] Failed to refresh graph:', error));
 
         console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
       }

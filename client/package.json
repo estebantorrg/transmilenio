@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@turf/turf": "^7.3.5",
     "@types/three": "^0.184.1",
     "maplibre-gl": "^4.7.0",
     "three": "^0.184.0"

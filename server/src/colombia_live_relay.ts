@@ -299,7 +299,7 @@ app.get('/health', async (_req: Request, res: Response) => {
     res.status(egress.country === 'CO' ? 200 : 451).json({
       status: egress.country === 'CO' ? 'ok' : 'blocked',
       colombiaOnly: true,
-      egress,
+      egress: { country: egress.country, checkedAt: egress.checkedAt },
     });
   } catch (error: any) {
     res.status(503).json({ status: 'error', colombiaOnly: true, error: error.message });
@@ -345,7 +345,7 @@ app.post('/buses', async (req: Request, res: Response) => {
       success: true,
       count: buses.length,
       data: buses,
-      egress: { country: egress.country, ip: egress.ip },
+      egress: { country: egress.country },
     });
   } catch (error: any) {
     const status = error.statusCode || 503;

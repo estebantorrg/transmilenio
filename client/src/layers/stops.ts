@@ -23,6 +23,10 @@ const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble'];
 const STATION_STOP_RE = /^TM\d+$/i;
 
+function hasPointGeometry(stop: any): boolean {
+  return Number.isFinite(Number(stop?.geometry?.x)) && Number.isFinite(Number(stop?.geometry?.y));
+}
+
 function showSelectedStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
   if (!markClickHandled(e)) return;
   const feature = e.features?.[0];
@@ -179,7 +183,7 @@ export function addStopsLayer(
   if (stopRoutesMap) {
     globalStopRoutesMap = stopRoutesMap;
   }
-  const validStops = stops.filter((s) => s.geometry && s.geometry.x && s.geometry.y);
+  const validStops = stops.filter(hasPointGeometry);
 
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
@@ -201,7 +205,7 @@ export function addStopsLayer(
         },
         geometry: {
           type: 'Point',
-          coordinates: [s.geometry.x, s.geometry.y],
+          coordinates: [Number(s.geometry.x), Number(s.geometry.y)],
         },
       };
     }),
@@ -306,7 +310,7 @@ export function updateStopsLayer(
   const source = map.getSource('stops') as maplibregl.GeoJSONSource;
   if (!source) return;
 
-  const validStops = stops.filter((s) => s.geometry && s.geometry.x && s.geometry.y);
+  const validStops = stops.filter(hasPointGeometry);
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
     features: validStops.map((s) => {
@@ -327,7 +331,7 @@ export function updateStopsLayer(
         },
         geometry: {
           type: 'Point',
-          coordinates: [s.geometry.x, s.geometry.y],
+          coordinates: [Number(s.geometry.x), Number(s.geometry.y)],
         },
       };
     }),

@@ -4,6 +4,7 @@
  */
 
 const BASE_URL = 'https://gis.transmilenio.gov.co/arcgis/rest/services';
+const ARCGIS_QUERY_TIMEOUT_MS = 15_000;
 
 interface ArcGISQueryOptions {
   folder: string;
@@ -59,7 +60,7 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
     console.log(`[ArcGIS] Fetching: offset=${offset}, limit=${resultRecordCount}`);
 
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(ARCGIS_QUERY_TIMEOUT_MS) });
       if (!response.ok) {
         throw new Error(`ArcGIS returned ${response.status}: ${response.statusText}`);
       }

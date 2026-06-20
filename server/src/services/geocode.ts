@@ -303,12 +303,12 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
 
   let remoteCandidates: GeocodeCandidate[] = [];
   try {
-    console.log(`[Geocode] Querying Nominatim for: "${trimmed}"`);
+    console.log(`[Geocode] Querying Nominatim; queryLength=${trimmed.length}`);
     remoteCandidates = await fetchNominatim(trimmed);
   } catch (error) {
     console.warn('[Geocode] Nominatim failed, falling back to ArcGIS:', error);
     try {
-      console.log(`[Geocode] Querying ArcGIS Geocoder for: "${trimmed}"`);
+      console.log(`[Geocode] Querying ArcGIS Geocoder; queryLength=${trimmed.length}`);
       remoteCandidates = await fetchArcGIS(trimmed);
     } catch (arcgisError) {
       console.error('[Geocode] ArcGIS geocoding failed as well:', arcgisError);

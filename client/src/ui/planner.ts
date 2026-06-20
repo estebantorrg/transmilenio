@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
+import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
 import type { RouteListItem } from '../types/transmilenio';
 
 let mapInstance: maplibregl.Map;
@@ -290,14 +291,17 @@ function initInputHandlers(): void {
 
       dropdown.innerHTML = res.candidates
         .map((c: any) => {
+          const lat = Number(c.lat);
+          const lon = Number(c.lon);
+          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
           const typeClass = c.type === 'station' ? 'station' : c.type === 'stop' ? 'stop' : 'place';
           const icon = c.type === 'station' ? '🚇' : c.type === 'stop' ? '🚏' : '📍';
-          const metaText = c.code ? `Código: ${c.code}` : `${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}`;
+          const metaText = c.code ? `Código: ${c.code}` : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
           return `
-            <div class="autocomplete-item ${typeClass}" 
-                 data-name="${escapeHTML(c.name)}" 
-                 data-lat="${c.lat}" 
-                 data-lon="${c.lon}" 
+            <div class="autocomplete-item ${typeClass}"
+                 data-name="${escapeHTML(c.name)}"
+                 data-lat="${lat}"
+                 data-lon="${lon}"
                  data-code="${escapeHTML(c.code || '')}">
               <span class="autocomplete-icon">${icon}</span>
               <div class="autocomplete-info">
@@ -469,7 +473,7 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
       const lng = pos.coords.longitude;
       const lat = pos.coords.latitude;
       if (isWithinBogota(lng, lat)) {
-        localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng, lat }));
+        setSessionExactLocation(lng, lat, 'gps');
         return { longitude: lng, latitude: lat };
       }
     } catch (highError) {
@@ -479,27 +483,19 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
         const lng = pos.coords.longitude;
         const lat = pos.coords.latitude;
         if (isWithinBogota(lng, lat)) {
-          localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng, lat }));
+          setSessionExactLocation(lng, lat, 'gps');
           return { longitude: lng, latitude: lat };
         }
       } catch (lowError) {
-        console.warn('[Planner GPS] Native low-accuracy failed, checking cache...', lowError);
+        console.warn('[Planner GPS] Native low-accuracy failed, checking session fix...', lowError);
       }
     }
   }
 
-  // Check localStorage cache
-  try {
-    const cached = localStorage.getItem('tm-user-exact-location');
-    if (cached) {
-      const { lng, lat } = JSON.parse(cached);
-      if (isWithinBogota(lng, lat)) {
-        console.info('[Planner GPS] Using cached exact location:', lng, lat);
-        return { longitude: lng, latitude: lat };
-      }
-    }
-  } catch (cacheError) {
-    console.warn('[Planner GPS] Failed to read cached location:', cacheError);
+  const cached = getSessionExactLocation();
+  if (cached && isWithinBogota(cached.lng, cached.lat)) {
+    console.info('[Planner GPS] Using session exact location');
+    return { longitude: cached.lng, latitude: cached.lat };
   }
 
   // Fallback to IP GeoIP

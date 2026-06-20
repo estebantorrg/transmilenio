@@ -37,7 +37,6 @@ export interface CardBalanceMovement {
   amount?: string;
   finalBalance?: string;
   occurredAt?: string;
-  raw: Record<string, unknown>;
 }
 
 export interface CardBalanceRead {
@@ -223,13 +222,13 @@ async function fetchCardRowsViaColombianProxy(postData: string): Promise<Record<
 }
 
 function normalizeServerMovement(item: Record<string, unknown>, fallbackCardNumber: string): CardBalanceMovement {
+  const upstreamCardNumber = String(item.numero_tarjeta ?? '').trim();
   return {
     source: 'server',
-    numeroTarjeta: String(item.numero_tarjeta ?? fallbackCardNumber),
+    numeroTarjeta: /^\d{8,20}$/.test(upstreamCardNumber) ? maskCardNumber(upstreamCardNumber) : fallbackCardNumber,
     type: String(item.tipo ?? ''),
     finalBalance: item.saldo_tarjeta == null ? undefined : String(item.saldo_tarjeta),
     occurredAt: item.ultima_transaccion == null ? undefined : String(item.ultima_transaccion),
-    raw: item,
   };
 }
 
@@ -261,11 +260,12 @@ export async function fetchCardBalance(
     }
   }
 
-  const movements = rows.map((item) => normalizeServerMovement(item, numeroTarjeta));
+  const maskedCardNumber = maskCardNumber(numeroTarjeta);
+  const movements = rows.map((item) => normalizeServerMovement(item, maskedCardNumber));
   const latest = movements[0];
 
   return {
-    numeroTarjeta,
+    numeroTarjeta: maskedCardNumber,
     consultar,
     balance: latest?.finalBalance,
     balanceSource: latest ? 'server' : undefined,
@@ -277,7 +277,7 @@ export async function fetchCardBalance(
         host: CARD_API_HOST,
         path: CARD_API_PATH,
         method: 'POST',
-        requestBody: { numero_tarjeta: numeroTarjeta, consultar },
+        requestBody: { numero_tarjeta: maskedCardNumber, consultar },
         requestHeaders: Object.fromEntries(Object.entries(CARD_HEADERS_BASE).map(([key, value]) => [key, String(value)])),
         count: movements.length,
       },

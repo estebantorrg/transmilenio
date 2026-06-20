@@ -164,7 +164,7 @@ export const api = {
     fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),
 
   getRouteDetail: (code: string) =>
-    fetchJson<any>(`/troncal/route/${code}`),
+    fetchJson<any>(`/troncal/route/${encodeURIComponent(code)}`),
 
   readCardBalance: (numeroTarjeta: string, consultar: 'true' | 'false' = 'false') =>
     fetchJson<CardBalanceResponse>('/card/read', 15_000, {
