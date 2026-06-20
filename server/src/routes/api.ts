@@ -240,10 +240,6 @@ router.post('/buses', async (req: Request, res: Response) => {
 
     const msg = error.message || '';
     const payload: Record<string, any> = { success: false };
-    if (req.query.debug === '1') {
-      payload.detail = msg;
-      payload.code = error.code;
-    }
 
     if (msg.includes('timed out')) {
       res.status(504).json({ ...payload, error: 'Gateway Timeout connecting to live tracking API' });

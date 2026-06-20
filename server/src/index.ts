@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { type ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import apiRoutes from './routes/api.js';
@@ -6,6 +6,21 @@ import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './servic
 
 const app = express();
 const PORT = process.env.PORT || 3002;
+const JSON_BODY_LIMIT = '64kb';
+
+const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+  if (error?.type === 'entity.too.large') {
+    res.status(413).json({ success: false, error: 'Request body too large' });
+    return;
+  }
+
+  if (error instanceof SyntaxError && 'body' in error) {
+    res.status(400).json({ success: false, error: 'Invalid JSON body' });
+    return;
+  }
+
+  next(error);
+};
 
 // Behind Render's proxy — trust X-Forwarded-* so req.ip is the real client IP
 // (used by /api/geoip for approximate location).
@@ -28,7 +43,8 @@ app.use(cors({
   methods: ['GET', 'POST'],
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(jsonErrorHandler);
 
 // Mount API routes
 app.use('/api', apiRoutes);

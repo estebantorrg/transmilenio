@@ -1,4 +1,4 @@
-import express, { Request, Response } from 'express';
+import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import cors from 'cors';
 import http from 'http';
 import https from 'https';
@@ -12,6 +12,21 @@ const RELAY_SECRET = String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || ''
 const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 const EGRESS_CACHE_MS = 30_000;
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
+const JSON_BODY_LIMIT = '64kb';
+
+const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
+  if (error?.type === 'entity.too.large') {
+    res.status(413).json({ success: false, error: 'Request body too large' });
+    return;
+  }
+
+  if (error instanceof SyntaxError && 'body' in error) {
+    res.status(400).json({ success: false, error: 'Invalid JSON body' });
+    return;
+  }
+
+  next(error);
+};
 
 // Browser-direct mode: the web client (PC or mobile) calls this relay straight,
 // so the live request egresses from the relay's Colombian IP with no main server
@@ -291,7 +306,8 @@ app.use(
     maxAge: 86_400,
   })
 );
-app.use(express.json());
+app.use(express.json({ limit: JSON_BODY_LIMIT }));
+app.use(jsonErrorHandler);
 
 app.get('/health', async (_req: Request, res: Response) => {
   try {
