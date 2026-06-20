@@ -518,21 +518,36 @@ function initNearbyStations(map: maplibregl.Map): void {
     }
   };
 
-  const placeUser = (longitude: number, latitude: number): void => {
+  const placeUser = (longitude: number, latitude: number, fly = true): void => {
     userMarker?.remove();
     const el = document.createElement('div');
     el.className = 'user-location-dot';
-    userMarker = new maplibregl.Marker({ element: el })
+    el.title = 'Arrastra para ajustar tu ubicación';
+    
+    userMarker = new maplibregl.Marker({ element: el, draggable: true })
       .setLngLat([longitude, latitude])
       .addTo(map);
 
-    map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+    userMarker.on('dragend', () => {
+      const lngLat = userMarker!.getLngLat();
+      console.log('[Nearby] User updated exact location via drag:', lngLat);
+      localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: lngLat.lng, lat: lngLat.lat }));
+      placeUser(lngLat.lng, lngLat.lat, false);
+    });
+
+    if (fly) {
+      map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+    }
 
     const nearest = getNearestVisibleStation(longitude, latitude);
     if (nearest) {
-      map.once('moveend', () => {
+      if (fly) {
+        map.once('moveend', () => {
+          showStationPopupByCode(map, nearest.code, nearest.coordinate);
+        });
+      } else {
         showStationPopupByCode(map, nearest.code, nearest.coordinate);
-      });
+      }
     }
   };
 
@@ -580,10 +595,36 @@ function initNearbyStations(map: maplibregl.Map): void {
  *    IP geolocation. Never prefer IP over any native result.
  */
 function resolveUserLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' | 'ip' }> {
-  return getNativeLocation().catch((nativeError) => {
-    console.warn('[Nearby] native geolocation failed, falling back to IP:', nativeError?.message ?? nativeError);
-    return getIpLocation();
-  });
+  return getNativeLocation(true)
+    .then((result) => {
+      // Save exact location on success
+      localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: result.longitude, lat: result.latitude }));
+      return result;
+    })
+    .catch((highError) => {
+      console.warn('[Nearby] native high-accuracy failed, trying low accuracy...', highError?.message ?? highError);
+      return getNativeLocation(false)
+        .then((result) => {
+          localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng: result.longitude, lat: result.latitude }));
+          return result;
+        })
+        .catch(async (lowError) => {
+          console.warn('[Nearby] native low-accuracy failed, checking cache...', lowError?.message ?? lowError);
+          try {
+            const cached = localStorage.getItem('tm-user-exact-location');
+            if (cached) {
+              const { lng, lat } = JSON.parse(cached);
+              if (isWithinBogota(lng, lat)) {
+                console.info('[Nearby] Using cached exact location:', lng, lat);
+                return { longitude: lng, latitude: lat, source: 'gps' as const };
+              }
+            }
+          } catch (cacheError) {
+            console.warn('[Nearby] failed to read from cache:', cacheError);
+          }
+          return await getIpLocation();
+        });
+    });
 }
 
 // Target: GPS-grade accuracy. On mobile with clear sky this is ~5–15 m.
@@ -596,7 +637,7 @@ const GEO_MAX_WAIT_MS = 20_000;
 const GEO_COARSE_ACCEPT_MS = 8_000;
 const GEO_COARSE_THRESHOLD_M = 150;
 
-function getNativeLocation(): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' }> {
+function getNativeLocation(highAccuracy = true): Promise<{ longitude: number; latitude: number; accuracy?: number; source: 'gps' }> {
   return new Promise((resolve, reject) => {
     if (!('geolocation' in navigator)) {
       reject(new Error('Geolocation API unavailable'));
@@ -614,7 +655,7 @@ function getNativeLocation(): Promise<{ longitude: number; latitude: number; acc
       if (coarseTimer != null) window.clearTimeout(coarseTimer);
       if (best) {
         console.info(
-          `[Nearby] native fix (${reason}): ` +
+          `[Nearby] native fix (${reason}, highAccuracy=${highAccuracy}): ` +
           `[${best.coords.latitude.toFixed(6)}, ${best.coords.longitude.toFixed(6)}] ` +
           `accuracy ±${Math.round(best.coords.accuracy)}m`
         );
@@ -671,7 +712,7 @@ function getNativeLocation(): Promise<{ longitude: number; latitude: number; acc
         }
       },
       // High accuracy + no cached fix → device GPS, not a coarse network/IP guess.
-      { enableHighAccuracy: true, timeout: GEO_MAX_WAIT_MS, maximumAge: 0 }
+      { enableHighAccuracy: highAccuracy, timeout: GEO_MAX_WAIT_MS, maximumAge: 0 }
     );
   });
 }

@@ -359,23 +359,53 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
     return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
   };
 
-  // Try GPS
+  const getPosition = (highAccuracy: boolean): Promise<GeolocationPosition> => {
+    return new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: highAccuracy,
+        timeout: 5000,
+      });
+    });
+  };
+
+  // Try GPS (High Accuracy first)
   if ('geolocation' in navigator) {
     try {
-      const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true,
-          timeout: 7000,
-        });
-      });
+      const pos = await getPosition(true);
       const lng = pos.coords.longitude;
       const lat = pos.coords.latitude;
       if (isWithinBogota(lng, lat)) {
+        localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng, lat }));
         return { longitude: lng, latitude: lat };
       }
-    } catch {
-      /* fallback to geoip */
+    } catch (highError) {
+      console.warn('[Planner GPS] Native high-accuracy failed, trying low accuracy...', highError);
+      try {
+        const pos = await getPosition(false);
+        const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        if (isWithinBogota(lng, lat)) {
+          localStorage.setItem('tm-user-exact-location', JSON.stringify({ lng, lat }));
+          return { longitude: lng, latitude: lat };
+        }
+      } catch (lowError) {
+        console.warn('[Planner GPS] Native low-accuracy failed, checking cache...', lowError);
+      }
     }
+  }
+
+  // Check localStorage cache
+  try {
+    const cached = localStorage.getItem('tm-user-exact-location');
+    if (cached) {
+      const { lng, lat } = JSON.parse(cached);
+      if (isWithinBogota(lng, lat)) {
+        console.info('[Planner GPS] Using cached exact location:', lng, lat);
+        return { longitude: lng, latitude: lat };
+      }
+    }
+  } catch (cacheError) {
+    console.warn('[Planner GPS] Failed to read cached location:', cacheError);
   }
 
   // Fallback to IP GeoIP
