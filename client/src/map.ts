@@ -15,12 +15,15 @@ export function createMap(container: string): maplibregl.Map {
     style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     center: [-74.1071, 4.6486], // Bogotá center
     zoom: 12,
-    minZoom: 9,
+    minZoom: 11, // Restrict zoom out to prevent viewport exceeding maxBounds (avoids jitter bugs)
     maxZoom: 18,
     pitch: 0,
     bearing: 0,
     antialias: true,
-    maxBounds: [[-74.25, 4.4], [-73.95, 4.85]], // Restrict users to Bogotá bounds
+    maxBounds: [
+      [-74.45, 4.2], // Southwest coordinates (buffered to prevent viewport collision glitches)
+      [-73.75, 5.0], // Northeast coordinates
+    ],
   });
 
   // Navigation controls (zoom + compass) — top right
