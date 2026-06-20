@@ -402,7 +402,7 @@ body {
   top: 12px;
   left: 12px;
   bottom: 12px;
-  width: var(--sidebar-width);
+  width: min(var(--sidebar-width), calc(100vw - 24px));
   z-index: 100;
   background: var(--bg-card);
   backdrop-filter: blur(24px) saturate(1.2);
@@ -552,36 +552,41 @@ body {
 /* ─── Layer Toggles ───────────────────────────────────── */
 
 .layer-toggles {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  padding: 8px 16px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .layer-toggles-title {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
+  grid-column: span 2;
+  font-size: 11px;
+  font-weight: 800;
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-bottom: 4px;
-  padding: 0 10px;
+  padding: 0;
 }
 
 .toggle-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: all var(--transition-fast);
   user-select: none;
 }
 
 .toggle-item:hover {
   background: var(--bg-hover);
+  border-color: var(--border-medium);
 }
 
 .toggle-item input[type="checkbox"] {
@@ -590,56 +595,35 @@ body {
 
 /* Custom checkbox indicator */
 .toggle-check {
-  width: 16px;
-  height: 16px;
-  border-radius: 4px;
-  border: 2px solid var(--text-tertiary);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: none;
+  background: #4a4d55;
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all var(--transition-fast);
+  display: block;
   position: relative;
+  box-shadow: none !important;
 }
 
 .toggle-check::after {
-  content: '';
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  background: currentColor;
-  opacity: 0;
-  transform: scale(0);
-  transition: all var(--transition-fast);
+  display: none !important;
 }
 
-.toggle-item input:checked~.toggle-check::after {
-  opacity: 1;
-  transform: scale(1);
+.toggle-item input:checked ~ .toggle-check.check-troncal {
+  background: #ff3b30;
 }
 
-.toggle-item input:checked~.toggle-check.check-troncal {
-  border-color: var(--tm-red);
-  color: var(--tm-red);
-  box-shadow: 0 0 6px rgba(227, 52, 47, 0.3);
+.toggle-item input:checked ~ .toggle-check.check-zonal {
+  background: #007aff;
 }
 
-.toggle-item input:checked~.toggle-check.check-zonal {
-  border-color: var(--tm-blue);
-  color: var(--tm-blue);
-  box-shadow: 0 0 6px rgba(56, 189, 248, 0.3);
+.toggle-item input:checked ~ .toggle-check.check-stations {
+  background: #ffcc00;
 }
 
-.toggle-item input:checked~.toggle-check.check-stations {
-  border-color: var(--tm-yellow);
-  color: var(--tm-yellow);
-  box-shadow: 0 0 6px rgba(251, 191, 36, 0.3);
-}
-
-.toggle-item input:checked~.toggle-check.check-stops {
-  border-color: var(--tm-green);
-  color: var(--tm-green);
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.3);
+.toggle-item input:checked ~ .toggle-check.check-stops {
+  background: #34c759;
 }
 
 .toggle-text {
@@ -648,26 +632,23 @@ body {
 }
 
 .toggle-label {
-  font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 700;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
 .toggle-desc {
-  font-size: 0.65rem;
-  color: var(--text-tertiary);
-  line-height: 1.3;
-  margin-top: 1px;
+  display: none;
 }
 
 .toggle-count {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--text-tertiary);
-  background: var(--bg-tertiary);
-  padding: 2px 8px;
-  border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
   min-width: 28px;
   text-align: center;
 }
@@ -690,7 +671,11 @@ body {
 
 .route-list-count {
   font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 8px;
+  border-radius: 99px;
 }
 
 .route-list {
@@ -733,8 +718,8 @@ body {
 }
 
 .route-item.active {
-  background: var(--bg-active);
-  border-color: var(--border-accent);
+  background: var(--bg-hover);
+  border-color: rgba(255, 255, 255, 0.25);
 }
 
 .route-item-badge {
@@ -768,13 +753,27 @@ body {
   text-overflow: ellipsis;
 }
 
-.route-item-type {
-  font-size: 0.5rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
+.route-item-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 2px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.route-item-type {
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.route-item-endpoints {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
 }
 
 .empty-state,
@@ -1508,271 +1507,10 @@ body {
 /* ─── Mobile & Tablet Responsive ────────────────────── */
 
 @media (max-width: 768px) {
-  :root {
-    --sidebar-width: 100vw;
-  }
-
-  /* ── Sidebar becomes bottom sheet ── */
-  .sidebar {
-    height: 55vh;
-    min-height: 260px;
-    max-height: 70vh;
-    width: 100vw;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    border: none;
-    border-top: 1px solid var(--border-card);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
-  }
-
-  .sidebar.collapsed {
-    height: auto;
-    min-height: 0;
-    max-height: none;
-    transform: translateY(calc(100% - 56px));
-  }
-
-  /* Drag handle visual cue */
-  .sidebar-header {
-    padding: 8px 14px 8px;
-    position: relative;
-  }
-
-  .sidebar-header::before {
-    content: '';
-    position: absolute;
-    top: 6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 36px;
-    height: 4px;
-    border-radius: 99px;
-    background: var(--border-medium);
-  }
-
-  .brand-logo {
-    width: 36px;
-    height: 36px;
-  }
-
-  .brand-title {
-    font-size: var(--font-size-sm);
-  }
-
-  .brand-subtitle {
-    font-size: var(--font-size-xs);
-  }
-
-  /* ── Sidebar toggle: right-side collapse ── */
-  .sidebar-toggle {
-    width: 28px;
-    height: 28px;
-  }
-
-  .sidebar.collapsed .sidebar-toggle svg {
-    transform: rotate(-90deg);
-  }
-
-  .sidebar:not(.collapsed) .sidebar-toggle svg {
-    transform: rotate(90deg);
-  }
-
-  /* ── Tabs ── */
-  .sidebar-tabs {
-    padding: 3px;
-    gap: 3px;
-  }
-
-  .tab-btn {
-    padding: 8px 6px;
-    font-size: var(--font-size-xs);
-    gap: 5px;
-  }
-
-  .tab-btn svg {
-    width: 15px;
-    height: 15px;
-  }
-
-  /* ── Search ── */
-  .search-container {
-    padding: 8px 12px;
-  }
-
-  .search-input {
-    height: 40px;
-    font-size: var(--font-size-sm);
-  }
-
-  .search-icon {
-    left: 24px;
-  }
-
-  /* ── Layer toggles compact ── */
-  .layer-toggles {
-    padding: 6px 12px;
-  }
-
-  .toggle-item {
-    padding: 3px 8px;
-    gap: 8px;
-  }
-
-  .toggle-desc {
-    display: none;
-  }
-
-  .toggle-label {
-    font-size: var(--font-size-xs);
-  }
-
-  .layer-toggles-title {
-    font-size: 0.6rem;
-    margin-bottom: 2px;
-  }
-
-  /* ── Route list ── */
-  .route-list {
-    padding: 0 6px 6px;
-  }
-
-  .route-list-header {
-    padding: 8px 12px 4px;
-  }
-
-  .route-item {
-    padding: 8px 10px;
-    gap: 10px;
-  }
-
-  .route-item-badge {
-    min-width: 40px;
-    height: 22px;
-    font-size: var(--font-size-xs);
-    padding: 0 8px;
-  }
-
-  /* ── Route detail panel ── */
-  .route-detail-close {
-    padding: 10px 12px;
-  }
-
-  #route-detail-content,
-  .card-detail-content {
-    padding: 14px 12px;
-  }
-
-  .detail-badge {
-    padding: 5px 11px;
-    font-size: var(--font-size-sm);
-  }
-
-  .detail-name {
-    font-size: var(--font-size-md);
-  }
-
-  .detail-header {
-    margin-bottom: 14px;
-  }
-
-  .live-tracking-status {
-    padding: 8px 10px;
-    margin-top: 10px;
-  }
-
-  .live-status-text {
-    font-size: 0.72rem;
-  }
-
-  .live-status-chip {
-    font-size: 0.55rem;
-    padding: 2px 6px;
-  }
-
-  .stops-timeline {
-    max-height: none;
-    overflow-y: visible;
-  }
-
-  /* ── Footer ── */
-  .sidebar-footer {
-    padding: 8px 12px 10px;
-    gap: 6px;
-  }
-
-  .footer-action {
-    padding: 9px 11px;
-    font-size: var(--font-size-xs);
-    gap: 8px;
-  }
-
-  .footer-action-icon {
-    width: 18px;
-    height: 18px;
-  }
-
-  /* ── Planner panel ── */
-  .planner-panel {
-    padding: 12px;
-    gap: 12px;
-  }
-
-  .planner-inputs {
-    padding: 10px;
-  }
-
-  .input-wrapper .search-input {
-    padding-right: 68px;
-    font-size: var(--font-size-xs);
-  }
-
-  .map-pick-btn {
-    font-size: 10px;
-    padding: 2px 4px;
-  }
-
-  .planner-calculate-btn {
-    padding: 10px;
-  }
-
-  /* ── Planner results ── */
-  .journey-option-card {
-    padding: 10px;
-  }
-
-  .journey-duration {
-    font-size: var(--font-size-sm);
-  }
-
-  .journey-step-item {
-    gap: 8px;
-    min-height: 40px;
-  }
-
-  /* ── Autocomplete dropdown ── */
-  .autocomplete-dropdown {
-    max-height: 160px;
-  }
-
-  .autocomplete-item {
-    padding: 8px 8px;
-    gap: 6px;
-  }
-
-  .autocomplete-name {
-    font-size: var(--font-size-xs);
-  }
-
-  .autocomplete-meta {
-    font-size: 0.6rem;
-  }
-
-  /* ── Card balance ── */
-  .card-balance-amount {
-    font-size: 1.6rem;
+  /* ── Map controls position ── */
+  .maplibregl-ctrl-bottom-right,
+  .maplibregl-ctrl-bottom-left {
+    bottom: 10px !important;
   }
 
   /* ── Map popups ── */
@@ -1783,34 +1521,7 @@ body {
     max-height: 40vh;
   }
 
-  /* ── Map controls pushed above sidebar ── */
-  .maplibregl-ctrl-bottom-right,
-  .maplibregl-ctrl-bottom-left {
-    bottom: calc(min(max(50vh, 260px), 64vh) + 12px) !important;
-  }
-
-  body.sidebar-collapsed .maplibregl-ctrl-bottom-right,
-  body.sidebar-collapsed .maplibregl-ctrl-bottom-left {
-    bottom: 10px !important;
-  }
-
-  .maplibregl-ctrl-top-right {
-    top: 10px !important;
-    right: 10px !important;
-  }
-
-  /* ── Planner options ── */
-  .planner-option-row {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .planner-select {
-    width: 100%;
-    max-width: none;
-  }
-
-  /* ── Swap button ── */
+  /* ── Swap button compact ── */
   .swap-row {
     height: 20px;
   }
@@ -1818,58 +1529,6 @@ body {
   .swap-btn {
     width: 24px;
     height: 24px;
-  }
-}
-
-/* ─── Small phones (≤ 400px) ─────────────────────────── */
-
-@media (max-width: 400px) {
-  .sidebar {
-    height: 50vh;
-    border-radius: 14px 14px 0 0;
-  }
-
-  .brand {
-    gap: 8px;
-  }
-
-  .brand-logo {
-    width: 28px;
-    height: 28px;
-  }
-
-  .brand-title {
-    font-size: var(--font-size-xs);
-  }
-
-  .brand-subtitle {
-    display: none;
-  }
-
-  .tab-btn span {
-    display: none;
-  }
-
-  .tab-btn svg {
-    width: 18px;
-    height: 18px;
-  }
-
-  .footer-action-label {
-    font-size: 0.68rem;
-  }
-
-  .planner-inputs {
-    padding: 8px;
-  }
-
-  .input-label-row label {
-    font-size: 0.6rem;
-  }
-
-  .journey-meta-row {
-    flex-direction: column;
-    gap: 2px;
   }
 }
 

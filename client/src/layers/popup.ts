@@ -27,15 +27,16 @@ export function showPopup(
 
   // Manually ensure the popup centers into the visible viewport, clearing the sidebar
   const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-  const bottomPadding = window.innerWidth <= 768
-    ? (sidebarCollapsed ? 36 : Math.round(Math.min(Math.max(window.innerHeight * 0.5, 260), window.innerHeight * 0.64)))
-    : 0;
+  const sidebarWidth = sidebarCollapsed ? 48 : Math.min(360, window.innerWidth - 24);
+  const leftPadding = sidebarCollapsed ? 72 : Math.min(sidebarWidth + 20, window.innerWidth - 60);
 
   map.easeTo({
     center: lngLat,
     padding: {
-      left: window.innerWidth > 768 ? (sidebarCollapsed ? 72 : 380) : 0,
-      bottom: bottomPadding
+      left: leftPadding,
+      right: 28,
+      top: 52,
+      bottom: 28
     },
     duration: 400
   });
