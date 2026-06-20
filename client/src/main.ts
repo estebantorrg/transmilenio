@@ -420,6 +420,28 @@ function getLiveNameCandidates(route: RouteListItem): string[] {
   return candidates;
 }
 
+function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
+  const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+  if (window.innerWidth <= 768) {
+    const bottomPadding = sidebarCollapsed
+      ? 36
+      : Math.round(Math.min(Math.max(window.innerHeight * 0.5, 260), window.innerHeight * 0.64));
+    return {
+      top: 52,
+      bottom: bottomPadding,
+      left: 28,
+      right: 28,
+    };
+  }
+
+  return {
+    top: 60,
+    bottom: 60,
+    left: sidebarCollapsed ? 72 : 400,
+    right: 60,
+  };
+}
+
 // ─── Build Route List Items ───────────────────────────────
 
 function buildRouteList(
@@ -956,8 +978,7 @@ async function main(): Promise<void> {
             bounds.extend([lng, lat]);
           });
         });
-        const isMobile = window.innerWidth <= 768;
-        map.fitBounds(bounds, { padding: isMobile ? { top: 40, bottom: 20, left: 30, right: 30 } : { top: 60, bottom: 60, left: 400, right: 60 }, maxZoom: 15 });
+        map.fitBounds(bounds, { padding: getMapFitPadding(), maxZoom: 15 });
       }
     },
     onRouteDeselect: () => {

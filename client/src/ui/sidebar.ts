@@ -22,6 +22,25 @@ let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 
+function setSidebarCollapsed(collapsed: boolean): void {
+  const sidebar = document.getElementById('sidebar');
+  const toggleBtn = document.getElementById('sidebar-toggle') as HTMLButtonElement | null;
+  const floatingBtn = document.getElementById('sidebar-fab') as HTMLButtonElement | null;
+  if (!sidebar) return;
+
+  sidebar.classList.toggle('collapsed', collapsed);
+  sidebar.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
+  document.body.classList.toggle('sidebar-collapsed', collapsed);
+
+  const expanded = String(!collapsed);
+  toggleBtn?.setAttribute('aria-expanded', expanded);
+  floatingBtn?.setAttribute('aria-expanded', expanded);
+  toggleBtn?.setAttribute('aria-label', collapsed ? 'Mostrar panel' : 'Ocultar panel');
+  toggleBtn?.setAttribute('title', collapsed ? 'Mostrar panel' : 'Ocultar panel');
+  floatingBtn?.setAttribute('aria-label', collapsed ? 'Mostrar panel' : 'Panel abierto');
+  floatingBtn?.setAttribute('title', collapsed ? 'Mostrar panel' : 'Panel abierto');
+}
+
 export function initSidebar(options: {
   onRouteSelect: (route: RouteListItem) => void;
   onRouteDeselect: () => void;
@@ -35,9 +54,13 @@ export function initSidebar(options: {
 
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
+  const floatingBtn = document.getElementById('sidebar-fab');
+  setSidebarCollapsed(sidebar.classList.contains('collapsed'));
+
   toggleBtn.addEventListener('click', () => {
-    sidebar.classList.toggle('collapsed');
+    setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
   });
+  floatingBtn?.addEventListener('click', () => setSidebarCollapsed(false));
 
   const searchInput = document.getElementById('search-input') as HTMLInputElement;
   const searchClear = document.getElementById('search-clear')!;
@@ -292,7 +315,9 @@ function filterRoutes(query: string): void {
   const filtered = allRoutes.filter(
     (r) =>
       r.code.toLowerCase().includes(q) ||
-      r.name.toLowerCase().includes(q)
+      r.name.toLowerCase().includes(q) ||
+      r.origin.toLowerCase().includes(q) ||
+      r.destination.toLowerCase().includes(q)
   );
 
   renderRouteList(filtered);
@@ -302,7 +327,7 @@ function renderRouteList(routes: RouteListItem[]): void {
   const container = document.getElementById('route-list')!;
   const countEl = document.getElementById('route-list-count')!;
 
-  countEl.textContent = `${routes.length} resultados`;
+  countEl.textContent = `${routes.length}`;
 
   if (routes.length === 0) {
     container.innerHTML = `
@@ -321,6 +346,7 @@ function renderRouteList(routes: RouteListItem[]): void {
       const badgeColor = safeColor(getRouteAccentColor(route));
       const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
       const badgeStyle = `background:${badgeColor};border-color:${badgeBorder};`;
+      const endpointText = `${route.origin} -> ${route.destination}`;
 
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
@@ -329,7 +355,10 @@ function renderRouteList(routes: RouteListItem[]): void {
           <span class="route-item-badge" style="${badgeStyle}">${escapeHTML(route.code)}</span>
           <div class="route-item-info">
             <div class="route-item-name">${escapeHTML(route.name)}</div>
-            <div class="route-item-type">${escapeHTML(routeTypeLabel(route))}</div>
+            <div class="route-item-meta">
+              <span class="route-item-type">${escapeHTML(routeTypeLabel(route))}</span>
+              <span class="route-item-endpoints">${escapeHTML(endpointText)}</span>
+            </div>
           </div>
         </div>
       `;
@@ -444,6 +473,7 @@ function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
   const sidebar = document.getElementById('sidebar')!;
+  setSidebarCollapsed(false);
   const isTroncal = route.type === 'troncal';
   const routeKindLabel = route.subType === 'dual' ? 'Ruta Dual' : isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP';
   const badgeColor = safeColor(getRouteAccentColor(route));

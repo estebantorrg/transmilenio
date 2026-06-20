@@ -39,6 +39,14 @@
   <!-- Map Container -->
   <div id="map"></div>
 
+  <button id="sidebar-fab" class="sidebar-fab" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Mostrar panel" title="Mostrar panel">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4 6h16"/>
+      <path d="M4 12h16"/>
+      <path d="M4 18h10"/>
+    </svg>
+  </button>
+
   <!-- Sidebar -->
   <aside id="sidebar" class="sidebar">
     <div class="sidebar-header">
@@ -49,7 +57,7 @@
           <span class="brand-subtitle">Explorer</span>
         </div>
       </div>
-      <button id="sidebar-toggle" class="sidebar-toggle" aria-label="Toggle sidebar">
+      <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Ocultar panel" title="Ocultar panel">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
     </div>
@@ -77,40 +85,36 @@
 
       <!-- Layer Toggles -->
       <div class="layer-toggles">
-        <div class="layer-toggles-title">Capas del mapa</div>
-        <label class="toggle-item" id="toggle-troncal">
+        <div class="layer-toggles-title">Capas</div>
+        <label class="toggle-item" id="toggle-troncal" title="Rutas troncales">
           <input type="checkbox" checked data-layer="troncal" />
           <span class="toggle-check check-troncal"></span>
           <div class="toggle-text">
-            <div class="toggle-label">Rutas troncales</div>
-            <div class="toggle-desc">Líneas principales de TransMilenio</div>
+            <div class="toggle-label">Troncales</div>
           </div>
           <span class="toggle-count" id="count-troncal">—</span>
         </label>
-        <label class="toggle-item" id="toggle-zonal">
+        <label class="toggle-item" id="toggle-zonal" title="Rutas zonales">
           <input type="checkbox" data-layer="zonal" />
           <span class="toggle-check check-zonal"></span>
           <div class="toggle-text">
-            <div class="toggle-label">Rutas zonales</div>
-            <div class="toggle-desc">Buses SITP que circulan por barrios</div>
+            <div class="toggle-label">Zonales</div>
           </div>
           <span class="toggle-count" id="count-zonal">—</span>
         </label>
-        <label class="toggle-item" id="toggle-stations">
+        <label class="toggle-item" id="toggle-stations" title="Estaciones troncales">
           <input type="checkbox" checked data-layer="stations" />
           <span class="toggle-check check-stations"></span>
           <div class="toggle-text">
-            <div class="toggle-label">Estaciones troncales</div>
-            <div class="toggle-desc">Paradas del sistema troncal</div>
+            <div class="toggle-label">Estaciones</div>
           </div>
           <span class="toggle-count" id="count-stations">—</span>
         </label>
-        <label class="toggle-item" id="toggle-stops">
+        <label class="toggle-item" id="toggle-stops" title="Paraderos zonales">
           <input type="checkbox" data-layer="stops" />
           <span class="toggle-check check-stops"></span>
           <div class="toggle-text">
-            <div class="toggle-label">Paraderos zonales</div>
-            <div class="toggle-desc">Paradas de buses SITP en calle</div>
+            <div class="toggle-label">Paraderos</div>
           </div>
           <span class="toggle-count" id="count-stops">—</span>
         </label>

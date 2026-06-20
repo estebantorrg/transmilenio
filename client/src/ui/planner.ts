@@ -727,6 +727,28 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
   selectPlan(selectIndex, cards, isPlannerVisible());
 }
 
+function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
+  const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+  if (window.innerWidth <= 768) {
+    const bottomPadding = sidebarCollapsed
+      ? 36
+      : Math.round(Math.min(Math.max(window.innerHeight * 0.5, 260), window.innerHeight * 0.64));
+    return {
+      top: 52,
+      bottom: bottomPadding,
+      left: 28,
+      right: 28,
+    };
+  }
+
+  return {
+    top: 60,
+    bottom: 60,
+    left: sidebarCollapsed ? 72 : 400,
+    right: 60,
+  };
+}
+
 async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number): Promise<void> {
   const promises: Promise<void>[] = [];
 
@@ -788,11 +810,8 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
     });
 
     if (hasBounds) {
-      const isMobile = window.innerWidth <= 768;
       mapInstance.fitBounds(bounds, {
-        padding: isMobile
-          ? { top: 60, bottom: 20, left: 30, right: 30 }
-          : { top: 60, bottom: 60, left: 400, right: 60 },
+        padding: getMapFitPadding(),
         maxZoom: 15,
       });
     }

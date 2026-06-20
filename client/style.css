@@ -1693,7 +1693,8 @@ body {
   }
 
   .stops-timeline {
-    max-height: 200px;
+    max-height: none;
+    overflow-y: visible;
   }
 
   /* ── Footer ── */
@@ -1785,7 +1786,12 @@ body {
   /* ── Map controls pushed above sidebar ── */
   .maplibregl-ctrl-bottom-right,
   .maplibregl-ctrl-bottom-left {
-    bottom: 56vh !important;
+    bottom: calc(min(max(50vh, 260px), 64vh) + 12px) !important;
+  }
+
+  body.sidebar-collapsed .maplibregl-ctrl-bottom-right,
+  body.sidebar-collapsed .maplibregl-ctrl-bottom-left {
+    bottom: 10px !important;
   }
 
   .maplibregl-ctrl-top-right {
