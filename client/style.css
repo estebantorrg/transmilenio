@@ -98,26 +98,93 @@ body {
 
 .loading-overlay {
   position: fixed;
-  inset: 0;
+  top: 16px;
+  right: 16px;
   z-index: 9999;
-  display: none; /* Hidden by default to avoid corny loading screen */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 14px 16px;
+  background: rgba(20, 20, 20, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out), visibility 0.4s;
+  width: 320px;
+  pointer-events: none; /* Allow map interaction during load */
+}
+
+/* Hide logo and title in compact card mode */
+.loading-overlay:not(.error-state) .loading-logo,
+.loading-overlay:not(.error-state) .loading-title {
+  display: none;
+}
+
+.loading-overlay:not(.error-state) .loading-content {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+  padding: 0;
+  width: 100%;
+}
+
+.loading-overlay:not(.error-state) .loading-subtitle {
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  max-width: none;
+  margin-bottom: 8px;
+}
+
+.loading-overlay:not(.error-state) .loading-bar {
+  margin-top: 0;
+  width: 100%;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.loading-overlay:not(.error-state) .loading-bar-fill {
+  background: var(--tm-red);
+}
+
+/* Error state - expands to full-screen blocking overlay */
+.loading-overlay.error-state {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
   align-items: center;
   justify-content: center;
   background: var(--bg-primary);
-  transition: opacity 0.5s var(--ease-out), visibility 0.5s;
+  pointer-events: auto; /* Block interactions */
+  border: none;
+  border-radius: 0;
+  backdrop-filter: none;
 }
 
-.loading-overlay.error-state {
-  display: flex; /* Display only if error */
+.loading-overlay.error-state .loading-logo {
+  display: block;
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  margin-bottom: 22px;
+  opacity: 0.97;
 }
 
-.loading-overlay.fade-out {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
+.loading-overlay.error-state .loading-title {
+  display: block;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  margin-bottom: 6px;
 }
 
-.loading-content {
+.loading-overlay.error-state .loading-content {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -125,10 +192,21 @@ body {
   padding: 0 24px;
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.loading-overlay.error-state .loading-subtitle {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  max-width: 280px;
+}
+
+.loading-overlay.error-state .loading-bar {
+  display: none; /* Hide loading bar on error */
+}
+
+.loading-overlay.fade-out {
+  opacity: 0;
+  transform: translateY(-20px);
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .loading-logo {
