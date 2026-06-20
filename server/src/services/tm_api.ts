@@ -787,6 +787,9 @@ const CO_PROXY_READY_TIMEOUT_MS = 18_000;
 // Free CO proxies run 4.5–14s; be patient and race several so the fastest wins.
 const LIVE_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS || 14_000);
 const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH || 5);
+const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
+const LIVE_DESTINATION_MAX_LENGTH = 160;
+const LIVE_NAME_CANDIDATE_LIMIT = 12;
 
 interface LiveRequestContext {
   routeCode: string;
@@ -836,14 +839,19 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
+function normalizeLiveText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
 function createLiveRequestContext(
   ruta: string,
   nombre: string,
   routeType: 'troncal' | 'zonal' = 'troncal',
   candidateName = nombre
 ): LiveRequestContext {
-  const routeCode = String(ruta || '').trim();
-  const destinationName = String(candidateName || nombre || '').trim();
+  const routeCode = normalizeLiveText(ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
+  const destinationName = normalizeLiveText(candidateName || nombre, LIVE_DESTINATION_MAX_LENGTH);
   const isZonal = routeType === 'zonal';
 
   return {
@@ -860,7 +868,7 @@ function createLiveRequestContext(
 }
 
 function addUniqueLiveName(candidates: string[], value: unknown): void {
-  const text = String(value || '').trim();
+  const text = normalizeLiveText(value, LIVE_DESTINATION_MAX_LENGTH);
   if (!text) return;
 
   const parts = text.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
@@ -880,7 +888,8 @@ function buildLiveNameCandidates(nombre: string, nombreCandidates: string[] = []
   const candidates: string[] = [];
   for (const candidate of nombreCandidates) addUniqueLiveName(candidates, candidate);
   addUniqueLiveName(candidates, nombre);
-  return candidates.length > 0 ? candidates : [String(nombre || '').trim()];
+  return (candidates.length > 0 ? candidates : [normalizeLiveText(nombre, LIVE_DESTINATION_MAX_LENGTH)])
+    .slice(0, LIVE_NAME_CANDIDATE_LIMIT);
 }
 
 function getConfiguredColombiaRelayUrl(): string {

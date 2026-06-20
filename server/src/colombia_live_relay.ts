@@ -13,6 +13,9 @@ const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 const EGRESS_CACHE_MS = 30_000;
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
 const JSON_BODY_LIMIT = '64kb';
+const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
+const LIVE_DESTINATION_MAX_LENGTH = 160;
+const LIVE_NAME_CANDIDATE_LIMIT = 12;
 
 const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type === 'entity.too.large') {
@@ -135,17 +138,24 @@ function makeLiveContext(
   destinationName: string,
   routeType: 'troncal' | 'zonal'
 ): LiveRequestContext {
+  const cleanRouteCode = normalizeLiveText(routeCode, LIVE_ROUTE_CODE_MAX_LENGTH);
+  const cleanDestinationName = normalizeLiveText(destinationName, LIVE_DESTINATION_MAX_LENGTH);
   const isZonal = routeType === 'zonal';
   return {
-    routeCode,
-    destinationName,
+    routeCode: cleanRouteCode,
+    destinationName: cleanDestinationName,
     routeType,
     isZonal,
     targetPath: isZonal
-      ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}`
+      ? `/location/ruta?ruta=${encodeURIComponent(cleanRouteCode)}`
       : '/buses',
-    postData: isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName }),
+    postData: isZonal ? '' : JSON.stringify({ ruta: cleanRouteCode, Nombre: cleanDestinationName }),
   };
+}
+
+function normalizeLiveText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
 /**
@@ -156,18 +166,19 @@ function makeLiveContext(
  */
 function createLiveRequestContexts(body: any): LiveRequestContext[] {
   const routeType = body?.type === 'zonal' || body?.action === 'zonal' ? 'zonal' : 'troncal';
-  const routeCode = String(body?.ruta || '').trim();
+  const routeCode = normalizeLiveText(body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
 
   if (routeType === 'zonal') {
     return [makeLiveContext(routeCode, '', 'zonal')];
   }
 
-  const primary = String(body?.Nombre ?? body?.nombre ?? '').trim();
+  const primary = normalizeLiveText(body?.Nombre ?? body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
   const raw = Array.isArray(body?.nombreCandidates) ? body.nombreCandidates : [];
   const names: string[] = [];
   for (const value of [...raw, primary]) {
-    const name = String(value || '').trim();
+    const name = normalizeLiveText(value, LIVE_DESTINATION_MAX_LENGTH);
     if (name && !names.some((n) => n.toLowerCase() === name.toLowerCase())) names.push(name);
+    if (names.length >= LIVE_NAME_CANDIDATE_LIMIT) break;
   }
   const list = names.length ? names : [''];
   return list.map((name) => makeLiveContext(routeCode, name, 'troncal'));

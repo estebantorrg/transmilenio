@@ -21,6 +21,29 @@ const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
  */
 const liveBusCache = new Map<string, { buses: any[]; at: number }>();
 const LIVE_BUS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
+const LIVE_DESTINATION_MAX_LENGTH = 160;
+const LIVE_NAME_CANDIDATE_LIMIT = 12;
+
+function normalizeRequestText(value: unknown, maxLength: number): string {
+  if (typeof value !== 'string' && typeof value !== 'number') return '';
+  return String(value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
+}
+
+function normalizeLiveNameCandidates(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  const candidates: string[] = [];
+  for (const item of value) {
+    const name = normalizeRequestText(item, LIVE_DESTINATION_MAX_LENGTH);
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    candidates.push(name);
+    if (candidates.length >= LIVE_NAME_CANDIDATE_LIMIT) break;
+  }
+  return candidates;
+}
 
 async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promise<any> {
   const cached = cache.get(key);
@@ -208,16 +231,17 @@ router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
 });
 
 router.post('/buses', async (req: Request, res: Response) => {
-  const ruta = req.body.ruta;
-  const nombre = req.body.Nombre ?? req.body.nombre ?? '';
-  const nombreCandidates = Array.isArray(req.body.nombreCandidates) ? req.body.nombreCandidates : [];
+  const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
+  const nombre = normalizeRequestText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
+  const nombreCandidates = normalizeLiveNameCandidates(req.body?.nombreCandidates);
   const routeType: 'troncal' | 'zonal' = req.body.type === 'zonal' ? 'zonal' : 'troncal';
-  const cacheKey = `${routeType}:${ruta}`;
 
   if (!ruta) {
     res.status(400).json({ success: false, error: 'ruta is required' });
     return;
   }
+
+  const cacheKey = `${routeType}:${ruta}`;
 
   try {
     console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}" type=${routeType}`);
