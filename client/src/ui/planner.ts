@@ -729,11 +729,11 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
 
 function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
   const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-  const sidebarWidth = sidebarCollapsed ? 48 : Math.min(360, window.innerWidth - 24);
+  const sidebarWidth = sidebarCollapsed ? 0 : Math.min(360, window.innerWidth - 24);
   return {
     top: 60,
     bottom: 60,
-    left: sidebarCollapsed ? 72 : Math.min(sidebarWidth + 40, window.innerWidth - 60),
+    left: sidebarCollapsed ? 28 : Math.min(sidebarWidth + 40, window.innerWidth - 60),
     right: 60,
   };
 }

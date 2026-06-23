@@ -417,7 +417,7 @@ body {
 }
 
 .sidebar.collapsed {
-  transform: translateX(calc(-100% + 48px));
+  transform: translateX(calc(-100% - 14px));
 }
 
 .sidebar-header {
@@ -482,6 +482,48 @@ body {
 
 .sidebar.collapsed .sidebar-toggle svg {
   transform: rotate(180deg);
+}
+
+/* ─── Sidebar FAB (re-open button) ────────────────────── */
+
+.sidebar-fab {
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 99;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-12px) scale(0.9);
+  transition: opacity var(--transition-medium), transform var(--transition-medium);
+}
+
+body.sidebar-collapsed .sidebar-fab {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0) scale(1);
+}
+
+.sidebar-fab:hover {
+  background: var(--bg-hover);
+  border-color: var(--tm-red);
+  box-shadow: var(--shadow-glow);
+}
+
+.sidebar-fab:active {
+  transform: scale(0.93);
 }
 
 /* ─── Search ──────────────────────────────────────────── */
