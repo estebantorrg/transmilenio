@@ -45,13 +45,101 @@ function getEndpointElements(endpoint: PlannerEndpoint): {
   };
 }
 
+function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'loading' | 'error' | 'no-results'): string {
+  switch (type) {
+    case 'default':
+      return `
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 48C16 48 24 24 36 24C48 24 48 16 48 16" stroke="url(#route-grad-default)" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 4" class="empty-route-path" />
+          <circle cx="16" cy="48" r="7" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="3" />
+          <circle cx="16" cy="48" r="3" fill="var(--tm-green)" />
+          <circle cx="48" cy="16" r="7" fill="#1C1E22" stroke="var(--tm-red-light)" stroke-width="3" />
+          <circle cx="48" cy="16" r="3" fill="var(--tm-red-light)" />
+          <circle cx="36" cy="24" r="4" fill="#1C1E22" stroke="var(--tm-yellow)" stroke-width="2" />
+          <defs>
+            <linearGradient id="route-grad-default" x1="16" y1="48" x2="48" y2="16" gradientUnits="userSpaceOnUse">
+              <stop stop-color="var(--tm-green)" />
+              <stop offset="0.5" stop-color="var(--tm-yellow)" />
+              <stop offset="1" stop-color="var(--tm-red-light)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    case 'incomplete':
+      return `
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="28" fill="rgba(239, 68, 68, 0.05)" stroke="rgba(239, 68, 68, 0.15)" stroke-width="2" />
+          <path d="M16 48C18 42 22 38 26 38M38 32C42 30 46 26 48 16" stroke="rgba(255,255,255,0.15)" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 4" />
+          <circle cx="16" cy="48" r="6" fill="#1C1E22" stroke="rgba(255,255,255,0.3)" stroke-width="2" />
+          <circle cx="48" cy="16" r="6" fill="#1C1E22" stroke="rgba(255,255,255,0.3)" stroke-width="2" />
+          <path d="M32 20V36M32 44H32.02" stroke="var(--tm-red-light)" stroke-width="4" stroke-linecap="round" />
+        </svg>
+      `;
+    case 'close':
+      return `
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="32" r="16" fill="rgba(93, 181, 123, 0.08)" stroke="rgba(93, 181, 123, 0.2)" stroke-width="2" />
+          <circle cx="40" cy="32" r="16" fill="rgba(255, 90, 110, 0.08)" stroke="rgba(255, 90, 110, 0.2)" stroke-width="2" />
+          <path d="M26 32H38" stroke="url(#route-grad-close)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 3" class="empty-route-path" />
+          <circle cx="24" cy="32" r="6" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="2" />
+          <circle cx="40" cy="32" r="6" fill="#1C1E22" stroke="var(--tm-red-light)" stroke-width="2" />
+          <path d="M32 18 L35 22 M32 18 L29 22 M32 18 V26" stroke="var(--text-secondary)" stroke-width="2" stroke-linecap="round" />
+          <defs>
+            <linearGradient id="route-grad-close" x1="24" y1="32" x2="40" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="var(--tm-green)" />
+              <stop offset="1" stop-color="var(--tm-red-light)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    case 'loading':
+      return `
+        <svg class="planner-illustration loading-route-svg" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="24" stroke="rgba(216, 16, 45, 0.1)" stroke-width="4" />
+          <circle cx="32" cy="32" r="24" stroke="url(#loading-grad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="40 100" class="loading-circle-glow" />
+          <path d="M20 40C20 40 26 28 34 28C42 28 44 24 44 24" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 3" />
+          <circle cx="20" cy="40" r="5" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="2" />
+          <circle cx="44" cy="24" r="5" fill="#1C1E22" stroke="var(--tm-red-light)" stroke-width="2" />
+          <defs>
+            <linearGradient id="loading-grad" x1="8" y1="32" x2="56" y2="32" gradientUnits="userSpaceOnUse">
+              <stop stop-color="var(--tm-red)" />
+              <stop offset="1" stop-color="var(--tm-red-light)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      `;
+    case 'error':
+      return `
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="28" fill="rgba(239, 68, 68, 0.05)" stroke="rgba(239, 68, 68, 0.15)" stroke-width="2" />
+          <path d="M22 22 L42 42 M42 22 L22 42" stroke="var(--tm-red-light)" stroke-width="4" stroke-linecap="round" />
+        </svg>
+      `;
+    case 'no-results':
+      return `
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M16 48C20 44 24 44 28 44" stroke="rgba(255, 90, 110, 0.3)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4" />
+          <path d="M36 36C40 36 44 32 48 16" stroke="rgba(93, 181, 123, 0.3)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4" />
+          <circle cx="16" cy="48" r="6" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="2" />
+          <circle cx="48" cy="16" r="6" fill="#1C1E22" stroke="var(--tm-red-light)" stroke-width="2" />
+          <circle cx="34" cy="30" r="10" stroke="var(--text-secondary)" stroke-width="2" />
+          <path d="M41 37 L47 43" stroke="var(--text-secondary)" stroke-width="2" stroke-linecap="round" />
+        </svg>
+      `;
+  }
+}
+
 function renderPlannerPrompt(message = 'Elige tu origen y destino para encontrar la mejor ruta en TransMilenio y SITP.'): void {
   const resultsContainer = document.getElementById('planner-results');
   if (!resultsContainer) return;
 
+  const isDefault = message.includes('Elige tu origen y destino') || message.includes('Planifica tu viaje');
+  const type = isDefault ? 'default' : 'incomplete';
+
   resultsContainer.innerHTML = `
     <div class="planner-empty-state">
-      <div class="card-empty-title">Planifica tu viaje</div>
+      ${getEmptyStateIllustration(type)}
+      <div class="card-empty-title">${isDefault ? 'Planifica tu viaje' : 'Selección requerida'}</div>
       <div class="card-empty-text">${escapeHTML(message)}</div>
     </div>
   `;
@@ -568,6 +656,7 @@ function calculateRoute(): void {
     clearJourneyPath(mapInstance);
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
+        ${getEmptyStateIllustration('incomplete')}
         <div class="card-empty-title" style="color: var(--tm-red-light);">Datos incompletos</div>
         <div class="card-empty-text">Por favor selecciona un origen y destino válidos.</div>
       </div>
@@ -583,6 +672,7 @@ function calculateRoute(): void {
     clearJourneyPath(mapInstance);
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
+        ${getEmptyStateIllustration('close')}
         <div class="card-empty-title">Estás muy cerca</div>
         <div class="card-empty-text">El origen y el destino están en el mismo lugar. ¡Corta caminata!</div>
       </div>
@@ -593,7 +683,7 @@ function calculateRoute(): void {
   btnCalculate.classList.add('loading');
   resultsContainer.innerHTML = `
     <div class="planner-empty-state">
-      <span class="footer-action-spinner visible" aria-hidden="true"></span>
+      ${getEmptyStateIllustration('loading')}
       <div class="card-empty-title" style="margin-top: 10px;">Calculando la mejor ruta...</div>
       <div class="card-empty-text">Buscando conexiones en TransMilenio y SITP.</div>
     </div>
@@ -635,6 +725,7 @@ function calculateRoute(): void {
       btnCalculate.classList.remove('loading');
       resultsContainer.innerHTML = `
         <div class="planner-empty-state">
+          ${getEmptyStateIllustration('error')}
           <div class="card-empty-title" style="color: var(--tm-red-light);">Error de cálculo</div>
           <div class="card-empty-text">Ocurrió un error al buscar las rutas. Inténtalo de nuevo.</div>
         </div>
@@ -649,6 +740,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
   if (plans.length === 0) {
     container.innerHTML = `
       <div class="planner-empty-state">
+        ${getEmptyStateIllustration('no-results')}
         <div class="card-empty-title">Sin rutas encontradas</div>
         <div class="card-empty-text">No se pudo encontrar una conexión entre el origen y destino seleccionados con los filtros actuales.</div>
       </div>

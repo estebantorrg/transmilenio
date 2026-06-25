@@ -131,6 +131,7 @@
     <!-- Planner Panel -->
     <div id="planner-panel" class="planner-panel hidden">
       <div class="planner-inputs">
+        <div class="planner-inputs-connector"></div>
         <div class="input-group">
           <div class="input-label-row">
             <label for="plan-origin-input">Desde</label>
@@ -143,6 +144,7 @@
             </button>
           </div>
           <div class="input-wrapper">
+            <span class="input-prefix-icon origin-icon"></span>
             <input type="text" id="plan-origin-input" class="search-input" placeholder="Origen: estación, dirección o punto en mapa" autocomplete="off" />
             <button id="plan-origin-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
@@ -170,6 +172,7 @@
             </button>
           </div>
           <div class="input-wrapper">
+            <span class="input-prefix-icon destination-icon"></span>
             <input type="text" id="plan-destination-input" class="search-input" placeholder="Destino: estación, dirección o punto en mapa" autocomplete="off" />
             <button id="plan-destination-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
