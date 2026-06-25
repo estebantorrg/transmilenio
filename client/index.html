@@ -145,7 +145,7 @@
           </div>
           <div class="input-wrapper">
             <span class="input-prefix-icon origin-icon"></span>
-            <input type="text" id="plan-origin-input" class="search-input" placeholder="Origen: estación, dirección o punto en mapa" autocomplete="off" />
+            <input type="text" id="plan-origin-input" class="search-input" placeholder="Estación, dirección o mapa..." autocomplete="off" />
             <button id="plan-origin-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
@@ -173,7 +173,7 @@
           </div>
           <div class="input-wrapper">
             <span class="input-prefix-icon destination-icon"></span>
-            <input type="text" id="plan-destination-input" class="search-input" placeholder="Destino: estación, dirección o punto en mapa" autocomplete="off" />
+            <input type="text" id="plan-destination-input" class="search-input" placeholder="Estación, dirección o mapa..." autocomplete="off" />
             <button id="plan-destination-clear" class="search-clear hidden" type="button">✕</button>
             <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
@@ -186,20 +186,34 @@
 
       <div class="planner-options">
         <div class="planner-option-row">
-          <label for="plan-transport-mode">Transporte</label>
-          <select id="plan-transport-mode" class="planner-select">
-            <option value="mix">Todos (Mixto SITP/TM)</option>
-            <option value="troncal">Solo TransMilenio</option>
-            <option value="zonal">Solo SITP Zonal</option>
-          </select>
+          <label>Transporte</label>
+          <div class="custom-dropdown" id="dropdown-transport">
+            <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="custom-dropdown-label">Todos (Mixto SITP/TM)</span>
+              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <ul class="custom-dropdown-menu hidden" role="listbox">
+              <li class="custom-dropdown-item selected" role="option" data-value="mix">Todos (Mixto SITP/TM)</li>
+              <li class="custom-dropdown-item" role="option" data-value="troncal">Solo TransMilenio</li>
+              <li class="custom-dropdown-item" role="option" data-value="zonal">Solo SITP Zonal</li>
+            </ul>
+            <input type="hidden" id="plan-transport-mode" value="mix" />
+          </div>
         </div>
         <div class="planner-option-row">
-          <label for="plan-preference">Preferencia</label>
-          <select id="plan-preference" class="planner-select">
-            <option value="transfers" selected>Menos transbordos</option>
-            <option value="time">Más rápido (Tiempo)</option>
-            <option value="walk">Caminar lo menos posible</option>
-          </select>
+          <label>Preferencia</label>
+          <div class="custom-dropdown" id="dropdown-preference">
+            <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span class="custom-dropdown-label">Menos transbordos</span>
+              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+            </button>
+            <ul class="custom-dropdown-menu hidden" role="listbox">
+              <li class="custom-dropdown-item selected" role="option" data-value="transfers">Menos transbordos</li>
+              <li class="custom-dropdown-item" role="option" data-value="time">Más rápido (Tiempo)</li>
+              <li class="custom-dropdown-item" role="option" data-value="walk">Caminar lo menos posible</li>
+            </ul>
+            <input type="hidden" id="plan-preference" value="transfers" />
+          </div>
         </div>
       </div>
 

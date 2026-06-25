@@ -261,6 +261,67 @@ export function initPlanner(
 
   // Setup map click listener for picking coordinates
   initMapClickListener();
+
+  // Setup custom dropdown selects
+  initCustomDropdowns();
+}
+
+function initCustomDropdowns(): void {
+  const dropdowns = document.querySelectorAll('.custom-dropdown');
+  
+  dropdowns.forEach((dropdown) => {
+    const trigger = dropdown.querySelector('.custom-dropdown-trigger') as HTMLButtonElement;
+    const menu = dropdown.querySelector('.custom-dropdown-menu') as HTMLElement;
+    const items = dropdown.querySelectorAll('.custom-dropdown-item');
+    const hiddenInput = dropdown.querySelector('input[type="hidden"]') as HTMLInputElement;
+
+    if (!trigger || !menu || !hiddenInput) return;
+
+    trigger.addEventListener('click', (e) => {
+      e.stopPropagation();
+      
+      // Close other dropdowns
+      document.querySelectorAll('.custom-dropdown-menu').forEach((otherMenu) => {
+        if (otherMenu !== menu) otherMenu.classList.add('hidden');
+      });
+      document.querySelectorAll('.custom-dropdown-trigger').forEach((otherTrigger) => {
+        if (otherTrigger !== trigger) otherTrigger.setAttribute('aria-expanded', 'false');
+      });
+
+      const isExpanded = trigger.getAttribute('aria-expanded') === 'true';
+      trigger.setAttribute('aria-expanded', String(!isExpanded));
+      menu.classList.toggle('hidden');
+    });
+
+    items.forEach((item) => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const li = item as HTMLElement;
+        const val = li.dataset.value || '';
+        const label = li.textContent || '';
+
+        hiddenInput.value = val;
+        
+        const labelEl = trigger.querySelector('.custom-dropdown-label');
+        if (labelEl) labelEl.textContent = label;
+
+        items.forEach((i) => i.classList.remove('selected'));
+        li.classList.add('selected');
+
+        trigger.setAttribute('aria-expanded', 'false');
+        menu.classList.add('hidden');
+
+        // Trigger planner calculation if input changed
+        invalidatePlannerResults();
+      });
+    });
+  });
+
+  // Close dropdown on outside click
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-dropdown-menu').forEach((menu) => menu.classList.add('hidden'));
+    document.querySelectorAll('.custom-dropdown-trigger').forEach((trigger) => trigger.setAttribute('aria-expanded', 'false'));
+  });
 }
 
 /**
@@ -690,8 +751,8 @@ function calculateRoute(): void {
   `;
 
   // Read configurations
-  const mode = (document.getElementById('plan-transport-mode') as HTMLSelectElement).value as 'mix' | 'troncal' | 'zonal';
-  const preference = (document.getElementById('plan-preference') as HTMLSelectElement).value as 'transfers' | 'time' | 'walk';
+  const mode = (document.getElementById('plan-transport-mode') as HTMLInputElement).value as 'mix' | 'troncal' | 'zonal';
+  const preference = (document.getElementById('plan-preference') as HTMLInputElement).value as 'transfers' | 'time' | 'walk';
   const minWalk = preference === 'walk';
   const sortBy = preference;
 
