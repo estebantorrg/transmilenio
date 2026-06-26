@@ -612,6 +612,7 @@ export function updateCounts(counts: {
   stations: number;
   stops: number;
   cable?: number;
+  cableStations?: number;
 }): void {
   document.getElementById('count-troncal')!.textContent = counts.troncal.toString();
   document.getElementById('count-zonal')!.textContent = counts.zonal.toString();
@@ -620,6 +621,10 @@ export function updateCounts(counts: {
   const cableEl = document.getElementById('count-cable');
   if (cableEl && counts.cable !== undefined) {
     cableEl.textContent = counts.cable.toString();
+  }
+  const cableStationsEl = document.getElementById('count-cable-stations');
+  if (cableStationsEl && counts.cableStations !== undefined) {
+    cableStationsEl.textContent = counts.cableStations.toString();
   }
 }
 

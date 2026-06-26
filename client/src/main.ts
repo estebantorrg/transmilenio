@@ -10,7 +10,7 @@ import { createMap, initMapImages } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
-import { addCableLayers, toggleCableLayers, bringCableLayersToFront } from './layers/cable';
+import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -817,6 +817,7 @@ async function main(): Promise<void> {
   let stationCount = 0;
   let stopsCount = 0;
   let cableStationsCount = 0;
+  let cableTracesCount = 0;
 
   let activeRouteId: string | null = null;
 
@@ -896,6 +897,7 @@ async function main(): Promise<void> {
 
     addCableLayers(map, cableStations, cableTraces);
     cableStationsCount = cableStations.length;
+    cableTracesCount = cableTraces.length;
 
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
@@ -1022,6 +1024,9 @@ async function main(): Promise<void> {
         case 'cable':
           toggleCableLayers(map, visible);
           break;
+        case 'cable-stations':
+          toggleCableStationsLayer(map, visible);
+          break;
       }
 
       // ─── Force Global Hierarchy ───────────────────────────────────
@@ -1061,7 +1066,8 @@ async function main(): Promise<void> {
     zonal: routeCounts.zonal,
     stations: stationCount,
     stops: stopsCount,
-    cable: cableStationsCount,
+    cable: cableTracesCount,
+    cableStations: cableStationsCount,
   });
 
   // 4. Done with initial render!
@@ -1135,7 +1141,8 @@ async function main(): Promise<void> {
           zonal: routeCounts.zonal,
           stations: stationCount,
           stops: stopsCount,
-          cable: cableStationsCount,
+          cable: cableTracesCount,
+          cableStations: cableStationsCount,
         });
 
         // Rebuild the routing graph with the fully enriched zonal stops.

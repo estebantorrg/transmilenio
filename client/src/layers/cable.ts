@@ -157,7 +157,19 @@ export function addCableLayers(
 
 export function toggleCableLayers(map: maplibregl.Map, visible: boolean): void {
   const visibility = visible ? 'visible' : 'none';
-  CABLE_LAYERS.forEach((id) => {
+  if (map.getLayer('cable-traces-line')) {
+    map.setLayoutProperty('cable-traces-line', 'visibility', visibility);
+  }
+}
+
+export function toggleCableStationsLayer(map: maplibregl.Map, visible: boolean): void {
+  const visibility = visible ? 'visible' : 'none';
+  const stationLayers = [
+    'cable-stations-circle',
+    'cable-stations-hitbox',
+    'cable-stations-labels',
+  ];
+  stationLayers.forEach((id) => {
     if (map.getLayer(id)) {
       map.setLayoutProperty(id, 'visibility', visibility);
     }

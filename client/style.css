@@ -672,6 +672,10 @@ body.sidebar-collapsed .sidebar-fab {
   background: #f97316;
 }
 
+.toggle-item input:checked ~ .toggle-check.check-cable-stations {
+  background: #f97316;
+}
+
 .toggle-text {
   flex: 1;
   min-width: 0;
