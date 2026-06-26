@@ -1,8 +1,11 @@
 import maplibregl from 'maplibre-gl';
+import { showPopup } from './popup';
+import { escapeHTML } from '../utils/html';
 
 const CABLE_LAYERS = [
   'cable-traces-line',
   'cable-stations-circle',
+  'cable-stations-hitbox',
   'cable-stations-labels',
 ];
 
@@ -17,7 +20,7 @@ export function addCableLayers(
       type: 'Feature',
       properties: {
         id: t.attributes?.objectid,
-        name: t.attributes?.nom_traz || 'Trazado Cable',
+        name: t.attributes?.nom_traz || 'Trazado TransMiCable',
         origin: t.attributes?.origen || '',
         destination: t.attributes?.destino || '',
       },
@@ -56,8 +59,8 @@ export function addCableLayers(
       type: 'Feature',
       properties: {
         id: s.attributes?.objectid,
-        name: s.attributes?.nom_est || 'Estación de Cable',
-        code: s.attributes?.cod_nodo,
+        name: s.attributes?.nom_est || 'Estación TransMiCable',
+        code: s.attributes?.cod_nodo || '',
         number: s.attributes?.num_est,
       },
       geometry: {
@@ -86,6 +89,18 @@ export function addCableLayers(
     },
   });
 
+  // Invisible hitbox for click detection
+  map.addLayer({
+    id: 'cable-stations-hitbox',
+    type: 'circle',
+    source: 'cable-stations',
+    paint: {
+      'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 26],
+      'circle-color': '#000000',
+      'circle-opacity': 0,
+    },
+  });
+
   map.addLayer({
     id: 'cable-stations-labels',
     type: 'symbol',
@@ -105,6 +120,38 @@ export function addCableLayers(
       'text-halo-width': 1.5,
       'text-opacity': ['interpolate', ['linear'], ['zoom'], 13, 0.6, 15, 1],
     },
+  });
+
+  // 3. Click handler — show station popup
+  map.on('click', 'cable-stations-hitbox', (e) => {
+    const feature = e.features?.[0];
+    if (!feature || !feature.properties) return;
+
+    const p = feature.properties;
+    const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
+
+    const html = `
+      <div class="popup-card">
+        <div class="popup-eyebrow">TransMiCable</div>
+        <div class="popup-title">${escapeHTML(p.name)}</div>
+        ${p.code ? `<div class="popup-meta"><span>${escapeHTML(p.code)}</span></div>` : ''}
+        <div class="popup-cable-info">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>Las cabinas pasan aproximadamente cada 20 segundos, tanto para subir como para bajar.</span>
+        </div>
+      </div>
+    `;
+
+    showPopup(map, coords, html, { offset: 12, maxWidth: '300px' });
+  });
+
+  map.on('mouseenter', 'cable-stations-hitbox', () => {
+    map.getCanvas().style.cursor = 'pointer';
+  });
+  map.on('mouseleave', 'cable-stations-hitbox', () => {
+    map.getCanvas().style.cursor = '';
   });
 }
 

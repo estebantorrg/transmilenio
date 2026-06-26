@@ -841,8 +841,8 @@ async function main(): Promise<void> {
       api.getTroncalRoutes().then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
       api.getTroncalCorridors().then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
       api.getTroncalStations().then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
-      api.getCableStations().then((res) => { incrementProgress(5, 'Descargando estaciones cable...'); return res; }),
-      api.getCableTrazado().then((res) => { incrementProgress(5, 'Descargando trazado cable...'); return res; }),
+      api.getCableStations().then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
+      api.getCableTrazado().then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
       api.getMasterCatalog().then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
