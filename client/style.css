@@ -668,6 +668,10 @@ body.sidebar-collapsed .sidebar-fab {
   background: #34c759;
 }
 
+.toggle-item input:checked ~ .toggle-check.check-cable {
+  background: #f97316;
+}
+
 .toggle-text {
   flex: 1;
   min-width: 0;

@@ -611,11 +611,16 @@ export function updateCounts(counts: {
   zonal: number;
   stations: number;
   stops: number;
+  cable?: number;
 }): void {
   document.getElementById('count-troncal')!.textContent = counts.troncal.toString();
   document.getElementById('count-zonal')!.textContent = counts.zonal.toString();
   document.getElementById('count-stations')!.textContent = counts.stations.toString();
   document.getElementById('count-stops')!.textContent = counts.stops.toString();
+  const cableEl = document.getElementById('count-cable');
+  if (cableEl && counts.cable !== undefined) {
+    cableEl.textContent = counts.cable.toString();
+  }
 }
 
 export function selectRouteByCode(code: string): boolean {

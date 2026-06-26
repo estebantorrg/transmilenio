@@ -160,6 +160,12 @@ export const api = {
   getZonalStopRoutes: () =>
     fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
 
+  getCableStations: () =>
+    fetchJson<ApiResponse<any>>('/cable/stations'),
+
+  getCableTrazado: () =>
+    fetchJson<ApiResponse<any>>('/cable/trazado'),
+
   getMasterCatalog: () =>
     fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),
 

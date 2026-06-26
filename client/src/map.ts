@@ -100,6 +100,7 @@ export async function initMapImages(map: maplibregl.Map): Promise<void> {
   const iconDefinitions = [
     { name: 'stop-red', color: '#EF4444' },
     { name: 'stop-blue', color: '#3B82F6' },
+    { name: 'stop-orange', color: '#F97316' },
   ];
 
   for (const def of iconDefinitions) {

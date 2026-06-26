@@ -10,6 +10,7 @@ import { createMap, initMapImages } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
+import { addCableLayers, toggleCableLayers, bringCableLayersToFront } from './layers/cable';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -815,6 +816,7 @@ async function main(): Promise<void> {
   let routeList: RouteListItem[] = [];
   let stationCount = 0;
   let stopsCount = 0;
+  let cableStationsCount = 0;
 
   let activeRouteId: string | null = null;
 
@@ -832,11 +834,15 @@ async function main(): Promise<void> {
       troncalRoutesResult,
       corridorsResult,
       stationsResult,
+      cableStationsResult,
+      cableTracesResult,
       catalogResult,
     ] = await Promise.allSettled([
       api.getTroncalRoutes().then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
-      api.getTroncalCorridors().then((res) => { incrementProgress(10, 'Descargando corredores...'); return res; }),
-      api.getTroncalStations().then((res) => { incrementProgress(10, 'Descargando estaciones...'); return res; }),
+      api.getTroncalCorridors().then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
+      api.getTroncalStations().then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
+      api.getCableStations().then((res) => { incrementProgress(5, 'Descargando estaciones cable...'); return res; }),
+      api.getCableTrazado().then((res) => { incrementProgress(5, 'Descargando trazado cable...'); return res; }),
       api.getMasterCatalog().then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
@@ -844,14 +850,20 @@ async function main(): Promise<void> {
     const troncalRoutesRes = optionalFeatures('Troncal routes', troncalRoutesResult);
     const corridorsRes = optionalFeatures('Troncal corridors', corridorsResult);
     const stationsRes = optionalFeatures('Troncal stations', stationsResult);
+    const cableStationsRes = optionalFeatures('Cable stations', cableStationsResult);
+    const cableTracesRes = optionalFeatures('Cable traces', cableTracesResult);
 
     troncalRoutes = troncalRoutesRes.features;
     const stations = stationsRes.features.filter(isVisibleTroncalStation);
+    const cableStations = cableStationsRes.features || [];
+    const cableTraces = cableTracesRes.features || [];
     catalog = catalogRes.data || { stations: {}, routes: {} };
     
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stations.length}`);
+    console.log(`✅ Cable stations: ${cableStations.length}`);
+    console.log(`✅ Cable traces: ${cableTraces.length}`);
     console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
 
     // Set catalog for station popups, and index route service types so popups
@@ -882,9 +894,13 @@ async function main(): Promise<void> {
 
     addStopsLayer(map, [], new Map());
 
+    addCableLayers(map, cableStations, cableTraces);
+    cableStationsCount = cableStations.length;
+
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
     bringStopsLayerToFront(map);
+    bringCableLayersToFront(map);
   } catch (error) {
     console.error('❌ Error loading data:', error);
     const overlay = document.getElementById('loading-overlay');
@@ -1003,6 +1019,9 @@ async function main(): Promise<void> {
         case 'stops':
           toggleStopsLayer(map, visible);
           break;
+        case 'cable':
+          toggleCableLayers(map, visible);
+          break;
       }
 
       // ─── Force Global Hierarchy ───────────────────────────────────
@@ -1012,6 +1031,7 @@ async function main(): Promise<void> {
       bringTroncalLayersToFront(map);
       bringStationsLayerToFront(map);
       bringStopsLayerToFront(map);
+      bringCableLayersToFront(map);
     },
   });
 
@@ -1041,6 +1061,7 @@ async function main(): Promise<void> {
     zonal: routeCounts.zonal,
     stations: stationCount,
     stops: stopsCount,
+    cable: cableStationsCount,
   });
 
   // 4. Done with initial render!
@@ -1114,6 +1135,7 @@ async function main(): Promise<void> {
           zonal: routeCounts.zonal,
           stations: stationCount,
           stops: stopsCount,
+          cable: cableStationsCount,
         });
 
         // Rebuild the routing graph with the fully enriched zonal stops.

@@ -230,6 +230,30 @@ router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
   }
 });
 
+// ─── Cable Endpoints ──────────────────────────────────────
+
+router.get('/cable/stations', async (_req: Request, res: Response) => {
+  try {
+    const features = await getCachedOrFetch('cable-stations', queries.cableStations);
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json({ success: true, count: features.length, features });
+  } catch (error) {
+    console.error('Error fetching cable stations:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch cable stations' });
+  }
+});
+
+router.get('/cable/trazado', async (_req: Request, res: Response) => {
+  try {
+    const features = await getCachedOrFetch('cable-traces', queries.cableTraces);
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.json({ success: true, count: features.length, features });
+  } catch (error) {
+    console.error('Error fetching cable traces:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch cable traces' });
+  }
+});
+
 router.post('/buses', async (req: Request, res: Response) => {
   const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
   const nombre = normalizeRequestText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);

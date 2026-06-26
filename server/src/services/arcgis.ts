@@ -134,4 +134,18 @@ export const queries = {
       outFields: 'cenefa,ruta',
       returnGeometry: false,
     }),
+
+  cableStations: () =>
+    queryFeatureLayer({
+      folder: 'ConsultaSubgerenciaPlanificacionSITP',
+      service: 'Consulta_Planificacion_SITP',
+      layerIndex: 11,
+    }),
+
+  cableTraces: () =>
+    queryFeatureLayer({
+      folder: 'ConsultaSubgerenciaPlanificacionSITP',
+      service: 'Consulta_Planificacion_SITP',
+      layerIndex: 14,
+    }),
 };
