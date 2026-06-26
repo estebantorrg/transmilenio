@@ -291,6 +291,10 @@ export function highlightRoute(
   if (map.getLayer('stops-circle')) map.setPaintProperty('stops-circle', 'icon-opacity', 0.25);
   if (map.getLayer('stops-labels')) map.setPaintProperty('stops-labels', 'text-opacity', 0.2);
 
+  if (map.getLayer('cable-traces-line')) map.setPaintProperty('cable-traces-line', 'line-opacity', 0.1);
+  if (map.getLayer('cable-stations-circle')) map.setPaintProperty('cable-stations-circle', 'icon-opacity', 0.25);
+  if (map.getLayer('cable-stations-labels')) map.setPaintProperty('cable-stations-labels', 'text-opacity', 0.2);
+
   let sourceId = `${type}-routes`;
   let filter: any[] = ['==', ['get', 'code'], routeCode];
 
@@ -381,4 +385,8 @@ export function clearHighlight(map: maplibregl.Map): void {
   if (map.getLayer('stations-labels')) map.setPaintProperty('stations-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 14, 0.6, 16, 1]);
   if (map.getLayer('stops-circle')) map.setPaintProperty('stops-circle', 'icon-opacity', 1);
   if (map.getLayer('stops-labels')) map.setPaintProperty('stops-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 16, 0.5, 17, 0.9]);
+
+  if (map.getLayer('cable-traces-line')) map.setPaintProperty('cable-traces-line', 'line-opacity', 0.85);
+  if (map.getLayer('cable-stations-circle')) map.setPaintProperty('cable-stations-circle', 'icon-opacity', 1);
+  if (map.getLayer('cable-stations-labels')) map.setPaintProperty('cable-stations-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 13, 0.6, 15, 1]);
 }
