@@ -604,23 +604,23 @@ body.sidebar-collapsed .sidebar-fab {
   width: 100%;
   background: none;
   border: none;
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
   margin-bottom: 8px;
   padding: 0;
   cursor: pointer;
   transition: color var(--transition-fast);
 }
 
-.layer-toggles-title:hover {
+.layer-toggles-title:hover .layer-toggles-chevron {
   color: var(--text-secondary);
 }
 
 .layer-toggles-chevron {
-  transition: transform var(--transition-medium);
+  color: var(--text-tertiary);
+  transition: transform var(--transition-medium), color var(--transition-fast);
 }
 
 .layer-toggles.collapsed .layer-toggles-chevron {
