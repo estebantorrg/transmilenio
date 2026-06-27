@@ -748,7 +748,7 @@ body.sidebar-collapsed .sidebar-fab {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px 6px;
+  padding: 18px 16px 8px;
 }
 
 .route-list-title {
