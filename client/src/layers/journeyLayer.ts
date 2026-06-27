@@ -284,8 +284,9 @@ const TRAMO_COLORS = [
 /**
  * Returns the hex color for a route code, or picks from tramo palette.
  */
-function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal'): string {
+function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal' | 'cable'): string {
   if (routeCode === 'walking') return '#38BDF8';
+  if (routeType === 'cable') return '#F97316'; // TransMiCable orange
 
   const dummyRoute: Partial<RouteListItem> = {
     code: routeCode,

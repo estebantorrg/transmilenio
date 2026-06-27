@@ -818,6 +818,7 @@ async function main(): Promise<void> {
   let stopsCount = 0;
   let cableStationsCount = 0;
   let cableTracesCount = 0;
+  let cableRouterStations: import('./services/router').CableStationInput[] = [];
 
   let activeRouteId: string | null = null;
 
@@ -898,6 +899,16 @@ async function main(): Promise<void> {
     addCableLayers(map, cableStations, cableTraces);
     cableStationsCount = cableStations.length;
     cableTracesCount = cableTraces.length;
+
+    // Build the cable-station list the router uses for the TransMiCable line.
+    cableRouterStations = cableStations
+      .map((s: any) => ({
+        codigo: String(s.attributes?.cod_nodo ?? ''),
+        nombre: s.attributes?.nom_est || 'TransMiCable',
+        coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)] as [number, number],
+        orden: Number(s.attributes?.num_est) || 0,
+      }))
+      .filter((s) => s.codigo && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]));
 
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
@@ -1076,7 +1087,7 @@ async function main(): Promise<void> {
   setTimeout(() => {
     hideLoading();
     getPlannerModule()
-      .then(({ initPlanner }) => initPlanner(map, routeList))
+      .then(({ initPlanner }) => initPlanner(map, routeList, cableRouterStations))
       .catch((error) => console.error('[Planner] Failed to load planner module:', error));
   }, 400);
 
@@ -1147,7 +1158,7 @@ async function main(): Promise<void> {
 
         // Rebuild the routing graph with the fully enriched zonal stops.
         getRouterModule()
-          .then(({ initRouter }) => initRouter(routeList))
+          .then(({ initRouter }) => initRouter(routeList, cableRouterStations))
           .catch((error) => console.error('[Router] Failed to refresh graph:', error));
 
         console.log('🎉 TransMilenio Explorer background load & enrichment complete!');

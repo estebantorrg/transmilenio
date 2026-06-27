@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan } from '../services/router';
+import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan, type CableStationInput } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
@@ -246,12 +246,13 @@ function updateMapPickHint(mode: PlannerEndpoint | null): void {
  */
 export function initPlanner(
   map: maplibregl.Map,
-  routes: RouteListItem[]
+  routes: RouteListItem[],
+  cableStations?: CableStationInput[]
 ): void {
   mapInstance = map;
 
-  // Initialize routing graph
-  initRouter(routes);
+  // Initialize routing graph (incl. TransMiCable line when provided)
+  initRouter(routes, cableStations);
 
   // Setup panel tab controls
   initTabs();
@@ -1053,9 +1054,11 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
         const routeColor = segmentColors[i];
         const accentStyle = `color:${safeColor(routeColor)};font-weight:800;`;
         
+        const isCable = step.routeType === 'cable';
         const isTroncal = step.routeType === 'troncal';
-        const systemName = isTroncal ? 'TransMilenio' : 'SITP Zonal';
-        const stopLabel = isTroncal ? 'Estación' : 'Paradero';
+        const systemName = isCable ? 'TransMiCable' : isTroncal ? 'TransMilenio' : 'SITP Zonal';
+        const stopLabel = isCable || isTroncal ? 'Estación' : 'Paradero';
+        const boardVerb = isCable ? 'Tomar' : 'Abordar';
 
         const stopsToggleHtml = step.stops && step.stops.length > 0
           ? `
@@ -1076,7 +1079,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
             </div>
             <div class="journey-step-content">
               <div class="journey-step-title">
-                Abordar <span style="${accentStyle}">${escapeHTML(step.routeCode)}</span>
+                ${boardVerb} <span style="${accentStyle}">${escapeHTML(step.routeCode)}</span>
               </div>
               <div class="journey-step-desc">
                 En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong> (Dirección ${escapeHTML(step.toName)})<br/>

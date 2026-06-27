@@ -5,7 +5,7 @@ export interface GraphEdge {
   to: string;
   routeCode: string;
   routeId: string;
-  type: 'troncal' | 'zonal' | 'walking';
+  type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
   time: number;
 }
@@ -15,8 +15,16 @@ export interface RouteStop {
   codigo: string;
   sourceCode?: string;
   coordinate: [number, number];
-  kind: 'station' | 'stop';
+  kind: 'station' | 'stop' | 'cable';
   direccion?: string;
+}
+
+/** Minimal cable-station shape fed to the router from the ArcGIS cable layer. */
+export interface CableStationInput {
+  codigo: string;
+  nombre: string;
+  coordinate: [number, number];
+  orden: number; // num_est — line order (Tunal = lowest)
 }
 
 export interface JourneyStep {
@@ -26,7 +34,7 @@ export interface JourneyStep {
   toName: string;
   toCode: string;
   routeCode?: string;
-  routeType?: 'troncal' | 'zonal';
+  routeType?: 'troncal' | 'zonal' | 'cable';
   distance: number; // in meters
   time: number; // in minutes
   stopCount?: number;
@@ -56,6 +64,18 @@ export interface RouteSearchParams {
 let uniqueStops = new Map<string, RouteStop>();
 let graphAdjacency = new Map<string, GraphEdge[]>();
 let rawRoutesList: RouteListItem[] = [];
+let rawCableStations: CableStationInput[] = [];
+
+// TransMiCable: a single line of gondola stations. It connects to the rest of
+// the network ONLY at Tunal ↔ Portal Tunal (the portal complex). Every other
+// cable station is isolated — no walking transfers (rider must ride the cable).
+const CABLE_ROUTE_CODE = 'Cable';
+const CABLE_ROUTE_ID = 'cable-tmc';
+const CABLE_TUNAL_CODE = '40000'; // cod_nodo of the Tunal cable station
+const PORTAL_TUNAL_STATION_CODE = 'TM0119'; // troncal Portal Tunal node
+// Gondola cruise speed incl. station dwell (~9 km/h effective end-to-end).
+const CABLE_SPEED_M_PER_MINUTE = 150;
+const CABLE_DWELL_MINUTES = 0.5;
 
 const WALK_SPEED_M_PER_MINUTE = 75;
 const WALK_TRANSFER_THRESHOLD_M = 320;
@@ -101,6 +121,9 @@ function hasTunnelConnection(a: RouteStop, b: RouteStop): boolean {
 }
 
 function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boolean {
+  // Cable stations never get proximity walking transfers — the only link to the
+  // network is the explicit Tunal ↔ Portal Tunal connector added separately.
+  if (fromStop.kind === 'cable' || toStop.kind === 'cable') return false;
   if (fromStop.kind === 'station' && toStop.kind === 'station') {
     return hasTunnelConnection(fromStop, toStop);
   }
@@ -130,8 +153,9 @@ export function getDistance(coord1: [number, number], coord2: [number, number]):
 /**
  * Initializes the routing graph from the loaded route list.
  */
-export function initRouter(routes: RouteListItem[]): void {
+export function initRouter(routes: RouteListItem[], cableStations?: CableStationInput[]): void {
   rawRoutesList = routes;
+  if (cableStations) rawCableStations = cableStations;
   uniqueStops.clear();
   graphAdjacency.clear();
 
@@ -142,7 +166,7 @@ export function initRouter(routes: RouteListItem[]): void {
     if (!route.stops) continue;
     for (const stop of route.stops) {
       if (!stop.codigo) continue;
-      
+
       const existing = uniqueStops.get(stop.codigo);
       if (!existing) {
         uniqueStops.set(stop.codigo, {
@@ -166,6 +190,20 @@ export function initRouter(routes: RouteListItem[]): void {
         }
       }
     }
+  }
+
+  // 1b. Register TransMiCable stations as graph nodes (kind 'cable').
+  const cableLine = [...rawCableStations]
+    .filter((s) => s.codigo && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]))
+    .sort((a, b) => a.orden - b.orden);
+  for (const station of cableLine) {
+    if (uniqueStops.has(station.codigo)) continue;
+    uniqueStops.set(station.codigo, {
+      nombre: station.nombre,
+      codigo: station.codigo,
+      coordinate: station.coordinate,
+      kind: 'cable',
+    });
   }
 
   // Initialize adjacency map for each unique stop
@@ -206,6 +244,23 @@ export function initRouter(routes: RouteListItem[]): void {
     }
   }
 
+  // 2b. Add TransMiCable ride edges between consecutive stations (both ways).
+  // Boarding the cable after any bus counts as a transbordo (route code changes).
+  for (let i = 0; i < cableLine.length - 1; i++) {
+    const a = cableLine[i];
+    const b = cableLine[i + 1];
+    const distance = getDistance(a.coordinate, b.coordinate);
+    const time = distance / CABLE_SPEED_M_PER_MINUTE + CABLE_DWELL_MINUTES;
+    const edge = (from: string, to: string) => {
+      const edges = graphAdjacency.get(from) || [];
+      edges.push({ to, routeCode: CABLE_ROUTE_CODE, routeId: CABLE_ROUTE_ID, type: 'cable', distance, time });
+      graphAdjacency.set(from, edges);
+      transitEdgesCount++;
+    };
+    edge(a.codigo, b.codigo);
+    edge(b.codigo, a.codigo);
+  }
+
   // 3. Add short transfer walks. Station-to-station links are only verified tunnels.
   let walkingEdgesCount = 0;
   const stopsArray = Array.from(uniqueStops.values());
@@ -243,6 +298,18 @@ export function initRouter(routes: RouteListItem[]): void {
 
     addWalkingEdge(fromCode, toCode, distance);
     addWalkingEdge(toCode, fromCode, distance);
+  }
+
+  // 3b. The single TransMiCable interchange: Portal Tunal (troncal) ↔ Tunal
+  // cable station. This is the ONLY way to step between the cable and the rest
+  // of the network. canCreateWalkingTransfer() blocks every other cable link,
+  // so this explicit connector is added by hand.
+  const portalTunal = uniqueStops.get(PORTAL_TUNAL_STATION_CODE);
+  const cableTunal = uniqueStops.get(CABLE_TUNAL_CODE);
+  if (portalTunal && cableTunal) {
+    const dist = getDistance(portalTunal.coordinate, cableTunal.coordinate);
+    addWalkingEdge(PORTAL_TUNAL_STATION_CODE, CABLE_TUNAL_CODE, dist);
+    addWalkingEdge(CABLE_TUNAL_CODE, PORTAL_TUNAL_STATION_CODE, dist);
   }
 
   for (let i = 0; i < stopsArray.length; i++) {
@@ -364,7 +431,7 @@ interface RawLeg {
   toNode: string;
   routeCode: string;
   routeId: string;
-  type: 'troncal' | 'zonal' | 'walking';
+  type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
   time: number;
 }
@@ -701,6 +768,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     for (const edge of edges) {
       if (edge.type === 'troncal' && mode === 'zonal') continue;
       if (edge.type === 'zonal' && mode === 'troncal') continue;
+      // TransMiCable is its own system — only offered in the mixed mode.
+      if (edge.type === 'cable' && mode !== 'mix') continue;
 
       // CRITICAL: Troncal routes can ONLY be boarded/alighted at stations.
       // A paradero (zonal stop) cannot physically serve troncal buses.
