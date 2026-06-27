@@ -530,8 +530,7 @@ body.sidebar-collapsed .sidebar-fab {
 
 .search-container {
   position: relative;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 10px 16px 2px;
 }
 
 .search-icon {
@@ -635,6 +634,15 @@ body.sidebar-collapsed .sidebar-fab {
   overflow: hidden;
   transition: max-height var(--transition-medium), opacity var(--transition-fast), margin var(--transition-medium);
   max-height: 320px;
+}
+
+.layer-toggles.collapsed {
+  /* Collapsed = a single quiet title bar; no leftover gap below it. */
+  padding-bottom: 0;
+}
+
+.layer-toggles.collapsed .layer-toggles-title {
+  margin-bottom: 0;
 }
 
 .layer-toggles.collapsed .layer-toggles-body {
@@ -897,11 +905,10 @@ body.sidebar-collapsed .sidebar-fab {
 .filter-chips {
   display: flex;
   gap: 7px;
-  padding: 0 16px 12px;
+  padding: 10px 16px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
-  border-bottom: 1px solid var(--border-subtle);
 }
 
 .filter-chips::-webkit-scrollbar {
@@ -1766,9 +1773,13 @@ body.sidebar-collapsed .sidebar-fab {
   }
 
   .route-item-fav {
-    opacity: 1; /* no hover on touch — always show the star */
     width: 36px;
     height: 36px;
+  }
+
+  /* No hover on touch: keep inactive stars faint, active ones bright. */
+  .route-item-fav:not(.active) {
+    opacity: 0.3;
   }
 
   .footer-action {
