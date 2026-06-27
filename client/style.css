@@ -637,8 +637,8 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 .layer-toggles.collapsed {
-  /* Collapsed = a single quiet title bar; no leftover gap below it. */
-  padding-bottom: 0;
+  /* Collapsed = a single quiet title bar; small gap keeps the divider off the text. */
+  padding-bottom: 4px;
 }
 
 .layer-toggles.collapsed .layer-toggles-title {
@@ -748,7 +748,7 @@ body.sidebar-collapsed .sidebar-fab {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 16px 8px;
+  padding: 26px 16px 8px;
 }
 
 .route-list-title {
