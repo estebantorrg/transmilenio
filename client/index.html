@@ -49,6 +49,9 @@
 
   <!-- Sidebar -->
   <aside id="sidebar" class="sidebar">
+    <button class="sheet-handle" id="sheet-handle" type="button" aria-label="Arrastrar para expandir o contraer el panel" title="Arrastrar panel">
+      <span class="sheet-handle-bar"></span>
+    </button>
     <div class="sidebar-header">
       <div class="brand">
         <img class="brand-logo" src="/transmiLogo.png" alt="TransMilenio" width="48" height="48" />
@@ -83,9 +86,23 @@
         <button id="search-clear" class="search-clear hidden" aria-label="Clear search">✕</button>
       </div>
 
+      <!-- Quick filter chips -->
+      <div class="filter-chips" id="filter-chips" role="tablist" aria-label="Filtrar rutas">
+        <button class="filter-chip active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
+        <button class="filter-chip" type="button" data-filter="fav" role="tab" aria-selected="false">★ Favoritas</button>
+        <button class="filter-chip" type="button" data-filter="recent" role="tab" aria-selected="false">Recientes</button>
+        <button class="filter-chip" type="button" data-filter="troncal" role="tab" aria-selected="false">Troncal</button>
+        <button class="filter-chip" type="button" data-filter="zonal" role="tab" aria-selected="false">Zonal</button>
+        <button class="filter-chip" type="button" data-filter="alimentador" role="tab" aria-selected="false">Alim.</button>
+      </div>
+
       <!-- Layer Toggles -->
-      <div class="layer-toggles">
-        <div class="layer-toggles-title">Capas</div>
+      <div class="layer-toggles" id="layer-toggles">
+        <button class="layer-toggles-title" id="layer-toggles-title" type="button" aria-expanded="true" aria-controls="layer-toggles-body">
+          <span>Capas</span>
+          <svg class="layer-toggles-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="layer-toggles-body" id="layer-toggles-body">
         <label class="toggle-item" id="toggle-troncal" title="Rutas troncales">
           <input type="checkbox" checked data-layer="troncal" />
           <span class="toggle-check check-troncal"></span>
@@ -134,6 +151,7 @@
           </div>
           <span class="toggle-count" id="count-cable-stations">—</span>
         </label>
+        </div>
       </div>
 
       <!-- Route List -->

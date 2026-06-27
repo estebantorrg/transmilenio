@@ -594,22 +594,53 @@ body.sidebar-collapsed .sidebar-fab {
 /* ─── Layer Toggles ───────────────────────────────────── */
 
 .layer-toggles {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .layer-toggles-title {
-  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
   font-size: 11px;
   font-weight: 800;
   color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   padding: 0;
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.layer-toggles-title:hover {
+  color: var(--text-secondary);
+}
+
+.layer-toggles-chevron {
+  transition: transform var(--transition-medium);
+}
+
+.layer-toggles.collapsed .layer-toggles-chevron {
+  transform: rotate(-90deg);
+}
+
+.layer-toggles-body {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  overflow: hidden;
+  transition: max-height var(--transition-medium), opacity var(--transition-fast), margin var(--transition-medium);
+  max-height: 320px;
+}
+
+.layer-toggles.collapsed .layer-toggles-body {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .toggle-item {
@@ -824,6 +855,113 @@ body.sidebar-collapsed .sidebar-fab {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 500;
+}
+
+.route-item-fav {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+}
+
+.route-item:hover .route-item-fav,
+.route-item-fav.active,
+.route-item-fav:focus-visible {
+  opacity: 1;
+}
+
+.route-item-fav:hover {
+  background: var(--bg-hover);
+  color: var(--tm-yellow);
+}
+
+.route-item-fav.active {
+  color: var(--tm-yellow);
+}
+
+.route-item-fav:active {
+  transform: scale(0.85);
+}
+
+/* ─── Quick filter chips ──────────────────────────────── */
+
+.filter-chips {
+  display: flex;
+  gap: 7px;
+  padding: 0 16px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.filter-chip {
+  flex-shrink: 0;
+  padding: 6px 13px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.filter-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.filter-chip.active {
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--tm-red-light);
+}
+
+/* ─── Mobile sheet drag handle ────────────────────────── */
+
+.sheet-handle {
+  display: none;
+  width: 100%;
+  padding: 8px 0 4px;
+  background: none;
+  border: none;
+  cursor: grab;
+  touch-action: none;
+  justify-content: center;
+  align-items: center;
+}
+
+.sheet-handle:active {
+  cursor: grabbing;
+}
+
+.sheet-handle-bar {
+  width: 40px;
+  height: 4px;
+  border-radius: 99px;
+  background: var(--border-card);
+  transition: background var(--transition-fast);
+}
+
+.sheet-handle:hover .sheet-handle-bar {
+  background: var(--text-tertiary);
 }
 
 .empty-state,
@@ -1578,6 +1716,65 @@ body.sidebar-collapsed .sidebar-fab {
 /* ─── Mobile & Tablet Responsive ────────────────────── */
 
 @media (max-width: 768px) {
+  /* ── Bottom-sheet sidebar ── */
+  .sidebar {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    height: 86dvh;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Collapsed → peek bar (handle + header visible), not fully off-screen. */
+  .sidebar.collapsed {
+    transform: translateY(calc(100% - 112px));
+  }
+
+  .sheet-handle {
+    display: flex;
+  }
+
+  /* The drag handle replaces the chevron + FAB on touch. */
+  .sidebar-toggle,
+  .sidebar-fab {
+    display: none !important;
+  }
+
+  .sidebar-header {
+    padding-top: 4px;
+  }
+
+  /* ── Bigger touch targets ── */
+  .toggle-item {
+    padding: 11px 12px;
+  }
+
+  .filter-chip {
+    padding: 9px 15px;
+  }
+
+  .route-item {
+    padding: 12px;
+  }
+
+  .route-item-fav {
+    opacity: 1; /* no hover on touch — always show the star */
+    width: 36px;
+    height: 36px;
+  }
+
+  .footer-action {
+    min-height: 46px;
+  }
+
   /* ── Map controls position ── */
   .maplibregl-ctrl-bottom-right,
   .maplibregl-ctrl-bottom-left {

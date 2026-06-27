@@ -22,6 +22,46 @@ let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 
+type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador';
+let currentFilter: RouteFilter = 'all';
+let searchQuery = '';
+
+const FAV_KEY = 'tm:favorites';
+const RECENT_KEY = 'tm:recents';
+const RECENT_LIMIT = 12;
+
+const favorites = new Set<string>(readStored(FAV_KEY));
+let recents: string[] = readStored(RECENT_KEY);
+
+function readStored(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function persist(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage unavailable (private mode / quota) — favorites degrade to session-only */
+  }
+}
+
+function toggleFavorite(id: string): void {
+  if (favorites.has(id)) favorites.delete(id);
+  else favorites.add(id);
+  persist(FAV_KEY, [...favorites]);
+}
+
+function pushRecent(id: string): void {
+  recents = [id, ...recents.filter((r) => r !== id)].slice(0, RECENT_LIMIT);
+  persist(RECENT_KEY, recents);
+}
+
 function setSidebarCollapsed(collapsed: boolean): void {
   const sidebar = document.getElementById('sidebar');
   const toggleBtn = document.getElementById('sidebar-toggle') as HTMLButtonElement | null;
@@ -41,6 +81,71 @@ function setSidebarCollapsed(collapsed: boolean): void {
   floatingBtn?.setAttribute('title', collapsed ? 'Mostrar panel' : 'Panel abierto');
 }
 
+function isMobileSheet(): boolean {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+/** Mobile bottom-sheet: tap the handle to toggle, swipe up/down to snap. */
+function initSheetDrag(): void {
+  const handle = document.getElementById('sheet-handle');
+  const sidebar = document.getElementById('sidebar');
+  if (!handle || !sidebar) return;
+
+  let startY = 0;
+  let dragging = false;
+  let moved = false;
+
+  handle.addEventListener('pointerdown', (e) => {
+    if (!isMobileSheet()) return;
+    dragging = true;
+    moved = false;
+    startY = e.clientY;
+    handle.setPointerCapture(e.pointerId);
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    if (Math.abs(e.clientY - startY) > 6) moved = true;
+  });
+  const end = (e: PointerEvent) => {
+    if (!dragging) return;
+    dragging = false;
+    const dy = e.clientY - startY;
+    if (!moved) {
+      setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
+    } else if (dy > 40) {
+      setSidebarCollapsed(true);
+    } else if (dy < -40) {
+      setSidebarCollapsed(false);
+    }
+  };
+  handle.addEventListener('pointerup', end);
+  handle.addEventListener('pointercancel', () => { dragging = false; });
+}
+
+/** Esc closes the open panel / collapses; "/" jumps to search. */
+function initKeyboardShortcuts(): void {
+  document.addEventListener('keydown', (e) => {
+    const target = e.target as HTMLElement | null;
+    const typing = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+    if (e.key === 'Escape') {
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar?.classList.contains('card-open')) { closeCardBalancePanel(); return; }
+      if (selectedRouteId) { closeRouteDetail(); onRouteDeselect?.(); return; }
+      if (typing) (target as HTMLInputElement).blur();
+      return;
+    }
+
+    if (typing) return;
+    if (e.key === '/') {
+      e.preventDefault();
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar?.classList.contains('collapsed')) setSidebarCollapsed(false);
+      (document.getElementById('search-input') as HTMLInputElement | null)?.focus();
+    }
+  });
+}
+
 export function initSidebar(options: {
   onRouteSelect: (route: RouteListItem) => void;
   onRouteDeselect: () => void;
@@ -55,7 +160,8 @@ export function initSidebar(options: {
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
   const floatingBtn = document.getElementById('sidebar-fab');
-  setSidebarCollapsed(sidebar.classList.contains('collapsed'));
+  // On phones the sheet starts as a peek bar so the map is visible first.
+  setSidebarCollapsed(isMobileSheet() || sidebar.classList.contains('collapsed'));
 
   toggleBtn.addEventListener('click', () => {
     setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
@@ -66,16 +172,42 @@ export function initSidebar(options: {
   const searchClear = document.getElementById('search-clear')!;
 
   searchInput.addEventListener('input', () => {
-    const query = searchInput.value.trim();
-    searchClear.classList.toggle('hidden', !query);
-    filterRoutes(query);
+    searchQuery = searchInput.value.trim();
+    searchClear.classList.toggle('hidden', !searchQuery);
+    applyFilters();
   });
 
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
+    searchQuery = '';
     searchClear.classList.add('hidden');
-    filterRoutes('');
+    applyFilters();
+    searchInput.focus();
   });
+
+  // Quick filter chips (type / favorites / recents)
+  document.querySelectorAll<HTMLButtonElement>('.filter-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      currentFilter = (chip.dataset.filter as RouteFilter) || 'all';
+      document.querySelectorAll('.filter-chip').forEach((c) => {
+        const active = c === chip;
+        c.classList.toggle('active', active);
+        c.setAttribute('aria-selected', String(active));
+      });
+      applyFilters();
+    });
+  });
+
+  // Collapsible "Capas" section
+  const layersTitle = document.getElementById('layer-toggles-title');
+  const layersWrap = document.getElementById('layer-toggles');
+  layersTitle?.addEventListener('click', () => {
+    const collapsed = layersWrap?.classList.toggle('collapsed') ?? false;
+    layersTitle.setAttribute('aria-expanded', String(!collapsed));
+  });
+
+  initSheetDrag();
+  initKeyboardShortcuts();
 
   document.querySelectorAll('.toggle-item').forEach((item) => {
     item.addEventListener('click', (e) => {
@@ -302,25 +434,48 @@ export function setRoutes(routes: RouteListItem[]): void {
     return a.code.localeCompare(b.code, undefined, { numeric: true });
   });
 
-  renderRouteList(allRoutes);
+  applyFilters();
 }
 
-function filterRoutes(query: string): void {
-  if (!query) {
-    renderRouteList(allRoutes);
-    return;
+function matchesTypeFilter(r: RouteListItem): boolean {
+  switch (currentFilter) {
+    case 'troncal':
+      return r.type === 'troncal' && !isAlimentadorRoute(r) && r.subType !== 'alimentador';
+    case 'zonal':
+      return r.type === 'zonal';
+    case 'alimentador':
+      return isAlimentadorRoute(r) || r.subType === 'alimentador';
+    default:
+      return true;
+  }
+}
+
+function applyFilters(): void {
+  let base: RouteListItem[];
+
+  if (currentFilter === 'fav') {
+    base = allRoutes.filter((r) => favorites.has(r.id));
+  } else if (currentFilter === 'recent') {
+    // Preserve recency order.
+    base = recents
+      .map((id) => allRoutes.find((r) => r.id === id))
+      .filter((r): r is RouteListItem => !!r);
+  } else {
+    base = allRoutes.filter(matchesTypeFilter);
   }
 
-  const q = query.toLowerCase();
-  const filtered = allRoutes.filter(
-    (r) =>
-      r.code.toLowerCase().includes(q) ||
-      r.name.toLowerCase().includes(q) ||
-      r.origin.toLowerCase().includes(q) ||
-      r.destination.toLowerCase().includes(q)
-  );
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    base = base.filter(
+      (r) =>
+        r.code.toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        r.origin.toLowerCase().includes(q) ||
+        r.destination.toLowerCase().includes(q)
+    );
+  }
 
-  renderRouteList(filtered);
+  renderRouteList(base);
 }
 
 function renderRouteList(routes: RouteListItem[]): void {
@@ -330,10 +485,16 @@ function renderRouteList(routes: RouteListItem[]): void {
   countEl.textContent = `${routes.length}`;
 
   if (routes.length === 0) {
+    const empty =
+      currentFilter === 'fav'
+        ? { title: 'Sin favoritas', text: 'Toca la estrella ★ en una ruta para guardarla aquí.' }
+        : currentFilter === 'recent'
+        ? { title: 'Sin recientes', text: 'Las rutas que abras aparecerán aquí.' }
+        : { title: 'Sin rutas', text: 'Prueba con otro código, estación o destino.' };
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-state-title">Sin rutas</div>
-        <div class="empty-state-text">Prueba con otro codigo, estacion o destino.</div>
+        <div class="empty-state-title">${empty.title}</div>
+        <div class="empty-state-text">${empty.text}</div>
       </div>
     `;
     return;
@@ -348,6 +509,8 @@ function renderRouteList(routes: RouteListItem[]): void {
       const badgeStyle = `background:${badgeColor};border-color:${badgeBorder};`;
       const endpointText = `${route.origin} -> ${route.destination}`;
 
+      const isFav = favorites.has(route.id);
+
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
              data-type="${route.type}"
@@ -360,6 +523,15 @@ function renderRouteList(routes: RouteListItem[]): void {
               <span class="route-item-endpoints">${escapeHTML(endpointText)}</span>
             </div>
           </div>
+          <button class="route-item-fav ${isFav ? 'active' : ''}" type="button"
+                  data-fav-id="${escapeHTML(route.id)}"
+                  aria-pressed="${isFav}"
+                  aria-label="${isFav ? 'Quitar de favoritas' : 'Agregar a favoritas'}"
+                  title="${isFav ? 'Quitar de favoritas' : 'Agregar a favoritas'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${isFav ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+          </button>
         </div>
       `;
     })
@@ -380,10 +552,26 @@ function renderRouteList(routes: RouteListItem[]): void {
       if (route) selectRoute(route);
     });
   });
+
+  container.querySelectorAll<HTMLButtonElement>('.route-item-fav').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.favId!;
+      toggleFavorite(id);
+      const isFav = favorites.has(id);
+      btn.classList.toggle('active', isFav);
+      btn.setAttribute('aria-pressed', String(isFav));
+      const svg = btn.querySelector('svg');
+      if (svg) svg.setAttribute('fill', isFav ? 'currentColor' : 'none');
+      // Re-render only if removal affects the current view.
+      if (!isFav && currentFilter === 'fav') applyFilters();
+    });
+  });
 }
 
 function selectRoute(route: RouteListItem): void {
   selectedRouteId = route.id;
+  pushRecent(route.id);
   showRouteDetail(route);
   onRouteSelect?.(route);
 
