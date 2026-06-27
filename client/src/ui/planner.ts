@@ -556,6 +556,56 @@ function initInputHandlers(): void {
     debouncedDest(destInput.value);
   });
 
+  // 3b. Keyboard navigation for the autocomplete dropdowns + Enter-to-search.
+  const attachAutocompleteKeys = (input: HTMLInputElement, dropdown: HTMLElement) => {
+    const selectableItems = (): HTMLElement[] =>
+      dropdown.classList.contains('hidden')
+        ? []
+        : Array.from(dropdown.querySelectorAll<HTMLElement>('.autocomplete-item')).filter(
+            (el) => !!el.dataset.name
+          );
+
+    const setActive = (items: HTMLElement[], index: number) => {
+      items.forEach((el, i) => el.classList.toggle('kbd-active', i === index));
+      if (index >= 0 && items[index]) {
+        items[index].scrollIntoView({ block: 'nearest' });
+      }
+    };
+
+    input.addEventListener('keydown', (e) => {
+      const items = selectableItems();
+
+      if (e.key === 'ArrowDown' && items.length) {
+        e.preventDefault();
+        const current = items.findIndex((el) => el.classList.contains('kbd-active'));
+        setActive(items, current < items.length - 1 ? current + 1 : 0);
+      } else if (e.key === 'ArrowUp' && items.length) {
+        e.preventDefault();
+        const current = items.findIndex((el) => el.classList.contains('kbd-active'));
+        setActive(items, current > 0 ? current - 1 : items.length - 1);
+      } else if (e.key === 'Enter') {
+        const active = items.find((el) => el.classList.contains('kbd-active'));
+        if (active) {
+          e.preventDefault();
+          active.click();
+        } else if (items.length) {
+          e.preventDefault();
+          items[0].click();
+        } else if (originCoord && destCoord) {
+          // Both endpoints already resolved — search directly.
+          e.preventDefault();
+          calculateRoute();
+        }
+      } else if (e.key === 'Escape') {
+        dropdown.classList.add('hidden');
+        items.forEach((el) => el.classList.remove('kbd-active'));
+      }
+    });
+  };
+
+  attachAutocompleteKeys(originInput, originAutocomplete);
+  attachAutocompleteKeys(destInput, destAutocomplete);
+
   // 4. GPS buttons
   const handleGpsButton = async (
     endpoint: PlannerEndpoint,
@@ -994,7 +1044,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
             </div>
             <div class="journey-step-content">
               <div class="journey-step-title">${title}</div>
-              <div class="journey-step-desc">Aprox. <strong>${Math.round(step.distance)} m</strong> (${Math.round(step.time)} min)</div>
+              <div class="journey-step-desc">Aprox. <strong>${Math.round(step.distance)} m</strong> (${Math.max(1, Math.round(step.time))} min)</div>
             </div>
           </div>
         `;
@@ -1030,7 +1080,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
               </div>
               <div class="journey-step-desc">
                 En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong> (Dirección ${escapeHTML(step.toName)})<br/>
-                Viajar <strong>${step.stopCount} ${step.stopCount === 1 ? 'estación' : 'estaciones'}</strong> (${Math.round(step.time)} min) · ${systemName}
+                Viajar <strong>${step.stopCount} ${step.stopCount === 1 ? 'estación' : 'estaciones'}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
               ${stopsToggleHtml}
             </div>

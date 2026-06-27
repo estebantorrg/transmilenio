@@ -2118,7 +2118,8 @@ body.sidebar-collapsed .sidebar-fab {
   border-bottom: none;
 }
 
-.autocomplete-item:hover {
+.autocomplete-item:hover,
+.autocomplete-item.kbd-active {
   background: var(--bg-hover);
 }
 

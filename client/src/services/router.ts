@@ -66,6 +66,9 @@ const WALK_COST_WEIGHT = 20.0;
 const MAX_TRANSFERS = 3;
 const MIN_WALK_COST_WEIGHT = 50.0;
 const TRANSFER_PENALTY_MINUTES = 8.0;
+// Above this straight-line distance a walking-only itinerary is not realistic;
+// prefer the "no routes found" state over an absurd multi-km walk suggestion.
+const WALK_ONLY_FALLBACK_MAX_M = 2500;
 
 const STATION_TUNNEL_CONNECTIONS = new Set([
   tunnelKey('07111', '12003'),
@@ -669,10 +672,20 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   }
 
   const results: DijkstraState[] = [];
-  const maxRoutesCount = 3;
+  // Collect more terminal candidates than we ultimately show. The Dijkstra
+  // cost does NOT include the egress (destination) walk, so the first arrival
+  // is not necessarily the best end-to-end trip — a slightly costlier transit
+  // path that alights closer to the destination can win once the egress walk
+  // is added. We gather several arrivals and re-rank by true total time below.
+  const TERMINAL_CANDIDATE_CAP = 12;
+  // Hard ceiling on node expansions so an unreachable destination (or a huge
+  // graph) can never blow past the sub-100ms search budget (spec §1 perf).
+  const MAX_NODE_POPS = 60000;
+  let nodePops = 0;
   const transferPenalty = TRANSFER_PENALTY_MINUTES;
 
   while (!queue.isEmpty()) {
+    if (++nodePops > MAX_NODE_POPS) break;
     const current = queue.pop()!;
     const currentKey = makeKey(current.nodeCode, current.routeCode, current.routeId);
 
@@ -681,7 +694,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
     if (destNodes.has(current.nodeCode)) {
       results.push(current);
-      if (results.length >= maxRoutesCount) break;
+      if (results.length >= TERMINAL_CANDIDATE_CAP) break;
     }
 
     const edges = graphAdjacency.get(current.nodeCode) || [];
@@ -877,7 +890,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   const sortCriteria = sortBy || 'transfers';
 
-  return finalPlans.sort((a, b) => {
+  finalPlans.sort((a, b) => {
     if (sortCriteria === 'transfers') {
       return (
         a.transfers - b.transfers ||
@@ -899,6 +912,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       );
     }
   });
+
+  // Show at most 3 distinct options (we over-collected terminals for ranking).
+  return finalPlans.slice(0, 3);
 }
 
 function createWalkingFallbackPlan(origin: [number, number], destination: [number, number]): JourneyPlan {
@@ -936,10 +952,18 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
   // 1. Primary search
   let plans = findRoutesCore(params);
 
-  // 2. Fallback to walking-only plan if no transit exists under the selected filter.
+  // 2. Fallback to walking-only plan if no transit exists under the selected
+  // filter — but only when the destination is actually walkable. Beyond that a
+  // straight "walk 8 km / 100 min" plan is misleading, so return nothing and
+  // let the UI show the honest "no routes" state.
   if (plans.length === 0) {
-    console.log('[Router] No transit routes found. Falling back to walking-only plan.');
-    plans = [createWalkingFallbackPlan(origin, destination)];
+    const directWalk = getDistance(origin, destination);
+    if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
+      console.log('[Router] No transit routes found. Falling back to walking-only plan.');
+      plans = [createWalkingFallbackPlan(origin, destination)];
+    } else {
+      console.log('[Router] No transit routes found and destination too far to walk.');
+    }
   }
 
   return plans;

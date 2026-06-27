@@ -336,6 +336,13 @@ router.post('/card/read', async (req: Request, res: Response) => {
 
 const GEOIP_TIMEOUT_MS = 5_000;
 const WALKING_ROUTE_TIMEOUT_MS = 9_000;
+// Pedestrian speed used to derive walking time from path distance. The public
+// OSRM demo server does not honor the `foot` profile and returns DRIVING
+// durations (e.g. ~1 min for 600 m), so we never trust its `duration` for
+// walking — we recompute time from the routed distance at this speed. Matches
+// the client router's WALK_SPEED_M_PER_MINUTE so totals stay consistent before
+// and after walking-geometry enrichment.
+const WALK_SPEED_M_PER_MINUTE = 75;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
 const BOGOTA_WALKING_BOUNDS = {
   west: -74.25,
@@ -492,14 +499,12 @@ router.get('/walking-route', async (req: Request, res: Response) => {
       !route ||
       !Array.isArray(coordinates) ||
       coordinates.length < 2 ||
-      !Number.isFinite(route.distance) ||
-      !Number.isFinite(route.duration)
+      !Number.isFinite(route.distance)
     ) {
       res.status(502).json({ success: false, error: 'Walking route upstream returned no usable route' });
       return;
     }
     const distance = Number(route.distance);
-    const duration = Number(route.duration);
     const normalizedCoordinates = coordinates.map(([lng, lat]) => [Number(lng), Number(lat)] as LngLat);
     if (normalizedCoordinates.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
       res.status(502).json({ success: false, error: 'Walking route upstream returned invalid coordinates' });
@@ -512,7 +517,9 @@ router.get('/walking-route', async (req: Request, res: Response) => {
       data: {
         coordinates: normalizedCoordinates,
         distance,
-        time: duration / 60,
+        // Derive from distance, not OSRM's duration (driving-speed on the demo
+        // server — see WALK_SPEED_M_PER_MINUTE note above).
+        time: distance / WALK_SPEED_M_PER_MINUTE,
         source: 'osrm',
       },
     });
