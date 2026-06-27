@@ -45,6 +45,7 @@ export function addCableLayers(
     layout: {
       'line-join': 'round',
       'line-cap': 'round',
+      'visibility': 'none',
     },
     paint: {
       'line-color': '#F97316', // Bright Orange
@@ -86,6 +87,7 @@ export function addCableLayers(
       'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.65, 17, 0.85],
       'icon-allow-overlap': true,
       'icon-anchor': 'bottom',
+      'visibility': 'none',
     },
   });
 
@@ -94,6 +96,7 @@ export function addCableLayers(
     id: 'cable-stations-hitbox',
     type: 'circle',
     source: 'cable-stations',
+    layout: { 'visibility': 'none' },
     paint: {
       'circle-radius': ['interpolate', ['linear'], ['zoom'], 10, 12, 14, 18, 17, 26],
       'circle-color': '#000000',
@@ -113,6 +116,7 @@ export function addCableLayers(
       'text-offset': [0, 0.8],
       'text-anchor': 'top',
       'text-max-width': 10,
+      'visibility': 'none',
     },
     paint: {
       'text-color': '#F97316', // Orange matching the theme
