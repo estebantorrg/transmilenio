@@ -86,11 +86,9 @@
         <button id="search-clear" class="search-clear hidden" aria-label="Clear search">✕</button>
       </div>
 
-      <!-- Quick filter chips -->
-      <div class="filter-chips" id="filter-chips" role="tablist" aria-label="Filtrar rutas">
+      <!-- Route type filter (segmented) -->
+      <div class="filter-chips" id="filter-chips" role="tablist" aria-label="Filtrar rutas por tipo">
         <button class="filter-chip active" type="button" data-filter="all" role="tab" aria-selected="true">Todas</button>
-        <button class="filter-chip" type="button" data-filter="fav" role="tab" aria-selected="false">★ Favoritas</button>
-        <button class="filter-chip" type="button" data-filter="recent" role="tab" aria-selected="false">Recientes</button>
         <button class="filter-chip" type="button" data-filter="troncal" role="tab" aria-selected="false">Troncal</button>
         <button class="filter-chip" type="button" data-filter="zonal" role="tab" aria-selected="false">Zonal</button>
         <button class="filter-chip" type="button" data-filter="alimentador" role="tab" aria-selected="false">Alim.</button>
@@ -99,7 +97,7 @@
       <!-- Layer Toggles -->
       <div class="layer-toggles collapsed" id="layer-toggles">
         <button class="layer-toggles-title" id="layer-toggles-title" type="button" aria-expanded="false" aria-controls="layer-toggles-body">
-          <span>Filtros del mapa</span>
+          <span>Capas del mapa</span>
           <svg class="layer-toggles-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="layer-toggles-body" id="layer-toggles-body">
@@ -156,7 +154,17 @@
 
       <!-- Route List -->
       <div class="route-list-header">
-        <h3>Rutas</h3>
+        <div class="route-list-title">
+          <h3>Rutas</h3>
+          <div class="route-list-views" role="group" aria-label="Vistas guardadas">
+            <button class="route-view-toggle" type="button" id="view-fav" data-filter="fav" aria-pressed="false" aria-label="Ver solo favoritas" title="Favoritas">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            </button>
+            <button class="route-view-toggle" type="button" id="view-recent" data-filter="recent" aria-pressed="false" aria-label="Ver rutas recientes" title="Recientes">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+            </button>
+          </div>
+        </div>
         <span class="route-list-count" id="route-list-count"></span>
       </div>
       <div id="route-list" class="route-list"></div>

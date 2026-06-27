@@ -62,6 +62,26 @@ function pushRecent(id: string): void {
   persist(RECENT_KEY, recents);
 }
 
+/** Apply a route filter and reflect it across both control surfaces. */
+function setRouteFilter(filter: RouteFilter): void {
+  currentFilter = filter;
+  syncFilterButtons();
+  applyFilters();
+}
+
+function syncFilterButtons(): void {
+  document.querySelectorAll<HTMLButtonElement>('.filter-chip').forEach((chip) => {
+    const active = (chip.dataset.filter || 'all') === currentFilter;
+    chip.classList.toggle('active', active);
+    chip.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll<HTMLButtonElement>('.route-view-toggle').forEach((toggle) => {
+    const active = toggle.dataset.filter === currentFilter;
+    toggle.classList.toggle('active', active);
+    toggle.setAttribute('aria-pressed', String(active));
+  });
+}
+
 function setSidebarCollapsed(collapsed: boolean): void {
   const sidebar = document.getElementById('sidebar');
   const toggleBtn = document.getElementById('sidebar-toggle') as HTMLButtonElement | null;
@@ -185,16 +205,20 @@ export function initSidebar(options: {
     searchInput.focus();
   });
 
-  // Quick filter chips (type / favorites / recents)
+  // Route filters live on two surfaces: the type segments (Todas/Troncal/Zonal/
+  // Alim.) and the saved-view toggles (favoritas/recientes) on the list header.
+  // Both drive the single `currentFilter`; picking one surface clears the other.
   document.querySelectorAll<HTMLButtonElement>('.filter-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
-      currentFilter = (chip.dataset.filter as RouteFilter) || 'all';
-      document.querySelectorAll('.filter-chip').forEach((c) => {
-        const active = c === chip;
-        c.classList.toggle('active', active);
-        c.setAttribute('aria-selected', String(active));
-      });
-      applyFilters();
+      setRouteFilter((chip.dataset.filter as RouteFilter) || 'all');
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('.route-view-toggle').forEach((toggle) => {
+    toggle.addEventListener('click', () => {
+      const view = (toggle.dataset.filter as RouteFilter) || 'all';
+      // Tapping the active view again clears it and returns to the full list.
+      setRouteFilter(currentFilter === view ? 'all' : view);
     });
   });
 
