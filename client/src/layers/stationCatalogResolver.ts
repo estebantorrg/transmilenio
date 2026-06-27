@@ -268,6 +268,30 @@ function mergeWagons(target: ResolvedCatalogWagons, selection: SourceSelection):
   }
 }
 
+/**
+ * Collapses a route the catalog (or a multi-source merge) files under more than
+ * one wagon of the *same* station into a single occurrence. `mergeWagons`
+ * already dedupes within a wagon label; this extends the identical identity rule
+ * (código + direction — see `routeIdentity`) across wagons, so a route never
+ * renders twice in one station popup. The route is kept in the first wagon by
+ * the popup's own sort order (numeric label) and dropped from the later ones;
+ * every route unique to a wagon is preserved, so no platform is emptied.
+ */
+function dedupeRoutesAcrossWagons(wagons: ResolvedCatalogWagons): void {
+  const labels = Object.keys(wagons).sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true })
+  );
+  const seen = new Set<string>();
+  for (const label of labels) {
+    wagons[label] = wagons[label].filter((route) => {
+      const key = routeIdentity(route);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+}
+
 function sourceStopSummary(feature: TroncalStationFeature, station: CatalogStation): ResolvedSourceStop {
   const distance = distanceMeters(stationPoint(feature), catalogPoint(station));
   return {
@@ -332,6 +356,7 @@ function makeResolvedStation(
 ): ResolvedCatalogStation {
   const wagons: ResolvedCatalogWagons = {};
   selections.forEach((selection) => mergeWagons(wagons, selection));
+  dedupeRoutesAcrossWagons(wagons);
 
   const sourceStops = selections.map((selection) => sourceStopSummary(feature, selection.station));
   const sourceStopCodes = sourceStops.map((stop) => stop.codigo);
