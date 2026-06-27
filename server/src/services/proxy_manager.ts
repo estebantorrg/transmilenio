@@ -135,10 +135,12 @@ class ProxyManagerClass {
   /**
    * Returns the best `n` proxies (highest score) without removing them, so the
    * caller can race several in parallel. Scoring favours high success rate, low
-   * latency, and recent confirmation.
+   * latency, and recent confirmation. `exclude` skips already-tried proxies so a
+   * caller can pull successive non-overlapping waves (§5.2.5 wave fallback).
    */
-  public getProxies(n: number): ProxyItem[] {
+  public getProxies(n: number, exclude?: Set<string>): ProxyItem[] {
     return [...this.pool.values()]
+      .filter((p) => !exclude || !exclude.has(keyOf(p.ip, p.port)))
       .sort((a, b) => this.score(b) - this.score(a))
       .slice(0, Math.max(1, n))
       .map((p) => ({ ip: p.ip, port: p.port }));

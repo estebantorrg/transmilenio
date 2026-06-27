@@ -787,6 +787,10 @@ const CO_PROXY_READY_TIMEOUT_MS = 18_000;
 // Free CO proxies run 4.5–14s; be patient and race several so the fastest wins.
 const LIVE_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS || 14_000);
 const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH || 5);
+// If a whole wave of free proxies dies (connection reset / timeout — common),
+// fall through to the next-best, non-overlapping wave instead of failing the
+// strategy. Bounded so a dead pool can't run past the overall budget (§5.2.5).
+const CO_PROXY_MAX_WAVES = Number(process.env.CO_PROXY_MAX_WAVES || 3);
 const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
 const LIVE_DESTINATION_MAX_LENGTH = 160;
 const LIVE_NAME_CANDIDATE_LIMIT = 12;
@@ -1081,29 +1085,24 @@ function firstFulfilled<T>(promises: Promise<T>[]): Promise<T> {
 }
 
 /**
- * Races the best N proxies in parallel for one request. Free CO proxies are
- * slow and unreliable, so firing several at once and taking the fastest valid
- * response dramatically beats trying them one by one. The winner is rewarded
- * (latency recorded), genuine losers are penalised, and the still-pending ones
- * are aborted the moment a winner resolves.
+ * Races one wave of proxies in parallel and resolves with the fastest valid
+ * response. The winner is rewarded (latency recorded), genuine losers are
+ * penalised, and the still-pending ones are aborted the moment a winner
+ * resolves. Rejects only if every proxy in the wave fails.
  */
-async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
-  const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
-  const ready = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
-  if (ready === 0) throw new Error('No Colombian proxy available');
-
-  const proxies = ProxyManager.getProxies(CO_PROXY_RACE_WIDTH);
-  if (proxies.length === 0) throw new Error('No Colombian proxy available');
-
-  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  const headers = buildProxyHeaders(context);
+async function raceProxyWave(
+  proxies: import('./proxy_manager.js').ProxyItem[],
+  url: URL,
+  headers: Record<string, string | number>,
+  postData: string,
+  SimpleProxyAgent: typeof import('./proxy_manager.js').SimpleProxyAgent,
+  ProxyManager: typeof import('./proxy_manager.js').ProxyManager,
+  signal?: AbortSignal
+): Promise<any[]> {
   const controller = new AbortController();
-
   // Link parent signal so the overall timeout can cancel the proxy race.
   const onParentAbort = () => controller.abort();
   signal?.addEventListener('abort', onParentAbort, { once: true });
-
-  console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy RACEx${proxies.length}`);
 
   const attempts = proxies.map(async (proxy) => {
     const started = Date.now();
@@ -1111,7 +1110,7 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, sign
       const buses = await requestLiveJson(
         url,
         headers,
-        context.postData,
+        postData,
         LIVE_PROXY_TIMEOUT_MS,
         new SimpleProxyAgent(proxy.ip, proxy.port),
         controller.signal
@@ -1126,14 +1125,52 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, sign
   });
 
   try {
-    const buses = await firstFulfilled(attempts);
-    controller.abort(); // cancel the slower in-flight proxies
-    return buses;
-  } catch {
-    throw new Error(`All ${proxies.length} CO proxies failed`);
+    return await firstFulfilled(attempts);
   } finally {
+    controller.abort(); // cancel the slower in-flight proxies
     signal?.removeEventListener('abort', onParentAbort);
   }
+}
+
+/**
+ * Races the best proxies in parallel for one request, in successive
+ * non-overlapping waves. Free CO proxies are slow and unreliable, so firing
+ * several at once and taking the fastest valid response dramatically beats
+ * trying them one by one; when an entire wave dies (every proxy reset/timed
+ * out — routine with free proxies) we fall through to the next-best wave rather
+ * than failing the whole strategy, bounded by CO_PROXY_MAX_WAVES and the
+ * overall budget (§5.2.5).
+ */
+async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
+  const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
+  const ready = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
+  if (ready === 0) throw new Error('No Colombian proxy available');
+
+  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
+  const headers = buildProxyHeaders(context);
+
+  const tried = new Set<string>();
+  let lastError: Error | null = null;
+
+  for (let wave = 1; wave <= CO_PROXY_MAX_WAVES; wave++) {
+    if (signal?.aborted) break;
+
+    const proxies = ProxyManager.getProxies(CO_PROXY_RACE_WIDTH, tried);
+    if (proxies.length === 0) break;
+    for (const proxy of proxies) tried.add(`${proxy.ip}:${proxy.port}`);
+
+    console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy RACEx${proxies.length} wave ${wave}/${CO_PROXY_MAX_WAVES}`);
+
+    try {
+      // A valid empty result (proxy worked, this name has no buses) resolves the
+      // wave too — we don't burn further waves on a working proxy.
+      return await raceProxyWave(proxies, url, headers, context.postData, SimpleProxyAgent, ProxyManager, signal);
+    } catch (error: any) {
+      lastError = error;
+    }
+  }
+
+  throw new Error(`All CO proxies failed across ${tried.size} tried${lastError ? `: ${lastError.message}` : ''}`);
 }
 
 /**
