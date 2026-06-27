@@ -904,15 +904,9 @@ body.sidebar-collapsed .sidebar-fab {
 
 .filter-chips {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
-  padding: 10px 16px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.filter-chips::-webkit-scrollbar {
-  display: none;
+  padding: 12px 16px 4px;
 }
 
 .filter-chip {
