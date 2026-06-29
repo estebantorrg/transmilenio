@@ -70,6 +70,10 @@ let templateFull: THREE.Object3D | null = null;
 let lodLoading = false;
 let fullLoading = false;
 const buses = new Map<string, BusObj>();
+// Last rendered position per bus (interpolated tween + declump offset, in
+// mercator units). Click-picking reads this so a moving bus is hit-tested at
+// where it is actually drawn, not at its stale last-fix coordinate.
+const renderedMerc = new Map<string, Vec3>();
 let mapRef: maplibregl.Map | null = null;
 
 let followId: string | null = null;
@@ -193,8 +197,8 @@ const customLayer: maplibregl.CustomLayerInterface = {
     const useFull = zoom >= LOD_ZOOM && !!templateFull;
 
     // Sample all buses, then declump any that share a spot.
-    const list = [...buses.values()];
-    const states = list.map((b) => ({ b, s: sample(b, now), ox: 0, oy: 0, scale: b.meter * MODEL_SCALE * boost }));
+    const entries = [...buses.entries()];
+    const states = entries.map(([id, b]) => ({ id, b, s: sample(b, now), ox: 0, oy: 0, scale: b.meter * MODEL_SCALE * boost }));
     declump(states);
 
     for (const st of states) {
@@ -204,11 +208,13 @@ const customLayer: maplibregl.CustomLayerInterface = {
       b.group.scale.setScalar(st.scale);
       if (b.lod) b.lod.visible = !useFull;
       if (b.full) b.full.visible = useFull;
+      // Cache the actual drawn position (incl. declump) for click-picking.
+      renderedMerc.set(st.id, { x: s.x + st.ox, y: s.y + st.oy, z: s.z });
     }
 
     // Keep the open popup glued to its bus (declumped position included).
     if (followId && followCb) {
-      const st = states.find((x) => x.b === buses.get(followId!));
+      const st = states.find((x) => x.id === followId);
       if (st) followCb(new maplibregl.MercatorCoordinate(st.s.x + st.ox, st.s.y + st.oy, st.s.z).toLngLat());
     }
 
@@ -224,6 +230,7 @@ const customLayer: maplibregl.CustomLayerInterface = {
   onRemove() {
     for (const [, b] of buses) scene?.remove(b.group);
     buses.clear();
+    renderedMerc.clear();
     renderer?.dispose();
     renderer = null; scene = null; camera = null;
   },
@@ -301,10 +308,23 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
     if (!seen.has(id)) {
       scene?.remove(obj.group);
       buses.delete(id);
+      renderedMerc.delete(id);
     }
   }
 
   map.triggerRepaint();
+}
+
+/**
+ * Current rendered position of a bus (interpolated tween + declump offset), as
+ * lng/lat — or null if it isn't on screen yet. Used for click hit-testing so a
+ * moving bus is picked where it's drawn, not at its stale last-fix coordinate.
+ */
+export function getRenderedBusLngLat(id: string): { lng: number; lat: number } | null {
+  const m = renderedMerc.get(id);
+  if (!m) return null;
+  const ll = new maplibregl.MercatorCoordinate(m.x, m.y, m.z).toLngLat();
+  return { lng: ll.lng, lat: ll.lat };
 }
 
 /** Make the open popup track a bus every frame; pass (null, null) to stop. */
@@ -316,6 +336,7 @@ export function setFollow(id: string | null, cb: ((lngLat: { lng: number; lat: n
 export function clearBusModels(map: maplibregl.Map): void {
   for (const [, obj] of buses) scene?.remove(obj.group);
   buses.clear();
+  renderedMerc.clear();
   followId = null;
   followCb = null;
   map.triggerRepaint();

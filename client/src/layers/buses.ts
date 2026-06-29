@@ -10,7 +10,7 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
 import { escapeHTML } from '../utils/html';
-import { setBusModels, clearBusModels, setFollow, type LiveBusInput } from './busModelLayer';
+import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
 let trackingInterval: number | null = null;
 let fetchInFlight = false;
@@ -190,7 +190,10 @@ function openBusPopup(map: maplibregl.Map, bus: LiveBus): void {
     busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: true, maxWidth: '230px', offset: 18 });
     busPopup.on('close', () => { selectedBusId = null; setFollow(null, null); });
   }
-  busPopup.setLngLat([bus.longitude, bus.latitude]).setHTML(buildBusPopupHTML(bus, currentRouteType)).addTo(map);
+  // Open at the model's live drawn position so the popup lands on the bus, not
+  // its last fix; the per-frame follow hook keeps it glued thereafter.
+  const ll = getRenderedBusLngLat(bus.id) ?? { lng: bus.longitude, lat: bus.latitude };
+  busPopup.setLngLat([ll.lng, ll.lat]).setHTML(buildBusPopupHTML(bus, currentRouteType)).addTo(map);
   setFollow(bus.id, (ll) => busPopup?.setLngLat([ll.lng, ll.lat]));
 }
 
@@ -218,7 +221,10 @@ export function startBusTracking(
     let best: LiveBus | null = null;
     let bestDist = Infinity;
     for (const bus of currentBuses) {
-      const p = map.project([bus.longitude, bus.latitude]);
+      // Hit-test against the model's live drawn position (interpolated tween +
+      // declump), falling back to the last fix if it isn't rendered yet.
+      const ll = getRenderedBusLngLat(bus.id) ?? { lng: bus.longitude, lat: bus.latitude };
+      const p = map.project([ll.lng, ll.lat]);
       const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
       if (d < bestDist) { bestDist = d; best = bus; }
     }
