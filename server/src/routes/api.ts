@@ -336,12 +336,10 @@ router.post('/card/read', async (req: Request, res: Response) => {
 
 const GEOIP_TIMEOUT_MS = 5_000;
 const WALKING_ROUTE_TIMEOUT_MS = 9_000;
-// Pedestrian speed used to derive walking time from path distance. The public
-// OSRM demo server does not honor the `foot` profile and returns DRIVING
-// durations (e.g. ~1 min for 600 m), so we never trust its `duration` for
-// walking — we recompute time from the routed distance at this speed. Matches
-// the client router's WALK_SPEED_M_PER_MINUTE so totals stay consistent before
-// and after walking-geometry enrichment.
+// Pedestrian speed used to derive walking time from the routed path distance.
+// We recompute time from distance rather than trusting upstream `duration` so
+// the value matches the client router's WALK_SPEED_M_PER_MINUTE exactly —
+// totals stay consistent before and after walking-geometry enrichment.
 const WALK_SPEED_M_PER_MINUTE = 75;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
 const BOGOTA_WALKING_BOUNDS = {
@@ -469,8 +467,12 @@ router.get('/walking-route', async (req: Request, res: Response) => {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WALKING_ROUTE_TIMEOUT_MS);
+  // FOSSGIS routing service — a real OSRM `foot` profile (the public
+  // router.project-osrm.org demo only ships the car profile, so its `/foot/`
+  // routes follow one-way streets and miss pedestrian shortcuts). This instance
+  // routes true pedestrian geometry, so the path returned is the fastest walk.
   const url =
-    `https://router.project-osrm.org/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}` +
+    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}` +
     '?overview=full&geometries=geojson';
 
   try {
