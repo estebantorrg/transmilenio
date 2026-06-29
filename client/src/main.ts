@@ -25,7 +25,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
@@ -137,6 +137,11 @@ async function stopLiveBusTracking(): Promise<void> {
     console.warn('[Live] Bus layer was not available to stop:', error);
   }
 }
+
+// Manual-refresh button in the live card forces an immediate poll.
+setLiveRefreshHandler(() => {
+  void getBusesModule().then((buses) => buses.refreshLiveBusesNow()).catch(() => {});
+});
 
 function getPlannerModule(): Promise<PlannerModule> {
   plannerModulePromise ??= import('./ui/planner').catch((error) => {
@@ -972,7 +977,7 @@ async function main(): Promise<void> {
         buses = await getBusesModule();
       } catch (error) {
         console.error('[Live] Failed to load bus layer:', error);
-        updateLiveBusStatus(0, 'error');
+        updateLiveBusStatus(0, 'unreachable');
         return;
       }
       if (activeRouteId !== route.id) return;

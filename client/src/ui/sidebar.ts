@@ -6,7 +6,36 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
-import { api, type CardBalanceRead, type CardBalanceMovement } from '../services/api';
+import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
+
+/** Status the live-tracking card can show: the in-flight `loading` plus the
+ *  honest API outcomes. Mirrors `TrackingStatus` in `layers/buses.ts`. */
+type TrackingStatus = 'loading' | LiveStatus;
+
+// Manual-refresh handler, registered by main.ts (forwards to refreshLiveBusesNow).
+let liveRefreshHandler: (() => void) | null = null;
+export function setLiveRefreshHandler(fn: (() => void) | null): void {
+  liveRefreshHandler = fn;
+}
+
+// Freshness ticker: re-renders the "actualizado hace Xs" sub-line between polls.
+let liveFreshAt = 0;
+let liveFreshTimer: number | null = null;
+
+function stopFreshTicker(): void {
+  if (liveFreshTimer !== null) {
+    window.clearInterval(liveFreshTimer);
+    liveFreshTimer = null;
+  }
+}
+
+function formatAgo(ms: number): string {
+  const secs = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  if (secs < 5) return 'ahora';
+  if (secs < 60) return `hace ${secs} s`;
+  const mins = Math.round(secs / 60);
+  return mins < 60 ? `hace ${mins} min` : `hace ${Math.round(mins / 60)} h`;
+}
 
 /** Short uppercase family label shown under the route name (TRONCAL / ZONAL / …). */
 function routeTypeLabel(route: RouteListItem): string {
@@ -696,12 +725,20 @@ function showRouteDetail(route: RouteListItem): void {
       <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${routeKindLabel}</div>
-      <div id="live-tracking-status" class="live-tracking-status">
+      <div id="live-tracking-status" class="live-tracking-status loading">
         <div class="live-card-main">
           <span class="live-status-dot pulse loading"></span>
-          <span class="live-status-text">Conectando con buses en vivo...</span>
+          <div class="live-status-textcol">
+            <span class="live-status-text">Conectando con buses en vivo...</span>
+            <span class="live-status-sub"></span>
+          </div>
         </div>
-        <span class="live-status-chip loading">Buscando…</span>
+        <div class="live-card-side">
+          <span class="live-status-chip loading">Buscando…</span>
+          <button id="live-status-refresh" class="live-status-refresh" type="button" aria-label="Actualizar ahora" title="Actualizar ahora">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+          </button>
+        </div>
       </div>
     </div>
 
@@ -735,6 +772,12 @@ function showRouteDetail(route: RouteListItem): void {
     });
   });
 
+  content.querySelector('#live-status-refresh')?.addEventListener('click', () => {
+    const card = document.getElementById('live-tracking-status');
+    card?.querySelector('.live-status-refresh')?.classList.add('spinning');
+    liveRefreshHandler?.();
+  });
+
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
 
@@ -745,17 +788,32 @@ function showRouteDetail(route: RouteListItem): void {
   }
 }
 
-export function updateLiveBusStatus(count: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number): void {
+/**
+ * Render the live-tracking card from the honest status the API resolved.
+ *
+ * The cardinal rule (the whole point of the overhaul): we only claim "no buses"
+ * when a Colombian egress *verified* it (`no-buses`). A low-confidence empty
+ * from a free public proxy (`unverified`) or a total outage (`unreachable`) is
+ * shown as "señal limitada / reintentando", never as a confident absence.
+ */
+export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?: number): void {
   const card = document.getElementById('live-tracking-status');
   const dotEl = card?.querySelector('.live-status-dot');
   const textEl = card?.querySelector('.live-status-text');
+  const subEl = card?.querySelector('.live-status-sub');
   const chipEl = card?.querySelector('.live-status-chip');
+  const refreshEl = card?.querySelector('.live-status-refresh');
 
-  if (!dotEl || !textEl || !chipEl) return;
+  if (!card || !dotEl || !textEl || !chipEl) return;
 
-  // Reset state classes
+  refreshEl?.classList.remove('spinning');
+  card.className = `live-tracking-status ${status}`;
   dotEl.className = 'live-status-dot';
   chipEl.className = 'live-status-chip';
+  stopFreshTicker();
+  if (subEl) subEl.textContent = '';
+
+  const plural = count === 1 ? '' : 'es';
 
   switch (status) {
     case 'loading':
@@ -764,40 +822,73 @@ export function updateLiveBusStatus(count: number, status: 'loading' | 'success'
       textEl.textContent = 'Conectando con buses en vivo...';
       chipEl.textContent = 'Buscando…';
       break;
-    case 'success':
-      // Truthful state: buses ARE live. We have no schedule-adherence data, so
-      // the chip reports liveness/count, never fake punctuality.
+
+    case 'live':
+      // Truthful: buses ARE live. No schedule-adherence data, so the chip
+      // reports liveness/count, never fake punctuality.
       dotEl.classList.add('pulse');
       chipEl.classList.add('success');
-      textEl.textContent = `Rastreando ${count} bus${count > 1 ? 'es' : ''} en vivo`;
+      textEl.textContent = `Rastreando ${count} bus${plural} en vivo`;
       chipEl.textContent = `${count} en vivo`;
+      startFreshTicker(card, 'Actualizado', asOf);
       break;
-    case 'empty':
+
+    case 'no-buses':
+      // Verified absence from a CO egress — safe to state plainly.
       dotEl.classList.add('empty');
       chipEl.classList.add('empty');
-      textEl.textContent = 'Sin buses activos en este momento';
+      textEl.textContent = 'Sin buses en este momento';
       chipEl.textContent = 'Sin buses';
+      if (subEl) subEl.textContent = 'Confirmado por el sistema';
       break;
-    case 'error':
-      dotEl.classList.add('error');
-      chipEl.classList.add('error');
-      textEl.textContent = 'No se pudo conectar con el rastreo en vivo';
-      chipEl.textContent = 'Sin señal';
+
+    case 'unverified':
+      // A free-proxy empty: could be a silent API. Never assert "no buses".
+      dotEl.classList.add('pulse', 'unverified');
+      chipEl.classList.add('unverified');
+      textEl.textContent = count > 0
+        ? `Mostrando ${count} bus${plural} (señal limitada)`
+        : 'Señal de rastreo limitada';
+      chipEl.textContent = 'Señal débil';
+      if (subEl) subEl.textContent = 'Reintentando…';
       break;
+
     case 'stale': {
-      // Cached positions served during an upstream outage.
+      // Cached positions served during an upstream outage (spec §4.2).
       dotEl.classList.add('stale');
       chipEl.classList.add('stale');
       const at = typeof asOf === 'number'
         ? new Date(asOf).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })
         : '';
-      textEl.textContent = at
-        ? `Mostrando ${count} bus${count > 1 ? 'es' : ''} (datos de ${at})`
-        : `Mostrando ${count} bus${count > 1 ? 'es' : ''} (datos recientes)`;
+      textEl.textContent = count > 0
+        ? `Últimos ${count} bus${plural} conocidos`
+        : 'Últimos datos conocidos';
+      if (subEl) subEl.textContent = at ? `Datos de ${at}` : 'Datos recientes';
       chipEl.textContent = 'Demorado';
       break;
     }
+
+    case 'unreachable':
+      // No transport reached upstream — be honest, and keep retrying.
+      dotEl.classList.add('error');
+      chipEl.classList.add('error');
+      textEl.textContent = 'Rastreo en vivo no disponible';
+      chipEl.textContent = 'Sin señal';
+      if (subEl) subEl.textContent = 'Reintentando…';
+      break;
   }
+}
+
+/** Tick the "Actualizado hace Xs" sub-line every few seconds between 15s polls. */
+function startFreshTicker(card: Element, prefix: string, asOf?: number): void {
+  liveFreshAt = typeof asOf === 'number' ? asOf : Date.now();
+  const render = () => {
+    const sub = card.querySelector('.live-status-sub');
+    if (!sub || !document.body.contains(card)) { stopFreshTicker(); return; }
+    sub.textContent = `${prefix} ${formatAgo(liveFreshAt)}`;
+  };
+  render();
+  liveFreshTimer = window.setInterval(render, 5000);
 }
 
 export function refreshRouteDetail(route: RouteListItem): void {
@@ -812,6 +903,7 @@ function closeRouteDetail(): void {
   panel.classList.add('hidden');
   sidebar.classList.remove('detail-open');
   selectedRouteId = null;
+  stopFreshTicker();
 
   document.querySelectorAll('.route-item').forEach((el) => {
     el.classList.remove('active');

@@ -6,6 +6,35 @@ import type {
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
 import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
+import { findBusPayloadArray } from '../utils/liveBus';
+
+/** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
+ *  - live        buses are present.
+ *  - no-buses    a Colombian egress (extension/relay) verified zero buses — trustworthy.
+ *  - unverified  a free public proxy returned empty — low confidence, NOT "no buses".
+ *  - stale       upstream silent; showing the last real fix (see `asOf`).
+ *  - unreachable no transport reached the live API and no cache exists. */
+export type LiveStatus = 'live' | 'no-buses' | 'unverified' | 'stale' | 'unreachable';
+
+export interface LiveBusResult {
+  status: LiveStatus;
+  confidence: 'high' | 'low';
+  data: any[];
+  source: string | null;
+  asOf?: number;
+}
+
+/** Wrap a high-confidence CO-egress payload (extension/relay-direct): a non-empty
+ *  list is `live`, an empty one is a verified `no-buses`. */
+function wrapHighConfidence(raw: unknown, source: string): LiveBusResult {
+  const data = (findBusPayloadArray(raw) ?? []) as any[];
+  return {
+    status: data.length > 0 ? 'live' : 'no-buses',
+    confidence: 'high',
+    data,
+    source,
+  };
+}
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 // Optional Colombia relay the browser calls directly (PC + mobile, no install):
@@ -181,19 +210,25 @@ export const api = {
       body: JSON.stringify({ numero_tarjeta: numeroTarjeta, consultar }),
     }, 0),
 
+  /**
+   * Resolve live buses through the tiered cascade, always returning a structured
+   * {@link LiveBusResult} — it NEVER throws (spec §4: "a request never fails
+   * again"). When no tier reaches upstream the result is `unreachable`, so the
+   * caller distinguishes a silent API from a genuine absence of buses.
+   */
   getLiveBuses: async (
     ruta: string,
     nombre: string,
     routeType: 'troncal' | 'zonal' = 'troncal',
     nombreCandidates: string[] = []
-  ): Promise<any> => {
+  ): Promise<LiveBusResult> => {
     const payload = { ruta, Nombre: nombre, nombreCandidates, type: routeType };
 
     // Tier 1: Live Bridge extension — fetches from the user's own Colombian
     // connection, bypassing the geofence and browser CORS with no relay load.
     if (await isLiveBridgeAvailable()) {
       try {
-        return await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates);
+        return wrapHighConfidence(await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates), 'extension');
       } catch (error) {
         console.warn('[Live] Bridge failed, trying direct relay:', error);
       }
@@ -202,21 +237,40 @@ export const api = {
     // Tier 2: Colombia relay called directly (PC + mobile, no install).
     if (LIVE_RELAY_URL) {
       try {
-        return await postLiveRelayDirect(payload);
+        return wrapHighConfidence(await postLiveRelayDirect(payload), 'co-relay');
       } catch (error) {
         console.warn('[Live] Direct relay failed, falling back to server:', error);
       }
     }
 
-    // Tier 3: main server relay (spec §4.2 graceful degradation). 0 retries — live
-    // requests must not stack up behind the 15s polling window (spec §3.4).
-    return fetchJson<any>('/buses', LIVE_TRACKING_TIMEOUT_MS, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    }, 0);
+    // Tier 3: main server relay (spec §4.2). 0 retries — live requests must not
+    // stack up behind the 15s polling window (spec §3.4). The server endpoint
+    // itself never hard-fails and already returns a {status,...} envelope.
+    try {
+      const res = await fetchJson<any>('/buses', LIVE_TRACKING_TIMEOUT_MS, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      }, 0);
+      if (res && typeof res.status === 'string') {
+        return {
+          status: res.status as LiveStatus,
+          confidence: res.confidence === 'high' ? 'high' : 'low',
+          data: Array.isArray(res.data) ? res.data : [],
+          source: res.source ?? 'server',
+          asOf: typeof res.asOf === 'number' ? res.asOf : undefined,
+        };
+      }
+      // Unexpected shape — treat as a reached-but-unverifiable response.
+      return { status: 'unverified', confidence: 'low', data: [], source: 'server' };
+    } catch (error) {
+      // Total cascade failure: report it honestly instead of throwing, so the UI
+      // shows "reintentando" rather than asserting there are no buses.
+      console.warn('[Live] All live tiers failed:', error);
+      return { status: 'unreachable', confidence: 'low', data: [], source: null };
+    }
   },
 
   /** Approximate location from the client IP — fallback when native geolocation is blocked. */

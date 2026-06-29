@@ -8,9 +8,14 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { api } from '../services/api';
+import { api, type LiveStatus } from '../services/api';
 import { escapeHTML } from '../utils/html';
+import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
+
+/** Status reported to the route-detail card. `loading` is the in-flight state;
+ *  the rest mirror {@link LiveStatus} from the API layer. */
+export type TrackingStatus = 'loading' | LiveStatus;
 
 let trackingInterval: number | null = null;
 let fetchInFlight = false;
@@ -26,6 +31,9 @@ let selectedBusId: string | null = null;
 let busPopup: maplibregl.Popup | null = null;
 let clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
 let boundMap: maplibregl.Map | null = null;
+// Bound poll for the active session, so the UI's manual-refresh button can force
+// an immediate fetch without re-plumbing all the route params.
+let pollNow: (() => void) | null = null;
 
 type PopupStop = { nombre: string; coordinate: [number, number] };
 
@@ -42,51 +50,6 @@ type LiveBus = {
   angulo?: number;
   nombre_sistema?: string;
 };
-
-function toFiniteNumber(value: unknown): number | null {
-  const num = Number(value);
-  return Number.isFinite(num) ? num : null;
-}
-
-function isBusLike(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-
-  const bus = value as { latitude?: unknown; longitude?: unknown; lat?: unknown; lng?: unknown; lon?: unknown };
-  return toFiniteNumber(bus.latitude ?? bus.lat) !== null &&
-    toFiniteNumber(bus.longitude ?? bus.lng ?? bus.lon) !== null;
-}
-
-function busValuesFromObject(value: unknown): unknown[] | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-
-  const buses = Object.values(value).filter(isBusLike);
-  return buses.length > 0 ? buses : null;
-}
-
-function findBusPayloadArray(payload: any): unknown[] | null {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== 'object') return null;
-
-  const candidates = [
-    payload.data,
-    payload.buses,
-    payload.result,
-    payload.results,
-    payload.vehiculos,
-    payload.vehicles,
-  ];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate;
-  }
-
-  for (const candidate of candidates) {
-    const buses = busValuesFromObject(candidate);
-    if (buses) return buses;
-  }
-
-  return busValuesFromObject(payload);
-}
 
 function normalizeLiveBus(rawBus: unknown, index: number, routeCode: string): LiveBus | null {
   if (!rawBus || typeof rawBus !== 'object') return null;
@@ -118,12 +81,10 @@ function normalizeLiveBus(rawBus: unknown, index: number, routeCode: string): Li
   };
 }
 
-function extractLiveBuses(response: any, routeCode: string): LiveBus[] | null {
-  if (!response || response.success === false) return null;
-
-  const payloadArray = findBusPayloadArray(response);
-  if (!payloadArray) return null;
-
+/** Normalize the live result's `data` into the typed bus model, dropping any
+ *  entries without finite coordinates. */
+function extractLiveBuses(data: unknown, routeCode: string): LiveBus[] {
+  const payloadArray = findBusPayloadArray(data) ?? [];
   return payloadArray
     .map((bus, index) => normalizeLiveBus(bus, index, routeCode))
     .filter((bus): bus is LiveBus => bus !== null);
@@ -165,6 +126,7 @@ function filterBusesByDirection(buses: LiveBus[], stops: PopupStop[]): LiveBus[]
 export function stopBusTracking(): void {
   trackingSessionId++;
   fetchInFlight = false;
+  pollNow = null;
 
   if (trackingInterval !== null) {
     window.clearInterval(trackingInterval);
@@ -187,7 +149,10 @@ export function stopBusTracking(): void {
 function openBusPopup(map: maplibregl.Map, bus: LiveBus): void {
   selectedBusId = bus.id;
   if (!busPopup) {
-    busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: true, maxWidth: '230px', offset: 18 });
+    // closeOnClick:false — the map click handler owns selection (switch buses /
+    // dismiss on empty click); leaving it on makes a second bus-click fight the
+    // auto-close and flicker the popup.
+    busPopup = new maplibregl.Popup({ className: 'tm-popup tm-bus-popup', closeButton: true, closeOnClick: false, maxWidth: '264px', offset: 18 });
     busPopup.on('close', () => { selectedBusId = null; setFollow(null, null); });
   }
   // Open at the model's live drawn position so the popup lands on the bus, not
@@ -205,7 +170,7 @@ export function startBusTracking(
   nombreCandidates: string[] = [],
   routeColor = '#FB2C17',
   stops: PopupStop[] = [],
-  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
+  onUpdate?: (busCount: number, status: TrackingStatus, asOf?: number) => void
 ): void {
   stopBusTracking();
 
@@ -228,18 +193,26 @@ export function startBusTracking(
       const d = Math.hypot(p.x - e.point.x, p.y - e.point.y);
       if (d < bestDist) { bestDist = d; best = bus; }
     }
+    // Click on a bus → open/switch its popup; click on empty map → dismiss.
     if (best && bestDist < 26) openBusPopup(map, best);
+    else if (busPopup) busPopup.remove();
   };
   map.on('click', clickHandler);
 
+  pollNow = () => fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
+
   // Initial fetch
   onUpdate?.(0, 'loading');
-  fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
+  pollNow();
 
-  // Poll every 15 seconds
-  trackingInterval = window.setInterval(() => {
-    fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
-  }, 15000);
+  // Poll every 15 seconds (spec §3.4)
+  trackingInterval = window.setInterval(() => pollNow?.(), 15000);
+}
+
+/** Force an immediate live poll for the active route (manual refresh button).
+ *  No-op when nothing is being tracked or a request is already in flight. */
+export function refreshLiveBusesNow(): void {
+  pollNow?.();
 }
 
 async function fetchAndRenderBuses(
@@ -249,7 +222,7 @@ async function fetchAndRenderBuses(
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[],
   sessionId: number,
-  onUpdate?: (busCount: number, status: 'loading' | 'success' | 'empty' | 'error' | 'stale', asOf?: number) => void
+  onUpdate?: (busCount: number, status: TrackingStatus, asOf?: number) => void
 ): Promise<void> {
   if (fetchInFlight) {
     console.debug(`[Tracking] Skipping poll for ${routeCode}; previous live request still pending`);
@@ -259,24 +232,17 @@ async function fetchAndRenderBuses(
   fetchInFlight = true;
 
   try {
+    // getLiveBuses never throws — it always resolves to a typed status envelope.
     const res = await api.getLiveBuses(routeCode, destinationName, routeType, nombreCandidates);
 
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null || sessionId !== trackingSessionId) return;
 
-    const extracted = extractLiveBuses(res, routeCode);
-    if (!extracted) {
-      console.warn(`[Tracking] Invalid API response for ${routeCode}:`, res);
-      onUpdate?.(0, 'error');
-      return;
-    }
-
     // Drop the opposite-direction buses the live API mixes in (see
     // filterBusesByDirection) so only the selected trip is tracked.
-    const buses = filterBusesByDirection(extracted, currentRouteStops);
-
-    console.log(`[Tracking] ${extracted.length} live buses for ${routeCode}; ${buses.length} after direction filter`);
+    const buses = filterBusesByDirection(extractLiveBuses(res.data, routeCode), currentRouteStops);
     currentBuses = buses;
+    console.log(`[Tracking] ${routeCode}: status=${res.status} source=${res.source} → ${buses.length} buses (after direction filter)`);
 
     const inputs: LiveBusInput[] = buses.map((bus) => ({
       id: bus.id,
@@ -293,19 +259,17 @@ async function fetchAndRenderBuses(
       else busPopup?.remove();
     }
 
-    // Server tags `stale` when it served last-known positions during an upstream
-    // outage (spec §4.2) — render them, but flag the data as delayed.
-    const stale = !!(res && (res as any).stale);
-    const asOf = res && typeof (res as any).asOf === 'number' ? (res as any).asOf : undefined;
-    if (buses.length === 0) {
-      onUpdate?.(0, 'empty');
-    } else {
-      onUpdate?.(buses.length, stale ? 'stale' : 'success', asOf);
-    }
+    // Surface the honest status. `asOf` is the timestamp of the data on screen:
+    // the cache time for `stale`, otherwise this fix's wall-clock time so the
+    // card can show "actualizado hace Xs".
+    const asOf = res.status === 'stale' && typeof res.asOf === 'number' ? res.asOf : Date.now();
+    onUpdate?.(buses.length, res.status, asOf);
   } catch (err) {
-    console.error(`[Tracking] Failed to fetch live buses for ${routeCode}:`, err);
+    // Defensive: getLiveBuses is contracted not to throw, but a renderer fault
+    // (e.g. WebGL) must not blank the status card either.
+    console.error(`[Tracking] Unexpected error rendering live buses for ${routeCode}:`, err);
     if (trackingInterval !== null && sessionId === trackingSessionId) {
-      onUpdate?.(0, 'error');
+      onUpdate?.(0, 'unreachable');
     }
   } finally {
     if (sessionId === trackingSessionId) {
@@ -402,6 +366,31 @@ function formatDistance(meters: number): string {
   return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
+/**
+ * Human "última señal" label. The telemetry `lasttime` is sometimes a parseable
+ * timestamp and sometimes an opaque string — when it parses to a recent moment
+ * we show a relative "hace Xs/Xm", otherwise we pass the raw string through.
+ */
+function formatLastSignal(lasttime: string | undefined): string {
+  if (!lasttime) return 'Reciente';
+  const t = Date.parse(lasttime);
+  if (!Number.isFinite(t)) return lasttime;
+  const secs = Math.round((Date.now() - t) / 1000);
+  if (secs < 0 || secs > 6 * 3600) return lasttime; // implausible → show raw
+  if (secs < 10) return 'Ahora';
+  if (secs < 60) return `hace ${secs} s`;
+  const mins = Math.round(secs / 60);
+  return mins < 60 ? `hace ${mins} min` : `hace ${Math.round(mins / 60)} h`;
+}
+
+/** Faint route-colored wash for the popup header (e.g. `#FB2C17` → rgba). */
+function tintFromColor(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return `rgba(216, 16, 45, ${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
 // ─── Popup ───────────────────────────────────────────────
 
 function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
@@ -416,9 +405,12 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
     ? `<div class="bus-popup-row bus-popup-next"><span>Próxima parada</span><strong>${escapeHTML(next.stop.nombre)} · ${formatDistance(next.meters)}</strong></div>`
     : '';
 
+  // Header washed with the route's own color (spec §5.2.6), not a fixed red/blue.
+  const topStyle = `background:linear-gradient(90deg, ${tintFromColor(currentRouteColor, 0.24)}, ${tintFromColor(currentRouteColor, 0)})`;
+
   return `
     <div class="bus-popup ${sysClass}">
-      <div class="bus-popup-top">
+      <div class="bus-popup-top" style="${topStyle}">
         <span class="bus-popup-badge" style="background:${escapeHTML(currentRouteColor)}">${code}</span>
         <div class="bus-popup-titles">
           <div class="bus-popup-id">${escapeHTML(bus.label)}</div>
@@ -428,7 +420,7 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
       <div class="bus-popup-rows">
         ${nextRow}
         <div class="bus-popup-row"><span>Sistema</span><strong>${escapeHTML(sysLabel)}</strong></div>
-        <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(bus.lasttime || 'Reciente')}</strong></div>
+        <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(formatLastSignal(bus.lasttime))}</strong></div>
         ${km ? `<div class="bus-popup-row"><span>Recorrido</span><strong>${km}</strong></div>` : ''}
       </div>
     </div>

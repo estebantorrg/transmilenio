@@ -313,7 +313,7 @@ body {
 .tm-bus-popup .maplibregl-popup-content {
   width: auto !important;
   min-width: 210px !important;
-  max-width: 256px !important;
+  max-width: 272px !important;
   padding: 0 !important;
   max-height: none !important;
   overflow: hidden !important;
@@ -332,8 +332,9 @@ body {
   gap: 11px;
   padding: 13px 30px 13px 13px; /* right room for the close × */
 }
-.bus-popup.troncal .bus-popup-top { background: linear-gradient(90deg, rgba(216, 16, 45, 0.22), rgba(216, 16, 45, 0)); }
-.bus-popup.zonal .bus-popup-top { background: linear-gradient(90deg, rgba(56, 189, 248, 0.20), rgba(56, 189, 248, 0)); }
+/* Header wash is set inline per-bus from the route's own color (buses.ts,
+   spec §5.2.6); this is only a neutral fallback if that inline style is absent. */
+.bus-popup-top { background: linear-gradient(90deg, rgba(148, 163, 184, 0.14), rgba(148, 163, 184, 0)); }
 
 .bus-popup-badge {
   flex-shrink: 0;
@@ -1950,6 +1951,11 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-secondary);
 }
 
+.live-status-chip.unverified {
+  background: #3A2F12;
+  color: #D8A23A;
+}
+
 .live-status-chip.error {
   background: var(--status-delayed-bg);
   color: var(--status-delayed-fg);
@@ -1982,12 +1988,23 @@ body.sidebar-collapsed .sidebar-fab {
   background: #94A3B8; /* slate/gray */
 }
 
+.live-status-dot.unverified {
+  background: #D8A23A; /* amber — low-confidence / retrying */
+}
+
 .live-status-dot.error {
   background: #EF4444; /* red */
 }
 
 .live-status-dot.stale {
   background: #D8A23A; /* amber — cached/delayed data */
+}
+
+.live-status-textcol {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 1px;
 }
 
 .live-status-text {
@@ -1997,6 +2014,47 @@ body.sidebar-collapsed .sidebar-fab {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.live-status-sub {
+  font-size: 0.66rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.live-status-sub:empty { display: none; }
+
+.live-card-side {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.live-status-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid var(--border-card);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.live-status-refresh:hover {
+  color: var(--text-primary);
+  border-color: var(--text-tertiary);
+}
+.live-status-refresh.spinning svg {
+  animation: live-refresh-spin 0.8s linear infinite;
+}
+@keyframes live-refresh-spin {
+  to { transform: rotate(360deg); }
 }
 
 @keyframes dot-pulse-anim {
