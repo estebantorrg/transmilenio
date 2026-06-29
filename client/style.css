@@ -2243,6 +2243,15 @@ body.sidebar-collapsed .sidebar-fab {
   text-overflow: ellipsis;
 }
 
+/* While picking an origin/destination on the map, force the crosshair over
+   everything — including marker hover ('pointer') and drag — by beating the
+   inline cursor styles MapLibre and the layer handlers set. */
+.map-pick-active .maplibregl-canvas,
+.map-pick-active .maplibregl-canvas-container,
+.map-pick-active .maplibregl-canvas-container.maplibregl-interactive {
+  cursor: crosshair !important;
+}
+
 .map-pick-hint {
   margin-top: -2px;
   padding: 7px 9px;

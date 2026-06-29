@@ -381,7 +381,12 @@ function initTabs(): void {
 
 function setMapPickMode(mode: 'origin' | 'destination' | null): void {
   mapPickMode = mode;
-  mapInstance.getCanvas().style.cursor = mode ? 'crosshair' : '';
+  // Drive the cursor via a container class, not an inline canvas style: the
+  // station/stop/cable hover handlers overwrite the canvas inline cursor (and
+  // dragging resets it), so a one-shot inline 'crosshair' is lost the moment
+  // the pointer crosses a marker or pans. A CSS rule with !important keyed off
+  // this class beats those inline writes and keeps the crosshair while picking.
+  mapInstance.getContainer().classList.toggle('map-pick-active', mode !== null);
   updateMapPickButton('origin', mode === 'origin');
   updateMapPickButton('destination', mode === 'destination');
   updateMapPickHint(mode);
