@@ -266,41 +266,56 @@ router.post('/buses', async (req: Request, res: Response) => {
   }
 
   const cacheKey = `${routeType}:${ruta}`;
+  const freshCache = (): { buses: any[]; at: number } | null => {
+    const cached = liveBusCache.get(cacheKey);
+    return cached && Date.now() - cached.at < LIVE_BUS_CACHE_TTL ? cached : null;
+  };
 
+  // The live endpoint NEVER hard-fails (spec §4: "a request never fails again").
+  // It always answers HTTP 200 with a `status` discriminator so the client can
+  // tell a verified absence of buses apart from a silent/unreachable upstream:
+  //   live       — buses present (any transport).
+  //   no-buses    — verified empty from a CO egress (direct/co-relay): trustworthy.
+  //   unverified  — empty from a free public CO proxy: low confidence, NOT "no buses".
+  //   stale       — upstream silent/down; serving the last real fix (with asOf).
+  //   unreachable — no transport reached upstream and no cache to fall back on.
   try {
     console.log(`[/buses] Request: ruta="${ruta}" nombre="${nombre}" type=${routeType}`);
-    const buses = await tmApi.fetchLiveBuses(ruta, nombre, routeType, nombreCandidates);
-    console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}"`);
-    // Cache only non-empty fixes; an empty result is a valid "no buses now".
-    if (buses.length > 0) liveBusCache.set(cacheKey, { buses, at: Date.now() });
-    res.json({ success: true, count: buses.length, data: buses, stale: false });
-  } catch (error: any) {
-    console.error('[/buses] Error fetching live buses:', error);
+    const { buses, source } = await tmApi.fetchLiveBuses(ruta, nombre, routeType, nombreCandidates);
+    console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}" via=${source}`);
 
-    // Graceful degradation: serve the last known positions if still fresh.
-    const cached = liveBusCache.get(cacheKey);
-    if (cached && Date.now() - cached.at < LIVE_BUS_CACHE_TTL) {
-      const ageS = Math.round((Date.now() - cached.at) / 1000);
-      console.log(`[/buses] Serving last-known ${cached.buses.length} buses for "${cacheKey}" (stale ${ageS}s)`);
-      res.json({ success: true, count: cached.buses.length, data: cached.buses, stale: true, asOf: cached.at });
+    if (buses.length > 0) {
+      liveBusCache.set(cacheKey, { buses, at: Date.now() });
+      res.json({ success: true, status: 'live', confidence: 'high', count: buses.length, data: buses, source });
       return;
     }
 
-    const msg = error.message || '';
-    const payload: Record<string, any> = { success: false };
-
-    if (msg.includes('timed out')) {
-      res.status(504).json({ ...payload, error: 'Gateway Timeout connecting to live tracking API' });
-    } else if (
-      msg.includes('Live tracking unavailable') ||
-      msg.includes('Status: 401') ||
-      msg.includes('Unauthorized') ||
-      error.code === 'ECONNRESET'
-    ) {
-      res.status(503).json({ ...payload, error: 'Live tracking service temporarily unavailable' });
-    } else {
-      res.status(500).json({ ...payload, error: 'Failed to fetch live buses due to internal error' });
+    // Verified empty from a Colombian egress IP is a genuine "no buses now".
+    if (source === 'direct' || source === 'co-relay') {
+      res.json({ success: true, status: 'no-buses', confidence: 'high', count: 0, data: [], source });
+      return;
     }
+
+    // Empty from a free public proxy is unreliable. If we have a recent real fix,
+    // show it as stale rather than asserting an absence we can't confirm.
+    const cached = freshCache();
+    if (cached) {
+      res.json({ success: true, status: 'stale', confidence: 'low', count: cached.buses.length, data: cached.buses, source: 'cache', asOf: cached.at });
+      return;
+    }
+    res.json({ success: true, status: 'unverified', confidence: 'low', count: 0, data: [], source });
+  } catch (error: any) {
+    console.error('[/buses] Error fetching live buses:', error?.message || error);
+
+    // Graceful degradation: serve the last known positions if still fresh.
+    const cached = freshCache();
+    if (cached) {
+      const ageS = Math.round((Date.now() - cached.at) / 1000);
+      console.log(`[/buses] Serving last-known ${cached.buses.length} buses for "${cacheKey}" (stale ${ageS}s)`);
+      res.json({ success: true, status: 'stale', confidence: 'low', count: cached.buses.length, data: cached.buses, source: 'cache', asOf: cached.at });
+      return;
+    }
+    res.json({ success: true, status: 'unreachable', confidence: 'low', count: 0, data: [], source: null });
   }
 });
 
@@ -552,7 +567,7 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
     console.log('[/debug-buses] Attempting live fetch...');
     try {
       const live = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
-      diagnostics.live = { success: true, count: live.length };
+      diagnostics.live = { success: true, count: live.buses.length, source: live.source };
     } catch (err: any) {
       diagnostics.live = { success: false, error: 'Live fetch failed', code: err.code };
     }

@@ -1287,12 +1287,24 @@ async function runLiveStrategy(
   return emptyResult;
 }
 
+/** Which transport actually answered a live-bus request. Lets the route layer
+ *  decide how much to trust an empty result: `direct`/`co-relay` egress from a
+ *  known Colombian IP (an empty list is genuinely "no buses"), whereas a free
+ *  `public-co-proxy` empty is low-confidence (the proxy may have returned a
+ *  silent/garbage body that merely parses to empty). */
+export type LiveBusSource = 'direct' | 'co-relay' | 'public-co-proxy';
+
+export interface LiveBusesResult {
+  buses: any[];
+  source: LiveBusSource;
+}
+
 export async function fetchLiveBuses(
   ruta: string,
   nombre: string,
   routeType: 'troncal' | 'zonal' = 'troncal',
   nombreCandidates: string[] = []
-): Promise<any[]> {
+): Promise<LiveBusesResult> {
   const contexts = routeType === 'zonal'
     ? [createLiveRequestContext(ruta, nombre, routeType)]
     : buildLiveNameCandidates(nombre, nombreCandidates)
@@ -1311,16 +1323,16 @@ export async function fetchLiveBuses(
   try {
     // 1. Direct (works when the backend egress is Colombian).
     const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, overallController.signal);
-    if (direct) return direct;
+    if (direct) return { buses: direct, source: 'direct' };
 
     // 2. Colombia relay (for non-Colombian hosts with a relay configured).
     const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, overallController.signal);
-    if (relay) return relay;
+    if (relay) return { buses: relay, source: 'co-relay' };
 
     // 3. Public Colombian proxy (opt-in best-effort fallback).
     if (allowPublicColombianProxyFallback()) {
       const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, undefined, overallController.signal);
-      if (proxy) return proxy;
+      if (proxy) return { buses: proxy, source: 'public-co-proxy' };
     }
 
     throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
