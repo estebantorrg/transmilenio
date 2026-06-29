@@ -696,6 +696,25 @@ function findAccessNodes(
   return sortedCompatible.slice(0, Math.min(5, ACCESS_CANDIDATE_LIMIT));
 }
 
+/**
+ * Ranks journey plans in place by the chosen preference. Each criterion uses the
+ * others as deterministic tie-breakers so the ordering is stable. Exported so the
+ * async walking-geometry enrichment can re-rank with accurate distances/times
+ * (the initial search ranks on straight-line estimates).
+ */
+export function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
+  const sortCriteria = sortBy || 'transfers';
+  plans.sort((a, b) => {
+    if (sortCriteria === 'transfers') {
+      return a.transfers - b.transfers || a.totalTime - b.totalTime || a.walkDistance - b.walkDistance;
+    } else if (sortCriteria === 'time') {
+      return a.totalTime - b.totalTime || a.transfers - b.transfers || a.walkDistance - b.walkDistance;
+    }
+    // 'walk'
+    return a.walkDistance - b.walkDistance || a.totalTime - b.totalTime || a.transfers - b.transfers;
+  });
+}
+
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const { origin, destination, originStopCode, destStopCode, mode, minWalk, sortBy } = params;
 
@@ -957,30 +976,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     }
   }
 
-  const sortCriteria = sortBy || 'transfers';
-
-  finalPlans.sort((a, b) => {
-    if (sortCriteria === 'transfers') {
-      return (
-        a.transfers - b.transfers ||
-        a.totalTime - b.totalTime ||
-        a.walkDistance - b.walkDistance
-      );
-    } else if (sortCriteria === 'time') {
-      return (
-        a.totalTime - b.totalTime ||
-        a.transfers - b.transfers ||
-        a.walkDistance - b.walkDistance
-      );
-    } else {
-      // 'walk'
-      return (
-        a.walkDistance - b.walkDistance ||
-        a.totalTime - b.totalTime ||
-        a.transfers - b.transfers
-      );
-    }
-  });
+  sortJourneyPlans(finalPlans, sortBy);
 
   // Show at most 3 distinct options (we over-collected terminals for ranking).
   return finalPlans.slice(0, 3);

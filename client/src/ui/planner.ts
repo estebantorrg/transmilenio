@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, type JourneyPlan, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, sortJourneyPlans, type JourneyPlan, type CableStationInput } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
@@ -20,6 +20,7 @@ let destSelectionText = '';
 let mapPickMode: 'origin' | 'destination' | null = null;
 let activePlanIndex: number | null = null;
 let calculatedPlans: JourneyPlan[] = [];
+let lastSortBy: 'transfers' | 'time' | 'walk' = 'transfers';
 let plannerRequestSeq = 0;
 let originAutocompleteSeq = 0;
 let destAutocompleteSeq = 0;
@@ -806,6 +807,7 @@ function calculateRoute(): void {
   const preference = (document.getElementById('plan-preference') as HTMLInputElement).value as 'transfers' | 'time' | 'walk';
   const minWalk = preference === 'walk';
   const sortBy = preference;
+  lastSortBy = preference;
 
   window.setTimeout(() => {
     if (requestId !== plannerRequestSeq) {
@@ -976,6 +978,13 @@ async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number):
       plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
       plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
     });
+
+    // Initial ranking used straight-line walk estimates; re-rank with the now
+    // accurate routed distances/times so the best option per the user's
+    // preference is first. Keep the user's current selection by reference.
+    const selectedPlan = activePlanIndex !== null ? plans[activePlanIndex] : null;
+    sortJourneyPlans(plans, lastSortBy);
+    activePlanIndex = selectedPlan ? plans.indexOf(selectedPlan) : 0;
 
     // Re-render UI and update map preserving active selection
     renderResults(plans, true);
