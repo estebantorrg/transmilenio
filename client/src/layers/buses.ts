@@ -241,29 +241,39 @@ async function fetchAndRenderBuses(
     // Drop the opposite-direction buses the live API mixes in (see
     // filterBusesByDirection) so only the selected trip is tracked.
     const buses = filterBusesByDirection(extractLiveBuses(res.data, routeCode), currentRouteStops);
-    currentBuses = buses;
     console.log(`[Tracking] ${routeCode}: status=${res.status} source=${res.source} → ${buses.length} buses (after direction filter)`);
 
-    const inputs: LiveBusInput[] = buses.map((bus) => ({
-      id: bus.id,
-      lng: bus.longitude,
-      lat: bus.latitude,
-      heading: bus.angulo,
-    }));
-    setBusModels(map, inputs);
+    // Only mutate the map when this poll is TRUSTWORTHY. A transient
+    // `unreachable` or a low-confidence `unverified` empty must NOT blank the
+    // map (spec §4.2) — with a flaky upstream that would make buses flicker in
+    // and out every 15 s. We clear only on a verified `no-buses`; otherwise we
+    // keep the last rendered positions until a real fix arrives.
+    const hasFix = buses.length > 0;
+    const render = hasFix || res.status === 'no-buses';
+    if (render) {
+      currentBuses = buses;
+      setBusModels(map, buses.map((bus) => ({
+        id: bus.id,
+        lng: bus.longitude,
+        lat: bus.latitude,
+        heading: bus.angulo,
+      })));
 
-    // Keep the open popup in sync with the latest fix (or close it if its bus left).
-    if (selectedBusId) {
-      const sel = buses.find((b) => b.id === selectedBusId);
-      if (sel) busPopup?.setHTML(buildBusPopupHTML(sel, currentRouteType));
-      else busPopup?.remove();
+      // Keep the open popup in sync with the latest fix (or close it if its bus left).
+      if (selectedBusId) {
+        const sel = buses.find((b) => b.id === selectedBusId);
+        if (sel) busPopup?.setHTML(buildBusPopupHTML(sel, currentRouteType));
+        else busPopup?.remove();
+      }
     }
 
     // Surface the honest status. `asOf` is the timestamp of the data on screen:
     // the cache time for `stale`, otherwise this fix's wall-clock time so the
-    // card can show "actualizado hace Xs".
+    // card can show "actualizado hace Xs". Report the count actually on the map
+    // so an uncertain poll that kept the last fix doesn't read as "0".
+    const shownCount = render ? buses.length : currentBuses.length;
     const asOf = res.status === 'stale' && typeof res.asOf === 'number' ? res.asOf : Date.now();
-    onUpdate?.(buses.length, res.status, asOf);
+    onUpdate?.(shownCount, res.status, asOf);
   } catch (err) {
     // Defensive: getLiveBuses is contracted not to throw, but a renderer fault
     // (e.g. WebGL) must not blank the status card either.

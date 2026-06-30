@@ -869,12 +869,19 @@ export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?
     }
 
     case 'unreachable':
-      // No transport reached upstream — be honest, and keep retrying.
+      // No transport reached upstream. If we're still showing a prior fix, say so
+      // (the map isn't blanked); otherwise report the outage. Either way, retry.
       dotEl.classList.add('error');
       chipEl.classList.add('error');
-      textEl.textContent = 'Rastreo en vivo no disponible';
-      chipEl.textContent = 'Sin señal';
-      if (subEl) subEl.textContent = 'Reintentando…';
+      if (count > 0) {
+        textEl.textContent = `Últimos ${count} bus${plural} · señal interrumpida`;
+        chipEl.textContent = 'Demorado';
+        if (subEl) subEl.textContent = 'Reintentando…';
+      } else {
+        textEl.textContent = 'Rastreo en vivo no disponible';
+        chipEl.textContent = 'Sin señal';
+        if (subEl) subEl.textContent = 'Reintentando…';
+      }
       break;
   }
 }
