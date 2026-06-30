@@ -8,3 +8,12 @@ dist/
 *.log
 .DS_Store
 Thumbs.db
+
+# local agent/session state
+.claude/
+
+# scratch & one-off dumps
+scratch/
+*_dump.json
+*_dump.txt
+live_buses_dump.json
