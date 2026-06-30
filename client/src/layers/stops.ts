@@ -7,6 +7,7 @@ import type { MasterCatalog } from '../types/catalog';
 import type { RouteListItem } from '../types/transmilenio';
 import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
+import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
 import { servesZonal } from '../utils/routeType';
@@ -167,6 +168,7 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
         ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${planActionsHtml(p.name, coords as [number, number], p.cenefa)}
     </div>
   `;
 
@@ -435,6 +437,7 @@ export function showStopPopupByCode(
         ${address ? `<span>${escapeHTML(address)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${planActionsHtml(name, coordinate, stopCode)}
     </div>
   `;
 

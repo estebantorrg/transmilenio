@@ -91,6 +91,100 @@ function pushRecent(id: string): void {
   persist(RECENT_KEY, recents);
 }
 
+// ─── Deep linking (#/r/<code>) ────────────────────────────
+// The selected route is mirrored into the URL hash so links are shareable and
+// the browser/phone Back button closes the detail panel instead of leaving the
+// app. `suppressHashChange` guards the programmatic write so our own update does
+// not re-enter the hashchange handler.
+let suppressHashChange = false;
+let deepLinkApplied = false;
+
+function parseRouteHash(): string | null {
+  const match = location.hash.match(/^#\/r\/(.+)$/);
+  return match ? decodeURIComponent(match[1]).trim() : null;
+}
+
+function pushRouteHash(code: string): void {
+  const want = `#/r/${encodeURIComponent(code)}`;
+  if (location.hash === want) return;
+  suppressHashChange = true;
+  location.hash = want;
+}
+
+function clearRouteHash(): void {
+  if (!location.hash) return;
+  // replaceState avoids leaving a dangling history entry and fires no event.
+  history.replaceState(null, '', location.pathname + location.search);
+}
+
+/** Sync selection to the current hash — used on load and on Back/Forward. */
+function applyRouteHash(): void {
+  const code = parseRouteHash();
+  if (code) {
+    const current = allRoutes.find((r) => r.id === selectedRouteId);
+    if (!current || current.code.toUpperCase() !== code.toUpperCase()) {
+      selectRouteByCode(code);
+    }
+  } else if (selectedRouteId) {
+    closeRouteDetail();
+    onRouteDeselect?.();
+  }
+}
+
+function onHashChange(): void {
+  if (suppressHashChange) {
+    suppressHashChange = false;
+    return;
+  }
+  applyRouteHash();
+}
+
+/** User-initiated close (Volver / Esc): also drops the deep-link from the URL. */
+function closeRouteDetailFromUser(): void {
+  closeRouteDetail();
+  onRouteDeselect?.();
+  clearRouteHash();
+}
+
+// ─── Toast ────────────────────────────────────────────────
+let toastTimer: number | null = null;
+function showToast(message: string): void {
+  let toast = document.getElementById('tm-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'tm-toast';
+    toast.className = 'tm-toast';
+    toast.setAttribute('role', 'status');
+    toast.setAttribute('aria-live', 'polite');
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('visible');
+  if (toastTimer !== null) window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => toast?.classList.remove('visible'), 2400);
+}
+
+/** Share or copy a deep link to the given route. */
+async function shareRoute(route: RouteListItem): Promise<void> {
+  const url = `${location.origin}${location.pathname}#/r/${encodeURIComponent(route.code)}`;
+  const title = `${route.code} · ${route.origin} → ${route.destination}`;
+  try {
+    if (navigator.share) {
+      await navigator.share({ title, text: title, url });
+      return;
+    }
+  } catch {
+    /* user dismissed the share sheet — fall through to clipboard */
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(url);
+    showToast('Enlace copiado al portapapeles');
+  } catch {
+    showToast('No se pudo copiar el enlace');
+  }
+}
+
 /** Apply a route filter and reflect it across both control surfaces. */
 function setRouteFilter(filter: RouteFilter): void {
   currentFilter = filter;
@@ -132,6 +226,11 @@ function setSidebarCollapsed(collapsed: boolean): void {
 
 function isMobileSheet(): boolean {
   return window.matchMedia('(max-width: 768px)').matches;
+}
+
+/** Expand the sidebar/sheet — used when a popup action jumps into the planner. */
+export function openSidebar(): void {
+  setSidebarCollapsed(false);
 }
 
 /** Mobile bottom-sheet: tap the handle to toggle, swipe up/down to snap. */
@@ -180,7 +279,7 @@ function initKeyboardShortcuts(): void {
     if (e.key === 'Escape') {
       const sidebar = document.getElementById('sidebar');
       if (sidebar?.classList.contains('card-open')) { closeCardBalancePanel(); return; }
-      if (selectedRouteId) { closeRouteDetail(); onRouteDeselect?.(); return; }
+      if (selectedRouteId) { closeRouteDetailFromUser(); return; }
       if (typing) (target as HTMLInputElement).blur();
       return;
     }
@@ -263,12 +362,6 @@ export function initSidebar(options: {
   initKeyboardShortcuts();
 
   document.querySelectorAll('.toggle-item').forEach((item) => {
-    item.addEventListener('click', (e) => {
-      // If the target is the checkbox itself, the 'change' event will handle it.
-      // If the target is a span or text, we let label behavior toggle the checkbox.
-      // We listen to 'change' on the checkbox for the actual logic.
-    });
-
     const cb = item.querySelector('input[type="checkbox"]') as HTMLInputElement;
     if (cb) {
       cb.addEventListener('change', () => {
@@ -279,10 +372,10 @@ export function initSidebar(options: {
   });
 
   const detailClose = document.getElementById('route-detail-close')!;
-  detailClose.addEventListener('click', () => {
-    closeRouteDetail();
-    onRouteDeselect?.();
-  });
+  detailClose.addEventListener('click', closeRouteDetailFromUser);
+
+  // Back/Forward navigation drives selection through the URL hash.
+  window.addEventListener('hashchange', onHashChange);
 
   initCardBalancePanel();
 }
@@ -462,6 +555,10 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
       <div class="card-balance-meta">
         ${escapeHTML(cardSourceLabel(data.balanceSource))} · ${escapeHTML(formatCardDate(data.asOf))}
       </div>
+      <button id="card-copy-balance" class="card-copy-balance" type="button">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copiar saldo
+      </button>
     </div>
 
     <div class="card-source-warning">
@@ -479,6 +576,15 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
       <div class="card-movement-list">${movements}</div>
     </div>
   `;
+
+  result.querySelector('#card-copy-balance')?.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(formatCOP(data.balance));
+      showToast('Saldo copiado');
+    } catch {
+      showToast('No se pudo copiar el saldo');
+    }
+  });
 }
 
 export function setRoutes(routes: RouteListItem[]): void {
@@ -488,6 +594,12 @@ export function setRoutes(routes: RouteListItem[]): void {
   });
 
   applyFilters();
+
+  // First time routes are available, restore any shared deep link (#/r/<code>).
+  if (!deepLinkApplied) {
+    deepLinkApplied = true;
+    if (parseRouteHash()) applyRouteHash();
+  }
 }
 
 function matchesTypeFilter(r: RouteListItem): boolean {
@@ -564,10 +676,15 @@ function renderRouteList(routes: RouteListItem[]): void {
 
       const isFav = favorites.has(route.id);
 
+      const ariaLabel = `${route.code}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}`;
+
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
              data-type="${route.type}"
-             data-id="${escapeHTML(route.id)}">
+             data-id="${escapeHTML(route.id)}"
+             role="button"
+             tabindex="0"
+             aria-label="${escapeHTML(ariaLabel)}">
           <span class="route-item-badge" style="${badgeStyle}">${escapeHTML(route.code)}</span>
           <div class="route-item-info">
             <div class="route-item-name">${escapeHTML(route.name)}</div>
@@ -598,11 +715,24 @@ function renderRouteList(routes: RouteListItem[]): void {
     `;
   }
 
-  container.querySelectorAll('.route-item').forEach((el) => {
-    el.addEventListener('click', () => {
-      const id = (el as HTMLElement).dataset.id!;
-      const route = allRoutes.find((item) => item.id === id);
+  const items = Array.from(container.querySelectorAll<HTMLElement>('.route-item'));
+  items.forEach((el, index) => {
+    const open = () => {
+      const route = allRoutes.find((item) => item.id === el.dataset.id);
       if (route) selectRoute(route);
+    };
+    el.addEventListener('click', open);
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        open();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        items[Math.min(index + 1, items.length - 1)]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        items[Math.max(index - 1, 0)]?.focus();
+      }
     });
   });
 
@@ -622,9 +752,16 @@ function renderRouteList(routes: RouteListItem[]): void {
   });
 }
 
+// Element focus returns here when the route detail closes (keyboard a11y).
+let lastRouteTrigger: HTMLElement | null = null;
+
 function selectRoute(route: RouteListItem): void {
+  if (document.activeElement instanceof HTMLElement && document.activeElement.closest('.route-item')) {
+    lastRouteTrigger = document.activeElement;
+  }
   selectedRouteId = route.id;
   pushRecent(route.id);
+  pushRouteHash(route.code);
   showRouteDetail(route);
   onRouteSelect?.(route);
 
@@ -714,6 +851,7 @@ function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
   const sidebar = document.getElementById('sidebar')!;
+  const wasHidden = panel.classList.contains('hidden');
   setSidebarCollapsed(false);
   const isTroncal = route.type === 'troncal';
   const routeKindLabel = route.subType === 'dual' ? 'Ruta Dual' : isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP';
@@ -722,7 +860,13 @@ function showRouteDetail(route: RouteListItem): void {
 
   content.innerHTML = `
     <div class="detail-header">
-      <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
+      <div class="detail-badge-row">
+        <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
+        <button id="route-detail-share" class="detail-share-btn" type="button" aria-label="Compartir esta ruta" title="Compartir esta ruta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>
+          <span>Compartir</span>
+        </button>
+      </div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${routeKindLabel}</div>
       <div id="live-tracking-status" class="live-tracking-status loading">
@@ -772,6 +916,10 @@ function showRouteDetail(route: RouteListItem): void {
     });
   });
 
+  content.querySelector('#route-detail-share')?.addEventListener('click', () => {
+    void shareRoute(route);
+  });
+
   content.querySelector('#live-status-refresh')?.addEventListener('click', () => {
     const card = document.getElementById('live-tracking-status');
     card?.querySelector('.live-status-refresh')?.classList.add('spinning');
@@ -785,6 +933,12 @@ function showRouteDetail(route: RouteListItem): void {
   const tabExplore = document.getElementById('tab-explore');
   if (tabExplore && !tabExplore.classList.contains('active')) {
     tabExplore.click();
+  }
+
+  // On a fresh open (not a live re-render), move focus into the panel so
+  // keyboard users land on it; Esc/Volver returns focus to the route item.
+  if (wasHidden) {
+    (document.getElementById('route-detail-close') as HTMLButtonElement | null)?.focus();
   }
 }
 
@@ -915,6 +1069,12 @@ function closeRouteDetail(): void {
   document.querySelectorAll('.route-item').forEach((el) => {
     el.classList.remove('active');
   });
+
+  // Return keyboard focus to the route item that opened the panel.
+  if (lastRouteTrigger && document.body.contains(lastRouteTrigger)) {
+    lastRouteTrigger.focus();
+  }
+  lastRouteTrigger = null;
 }
 
 export function updateCounts(counts: {

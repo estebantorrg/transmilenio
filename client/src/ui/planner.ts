@@ -176,6 +176,7 @@ function setEndpointSelection(
   }
 
   invalidatePlannerResults();
+  syncPlannerHash();
 }
 
 function clearEndpointSelection(endpoint: PlannerEndpoint, focus = false): void {
@@ -198,6 +199,7 @@ function clearEndpointSelection(endpoint: PlannerEndpoint, focus = false): void 
   }
 
   invalidatePlannerResults();
+  syncPlannerHash();
 }
 
 function isPlannerVisible(): boolean {
@@ -242,6 +244,91 @@ function updateMapPickHint(mode: PlannerEndpoint | null): void {
   hint.classList.remove('hidden');
 }
 
+// ─── Deep linking (#/plan?o=…&d=…) ────────────────────────
+// A planned trip is mirrored into the URL hash so a journey is shareable and
+// restorable. Writes use replaceState (no history spam, fires no event); the
+// `#/r/<code>` route links owned by the sidebar are left untouched because we
+// only ever write while the planner panel is visible.
+
+function fmtLatLng(coord: [number, number]): string {
+  return `${coord[1].toFixed(6)},${coord[0].toFixed(6)}`;
+}
+
+function parseLatLng(value: string | null): [number, number] | null {
+  if (!value) return null;
+  const [lat, lng] = value.split(',').map(Number);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null;
+}
+
+function pointLabel(coord: [number, number]): string {
+  return `Punto en el mapa · ${coord[1].toFixed(4)}, ${coord[0].toFixed(4)}`;
+}
+
+function serializePlannerState(): string | null {
+  if (!originCoord && !destCoord) return null;
+  const sp = new URLSearchParams();
+  if (originCoord) {
+    sp.set('o', fmtLatLng(originCoord));
+    if (originSelectionText) sp.set('ol', originSelectionText);
+    if (originStopCode) sp.set('oc', originStopCode);
+  }
+  if (destCoord) {
+    sp.set('d', fmtLatLng(destCoord));
+    if (destSelectionText) sp.set('dl', destSelectionText);
+    if (destStopCode) sp.set('dc', destStopCode);
+  }
+  const mode = (document.getElementById('plan-transport-mode') as HTMLInputElement | null)?.value;
+  const pref = (document.getElementById('plan-preference') as HTMLInputElement | null)?.value;
+  if (mode && mode !== 'mix') sp.set('m', mode);
+  if (pref && pref !== 'transfers') sp.set('p', pref);
+  return sp.toString();
+}
+
+function syncPlannerHash(): void {
+  if (!isPlannerVisible()) return;
+  const state = serializePlannerState();
+  const base = location.pathname + location.search;
+  if (state) {
+    const want = `#/plan?${state}`;
+    if (location.hash !== want) history.replaceState(null, '', base + want);
+  } else if (location.hash.startsWith('#/plan')) {
+    history.replaceState(null, '', base);
+  }
+}
+
+function parsePlannerHash(): URLSearchParams | null {
+  const match = location.hash.match(/^#\/plan\?(.*)$/);
+  return match ? new URLSearchParams(match[1]) : null;
+}
+
+function setDropdownValue(dropdownId: string, hiddenId: string, value: string): void {
+  const dropdown = document.getElementById(dropdownId);
+  const hidden = document.getElementById(hiddenId) as HTMLInputElement | null;
+  const item = dropdown?.querySelector<HTMLElement>(`.custom-dropdown-item[data-value="${value}"]`);
+  if (!dropdown || !hidden || !item) return;
+  hidden.value = value;
+  dropdown.querySelectorAll('.custom-dropdown-item').forEach((i) => i.classList.remove('selected'));
+  item.classList.add('selected');
+  const label = dropdown.querySelector('.custom-dropdown-label');
+  if (label) label.textContent = item.textContent || '';
+}
+
+/** Restore the planner from a shared/back-navigated `#/plan?…` link. */
+function restorePlannerFromHash(): void {
+  const sp = parsePlannerHash();
+  if (!sp) return;
+
+  document.getElementById('tab-planner')?.click();
+  setDropdownValue('dropdown-transport', 'plan-transport-mode', sp.get('m') || 'mix');
+  setDropdownValue('dropdown-preference', 'plan-preference', sp.get('p') || 'transfers');
+
+  const origin = parseLatLng(sp.get('o'));
+  const dest = parseLatLng(sp.get('d'));
+  if (origin) setEndpointSelection('origin', sp.get('ol') || pointLabel(origin), origin, sp.get('oc') || undefined);
+  if (dest) setEndpointSelection('destination', sp.get('dl') || pointLabel(dest), dest, sp.get('dc') || undefined);
+  if (origin && dest) calculateRoute();
+}
+
 /**
  * Initializes the Journey Planner UI controllers.
  */
@@ -266,6 +353,28 @@ export function initPlanner(
 
   // Setup custom dropdown selects
   initCustomDropdowns();
+
+  // Restore a shared journey link and keep planner state in sync with the URL.
+  window.addEventListener('hashchange', () => {
+    if (parsePlannerHash()) restorePlannerFromHash();
+  });
+  restorePlannerFromHash();
+}
+
+/**
+ * Entry point used by station/stop popups ("Desde aquí" / "Hasta aquí"): opens
+ * the planner tab and sets the chosen endpoint to the clicked point. Passing the
+ * catalog `code` lets the router snap onto the real stop/station node.
+ */
+export function planFromPopup(
+  role: PlannerEndpoint,
+  label: string,
+  coord: [number, number],
+  code?: string
+): void {
+  if (!mapInstance) return;
+  document.getElementById('tab-planner')?.click();
+  setEndpointSelection(role, label, coord, code);
 }
 
 function initCustomDropdowns(): void {
@@ -315,6 +424,7 @@ function initCustomDropdowns(): void {
 
         // Trigger planner calculation if input changed
         invalidatePlannerResults();
+        syncPlannerHash();
       });
     });
   });
@@ -397,7 +507,7 @@ function initMapClickListener(): void {
     if (!mapPickMode) return;
 
     const coord: [number, number] = [e.lngLat.lng, e.lngLat.lat];
-    setEndpointSelection(mapPickMode, `Punto en mapa: ${coord[0].toFixed(5)}, ${coord[1].toFixed(5)}`, coord);
+    setEndpointSelection(mapPickMode, `Punto en el mapa · ${coord[1].toFixed(4)}, ${coord[0].toFixed(4)}`, coord);
 
     setMapPickMode(null);
   });
@@ -682,6 +792,7 @@ function initInputHandlers(): void {
     originClear.classList.toggle('hidden', !originInput.value);
     destClear.classList.toggle('hidden', !destInput.value);
     invalidatePlannerResults();
+    syncPlannerHash();
   });
 
   // 6. Calculate Route Button click

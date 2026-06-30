@@ -25,7 +25,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar } from './ui/sidebar';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
@@ -1072,6 +1072,26 @@ async function main(): Promise<void> {
         selectRouteByCode(code);
       }
     }
+  });
+
+  // Station/stop popups offer "Desde aquí / Hasta aquí" → seed the planner.
+  document.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('.popup-plan-btn') as HTMLElement | null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const role = btn.dataset.planRole === 'destination' ? 'destination' : 'origin';
+    const lng = Number(btn.dataset.planLng);
+    const lat = Number(btn.dataset.planLat);
+    if (!Number.isFinite(lng) || !Number.isFinite(lat)) return;
+    const name = btn.dataset.planName || 'Punto seleccionado';
+    const code = btn.dataset.planCode || undefined;
+
+    openSidebar();
+    getPlannerModule()
+      .then((planner) => planner.planFromPopup(role, name, [lng, lat], code))
+      .catch((error) => console.error('[Planner] plan-from-popup failed:', error));
   });
 
   initNearbyStations(map);

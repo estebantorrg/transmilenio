@@ -10,6 +10,7 @@ import maplibregl from 'maplibre-gl';
 import type { TroncalStationFeature } from '../types/transmilenio';
 import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from './routes';
 import { showPopup } from './popup';
+import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
 import type { MasterCatalog, CatalogRoute } from '../types/catalog';
@@ -218,6 +219,7 @@ function showStationPopup(
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
+      ${planActionsHtml(stationName, coords as [number, number], stationCode)}
     </div>
   `;
 
@@ -416,6 +418,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
+      ${planActionsHtml(resolvedStation.stationName, coordinate, stationCode)}
     </div>
   `;
 
