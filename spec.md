@@ -21,7 +21,7 @@ These rules govern every change. Violations block merge.
 |---|---|
 | **R1 — Zero band-aid fixes** | Every defect fixed at root cause. No try/catch swallowing symptoms. No commented-out code, no `// TODO: revisit`, no `eslint-disable` silencing warnings. If proper fix too large for current change, open tracked issue. |
 | **R2 — Clean, performant, maintainable** | Every change preserves: (a) **cleanliness** — no dead code, no duplicated logic; (b) **performance** — no blocking ops on Node event loop, optimized client-side MapLibre render; (c) **maintainability** — clean function signatures, clear naming, config documented in this spec. |
-| **R3 — Mainline Conventional Commits mandate** | All codebase changes committed and pushed directly to `main` using Conventional Commits unless the user explicitly requests a different branch, pull request, or release flow. Titles follow `type(scope): subject` (≤72 chars) with valid types (feat, fix, docs, style, refactor, perf, test, chore). |
+| **R3 — Conventional Commits, never auto-commit** | The agent NEVER runs `git commit` or `git push` unless the user explicitly asks for it in that request. Instead, for every change the agent produces a Conventional Commit message and includes it in its output for the user to use. When the user does ask to commit/push, default target is `main` unless a different branch, pull request, or release flow is requested. Commits are **title-only** — a single `type(scope): subject` line (≤72 chars), no body, with valid types (feat, fix, docs, style, refactor, perf, test, chore). |
 
 ---
 
