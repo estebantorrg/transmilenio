@@ -91,21 +91,64 @@ function pushRecent(id: string): void {
   persist(RECENT_KEY, recents);
 }
 
-// ─── Deep linking (#/r/<code>) ────────────────────────────
+// ─── Deep linking (#/r/<code>[/<dest>]) ───────────────────
 // The selected route is mirrored into the URL hash so links are shareable and
 // the browser/phone Back button closes the detail panel instead of leaving the
 // app. `suppressHashChange` guards the programmatic write so our own update does
 // not re-enter the hashchange handler.
+//
+// Rutas duales/fáciles (Z8, F417, F409…) carry the *same código for both
+// directions* — distinct only by destination. A bare `#/r/<code>` would be
+// ambiguous, so when siblings share a code we append a destination slug
+// (`#/r/Z8/portal-el-dorado`) to pin the exact direction.
 let suppressHashChange = false;
 let deepLinkApplied = false;
 
-function parseRouteHash(): string | null {
-  const match = location.hash.match(/^#\/r\/(.+)$/);
-  return match ? decodeURIComponent(match[1]).trim() : null;
+function slugifyRoute(value: string): string {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
 }
 
-function pushRouteHash(code: string): void {
-  const want = `#/r/${encodeURIComponent(code)}`;
+function routesWithCode(code: string): RouteListItem[] {
+  const normalized = code.toUpperCase();
+  return allRoutes.filter((r) => r.code.toUpperCase() === normalized);
+}
+
+/** Build the hash for a route, disambiguating by destination when needed. */
+function routeHashFor(route: RouteListItem): string {
+  const code = encodeURIComponent(route.code);
+  if (routesWithCode(route.code).length > 1) {
+    return `#/r/${code}/${encodeURIComponent(slugifyRoute(route.destination))}`;
+  }
+  return `#/r/${code}`;
+}
+
+function parseRouteHash(): { code: string; slug?: string } | null {
+  const match = location.hash.match(/^#\/r\/([^/]+)(?:\/([^/]+))?$/);
+  if (!match) return null;
+  return {
+    code: decodeURIComponent(match[1]).trim(),
+    slug: match[2] ? decodeURIComponent(match[2]).trim() : undefined,
+  };
+}
+
+/** Resolve a hash back to a specific route, picking the right direction. */
+function resolveRouteFromHash(code: string, slug?: string): RouteListItem | undefined {
+  const matches = routesWithCode(code);
+  if (matches.length <= 1) return matches[0];
+  if (slug) {
+    const exact = matches.find((r) => slugifyRoute(r.destination) === slug);
+    if (exact) return exact;
+  }
+  return matches[0];
+}
+
+function pushRouteHash(route: RouteListItem): void {
+  const want = routeHashFor(route);
   if (location.hash === want) return;
   suppressHashChange = true;
   location.hash = want;
@@ -119,11 +162,11 @@ function clearRouteHash(): void {
 
 /** Sync selection to the current hash — used on load and on Back/Forward. */
 function applyRouteHash(): void {
-  const code = parseRouteHash();
-  if (code) {
-    const current = allRoutes.find((r) => r.id === selectedRouteId);
-    if (!current || current.code.toUpperCase() !== code.toUpperCase()) {
-      selectRouteByCode(code);
+  const parsed = parseRouteHash();
+  if (parsed) {
+    const target = resolveRouteFromHash(parsed.code, parsed.slug);
+    if (target && target.id !== selectedRouteId) {
+      selectRoute(target);
     }
   } else if (selectedRouteId) {
     closeRouteDetail();
@@ -194,7 +237,7 @@ async function copyText(text: string): Promise<boolean> {
 
 /** Copy a deep link to the given route to the clipboard. */
 async function shareRoute(route: RouteListItem): Promise<void> {
-  const url = `${location.origin}${location.pathname}#/r/${encodeURIComponent(route.code)}`;
+  const url = `${location.origin}${location.pathname}${routeHashFor(route)}`;
   showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
 }
 
@@ -769,7 +812,7 @@ function selectRoute(route: RouteListItem): void {
   }
   selectedRouteId = route.id;
   pushRecent(route.id);
-  pushRouteHash(route.code);
+  pushRouteHash(route);
   showRouteDetail(route);
   onRouteSelect?.(route);
 
