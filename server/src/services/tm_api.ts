@@ -618,6 +618,80 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
   return merged;
 }
 
+/**
+ * Drops station→wagon route mappings that no route's authoritative recorrido
+ * corroborates.
+ *
+ * `mergeCatalogs` retains a previous catalog's station-wagon mappings so
+ * day-dependent services (Ciclovía routes appear only on Sundays) and partial
+ * fetches survive. That same retention also preserves mappings for routes
+ * upstream has since rerouted *away* from a station — e.g. a troncal
+ * "C15 Chapinero" that no longer calls at Nariño, or "M85 Museo Nacional" no
+ * longer serving Fucha. Those stale mappings surface as phantom or duplicate
+ * route tags in a station popup.
+ *
+ * The route recorrido (`routes[code][].stops`) is the source of truth for which
+ * stations a route serves (spec §5.1.2). A wagon entry is kept only if some
+ * variant sharing its código + normalized name lists this station among its
+ * stops; retained day-dependent routes keep their own retained recorrido, so
+ * they survive. Empty wagons left behind are removed. Returns the count pruned.
+ */
+export function pruneUnservedStationRoutes(catalog: MasterCatalog): number {
+  // código → normalized name → set of station codes the recorrido serves.
+  const served = new Map<string, Map<string, Set<string>>>();
+  for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    const codeKey = code.toUpperCase().trim();
+    let byName = served.get(codeKey);
+    if (!byName) {
+      byName = new Map();
+      served.set(codeKey, byName);
+    }
+    for (const variant of variants) {
+      const nameKey = cleanRouteName(variant.nombre);
+      let stops = byName.get(nameKey);
+      if (!stops) {
+        stops = new Set();
+        byName.set(nameKey, stops);
+      }
+      for (const stop of variant.stops || []) {
+        if (stop?.codigo) stops.add(String(stop.codigo).toUpperCase().trim());
+      }
+    }
+  }
+
+  let pruned = 0;
+  for (const [stationCode, station] of Object.entries(catalog.stations || {})) {
+    const stationKey = String(stationCode).toUpperCase().trim();
+    for (const [wagon, routes] of Object.entries(station.wagons || {})) {
+      const kept = routes.filter((r) => {
+        const stops = served.get((r.codigo || '').toUpperCase().trim())?.get(cleanRouteName(r.nombre));
+        return stops ? stops.has(stationKey) : false;
+      });
+      if (kept.length === routes.length) continue;
+      pruned += routes.length - kept.length;
+      if (kept.length > 0) station.wagons[wagon] = kept;
+      else delete station.wagons[wagon];
+    }
+  }
+  return pruned;
+}
+
+/**
+ * Repairs the on-disk catalog in place: loads it, prunes phantom station-wagon
+ * mappings (see `pruneUnservedStationRoutes`), and rewrites it atomically. Used
+ * to heal a catalog whose stale mappings predate the prune step now baked into
+ * `syncMasterCatalog`. Returns the number of mappings pruned.
+ */
+export async function pruneCatalogFileInPlace(): Promise<number> {
+  await loadCatalogFromDisk();
+  const pruned = pruneUnservedStationRoutes(masterCatalog);
+  if (pruned > 0) {
+    await writeCatalogAtomically(masterCatalog);
+    masterCatalogLight = null;
+  }
+  return pruned;
+}
+
 // ─── Master Sync ────────────────────────────────────────
 
 let syncInProgress = false;
@@ -755,6 +829,10 @@ export async function syncMasterCatalog(): Promise<void> {
     //    routes are only listed on Sundays) and anything a partial fetch missed
     //    survive, then save atomically and publish once the file is complete.
     const merged = mergeCatalogs(masterCatalog, newCatalog);
+    const prunedMappings = pruneUnservedStationRoutes(merged);
+    if (prunedMappings > 0) {
+      console.log(`[TM API] Pruned ${prunedMappings} stale station-wagon mappings no recorrido corroborates.`);
+    }
     merged.syncedAt = Date.now();
     await writeCatalogAtomically(merged);
     masterCatalog = merged;
