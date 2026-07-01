@@ -164,25 +164,38 @@ function showToast(message: string): void {
   toastTimer = window.setTimeout(() => toast?.classList.remove('visible'), 2400);
 }
 
-/** Share or copy a deep link to the given route. */
+/** Copy text to the clipboard. Uses the async Clipboard API in secure contexts
+ *  and falls back to a hidden textarea + execCommand for everything else
+ *  (older/desktop browsers, non-HTTPS). Returns whether the copy succeeded. */
+async function copyText(text: string): Promise<boolean> {
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* fall through to legacy path */
+    }
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.setAttribute('readonly', '');
+    textarea.style.position = 'fixed';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(textarea);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+/** Copy a deep link to the given route to the clipboard. */
 async function shareRoute(route: RouteListItem): Promise<void> {
   const url = `${location.origin}${location.pathname}#/r/${encodeURIComponent(route.code)}`;
-  const title = `${route.code} · ${route.origin} → ${route.destination}`;
-  try {
-    if (navigator.share) {
-      await navigator.share({ title, text: title, url });
-      return;
-    }
-  } catch {
-    /* user dismissed the share sheet — fall through to clipboard */
-    return;
-  }
-  try {
-    await navigator.clipboard.writeText(url);
-    showToast('Enlace copiado al portapapeles');
-  } catch {
-    showToast('No se pudo copiar el enlace');
-  }
+  showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
 }
 
 /** Apply a route filter and reflect it across both control surfaces. */
@@ -578,12 +591,7 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
   `;
 
   result.querySelector('#card-copy-balance')?.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText(formatCOP(data.balance));
-      showToast('Saldo copiado');
-    } catch {
-      showToast('No se pudo copiar el saldo');
-    }
+    showToast((await copyText(formatCOP(data.balance))) ? 'Saldo copiado' : 'No se pudo copiar el saldo');
   });
 }
 
@@ -862,9 +870,9 @@ function showRouteDetail(route: RouteListItem): void {
     <div class="detail-header">
       <div class="detail-badge-row">
         <div class="detail-badge ${route.type}" style="background:${badgeColor};color:#fff;">${escapeHTML(route.code)}</div>
-        <button id="route-detail-share" class="detail-share-btn" type="button" aria-label="Compartir esta ruta" title="Compartir esta ruta">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>
-          <span>Compartir</span>
+        <button id="route-detail-share" class="detail-share-btn" type="button" aria-label="Copiar enlace a esta ruta" title="Copiar enlace a esta ruta">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Copiar enlace</span>
         </button>
       </div>
       <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
