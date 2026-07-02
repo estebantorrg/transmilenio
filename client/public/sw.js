@@ -6,7 +6,7 @@
  *   - navigations (index.html shell)              → network-first (cache fallback)
  * Everything else (live /api/*) is left to the network.
  */
-const VERSION = 'tm-cache-v2';
+const VERSION = 'tm-cache-v3';
 const CACHE = `${VERSION}`;
 
 self.addEventListener('install', () => self.skipWaiting());
@@ -44,7 +44,11 @@ async function networkFirst(req) {
 async function staleWhileRevalidate(req) {
   const cache = await caches.open(CACHE);
   const hit = await cache.match(req);
-  const network = fetch(req).then((res) => {
+  // Bypass the HTTP cache on revalidation: the catalog is served with
+  // max-age=1800, so a plain fetch() can be answered by the 30-min browser
+  // cache and never actually refresh. `no-cache` forces an etag revalidation
+  // (fast 304 or fresh 200), so a deployed catalog fix lands on the next load.
+  const network = fetch(req, { cache: 'no-cache' }).then((res) => {
     if (res.ok) cache.put(req, res.clone());
     return res;
   }).catch(() => hit);

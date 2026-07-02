@@ -1198,8 +1198,23 @@ async function main(): Promise<void> {
 // master catalog (see public/sw.js). Registered after load so it never blocks
 // first paint; failures are non-fatal.
 if ('serviceWorker' in navigator) {
+  // If a SW already controlled the page, a controllerchange means a new version
+  // took over (skipWaiting + clients.claim). Reload once so the page actually
+  // uses the fresh caches (e.g. an updated master catalog) instead of the stale
+  // bytes the previous worker already served. Guarded so the very first
+  // registration (no prior controller) never triggers a reload loop.
+  let reloadingForSW = false;
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloadingForSW) return;
+    reloadingForSW = true;
+    window.location.reload();
+  });
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((err) => console.warn('[SW] registration failed', err));
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((reg) => reg.update())
+      .catch((err) => console.warn('[SW] registration failed', err));
   });
 }
 
