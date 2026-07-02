@@ -6,7 +6,7 @@
  *   - navigations (index.html shell)              → network-first (cache fallback)
  * Everything else (live /api/*) is left to the network.
  */
-const VERSION = 'tm-cache-v1';
+const VERSION = 'tm-cache-v2';
 const CACHE = `${VERSION}`;
 
 self.addEventListener('install', () => self.skipWaiting());
