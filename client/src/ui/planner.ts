@@ -871,6 +871,20 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
   return bogotaCenter;
 }
 
+/** Error state for a failed route search. Shows the underlying message (muted)
+ *  so a failure is diagnosable in the field instead of an opaque "try again". */
+function renderCalcError(container: HTMLElement, err: unknown): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  container.innerHTML = `
+    <div class="planner-empty-state">
+      ${getEmptyStateIllustration('error')}
+      <div class="card-empty-title" style="color: var(--tm-red-light);">Error de cálculo</div>
+      <div class="card-empty-text">Ocurrió un error al buscar las rutas. Inténtalo de nuevo.</div>
+      ${detail ? `<div class="card-empty-text" style="opacity:.55;font-size:11px;margin-top:6px;word-break:break-word;">${escapeHTML(detail)}</div>` : ''}
+    </div>
+  `;
+}
+
 /**
  * Calculates paths using the local router.
  */
@@ -931,8 +945,10 @@ function calculateRoute(): void {
       return;
     }
 
+    // Compute first. Only a routing failure should surface the error state.
+    let plans: JourneyPlan[];
     try {
-      calculatedPlans = findRoutes({
+      plans = findRoutes({
         origin: originCoord!,
         destination: destCoord!,
         originStopCode,
@@ -941,26 +957,31 @@ function calculateRoute(): void {
         minWalk,
         sortBy,
       });
-
-      btnCalculate.classList.remove('loading');
-      renderResults(calculatedPlans);
-      
-      // Asynchronously load real street-level walking paths from OSRM
-      enrichWalkingGeometries(calculatedPlans, requestId).catch(err => {
-        console.error('[Planner] Failed walking enrichment:', err);
-      });
     } catch (err) {
       if (requestId !== plannerRequestSeq) return;
-      console.error('[Planner] Calculation failed:', err);
+      console.error('[Planner] Route search failed:', err);
       btnCalculate.classList.remove('loading');
-      resultsContainer.innerHTML = `
-        <div class="planner-empty-state">
-          ${getEmptyStateIllustration('error')}
-          <div class="card-empty-title" style="color: var(--tm-red-light);">Error de cálculo</div>
-          <div class="card-empty-text">Ocurrió un error al buscar las rutas. Inténtalo de nuevo.</div>
-        </div>
-      `;
+      renderCalcError(resultsContainer, err);
+      return;
     }
+
+    btnCalculate.classList.remove('loading');
+    calculatedPlans = plans;
+
+    // Rendering — including drawing the route on the map — must never be able to
+    // discard a valid itinerary. A map/WebGL failure (common on mobile: GPU
+    // pressure, style not fully loaded) while drawing should leave the computed
+    // steps on screen, since that text is exactly what a stranded user needs.
+    try {
+      renderResults(calculatedPlans);
+    } catch (err) {
+      console.error('[Planner] Rendering results failed (itinerary still computed):', err);
+    }
+
+    // Asynchronously load real street-level walking paths from OSRM
+    enrichWalkingGeometries(calculatedPlans, requestId).catch(err => {
+      console.error('[Planner] Failed walking enrichment:', err);
+    });
   }, 100);
 }
 
@@ -1116,22 +1137,28 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
   const plan = calculatedPlans[index];
 
   if (updateMap) {
-    drawJourneyPath(mapInstance, plan);
+    // Best-effort: a map/WebGL failure here must not abort rendering the
+    // itinerary text (cards + timeline) below.
+    try {
+      drawJourneyPath(mapInstance, plan);
 
-    const bounds = new maplibregl.LngLatBounds();
-    let hasBounds = false;
-    plan.steps.forEach((step) => {
-      step.path?.forEach((coord) => {
-        bounds.extend(coord);
-        hasBounds = true;
+      const bounds = new maplibregl.LngLatBounds();
+      let hasBounds = false;
+      plan.steps.forEach((step) => {
+        step.path?.forEach((coord) => {
+          bounds.extend(coord);
+          hasBounds = true;
+        });
       });
-    });
 
-    if (hasBounds) {
-      mapInstance.fitBounds(bounds, {
-        padding: getMapFitPadding(),
-        maxZoom: 15,
-      });
+      if (hasBounds) {
+        mapInstance.fitBounds(bounds, {
+          padding: getMapFitPadding(),
+          maxZoom: 15,
+        });
+      }
+    } catch (err) {
+      console.error('[Planner] Map draw failed (itinerary shown without map path):', err);
     }
   }
 
