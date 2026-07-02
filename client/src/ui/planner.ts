@@ -513,6 +513,88 @@ function initMapClickListener(): void {
   });
 }
 
+interface GeocodeCandidate {
+  name: string;
+  lat: number;
+  lon: number;
+  type?: string;
+  code?: string;
+}
+
+// Client-side geocode cache: repeated/backspace-retype queries render instantly
+// and skip the server round-trip entirely. Bounded LRU keyed by lowercased query.
+const GEOCODE_CLIENT_CACHE_MAX = 60;
+const geocodeClientCache = new Map<string, GeocodeCandidate[]>();
+
+function geocodeCacheGet(key: string): GeocodeCandidate[] | undefined {
+  const hit = geocodeClientCache.get(key);
+  if (!hit) return undefined;
+  geocodeClientCache.delete(key);
+  geocodeClientCache.set(key, hit);
+  return hit;
+}
+
+function geocodeCacheSet(key: string, candidates: GeocodeCandidate[]): void {
+  geocodeClientCache.set(key, candidates);
+  while (geocodeClientCache.size > GEOCODE_CLIENT_CACHE_MAX) {
+    const oldest = geocodeClientCache.keys().next().value;
+    if (oldest === undefined) break;
+    geocodeClientCache.delete(oldest);
+  }
+}
+
+/** Render geocode candidates into an autocomplete dropdown and wire selection. */
+function renderAutocompleteCandidates(
+  dropdown: HTMLElement,
+  candidates: GeocodeCandidate[],
+  onSelect: (name: string, coord: [number, number], code?: string) => void
+): void {
+  if (candidates.length === 0) {
+    dropdown.innerHTML = `<div class="autocomplete-item"><div class="autocomplete-name">Sin resultados</div></div>`;
+    dropdown.classList.remove('hidden');
+    return;
+  }
+
+  dropdown.innerHTML = candidates
+    .map((c) => {
+      const lat = Number(c.lat);
+      const lon = Number(c.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
+      const typeClass = c.type === 'station' ? 'station' : c.type === 'stop' ? 'stop' : 'place';
+      const icon = c.type === 'station' ? '🚇' : c.type === 'stop' ? '🚏' : '📍';
+      const metaText = c.code ? `Código: ${c.code}` : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      return `
+        <div class="autocomplete-item ${typeClass}"
+             data-name="${escapeHTML(c.name)}"
+             data-lat="${lat}"
+             data-lon="${lon}"
+             data-code="${escapeHTML(c.code || '')}">
+          <span class="autocomplete-icon">${icon}</span>
+          <div class="autocomplete-info">
+            <span class="autocomplete-name">${escapeHTML(c.name)}</span>
+            <span class="autocomplete-meta">${escapeHTML(metaText)}</span>
+          </div>
+        </div>
+      `;
+    })
+    .join('');
+
+  dropdown.classList.remove('hidden');
+
+  dropdown.querySelectorAll('.autocomplete-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const data = el as HTMLElement;
+      const name = data.dataset.name;
+      if (!name) return;
+      const lat = Number(data.dataset.lat);
+      const lon = Number(data.dataset.lon);
+      const code = data.dataset.code;
+      onSelect(name, [lon, lat], code || undefined);
+      dropdown.classList.add('hidden');
+    });
+  });
+}
+
 function debounce<T extends (...args: any[]) => void>(fn: T, delay: number): (...args: Parameters<T>) => void {
   let timer: number;
   return (...args: Parameters<T>) => {
@@ -583,57 +665,29 @@ function initInputHandlers(): void {
       return;
     }
 
+    // Instant path: serve a prior identical query from cache, no server round-trip.
+    const cacheKey = trimmed.toLowerCase();
+    const cached = geocodeCacheGet(cacheKey);
+    if (cached) {
+      renderAutocompleteCandidates(dropdown, cached, onSelect);
+      return;
+    }
+
+    // Immediate feedback while the lookup is in flight (perceived speed).
+    dropdown.innerHTML = `<div class="autocomplete-item loading"><span class="autocomplete-icon">🔍</span><div class="autocomplete-name">Buscando lugares…</div></div>`;
+    dropdown.classList.remove('hidden');
+
     try {
       // Query local lookup + Nominatim + ArcGIS geocoder proxy
       const res = await api.geocodeAddress(trimmed);
       if (!isCurrentRequest()) return;
-      if (!res.success || !res.candidates || res.candidates.length === 0) {
-        dropdown.innerHTML = `<div class="autocomplete-item"><div class="autocomplete-name">Sin resultados</div></div>`;
-        dropdown.classList.remove('hidden');
-        return;
-      }
-
-      dropdown.innerHTML = res.candidates
-        .map((c: any) => {
-          const lat = Number(c.lat);
-          const lon = Number(c.lon);
-          if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
-          const typeClass = c.type === 'station' ? 'station' : c.type === 'stop' ? 'stop' : 'place';
-          const icon = c.type === 'station' ? '🚇' : c.type === 'stop' ? '🚏' : '📍';
-          const metaText = c.code ? `Código: ${c.code}` : `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-          return `
-            <div class="autocomplete-item ${typeClass}"
-                 data-name="${escapeHTML(c.name)}"
-                 data-lat="${lat}"
-                 data-lon="${lon}"
-                 data-code="${escapeHTML(c.code || '')}">
-              <span class="autocomplete-icon">${icon}</span>
-              <div class="autocomplete-info">
-                <span class="autocomplete-name">${escapeHTML(c.name)}</span>
-                <span class="autocomplete-meta">${escapeHTML(metaText)}</span>
-              </div>
-            </div>
-          `;
-        })
-        .join('');
-
-      dropdown.classList.remove('hidden');
-
-      dropdown.querySelectorAll('.autocomplete-item').forEach((el) => {
-        el.addEventListener('click', () => {
-          const data = el as HTMLElement;
-          const name = data.dataset.name!;
-          const lat = Number(data.dataset.lat!);
-          const lon = Number(data.dataset.lon!);
-          const code = data.dataset.code;
-
-          onSelect(name, [lon, lat], code || undefined);
-          dropdown.classList.add('hidden');
-        });
-        });
+      const candidates: GeocodeCandidate[] = res.success && Array.isArray(res.candidates) ? res.candidates : [];
+      geocodeCacheSet(cacheKey, candidates);
+      renderAutocompleteCandidates(dropdown, candidates, onSelect);
     } catch (err) {
       if (!isCurrentRequest()) return;
       console.error('[Planner] Geocode lookup error:', err);
+      dropdown.classList.add('hidden');
     }
   };
 

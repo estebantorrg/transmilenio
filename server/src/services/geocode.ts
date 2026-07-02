@@ -23,9 +23,42 @@ const BOGOTA_BOUNDS = {
   north: 4.85,
 };
 
-const LOCAL_STRONG_MATCH_SCORE = 80;
 const LOCAL_MIN_SCORE = 45;
+// Cap how many local station/stop hits reserve slots in a merged list so real
+// Bogotá places from the geocoders always have room (the list was stops-only
+// before). Applied only when remote places are also present.
+const LOCAL_RESULT_CAP = 4;
+const RESULT_LIMIT = 8;
 const QUERY_STOP_WORDS = new Set(['estacion', 'tm', 'transmilenio', 'paradero', 'bogota']);
+
+// TTL cache for geocode results, keyed by canonical query. Address/place data
+// is stable over minutes; caching removes the external round-trip for repeated
+// or backspace/retype queries (spec §2.1 Performance, §5.5.2 caching pattern).
+const GEOCODE_CACHE_TTL_MS = 5 * 60 * 1000;
+const GEOCODE_CACHE_MAX = 200;
+const geocodeCache = new Map<string, { at: number; candidates: GeocodeCandidate[] }>();
+
+function cacheGet(key: string): GeocodeCandidate[] | null {
+  const hit = geocodeCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > GEOCODE_CACHE_TTL_MS) {
+    geocodeCache.delete(key);
+    return null;
+  }
+  // Refresh LRU recency.
+  geocodeCache.delete(key);
+  geocodeCache.set(key, hit);
+  return hit.candidates;
+}
+
+function cacheSet(key: string, candidates: GeocodeCandidate[]): void {
+  geocodeCache.set(key, { at: Date.now(), candidates });
+  while (geocodeCache.size > GEOCODE_CACHE_MAX) {
+    const oldest = geocodeCache.keys().next().value;
+    if (oldest === undefined) break;
+    geocodeCache.delete(oldest);
+  }
+}
 
 const VERIFIED_LOCAL_STATIONS: VerifiedLocalStation[] = [
   {
@@ -318,28 +351,40 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
   const trimmed = query.trim();
   if (trimmed.length < 3) return [];
 
+  const cacheKey = canonicalSearchText(trimmed);
+  if (cacheKey) {
+    const cached = cacheGet(cacheKey);
+    if (cached) return cached;
+  }
+
   const localCandidates = searchLocalCatalog(trimmed);
-  if (localCandidates[0]?.score >= LOCAL_STRONG_MATCH_SCORE) {
-    return dedupeCandidates(localCandidates.map(stripLocalScore)).slice(0, 8);
-  }
 
-  let remoteCandidates: GeocodeCandidate[] = [];
-  try {
-    console.log(`[Geocode] Querying Nominatim; queryLength=${trimmed.length}`);
-    remoteCandidates = await fetchNominatim(trimmed);
-  } catch (error) {
-    console.warn('[Geocode] Nominatim failed, falling back to ArcGIS:', error);
-    try {
-      console.log(`[Geocode] Querying ArcGIS Geocoder; queryLength=${trimmed.length}`);
-      remoteCandidates = await fetchArcGIS(trimmed);
-    } catch (arcgisError) {
-      console.error('[Geocode] ArcGIS geocoding failed as well:', arcgisError);
-    }
-  }
+  // Query both geocoders in parallel — a slow or failed provider must not block
+  // the other. Previously ArcGIS only ran after Nominatim's full 5s timeout, so
+  // a slow Nominatim stalled every lookup. Nominatim covers POIs, ArcGIS covers
+  // addresses; the union gives broader real-place coverage.
+  const [nominatim, arcgis] = await Promise.all([
+    fetchNominatim(trimmed).catch((error) => {
+      console.warn('[Geocode] Nominatim failed:', error);
+      return [] as GeocodeCandidate[];
+    }),
+    fetchArcGIS(trimmed).catch((error) => {
+      console.warn('[Geocode] ArcGIS geocoding failed:', error);
+      return [] as GeocodeCandidate[];
+    }),
+  ]);
 
-  const relevantRemote = remoteCandidates.filter((candidate) => remoteLooksRelevant(trimmed, candidate));
-  return dedupeCandidates([
-    ...localCandidates.map(stripLocalScore),
-    ...relevantRemote,
-  ]).slice(0, 8);
+  const relevantRemote = [...nominatim, ...arcgis].filter((candidate) =>
+    remoteLooksRelevant(trimmed, candidate)
+  );
+
+  // Keep the strongest local station/stop hits on top, but cap them when remote
+  // places exist so the list surfaces actual Bogotá places, not stops-only.
+  const localList = localCandidates.map(stripLocalScore);
+  const localForMerge = relevantRemote.length > 0 ? localList.slice(0, LOCAL_RESULT_CAP) : localList;
+
+  const merged = dedupeCandidates([...localForMerge, ...relevantRemote]).slice(0, RESULT_LIMIT);
+
+  if (cacheKey) cacheSet(cacheKey, merged);
+  return merged;
 }
