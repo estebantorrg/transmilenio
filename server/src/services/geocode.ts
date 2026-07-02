@@ -276,6 +276,57 @@ async function fetchNominatim(query: string): Promise<GeocodeCandidate[]> {
     .filter(inBogota);
 }
 
+/**
+ * Photon (Komoot) — OSM-backed, autocomplete-tuned place search. No key/card.
+ * Best partial-typing coverage of Bogotá POIs (malls, universities, landmarks).
+ * `bbox` restricts to the Bogotá window; `inBogota` re-checks as defense in depth.
+ */
+async function fetchPhoton(query: string): Promise<GeocodeCandidate[]> {
+  const bbox = `${BOGOTA_BOUNDS.west},${BOGOTA_BOUNDS.south},${BOGOTA_BOUNDS.east},${BOGOTA_BOUNDS.north}`;
+  const url =
+    `https://photon.komoot.io/api?q=${encodeURIComponent(query)}` +
+    `&bbox=${bbox}&lat=4.60&lon=-74.08&limit=6`;
+
+  const response = await fetch(url, {
+    headers: {
+      'User-Agent': 'TransMilenioExplorer/1.0 (contact: github.com/estebantorrg/transmilenio)',
+      'Accept-Language': 'es-CO,es;q=0.9',
+    },
+    signal: AbortSignal.timeout(5000),
+  });
+
+  if (!response.ok) throw new Error(`Photon HTTP ${response.status}`);
+
+  const data = await response.json();
+  const features = Array.isArray(data?.features) ? data.features : [];
+
+  return features
+    .map((feature: any): GeocodeCandidate | null => {
+      const coords = feature?.geometry?.coordinates;
+      const lon = finiteNumber(coords?.[0]);
+      const lat = finiteNumber(coords?.[1]);
+      if (lat === null || lon === null) return null;
+
+      const p = feature.properties ?? {};
+      // Reject anything not tagged as being in Bogotá — Photon's bbox is a
+      // rectangle, so a neighbouring municipality inside the box could slip in.
+      const cityOk =
+        !p.city ||
+        normalizeString(String(p.city)).includes('bogota') ||
+        normalizeString(String(p.county ?? '')).includes('bogota');
+      if (!cityOk) return null;
+
+      const label = [p.name || p.street, p.district || p.suburb || p.city]
+        .filter((part: unknown): part is string => typeof part === 'string' && part.length > 0);
+      const name = Array.from(new Set(label)).slice(0, 3).join(', ').trim();
+      if (!name) return null;
+
+      return { name, lat, lon, type: 'place' };
+    })
+    .filter((candidate: GeocodeCandidate | null): candidate is GeocodeCandidate => candidate !== null)
+    .filter(inBogota);
+}
+
 async function fetchArcGIS(query: string): Promise<GeocodeCandidate[]> {
   const queryWithCity = query.toLowerCase().includes('bogota') ? query : `${query}, Bogota`;
   const url = `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?f=json&singleLine=${encodeURIComponent(queryWithCity)}&location=-74.07,4.60&distance=50000&maxLocations=6`;
@@ -359,11 +410,15 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
 
   const localCandidates = searchLocalCatalog(trimmed);
 
-  // Query both geocoders in parallel — a slow or failed provider must not block
-  // the other. Previously ArcGIS only ran after Nominatim's full 5s timeout, so
-  // a slow Nominatim stalled every lookup. Nominatim covers POIs, ArcGIS covers
-  // addresses; the union gives broader real-place coverage.
-  const [nominatim, arcgis] = await Promise.all([
+  // Query all geocoders in parallel — a slow or failed provider must not block
+  // the others. Previously ArcGIS only ran after Nominatim's full 5s timeout, so
+  // a slow Nominatim stalled every lookup. Photon/Nominatim cover POIs, ArcGIS
+  // covers addresses; the union gives broader real-place coverage.
+  const [photon, nominatim, arcgis] = await Promise.all([
+    fetchPhoton(trimmed).catch((error) => {
+      console.warn('[Geocode] Photon failed:', error);
+      return [] as GeocodeCandidate[];
+    }),
     fetchNominatim(trimmed).catch((error) => {
       console.warn('[Geocode] Nominatim failed:', error);
       return [] as GeocodeCandidate[];
@@ -374,7 +429,9 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
     }),
   ]);
 
-  const relevantRemote = [...nominatim, ...arcgis].filter((candidate) =>
+  // Photon leads: it's the autocomplete-tuned place source. Nominatim/ArcGIS
+  // backfill addresses it misses. dedupeCandidates + inBogota keep it Bogotá-only.
+  const relevantRemote = [...photon, ...nominatim, ...arcgis].filter((candidate) =>
     remoteLooksRelevant(trimmed, candidate)
   );
 
