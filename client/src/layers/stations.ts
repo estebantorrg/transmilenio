@@ -327,6 +327,51 @@ export function addStationsLayer(
   });
 }
 
+/**
+ * Catalog fallback for the base station layer (spec §4.2). ArcGIS is the
+ * primary source of troncal stations, but when that fetch fails or comes back
+ * empty (upstream flake, cold relay) the layer must not silently vanish — the
+ * master catalog is required for the app to open at all and carries every
+ * troncal station with coordinates and wagon data, so synthesize features
+ * from it instead. ArcGIS-only metadata (wifi, biciestación) is simply absent.
+ */
+export function catalogStationsToFeatures(catalog: MasterCatalog): TroncalStationFeature[] {
+  const features: TroncalStationFeature[] = [];
+  let objectid = 1;
+
+  for (const [key, station] of Object.entries(catalog.stations)) {
+    const isTroncal =
+      station.sistema === 'TransMilenio' ||
+      (station.tipoServicio || '').toUpperCase() === 'TRONCAL';
+    if (!isTroncal) continue;
+
+    const [latRaw, lngRaw] = String(station.coordenada || '').split(',');
+    const lat = Number(latRaw);
+    const lng = Number(lngRaw);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+    features.push({
+      attributes: {
+        objectid: objectid++,
+        numero_estacion: station.codigo || key,
+        nombre_estacion: station.nombre,
+        ubicacion_estacion: station.direccion || '',
+        troncal_estacion: 'TransMilenio',
+        numero_vagones_estacion: Object.keys(station.wagons || {}).length,
+        numero_accesos_estacion: 0,
+        biciestacion_estacion: '0',
+        capacidad_biciestacion_estacion: 0,
+        tipo_estacion: 0,
+        latitud_estacion: lat,
+        longitud_estacion: lng,
+        componente_wifi: '',
+      },
+      geometry: { x: lng, y: lat },
+    });
+  }
+  return features;
+}
+
 export function toggleStationsLayer(map: maplibregl.Map, visible: boolean): void {
   const visibility = visible ? 'visible' : 'none';
   STATION_LAYERS.forEach((id) => {

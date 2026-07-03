@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
 import {
@@ -782,6 +782,13 @@ async function main(): Promise<void> {
   console.log('🚌 TransMilenio Explorer starting...');
   clearLegacyExactLocation();
 
+  // Inside the Android shell (mobile/), mark the DOM so the stylesheet can
+  // swap browser-era chrome for app ergonomics (see "Native app shell" in
+  // style.css). Functionality is identical on both targets.
+  if ((window as any).Capacitor?.isNativePlatform?.()) {
+    document.body.classList.add('native-app');
+  }
+
   // 0. Wake up the backend immediately (Render free tier sleeps after inactivity)
   //    Fire-and-forget: we don't need the result, just need the server to start booting.
   const wakeUpPromise = fetch(
@@ -793,9 +800,10 @@ async function main(): Promise<void> {
   // 1. Initialize map
   updateProgress(5, 'Cargando mapa...');
   const map = createMap('map');
-  if (import.meta.env.DEV) {
-    (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
-  }
+  // Diagnostic handle for remote-devtools debugging of deployed builds (same
+  // rationale as window.__tmStationAudit) — e.g. inspecting layer/source state
+  // inside the Android webview via chrome://inspect.
+  (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
 
   // Wait for map to load (handle case where it might already be loaded)
   if (!map.loaded()) {
@@ -861,11 +869,19 @@ async function main(): Promise<void> {
     const cableTracesRes = optionalFeatures('Cable traces', cableTracesResult);
 
     troncalRoutes = troncalRoutesRes.features;
-    const stations = stationsRes.features.filter(isVisibleTroncalStation);
     const cableStations = cableStationsRes.features || [];
     const cableTraces = cableTracesRes.features || [];
     catalog = catalogRes.data || { stations: {}, routes: {} };
-    
+
+    // ArcGIS is the primary station source; if it failed or came back empty,
+    // rebuild the layer from the (required) master catalog so stations never
+    // silently vanish from the map (spec §4.2).
+    let stations = stationsRes.features.filter(isVisibleTroncalStation);
+    if (stations.length === 0) {
+      stations = catalogStationsToFeatures(catalog).filter(isVisibleTroncalStation);
+      console.warn(`⚠️ ArcGIS stations unavailable — rebuilt ${stations.length} stations from master catalog`);
+    }
+
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stations.length}`);

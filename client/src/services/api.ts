@@ -62,6 +62,9 @@ export class ApiError extends Error {
 function isRetryable(error: unknown): boolean {
   if (error instanceof ApiError) {
     const status = error.status;
+    // No status means the request never got an HTTP response (fetch failed,
+    // timeout, connection reset) — transient by nature, retry it.
+    if (status === undefined) return true;
     // 502, 503, 504 are all server-side transient errors (cold start, overload, timeout)
     return status === 502 || status === 503 || status === 504;
   }

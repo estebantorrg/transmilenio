@@ -86,7 +86,7 @@ x-relay-secret: <secret>
 
 ### 4.2 Vite Client (Graceful Degradation)
 * **Outage Fallback**: Master catalog is critical. If loading fails, blocking UI overlay shown.
-* **ArcGIS Failure**: If ArcGIS troncal routes/corridors fail, map still renders routes using coordinates from catalog traces.
+* **ArcGIS Failure**: If ArcGIS troncal routes/corridors fail, map still renders routes using coordinates from catalog traces. If the ArcGIS station layer fails or returns empty, the station layer is rebuilt from the (required) master catalog (`catalogStationsToFeatures`, `stations.ts`) so stations never silently vanish; ArcGIS-only metadata (wifi, biciestación) is simply absent in that mode.
 * **Live Outage**: If live tracking fails, route detail panel continues displaying static timeline stops. If a recent fix is cached (§5.2.5), the server serves it tagged `stale`/`asOf` and the client shows the last positions with a "datos de HH:MM" indicator rather than blanking the map.
 
 ### 4.3 Database & Catalog Writes
