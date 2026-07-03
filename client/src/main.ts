@@ -1197,7 +1197,10 @@ async function main(): Promise<void> {
 // Speed up repeat loads: cache the app shell, hashed assets, and the heavy
 // master catalog (see public/sw.js). Registered after load so it never blocks
 // first paint; failures are non-fatal.
-if ('serviceWorker' in navigator) {
+// The native app (mobile/) skips the SW: its assets already ship inside the
+// APK and caching the webview's local scheme would only risk stale catalogs.
+const isNativeApp = Boolean((window as any).Capacitor?.isNativePlatform?.());
+if ('serviceWorker' in navigator && !isNativeApp) {
   // If a SW already controlled the page, a controllerchange means a new version
   // took over (skipWaiting + clients.claim). Reload once so the page actually
   // uses the fresh caches (e.g. an updated master catalog) instead of the stale

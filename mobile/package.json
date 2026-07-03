@@ -1,0 +1,19 @@
+{
+  "name": "transmilenio-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TransMilenio Explorer - Android app. Capacitor shell around the web client; live tracking runs natively from the device's own Colombian connection.",
+  "scripts": {
+    "build:web": "node scripts/build-web.mjs",
+    "sync": "npm run build:web && cap sync android",
+    "apk": "npm run sync && cd android && gradlew assembleDebug",
+    "open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.1"
+  }
+}

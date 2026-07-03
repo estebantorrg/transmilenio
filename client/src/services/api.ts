@@ -6,6 +6,7 @@ import type {
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
 import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
+import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { findBusPayloadArray } from '../utils/liveBus';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
@@ -77,6 +78,28 @@ async function fetchJsonOnce<T>(
   timeoutMs: number = REQUEST_TIMEOUT_MS,
   init?: RequestInit
 ): Promise<T> {
+  // Inside the Android app (mobile/) the request goes through the native HTTP
+  // layer: no webview CORS, so the hosted API needs no allow-list entry for the
+  // app's local origin. Returns null in a regular browser.
+  const native = await nativeJsonRequest(`${API_BASE}${endpoint}`, init, timeoutMs).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new ApiError(endpoint, `No se pudo conectar con ${API_BASE}: ${message}`);
+  });
+  if (native) {
+    if (native.status < 200 || native.status >= 300) {
+      throw new ApiError(endpoint, `API ${native.status}.`, native.status);
+    }
+    if (typeof native.data === 'string') {
+      try {
+        return JSON.parse(native.data) as T;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        throw new ApiError(endpoint, `Respuesta JSON invalida desde ${endpoint}: ${message}`, native.status);
+      }
+    }
+    return native.data as T;
+  }
+
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
 
@@ -223,6 +246,17 @@ export const api = {
     nombreCandidates: string[] = []
   ): Promise<LiveBusResult> => {
     const payload = { ruta, Nombre: nombre, nombreCandidates, type: routeType };
+
+    // Tier 0: native app (Capacitor) — the device itself calls the live API.
+    // Native HTTP ignores CORS and carries the phone's own (Colombian) IP, so
+    // no relay, proxy, or extension is involved (spec §5.2.1a, mobile twin).
+    if (isNativeLiveAvailable()) {
+      try {
+        return wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
+      } catch (error) {
+        console.warn('[Live] Native direct failed, trying next tier:', error);
+      }
+    }
 
     // Tier 1: Live Bridge extension — fetches from the user's own Colombian
     // connection, bypassing the geofence and browser CORS with no relay load.

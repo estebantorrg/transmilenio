@@ -35,6 +35,7 @@ These rules govern every change. Violations block merge.
 | **Backend API** | Node.js + Express + TypeScript (compiled to ESModule) |
 | **Data Sync / Exec** | tsx (TypeScript Execute) + PowerShell scripts |
 | **Data / Cache** | Local JSON (`master_catalog.json`) + In-memory TTL caches |
+| **Mobile Shell** | Capacitor 6 (Android, `mobile/`) bundling the same Vite client; native HTTP for live + API (§5.2.1b) |
 
 ### 2.2 System Flow
 
@@ -146,7 +147,14 @@ x-relay-secret: <secret>
 #### 5.2.1a Client-Direct Bridge (preferred)
 * Live requests are made from the **user's own browser** via the optional **Live Bridge** extension (`extension/`). Its background fetch is exempt from page CORS and egresses from the user's Colombian IP, satisfying both constraints with no server in the live path.
 * Transport: private `window.postMessage` channel `tm-live-bridge/v1` (page ⇄ content script ⇄ background worker). Client module: `client/src/services/liveBridge.ts`; the background worker only ever contacts the live host with fixed request shapes (no page-supplied URLs).
-* **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): Live Bridge extension → direct CO relay (`VITE_LIVE_RELAY_URL`, §5.2.2 browser-direct) → `/api/buses` (main server relay). Each tier degrades gracefully to the next (spec §4.2); absent both the extension and a configured relay, behavior is unchanged.
+* **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): native app HTTP (§5.2.1b) → Live Bridge extension → direct CO relay (`VITE_LIVE_RELAY_URL`, §5.2.2 browser-direct) → `/api/buses` (main server relay). Each tier degrades gracefully to the next (spec §4.2); absent both the extension and a configured relay, behavior is unchanged.
+
+#### 5.2.1b Native Android App (`mobile/`)
+* Capacitor 6 shell bundling the identical web client build (`mobile/scripts/build-web.mjs` → `mobile/www`, website `client/dist` untouched). Client module: `client/src/services/nativeLive.ts`; detection is runtime-only (`window.Capacitor`), so the web bundle gains no dependency.
+* **Live tier 0**: on-device native HTTP (`CapacitorHttp`) calls the live host directly — native requests are exempt from browser CORS and egress from the phone's own IP, so any user on a Colombian connection satisfies both §5.2.1 constraints with zero server involvement. Runs the same troncal name-candidate loop as the extension worker. Outside CO the geofence rejects it and the chain falls through to the web tiers unchanged.
+* **API transport**: all other `/api/*` calls (catalog, ArcGIS, card, geocode) also go through native HTTP against the hosted server (`VITE_API_BASE_URL`, baked at build; default `https://transmilenio.onrender.com/api`, override `TM_MOBILE_API_BASE`) — webview CORS never applies, so `CLIENT_ORIGINS` needs no app entry.
+* **Service worker**: not registered inside the app (`client/src/main.ts` guard) — assets ship in the APK; SW caching would only risk stale catalogs.
+* **Permissions**: `INTERNET`, `ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION` (webview geolocation for "mi ubicación").
 
 #### 5.2.2 Relay Setup
 * Live tracking requires Colombia egress IP. Relay file: `server/src/colombia_live_relay.ts`. Recommended host: an always-on CO box or an **Oracle Cloud Always Free** VM in the **Bogotá** region, exposed over **HTTPS** (Tailscale Funnel / Cloudflare Tunnel — required, the app is https and mixed content is blocked).
