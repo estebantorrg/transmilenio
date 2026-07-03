@@ -261,11 +261,11 @@ function syncFilterButtons(): void {
   });
 }
 
-function setSidebarCollapsed(collapsed: boolean): void {
-  const sidebar = document.getElementById('sidebar');
+/** Reflect collapsed state on aria attributes + body flags shared by both the
+ *  desktop drawer and the mobile sheet (map padding, FAB, controls read these). */
+function updateCollapseChrome(sidebar: HTMLElement, collapsed: boolean): void {
   const toggleBtn = document.getElementById('sidebar-toggle') as HTMLButtonElement | null;
   const floatingBtn = document.getElementById('sidebar-fab') as HTMLButtonElement | null;
-  if (!sidebar) return;
 
   sidebar.classList.toggle('collapsed', collapsed);
   sidebar.setAttribute('aria-hidden', collapsed ? 'true' : 'false');
@@ -280,50 +280,219 @@ function setSidebarCollapsed(collapsed: boolean): void {
   floatingBtn?.setAttribute('title', collapsed ? 'Mostrar panel' : 'Panel abierto');
 }
 
+// ─── Mobile bottom-sheet detents ──────────────────────────
+// The mobile sheet is a fixed-height panel revealed by a CSS `translateY`.
+// Three resting positions ("detents") give it a real app feel instead of a
+// binary open/closed toggle. `peek` == collapsed for the shared body flags.
+type SheetDetent = 'peek' | 'half' | 'full';
+const DETENT_ORDER: SheetDetent[] = ['peek', 'half', 'full'];
+let currentDetent: SheetDetent = 'peek';
+
+function getSheetDetent(): SheetDetent {
+  return currentDetent;
+}
+
+/** Snap the mobile sheet to a detent (clearing any in-drag inline transform). */
+function setSheetDetent(detent: SheetDetent): void {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  currentDetent = detent;
+  sidebar.style.transform = '';
+  sidebar.classList.remove('sheet-peek', 'sheet-half', 'sheet-full');
+  sidebar.classList.add(`sheet-${detent}`);
+  updateCollapseChrome(sidebar, detent === 'peek');
+}
+
+/** Step the sheet down one detent (full→half→peek). Used by hardware back. */
+function stepSheetDown(): void {
+  const idx = DETENT_ORDER.indexOf(currentDetent);
+  if (idx > 0) setSheetDetent(DETENT_ORDER[idx - 1]);
+}
+
+function setSidebarCollapsed(collapsed: boolean): void {
+  if (isMobileSheet()) {
+    // On mobile, "expand" restores the last non-peek detent (default half) so
+    // reopening feels intentional rather than always slamming to full screen.
+    setSheetDetent(collapsed ? 'peek' : currentDetent === 'peek' ? 'half' : currentDetent);
+    return;
+  }
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return;
+  updateCollapseChrome(sidebar, collapsed);
+}
+
 function isMobileSheet(): boolean {
   return window.matchMedia('(max-width: 768px)').matches;
 }
 
 /** Expand the sidebar/sheet — used when a popup action jumps into the planner. */
 export function openSidebar(): void {
+  if (isMobileSheet()) {
+    // Half reveals the planner inputs without swallowing the whole map.
+    setSheetDetent(currentDetent === 'peek' ? 'half' : currentDetent);
+    return;
+  }
   setSidebarCollapsed(false);
 }
 
-/** Mobile bottom-sheet: tap the handle to toggle, swipe up/down to snap. */
+/**
+ * Hardware-back close chain for the Android shell (spec §5.2.1b native target).
+ * Returns true when it consumed the event; false lets the OS default (exit) run.
+ * Order mirrors visual nesting: modal card → route detail → planner → sheet detent.
+ */
+export function handleMobileBack(): boolean {
+  const sidebar = document.getElementById('sidebar');
+  if (!sidebar) return false;
+
+  if (sidebar.classList.contains('card-open')) {
+    closeCardBalancePanel();
+    return true;
+  }
+  if (selectedRouteId && sidebar.classList.contains('detail-open')) {
+    closeRouteDetailFromUser();
+    return true;
+  }
+  const plannerPanel = document.getElementById('planner-panel');
+  if (plannerPanel && !plannerPanel.classList.contains('hidden')) {
+    document.getElementById('tab-explore')?.click();
+    return true;
+  }
+  if (isMobileSheet() && currentDetent !== 'peek') {
+    stepSheetDown();
+    return true;
+  }
+  return false;
+}
+
+/** Read the sheet's current on-screen translateY in px (0 when untransformed). */
+function currentSheetTranslate(sidebar: HTMLElement): number {
+  const value = getComputedStyle(sidebar).transform;
+  if (!value || value === 'none') return 0;
+  return new DOMMatrixReadOnly(value).m42;
+}
+
+/** Resting translateY (px) for each detent, derived from live layout so the
+ *  drag math and the CSS classes never drift (peek height comes from --peek-h). */
+function detentPositions(sidebar: HTMLElement): Record<SheetDetent, number> {
+  const sheetH = sidebar.offsetHeight;
+  const vh = window.visualViewport?.height ?? window.innerHeight;
+  const peekH = parseFloat(getComputedStyle(sidebar).getPropertyValue('--peek-h')) || 108;
+  return {
+    full: 0,
+    half: Math.max(0, sheetH - vh * 0.5),
+    peek: Math.max(0, sheetH - peekH),
+  };
+}
+
+/** Pick the detent to settle on from release position + fling velocity. */
+function resolveDetent(pos: number, velocity: number, rest: Record<SheetDetent, number>): SheetDetent {
+  const FLING = 0.55; // px/ms — above this the gesture is a flick, not a drag
+  if (Math.abs(velocity) > FLING) {
+    const idx = DETENT_ORDER.indexOf(currentDetent);
+    // velocity > 0 → moving down (toward peek); < 0 → up (toward full)
+    const next = velocity > 0 ? idx - 1 : idx + 1;
+    return DETENT_ORDER[Math.max(0, Math.min(DETENT_ORDER.length - 1, next))];
+  }
+  // Otherwise snap to the nearest resting position.
+  return (Object.keys(rest) as SheetDetent[]).reduce((best, d) =>
+    Math.abs(rest[d] - pos) < Math.abs(rest[best] - pos) ? d : best
+  , 'peek');
+}
+
+/**
+ * Mobile bottom-sheet gesture: the sheet tracks the finger 1:1 and settles on
+ * the nearest detent (or the flicked one) on release. A tap on the handle with
+ * no movement toggles peek↔half. Drag works from the handle and the header.
+ */
 function initSheetDrag(): void {
   const handle = document.getElementById('sheet-handle');
   const sidebar = document.getElementById('sidebar');
   if (!handle || !sidebar) return;
+  const header = document.querySelector('.sidebar-header') as HTMLElement | null;
 
   let startY = 0;
+  let startTranslate = 0;
+  let lastY = 0;
+  let lastT = 0;
+  let velocity = 0;
+  let rest: Record<SheetDetent, number> = { peek: 0, half: 0, full: 0 };
   let dragging = false;
   let moved = false;
 
-  handle.addEventListener('pointerdown', (e) => {
-    if (!isMobileSheet()) return;
+  const onDown = (e: PointerEvent) => {
+    if (!isMobileSheet() || e.button != null && e.button > 0) return;
     dragging = true;
     moved = false;
-    startY = e.clientY;
-    handle.setPointerCapture(e.pointerId);
-  });
-  handle.addEventListener('pointermove', (e) => {
+    startY = lastY = e.clientY;
+    lastT = e.timeStamp;
+    velocity = 0;
+    startTranslate = currentSheetTranslate(sidebar);
+    rest = detentPositions(sidebar);
+    sidebar.classList.add('sheet-dragging');
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const onMove = (e: PointerEvent) => {
     if (!dragging) return;
-    if (Math.abs(e.clientY - startY) > 6) moved = true;
-  });
-  const end = (e: PointerEvent) => {
+    const dy = e.clientY - startY;
+    if (Math.abs(dy) > 5) moved = true;
+    const dt = e.timeStamp - lastT;
+    if (dt > 0) velocity = (e.clientY - lastY) / dt;
+    lastY = e.clientY;
+    lastT = e.timeStamp;
+    // Follow the finger, allowing a little rubber-band past the full/peek ends.
+    const min = -28;
+    const max = rest.peek + 28;
+    const next = Math.max(min, Math.min(max, startTranslate + dy));
+    sidebar.style.transform = `translateY(${next}px)`;
+  };
+
+  const onUp = () => {
     if (!dragging) return;
     dragging = false;
-    const dy = e.clientY - startY;
+    sidebar.classList.remove('sheet-dragging');
     if (!moved) {
-      setSidebarCollapsed(!sidebar.classList.contains('collapsed'));
-    } else if (dy > 40) {
-      setSidebarCollapsed(true);
-    } else if (dy < -40) {
-      setSidebarCollapsed(false);
+      setSheetDetent(currentDetent === 'peek' ? 'half' : 'peek');
+      return;
     }
+    const pos = currentSheetTranslate(sidebar);
+    setSheetDetent(resolveDetent(pos, velocity, rest));
   };
-  handle.addEventListener('pointerup', end);
-  handle.addEventListener('pointercancel', () => { dragging = false; });
+
+  for (const el of [handle, header]) {
+    if (!el) continue;
+    el.addEventListener('pointerdown', onDown);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  }
+}
+
+/**
+ * Keyboard-aware sheet: when an input inside the sheet gains focus, promote the
+ * sheet to full so the field isn't buried; track `visualViewport` so the footer
+ * and inputs float above the soft keyboard via the `--kb-inset` CSS var.
+ */
+function initKeyboardAwareSheet(): void {
+  const sidebar = document.getElementById('sidebar');
+  const vv = window.visualViewport;
+  if (!sidebar) return;
+
+  sidebar.addEventListener('focusin', (e) => {
+    if (!isMobileSheet()) return;
+    if ((e.target as HTMLElement)?.matches('input, textarea')) {
+      if (currentDetent !== 'full') setSheetDetent('full');
+    }
+  });
+
+  if (!vv) return;
+  const applyInset = () => {
+    // How much of the layout viewport the keyboard currently occludes.
+    const inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    document.documentElement.style.setProperty('--kb-inset', `${inset}px`);
+  };
+  vv.addEventListener('resize', applyInset);
+  vv.addEventListener('scroll', applyInset);
 }
 
 /** Esc closes the open panel / collapses; "/" jumps to search. */
@@ -415,6 +584,7 @@ export function initSidebar(options: {
   });
 
   initSheetDrag();
+  initKeyboardAwareSheet();
   initKeyboardShortcuts();
 
   document.querySelectorAll('.toggle-item').forEach((item) => {
@@ -979,6 +1149,10 @@ function showRouteDetail(route: RouteListItem): void {
 
   sidebar.classList.add('detail-open');
   panel.classList.remove('hidden');
+
+  // On mobile, opening a route's detail should bring the sheet up so the
+  // timeline/live card is actually visible rather than hidden behind the peek.
+  if (isMobileSheet() && currentDetent !== 'full') setSheetDetent('full');
 
   // Switch to explore tab if route is selected
   const tabExplore = document.getElementById('tab-explore');

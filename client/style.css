@@ -1002,7 +1002,7 @@ body.sidebar-collapsed .sidebar-fab {
 .sheet-handle {
   display: none;
   width: 100%;
-  padding: 8px 0 4px;
+  padding: 12px 0 8px;
   background: none;
   border: none;
   cursor: grab;
@@ -1779,26 +1779,49 @@ body.sidebar-collapsed .sidebar-fab {
 /* ─── Mobile & Tablet Responsive ────────────────────── */
 
 @media (max-width: 768px) {
-  /* ── Bottom-sheet sidebar ── */
+  /* ── Bottom-sheet sidebar ──
+     A fixed-height sheet revealed by translateY. Three detents (peek/half/full)
+     give it a native draggable feel; `sidebar.ts` tracks the finger between
+     them. `--peek-h` is the visible strip when parked, and is the single source
+     of truth the drag math reads back (detentPositions). `--kb-inset` lifts the
+     whole sheet above the soft keyboard when an input is focused. */
   .sidebar {
     top: auto;
     left: 0;
     right: 0;
-    bottom: 0;
+    bottom: var(--kb-inset, 0px);
     width: 100%;
     max-width: none;
-    height: 86dvh;
+    height: 92dvh;
+    --peek-h: 112px;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     border-left: none;
     border-right: none;
     border-bottom: none;
     padding-bottom: env(safe-area-inset-bottom, 0);
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
+    /* iOS-like spring curve, used only for the sheet on touch. */
+    transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
+                bottom 220ms ease;
+    will-change: transform;
   }
 
-  /* Collapsed → peek bar (handle + header visible), not fully off-screen. */
+  /* Resting detents. Peek == collapsed for the shared body flags. */
+  .sidebar.sheet-full {
+    transform: translateY(0);
+  }
+  .sidebar.sheet-half {
+    transform: translateY(42dvh);
+  }
+  .sidebar.sheet-peek,
   .sidebar.collapsed {
-    transform: translateY(calc(100% - 112px));
+    transform: translateY(calc(100% - var(--peek-h)));
+  }
+
+  /* While a finger is down the sheet follows it 1:1 (inline transform) — no
+     easing may fight the drag. */
+  .sidebar.sheet-dragging {
+    transition: none;
   }
 
   .sheet-handle {
@@ -1869,6 +1892,84 @@ body.sidebar-collapsed .sidebar-fab {
   .swap-btn {
     width: 24px;
     height: 24px;
+  }
+
+  /* Header is a drag surface too — stop the browser from scrolling/selecting
+     while the sheet is being dragged from it. */
+  .sidebar-header {
+    touch-action: none;
+  }
+
+  /* ── Native panel push ──
+     Route detail and card slide in from the right (iOS/Android push) instead of
+     popping. Driven purely by the visibility flip already done in JS: the
+     keyframe plays when the panel gains `display:flex`. */
+  .sidebar.detail-open .route-detail,
+  .sidebar.card-open .card-detail {
+    animation: sheet-panel-in 260ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  /* Tabs / list settle in when a panel closes back to the explore surface. */
+  .sidebar:not(.detail-open):not(.card-open) .sidebar-tabs {
+    animation: sheet-fade-in 220ms ease;
+  }
+}
+
+@keyframes sheet-panel-in {
+  from {
+    transform: translateX(14%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes sheet-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ─── Segmented tab indicator (sliding pill) ──────────────
+   A single pill slides between Explorar/Planear instead of each tab toggling
+   its own background — the difference between a web toggle and an app segment.
+   `:has()` gated so unsupported engines keep the per-button active background. */
+@supports selector(:has(*)) {
+  .sidebar-tabs {
+    position: relative;
+  }
+  .sidebar-tabs::before {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 12px) / 2);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .sidebar-tabs:has(#tab-planner.active)::before {
+    transform: translateX(calc(100% + 4px));
+  }
+  .tab-btn {
+    position: relative;
+    z-index: 1;
+  }
+  /* The sliding pill now provides the active surface. */
+  .tab-btn.active {
+    background: transparent;
+    box-shadow: none;
+  }
+  .tab-btn:hover {
+    background: transparent;
   }
 }
 
@@ -3191,9 +3292,16 @@ body.native-app .route-detail-close:active {
 }
 
 @media (max-width: 768px) {
-  /* Peek bar = handle + tab bar (the logo header is hidden in-app). */
-  body.native-app .sidebar.collapsed {
-    transform: translateY(calc(100% - 104px));
+  /* Peek bar = handle + tab bar (the logo header is hidden in-app), so the peek
+     strip is shorter. Feeds the shared detent transform via the var. */
+  body.native-app .sidebar {
+    --peek-h: 104px;
+  }
+
+  /* At full detent the sheet top reaches the status bar — keep the handle clear
+     of the notch/status area. */
+  body.native-app .sidebar.sheet-full .sheet-handle {
+    padding-top: calc(12px + env(safe-area-inset-top, 0px));
   }
 
   body.native-app .sidebar-tabs {

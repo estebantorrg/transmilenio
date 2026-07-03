@@ -26,6 +26,7 @@ import {
   updateZonalRoutes,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar } from './ui/sidebar';
+import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getStopTagColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
@@ -1111,6 +1112,9 @@ async function main(): Promise<void> {
   });
 
   initNearbyStations(map);
+
+  // Android hardware-back close chain (native shell only; no-op on the web).
+  initNativeBack();
 
   setRoutes(routeList);
   updateCounts({
