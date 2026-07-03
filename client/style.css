@@ -3148,3 +3148,61 @@ body.sidebar-collapsed .sidebar-fab {
     scroll-behavior: auto !important;
   }
 }
+
+/* ─── Native app shell (mobile/ APK) ──────────────────── */
+/* body.native-app is set by main.ts when running inside the Capacitor shell.
+   Functionality is identical to the web; these rules only trade browser-era
+   chrome for app ergonomics. */
+
+body.native-app {
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+body.native-app input,
+body.native-app textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* Pinch and double-tap zoom are native muscle memory — the +/- widget and
+   compass are web chrome. */
+body.native-app .maplibregl-ctrl-top-right {
+  display: none;
+}
+
+/* In-app the brand lives on the icon and splash; the sheet leads with the
+   tab bar and search instead of a logo header. */
+body.native-app .sidebar-header {
+  display: none;
+}
+
+/* Press feedback: apps respond to touch; websites hover. */
+body.native-app .tab-btn:active,
+body.native-app .footer-action:active,
+body.native-app .filter-chip:active,
+body.native-app .route-item:active,
+body.native-app .toggle-item:active,
+body.native-app .route-detail-close:active {
+  transform: scale(0.97);
+  transition: transform 80ms ease;
+}
+
+@media (max-width: 768px) {
+  /* Peek bar = handle + tab bar (the logo header is hidden in-app). */
+  body.native-app .sidebar.collapsed {
+    transform: translateY(calc(100% - 104px));
+  }
+
+  body.native-app .sidebar-tabs {
+    margin-top: 2px;
+  }
+
+  /* Keep scale + attribution visible above the peek bar. */
+  body.native-app .maplibregl-ctrl-bottom-right,
+  body.native-app .maplibregl-ctrl-bottom-left {
+    bottom: 110px !important;
+  }
+}

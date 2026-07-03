@@ -13,10 +13,16 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Match the app's dark UI so system bars blend into the shell. -->
+        <item name="android:statusBarColor">#0A0E17</item>
+        <item name="android:navigationBarColor">#0A0E17</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
 
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="android:statusBarColor">#0A0E17</item>
+        <item name="android:navigationBarColor">#0A0E17</item>
     </style>
 </resources>
