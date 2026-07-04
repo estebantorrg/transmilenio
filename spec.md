@@ -220,13 +220,9 @@ Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (th
 Reconciles ArcGIS points with TransMi catalog stops.
 * **Match Order**:
   1. Terminal platform clusters (merging fragments within 180m).
-  2. Verified split mappings:
-     * Avenida Jimenez Caracas → stop `TM0013` wagons `A`, `B`, `C`.
-     * Avenida Jimenez Calle 13 → stop `TM0013` wagons `D`, `E`.
-     * Ricaurte NQS → stop `TM0069` wagons `A`, `B`, `C`.
-     * Ricaurte Calle 13 → stop `TM0069` wagons `D`, `E`, `F`.
-  3. Exact ID match.
-  4. Name and distance proximity.
+  2. Exact ID match.
+  3. Name and distance proximity.
+* **Merged stations (no split)**: Avenida Jiménez (`TM0013`) and Ricaurte (`TM0069`) are single stations — the former "Calle 13" halves no longer exist as separate stops, so no wagon-based split is applied. The catalog files each as one merged stop (`parseCatalogStop`, `routeCatalog.ts`) and the ArcGIS platform points collapse via the 180 m cluster (`VERIFIED_SPLITS` emptied, `stationCatalogResolver.ts`).
 * **Both-direction route tags** (`groupCatalogRoutesByDirection`, `stations.ts`): A TransMilenio route serves a station in **both directions**, so each direction is shown as its own tag. Wagon route tags are grouped by **código + destination name** — so a ruta fácil like `3` shows `3 → Portal Tunal` AND `3 → Corferias` (both directions; data carries both as distinct ids/nombres), and lettered pairs `B72`/`H72` show as their two codes. Only genuine duplicates (same código **and** destination) collapse into one tag; the tooltip lists the destination(s). Wagons are left exactly as the catalog files them (no merging across platforms).
 * **Audit**: Diagnostic output exposed via `window.__tmStationAudit`.
 
@@ -276,7 +272,7 @@ All mounted on `/api`:
   `Content-Length` must be computed from the exact JSON body bytes.
 * **Server contract**: `/api/card/read` validates the card number, sends the exact upstream shape, decodes gzip, does not cache, and never logs or stores the full card number.
 * **Source separation**: `/lectura_tarjeta` returns the server ledger only. The official mobile UI can show newer balance and multiple movements after a phone tap because it reads NFC card memory locally. Web/server code must not infer or fabricate those hidden card movements from the server response. Any future NFC/native bridge must merge as `source:"card"` with provenance distinct from `source:"server"`.
-* **App NFC read (`client/mobile/src/services/nfc.ts`)**: three runtime-detected backends, so the web bundle keeps no hard dependency and needs no code import — detection is runtime-only. Android's System WebView **disables Web NFC** (`NDEFReader` → "NFC permission request denied"), so inside the APK a **native plugin is mandatory**; the app tries them in order: (1) **`phonegap-nfc`** (free/MIT, `window.nfc` — recommended: `npm i phonegap-nfc && npx cap sync android` in `mobile/`); (2) **`@capawesome-team/capacitor-nfc`** (`Capacitor.Plugins.Nfc`, sponsorware); (3) **Web NFC** (`NDEFReader`) only outside the APK. With no plugin present in the APK the read fails with an explicit "install the NFC plugin and rebuild" message. The tullave chip is an encrypted MIFARE DESFire whose balance sits in a key-protected file the app cannot read, so NFC yields only the tag **serial (UID)** + NDEF records — `source:"card"`, NEVER a verified balance. A card number found in NDEF auto-consults the server ledger; the balance stays server-sourced.
+* **App NFC read (`client/mobile/src/services/nfc.ts`)**: three runtime-detected backends, so the web bundle keeps no hard dependency and needs no code import — detection is runtime-only. Android's System WebView **disables Web NFC** (`NDEFReader` → "NFC permission request denied"), so inside the APK a **native plugin is mandatory**; the app tries them in order: (1) **`phonegap-nfc`** (free/MIT, `window.nfc`) — now a declared `mobile/` dependency, so it registers automatically on `npm install` + `npm run apk` (which runs `cap sync`), no manual plugin install; (2) **`@capawesome-team/capacitor-nfc`** (`Capacitor.Plugins.Nfc`, sponsorware); (3) **Web NFC** (`NDEFReader`) only outside the APK. With no plugin present in the APK the read fails with an explicit "install the NFC plugin and rebuild" message. The tullave chip is an encrypted MIFARE DESFire whose balance sits in a key-protected file the app cannot read, so NFC yields only the tag **serial (UID)** + NDEF records — `source:"card"`, NEVER a verified balance. A card number found in NDEF auto-consults the server ledger; the balance stays server-sourced.
 
 #### 5.5.2 Caching & Timeouts
 * **Caching**:

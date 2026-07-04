@@ -8,7 +8,7 @@
 
 import { api } from '@shared/services/api';
 import { buildRouteList, dedupeStops, isStationStopCode } from '@shared/data/routeCatalog';
-import { normalizeRouteCodeForMatch } from '@shared/utils/routeColors';
+import { isAlimentadorRoute, normalizeRouteCodeForMatch } from '@shared/utils/routeColors';
 import { setRouteTypeIndex } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
 import { isLiveBridgeAvailable } from '@shared/services/liveBridge';
@@ -186,16 +186,15 @@ function buildZonalAreas(features: any[]): void {
     const a = f.attributes ?? {};
     const key = variantBase(a.route_name_ruta_zonal || a.codigo_definitivo_ruta_zonal || '');
     if (!key) continue;
-    const zones = [a.zona_origen_ruta_zonal, a.zona_destino_ruta_zonal]
-      .map((z) => Number(z))
-      .filter((z) => Number.isInteger(z) && z >= 1 && z <= 13);
-    if (zones.length === 0) continue;
+    // Home zone only (`zona_origen`). `zona_destino` is frequently 0 (portal) or
+    // a corridor the route merely reaches, which leaked non-belonging routes into
+    // a zone — the browse must be strict about what actually operates there.
+    const zone = Number(a.zona_origen_ruta_zonal);
+    if (!Number.isInteger(zone) || zone < 1 || zone > 13) continue;
     let set = map.get(key);
     if (!set) map.set(key, (set = new Set()));
-    for (const z of zones) {
-      set.add(z);
-      present.add(z);
-    }
+    set.add(zone);
+    present.add(zone);
   }
   state.zonalAreas = new Map([...map].map(([k, v]) => [k, [...v].sort((x, y) => x - y)]));
   state.zones = [...present].sort((x, y) => x - y);
@@ -221,7 +220,7 @@ const NORM_LANDMARKS = ZONE_LANDMARKS.map((l) => ({
 function buildZoneLabels(): void {
   const bags = new Map<number, Map<string, number>>();
   for (const r of state.routes) {
-    if (r.type !== 'zonal') continue;
+    if (r.type !== 'zonal' || isAlimentadorRoute(r)) continue;
     const zones = getZonalAreas(r.code);
     if (zones.length === 0) continue;
     const hay = `${r.origin} ${r.destination}`.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');

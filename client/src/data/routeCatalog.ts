@@ -45,50 +45,6 @@ export function isCicloviaName(text: string | null | undefined): boolean {
     .includes('ciclovia');
 }
 
-interface SplitStopNode {
-  code: string;
-  sourceCode: string;
-  name: string;
-  direccion: string;
-  coordinate: [number, number];
-  wagons: Set<string>;
-}
-
-const VERIFIED_SPLIT_STOP_NODES: SplitStopNode[] = [
-  {
-    code: '09110',
-    sourceCode: 'TM0013',
-    name: 'AV. Jimenez - Caracas',
-    direccion: 'CL 13 - CL 11',
-    coordinate: [-74.08042807, 4.60287397],
-    wagons: new Set(['A', 'B', 'C']),
-  },
-  {
-    code: '14003',
-    sourceCode: 'TM0013',
-    name: 'AV. Jimenez - CL 13',
-    direccion: 'CL 13 - Caracas',
-    coordinate: [-74.07910861, 4.60304793],
-    wagons: new Set(['D', 'E']),
-  },
-  {
-    code: '07111',
-    sourceCode: 'TM0069',
-    name: 'Ricaurte - NQS',
-    direccion: 'KR 30 - CL 10',
-    coordinate: [-74.09386888, 4.6116862],
-    wagons: new Set(['A', 'B', 'C']),
-  },
-  {
-    code: '12003',
-    sourceCode: 'TM0069',
-    name: 'Ricaurte - CL 13',
-    direccion: 'CL 13 - KR 28',
-    coordinate: [-74.09048002, 4.61301485],
-    wagons: new Set(['D', 'E', 'F']),
-  },
-];
-
 export function isStationStopCode(code: string | null | undefined): boolean {
   return /^TM\d+$/i.test(String(code || '').trim());
 }
@@ -97,51 +53,16 @@ function stopKind(code: string | null | undefined): 'station' | 'stop' {
   return isStationStopCode(code) ? 'station' : 'stop';
 }
 
-function catalogRouteMatches(left: CatalogRoute, right: CatalogRoute): boolean {
-  if (left.id && right.id && String(left.id) === String(right.id)) return true;
-  return normalizeRouteCodeForMatch(left.codigo) === normalizeRouteCodeForMatch(right.codigo) &&
-    cleanRouteText(left.nombre) === cleanRouteText(right.nombre);
-}
-
-function splitNodeForRouteStop(
-  stop: any,
-  route: CatalogRoute | null | undefined,
-  catalog: MasterCatalog
-): SplitStopNode | null {
-  if (!route || !stop?.codigo) return null;
-
-  const sourceCode = String(stop.codigo).toUpperCase();
-  const splitNodes = VERIFIED_SPLIT_STOP_NODES.filter((node) => node.sourceCode === sourceCode);
-  if (splitNodes.length === 0) return null;
-
-  const sourceStation = catalog.stations?.[sourceCode];
-  if (!sourceStation?.wagons) return null;
-
-  for (const [wagonLabel, routes] of Object.entries(sourceStation.wagons)) {
-    const splitNode = splitNodes.find((node) => node.wagons.has(wagonLabel));
-    if (!splitNode) continue;
-    if (routes.some((candidate) => catalogRouteMatches(candidate, route))) return splitNode;
-  }
-
-  return null;
-}
-
-export function parseCatalogStop(stop: any, route?: CatalogRoute, catalog?: MasterCatalog): RouteStop | null {
+/**
+ * Parses one catalog route stop into a map-ready stop. The `route`/`catalog`
+ * params are kept for call-site compatibility but no longer used: stations like
+ * Avenida Jiménez (TM0013) and Ricaurte (TM0069) are single merged stops in the
+ * source catalog, so no wagon-based split is applied (spec §5.4.1).
+ */
+export function parseCatalogStop(stop: any, _route?: CatalogRoute, _catalog?: MasterCatalog): RouteStop | null {
   if (!stop?.coordenada || typeof stop.coordenada !== 'string' || !stop.coordenada.includes(',')) return null;
   const [lat, lng] = stop.coordenada.split(',').map(Number);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
-
-  const splitNode = catalog ? splitNodeForRouteStop(stop, route, catalog) : null;
-  if (splitNode) {
-    return {
-      nombre: splitNode.name,
-      codigo: splitNode.code,
-      sourceCode: splitNode.sourceCode,
-      coordinate: splitNode.coordinate,
-      direccion: splitNode.direccion,
-      kind: 'station',
-    };
-  }
 
   return {
     nombre: stop.nombre,

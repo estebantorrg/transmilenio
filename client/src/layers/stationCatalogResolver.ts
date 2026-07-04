@@ -92,44 +92,11 @@ export interface StationCatalogResolution {
   audit: StationCatalogAudit[];
 }
 
-const VERIFIED_SPLITS: VerifiedSplit[] = [
-  {
-    matchMethod: 'verified-split:av-jimenez-caracas',
-    sourceStopCode: 'TM0013',
-    wagons: ['A', 'B', 'C'],
-    stationNodes: ['9110'],
-    stationNames: ['AVJIMENEZCARACAS'],
-    displayName: 'AV. Jiménez - Caracas',
-    note: 'Official app stop TM0013 combines Avenida Jimenez; ArcGIS exposes Caracas as its own 3-wagon point.',
-  },
-  {
-    matchMethod: 'verified-split:av-jimenez-cl13',
-    sourceStopCode: 'TM0013',
-    wagons: ['D', 'E'],
-    stationNodes: ['14003'],
-    stationNames: ['AVJIMENEZCL13'],
-    displayName: 'AV. Jiménez - CL 13',
-    note: 'Official app stop TM0013 combines Avenida Jimenez; ArcGIS exposes Calle 13 as its own 2-wagon point.',
-  },
-  {
-    matchMethod: 'verified-split:ricaurte-nqs',
-    sourceStopCode: 'TM0069',
-    wagons: ['A', 'B', 'C'],
-    stationNodes: ['7111'],
-    stationNames: ['RICAURTENQS'],
-    displayName: 'Ricaurte - NQS',
-    note: 'Official app stop TM0069 combines Ricaurte; ArcGIS exposes NQS as its own 3-wagon point.',
-  },
-  {
-    matchMethod: 'verified-split:ricaurte-cl13',
-    sourceStopCode: 'TM0069',
-    wagons: ['D', 'E', 'F'],
-    stationNodes: ['12003'],
-    stationNames: ['RICAURTECL13'],
-    displayName: 'Ricaurte - CL 13',
-    note: 'Official app stop TM0069 combines Ricaurte; ArcGIS exposes Calle 13 as its own 3-wagon point.',
-  },
-];
+// Avenida Jiménez (TM0013) and Ricaurte (TM0069) are single merged stations in
+// reality — the "Calle 13" halves no longer exist as separate stops. The former
+// wagon-based split is therefore disabled; the two ArcGIS platform points fall
+// through to the 180 m platform-cluster merge and resolve to one station (spec §5.4.1).
+const VERIFIED_SPLITS: VerifiedSplit[] = [];
 
 export function normalizeStationName(value: string | null | undefined): string {
   if (!value) return '';

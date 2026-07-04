@@ -113,8 +113,9 @@ export function createRutasView(): View {
         // Troncal corridor line (A–P) — TransMilenio only.
         if (r.type !== 'troncal' || !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
       } else if (zoneFilter != null) {
-        // SITP numeric zone from the ArcGIS feed — authoritative, covers even
-        // numeric-coded routes that carry no zone letter.
+        // SITP numeric zone (ArcGIS feed). Strict: only genuine zonal routes —
+        // alimentadores (troncal feeders) and troncales never belong to a zone.
+        if (r.type !== 'zonal' || isAlimentadorRoute(r)) return false;
         if (!getZonalAreas(r.code).includes(zoneFilter)) return false;
       }
       if (!matchesFilter(r, activeFilter)) return false;
