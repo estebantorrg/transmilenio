@@ -7,7 +7,7 @@
  */
 
 import { api } from '@shared/services/api';
-import { buildRouteList, dedupeStops } from '@shared/data/routeCatalog';
+import { buildRouteList, dedupeStops, isStationStopCode } from '@shared/data/routeCatalog';
 import { normalizeRouteCodeForMatch } from '@shared/utils/routeColors';
 import { setRouteTypeIndex } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
@@ -30,22 +30,31 @@ function parseLatLng(coordenada: string | undefined): [number, number] | null {
   return [lng, lat];
 }
 
-/** Station records straight from the master catalog (always available). */
-function catalogStationRecords(catalog: MasterCatalog): StationRecord[] {
-  const out: StationRecord[] = [];
+/**
+ * Splits the master catalog's `stations` map — which mixes troncal ESTACIONES
+ * and zonal PARADEROS — into the two typed lists the UI needs. The light catalog
+ * served by the API carries no `sistema`, so classification is by CODE: canonical
+ * `TM…`-coded nodes (≈140) are troncal estaciones, everything else is a paradero
+ * (cenefa-coded, ≈7000). Both are catalog-derived so they're available instantly
+ * on a cache boot — no ArcGIS round-trip needed.
+ */
+function catalogPointRecords(catalog: MasterCatalog): { stations: StationRecord[]; paraderos: StationRecord[] } {
+  const stations: StationRecord[] = [];
+  const paraderos: StationRecord[] = [];
   for (const st of Object.values(catalog.stations || {})) {
     const coordinate = parseLatLng(st.coordenada);
     if (!coordinate) continue;
-    out.push({
+    const isStation = isStationStopCode(st.codigo);
+    (isStation ? stations : paraderos).push({
       code: st.codigo || st.id,
-      name: st.nombre || 'Estación',
+      name: st.nombre || (isStation ? 'Estación' : 'Paradero'),
       direccion: st.direccion || '',
       coordinate,
       wagonCount: st.wagons ? Object.keys(st.wagons).length : 0,
-      kind: 'station',
+      kind: isStation ? 'station' : 'stop',
     });
   }
-  return out;
+  return { stations, paraderos };
 }
 
 function unwrap<T>(res: PromiseSettledResult<ApiResponse<T>>): T[] {
@@ -62,13 +71,14 @@ function applyCatalog(catalog: MasterCatalog, troncalRoutes: TroncalRouteFeature
   state.catalog = catalog;
   setRouteTypeIndex(catalog);
   const routes = buildRouteList(troncalRoutes, catalog);
-  const stations = catalogStationRecords(catalog);
+  const { stations, paraderos } = catalogPointRecords(catalog);
   state.stations = stations;
+  state.zonalStops = paraderos;
   state.counts = {
     troncal: routes.filter((r) => r.type === 'troncal').length,
     zonal: routes.filter((r) => r.type === 'zonal').length,
     stations: stations.length,
-    stops: state.counts.stops,
+    stops: paraderos.length,
     cable: corridorCount ?? state.counts.cable,
   };
   setRoutes(routes);
@@ -149,8 +159,12 @@ async function revalidate(cachedSig: string): Promise<void> {
  */
 export function variantBase(code: string): string {
   let s = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
-  s = s.replace(/-\d+[A-Z]?$|[A-Z]$/, '');
-  s = s.replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  s = s.replace(/[A-Z]$/, ''); // trailing variant letter (…E / …A / …C)
+  // Direction suffix "-<n>" only for LETTERED codes (F405-2 → F405). For numeric
+  // codes the hyphen is structural (10-12, 6-2) — keep it, or we'd collide route
+  // 10-12 onto route 10 and tag the wrong buses.
+  if (/^[A-Z]/.test(s)) s = s.replace(/-\d+$/, '');
+  s = s.replace(/^([A-Z]+)0+(\d)/, '$1$2'); // drop catalog zero-padding F019 → F19
   return normalizeRouteCodeForMatch(s);
 }
 
@@ -185,6 +199,54 @@ function buildZonalAreas(features: any[]): void {
   }
   state.zonalAreas = new Map([...map].map(([k, v]) => [k, [...v].sort((x, y) => x - y)]));
   state.zones = [...present].sort((x, y) => x - y);
+  buildZoneLabels();
+}
+
+// Recognizable Bogotá areas/portals. A zone's label is whichever of these its
+// routes' endpoints mention most — grounded in the real catalog, so no zone
+// name is fabricated (the official number→name map is not public).
+const ZONE_LANDMARKS = [
+  'Ciudad Bolivar', 'Rafael Uribe', 'San Cristobal', 'Antonio Nariño', 'Puente Aranda', 'Barrios Unidos',
+  'Portal 20 de Julio', 'Portal Americas', 'Portal Dorado', 'Portal Tunal', 'Portal Suba', 'Portal Norte',
+  'Portal Sur', 'Portal Usme', 'Portal 80', 'Patio Bonito',
+  'Usaquen', 'Suba', 'Engativa', 'Fontibon', 'Kennedy', 'Bosa', 'Usme', 'Tunjuelito', 'Teusaquillo',
+  'Chapinero', 'Santa Fe', 'Candelaria', 'Martires', 'Tintal', 'Britalia', 'Verbenal', 'Tunal',
+] as const;
+const NORM_LANDMARKS = ZONE_LANDMARKS.map((l) => ({
+  raw: l,
+  norm: l.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, ''),
+}));
+
+/** Picks the dominant recognizable area per SITP zone from its routes' endpoints. */
+function buildZoneLabels(): void {
+  const bags = new Map<number, Map<string, number>>();
+  for (const r of state.routes) {
+    if (r.type !== 'zonal') continue;
+    const zones = getZonalAreas(r.code);
+    if (zones.length === 0) continue;
+    const hay = `${r.origin} ${r.destination}`.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    for (const lm of NORM_LANDMARKS) {
+      if (!hay.includes(lm.norm)) continue;
+      for (const z of zones) {
+        let bag = bags.get(z);
+        if (!bag) bags.set(z, (bag = new Map()));
+        bag.set(lm.raw, (bag.get(lm.raw) ?? 0) + 1);
+      }
+    }
+  }
+  const labels = new Map<number, string>();
+  for (const [z, bag] of bags) {
+    let best = '';
+    let bestN = 0;
+    for (const [name, n] of bag) {
+      if (n > bestN) {
+        bestN = n;
+        best = name;
+      }
+    }
+    if (best) labels.set(z, best);
+  }
+  state.zoneLabels = labels;
 }
 
 /** Background pass: SITP zones + enrich zonal routes with their stops and stop records. */
@@ -235,22 +297,9 @@ export async function loadBackground(): Promise<void> {
     }
   }
 
-  const stopRecords: StationRecord[] = [];
-  for (const s of stops) {
-    const x = s.geometry?.x;
-    const y = s.geometry?.y;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-    stopRecords.push({
-      code: s.attributes?.cenefa || '',
-      name: s.attributes?.nombre || 'Paradero',
-      direccion: s.attributes?.direccion_bandera || s.attributes?.via || '',
-      coordinate: [x, y],
-      wagonCount: 0,
-      kind: 'stop',
-    });
-  }
-  state.zonalStops = stopRecords;
-  state.counts.stops = stopRecords.length;
+  // Paraderos themselves come from the catalog at boot (catalogPointRecords) — the
+  // ArcGIS zonal stops are used only for the route-stop enrichment above and the
+  // SITP zones built earlier. Signal the zones/enrichment are ready.
   bus.emit('stops:ready', undefined);
 }
 

@@ -174,7 +174,8 @@ export function createRutasView(): View {
       chipEls.forEach((c, id) => c.classList.toggle('active', id === 'all'));
       query = '';
       input.value = '';
-      showAreaBanner(String(zone), `Zona SITP ${zone} · zonal`, '#00a7c4');
+      const label = state.zoneLabels.get(zone);
+      showAreaBanner(String(zone), label ? `Zona ${zone} · ${label}` : `Zona SITP ${zone}`, '#00a7c4');
       render();
     },
   } as View & { setLine: (letter: string) => void; setZone: (zone: number) => void };

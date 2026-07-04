@@ -141,17 +141,22 @@ export function createInicioView(): View {
   function renderZones(): void {
     zoneSection.classList.toggle('hidden', state.zones.length === 0);
     if (state.zones.length === 0) return;
-    const grid = h('div', { class: 'line-grid' });
+    const grid = h('div', { class: 'zone-grid' });
     for (const zone of state.zones) {
-      const chip = h('button', { class: 'line-chip zone-chip', type: 'button', text: String(zone) });
-      chip.addEventListener('click', () => {
+      const label = state.zoneLabels.get(zone);
+      const pill = h('button', { class: 'zone-pill', type: 'button' }, [
+        h('span', { class: 'zone-num', text: String(zone) }),
+        h('span', { class: 'zone-name', text: label || `Zona ${zone}` }),
+      ]);
+      pill.addEventListener('click', () => {
         haptic('light');
         app().openZone(zone);
       });
-      grid.append(chip);
+      grid.append(pill);
     }
     zoneSection.replaceChildren(
       h('div', { class: 'section-head' }, [h('span', { class: 'section-title', html: `${ICONS.near} Zonas SITP` })]),
+      h('p', { class: 'zone-hint', text: 'Zonas operativas del SITP zonal · toca para ver sus rutas' }),
       grid
     );
   }

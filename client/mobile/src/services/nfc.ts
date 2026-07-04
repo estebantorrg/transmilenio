@@ -1,14 +1,15 @@
 /**
  * NFC card reading.
  *
- * Two backends, runtime-detected so the web bundle keeps NO hard dependency
- * (same pattern as `nativeLive.ts`):
- *   1. Native Capacitor plugin `@capawesome-team/capacitor-nfc` (registered as
- *      `Capacitor.Plugins.Nfc`) — the ONLY path that works inside the Android
- *      APK, because Android's System WebView disables Web NFC (`NDEFReader`
- *      throws "NFC permission request denied"). Requires the plugin installed +
- *      `npx cap sync` in `mobile/` (see spec §5.5.1a).
- *   2. Web NFC (`NDEFReader`) — used only where the browser actually grants it.
+ * Three backends, runtime-detected so the web bundle keeps NO hard dependency
+ * (same pattern as `nativeLive.ts`). Inside the Android APK a native plugin is
+ * MANDATORY — the System WebView disables Web NFC (`NDEFReader` throws "NFC
+ * permission request denied"). Tried in order:
+ *   1. `phonegap-nfc` (free/MIT) — global `window.nfc`. Recommended:
+ *      `npm i phonegap-nfc && npx cap sync android` in `mobile/`.
+ *   2. `@capawesome-team/capacitor-nfc` (`Capacitor.Plugins.Nfc`, sponsorware).
+ *   3. Web NFC (`NDEFReader`) — only outside the APK, where the browser grants it.
+ * No code import is needed for (1)/(2); see spec §5.5.1a.
  *
  * Honesty (spec §5.5.1a): the tullave card is an encrypted MIFARE DESFire whose
  * balance sits in a key-protected file we CANNOT read. NFC yields only the tag
@@ -38,8 +39,21 @@ function getNativeNfc(): NativeNfcPlugin | null {
   return nfc && typeof nfc.startScanSession === 'function' ? (nfc as NativeNfcPlugin) : null;
 }
 
+/** phonegap-nfc (free, MIT) exposes a global `window.nfc` with Cordova-style listeners. */
+interface PhonegapNfc {
+  addTagDiscoveredListener: (cb: (e: any) => void, ok?: () => void, err?: (e: any) => void) => void;
+  removeTagDiscoveredListener: (cb: (e: any) => void) => void;
+}
+function getPhonegapNfc(): PhonegapNfc | null {
+  const nfc = (window as any).nfc;
+  return nfc && typeof nfc.addTagDiscoveredListener === 'function' ? (nfc as PhonegapNfc) : null;
+}
+
 export function isNfcSupported(): boolean {
-  return typeof window !== 'undefined' && (getNativeNfc() !== null || 'NDEFReader' in window);
+  return (
+    typeof window !== 'undefined' &&
+    (getNativeNfc() !== null || getPhonegapNfc() !== null || 'NDEFReader' in window)
+  );
 }
 
 // ─── byte helpers ────────────────────────────────────────
@@ -124,6 +138,38 @@ async function scanNative(nfc: NativeNfcPlugin, signal?: AbortSignal): Promise<N
   });
 }
 
+// ─── native path (phonegap-nfc, free) ──────────────────
+function scanPhonegap(nfc: PhonegapNfc, signal?: AbortSignal): Promise<NfcCardRead> {
+  return new Promise<NfcCardRead>((resolve, reject) => {
+    let settled = false;
+    const onTag = (event: any) => {
+      const tag = event?.tag ?? event;
+      const records: { type: string; text: string }[] = [];
+      for (const rec of tag?.ndefMessage ?? []) {
+        const decoded = decodeNativeRecord(rec);
+        if (decoded && decoded.text) records.push(decoded);
+      }
+      finish(() => resolve(toResult(bytesToHex(tag?.id), records)));
+    };
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      try {
+        nfc.removeTagDiscoveredListener(onTag);
+      } catch {
+        /* ignore */
+      }
+      fn();
+    };
+    nfc.addTagDiscoveredListener(
+      onTag,
+      undefined,
+      (err: any) => finish(() => reject(new Error(`NFC no disponible: ${err ?? ''}`.trim())))
+    );
+    signal?.addEventListener('abort', () => finish(() => reject(new DOMException('Lectura cancelada', 'AbortError'))));
+  });
+}
+
 // ─── web path (NDEFReader) ──────────────────────────────
 function scanWeb(signal?: AbortSignal): Promise<NfcCardRead> {
   const Reader = (window as any).NDEFReader;
@@ -168,10 +214,19 @@ function scanWeb(signal?: AbortSignal): Promise<NfcCardRead> {
   });
 }
 
-/** Scan one NFC tag. Prefers the native plugin, falls back to Web NFC. */
+/** Scan one NFC tag. Prefers a native plugin; Web NFC last (blocked in the APK's WebView). */
 export function scanCard(signal?: AbortSignal): Promise<NfcCardRead> {
-  const native = getNativeNfc();
-  if (native) return scanNative(native, signal);
-  if (typeof window !== 'undefined' && 'NDEFReader' in window) return scanWeb(signal);
+  const capawesome = getNativeNfc();
+  if (capawesome) return scanNative(capawesome, signal);
+  const phonegap = getPhonegapNfc();
+  if (phonegap) return scanPhonegap(phonegap, signal);
+  const isNative = Boolean((window as any).Capacitor?.isNativePlatform?.());
+  if (isNative) {
+    // In the APK with no NFC plugin, Web NFC is disabled by the WebView.
+    return Promise.reject(
+      new Error('Falta el plugin NFC nativo. Instálalo y reconstruye el APK (ver Ajustes/README).')
+    );
+  }
+  if ('NDEFReader' in window) return scanWeb(signal);
   return Promise.reject(new Error('NFC no está disponible en este dispositivo'));
 }

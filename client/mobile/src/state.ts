@@ -65,6 +65,8 @@ interface AppState {
   zonalAreas: Map<string, number[]>;
   /** Sorted list of SITP zone numbers actually present in the network. */
   zones: number[];
+  /** Human hint per zone (most common landmark from its routes' endpoints). */
+  zoneLabels: Map<number, string>;
   counts: { troncal: number; zonal: number; stations: number; stops: number; cable: number };
   health: HealthInfo | null;
   tab: TabId;
@@ -79,6 +81,7 @@ export const state: AppState = {
   zonalStops: [],
   zonalAreas: new Map(),
   zones: [],
+  zoneLabels: new Map(),
   counts: { troncal: 0, zonal: 0, stations: 0, stops: 0, cable: 0 },
   health: null,
   tab: 'inicio',

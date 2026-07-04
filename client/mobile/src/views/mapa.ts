@@ -124,7 +124,10 @@ export function createMapaView(): MapaView {
     }
   }
 
-  bus.on('routes:ready', () => controller?.setStations(state.stations));
+  bus.on('routes:ready', () => {
+    controller?.setStations(state.stations);
+    controller?.setParaderos(state.zonalStops);
+  });
   bus.on('stops:ready', () => controller?.setParaderos(state.zonalStops));
 
   return {
