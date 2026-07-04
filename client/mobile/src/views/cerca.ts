@@ -9,6 +9,8 @@ import { openStationSheet } from '../ui/detailSheets';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
+type KindFilter = 'all' | 'station' | 'stop';
+
 const BOGOTA_BOUNDS = { minLat: 4.4, maxLat: 4.85, minLng: -74.25, maxLng: -73.95 };
 function inBogota(lng: number, lat: number): boolean {
   return lat >= BOGOTA_BOUNDS.minLat && lat <= BOGOTA_BOUNDS.maxLat && lng >= BOGOTA_BOUNDS.minLng && lng <= BOGOTA_BOUNDS.maxLng;
@@ -23,9 +25,25 @@ export function createCercaView(): View {
 
   const locateBtn = h('button', { class: 'btn btn-primary locate-cta', type: 'button', html: `${ICONS.locate}<span>Usar mi ubicación</span>` });
   const status = h('div', { class: 'cerca-status' });
+
+  // Kind filter (Estaciones / Paraderos / Ambos).
+  let kindFilter: KindFilter = 'all';
+  const chipRow = h('div', { class: 'chip-row' });
+  const chipEls = new Map<KindFilter, HTMLElement>();
+  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos']] as const) {
+    const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
+    chip.addEventListener('click', () => {
+      kindFilter = id;
+      chipEls.forEach((c, k) => c.classList.toggle('active', k === kindFilter));
+      render();
+    });
+    chipEls.set(id, chip);
+    chipRow.append(chip);
+  }
+
   const list = h('div', { class: 'near-list' });
 
-  head.append(locateBtn, status);
+  head.append(locateBtn, chipRow, status);
   el.append(head, list);
 
   let userCoord: [number, number] | null = null;
@@ -34,6 +52,7 @@ export function createCercaView(): View {
     if (!userCoord) return;
     const [lng, lat] = userCoord;
     const ranked = allPoints()
+      .filter((p) => kindFilter === 'all' || p.kind === kindFilter)
       .map((p) => ({ p, d: haversineMeters([lng, lat], p.coordinate) }))
       .filter((x) => Number.isFinite(x.d))
       .sort((a, b) => a.d - b.d)
@@ -48,11 +67,16 @@ export function createCercaView(): View {
   }
 
   function nearRow(point: StationRecord, meters: number): HTMLElement {
+    const isStation = point.kind === 'station';
     const row = h('button', { class: 'near-row', type: 'button' });
-    const dot = h('span', { class: `near-dot ${point.kind === 'station' ? 'is-station' : 'is-stop'}` });
+    const dot = h('span', { class: `near-dot ${isStation ? 'is-station' : 'is-stop'}` });
+    const nameRow = h('div', { class: 'near-name-row' }, [
+      h('span', { class: 'near-name', text: point.name }),
+      h('span', { class: `near-kind ${isStation ? 'is-station' : 'is-stop'}`, text: isStation ? 'Estación' : 'Paradero' }),
+    ]);
     const mid = h('div', { class: 'near-mid' }, [
-      h('div', { class: 'near-name', text: point.name }),
-      h('div', { class: 'near-sub', text: point.direccion || (point.kind === 'station' ? 'Estación troncal' : 'Paradero zonal') }),
+      nameRow,
+      h('div', { class: 'near-sub', text: point.direccion || (isStation ? 'Estación troncal' : 'Paradero zonal') }),
     ]);
     const right = h('div', { class: 'near-right' }, [
       h('div', { class: 'near-dist', text: formatDistance(meters) }),

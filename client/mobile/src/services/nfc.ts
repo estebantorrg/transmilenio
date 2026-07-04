@@ -1,54 +1,133 @@
 /**
- * NFC card reading (Web NFC — `NDEFReader`).
+ * NFC card reading.
  *
- * Dependency-free: uses the standard Web NFC API available in Android's System
- * WebView / Chromium, so no native Capacitor plugin or `cap sync` is required
- * and the bundle gains nothing on platforms without it.
+ * Two backends, runtime-detected so the web bundle keeps NO hard dependency
+ * (same pattern as `nativeLive.ts`):
+ *   1. Native Capacitor plugin `@capawesome-team/capacitor-nfc` (registered as
+ *      `Capacitor.Plugins.Nfc`) — the ONLY path that works inside the Android
+ *      APK, because Android's System WebView disables Web NFC (`NDEFReader`
+ *      throws "NFC permission request denied"). Requires the plugin installed +
+ *      `npx cap sync` in `mobile/` (see spec §5.5.1a).
+ *   2. Web NFC (`NDEFReader`) — used only where the browser actually grants it.
  *
- * Honesty (spec §5.5.1a): the tullave card is an encrypted MIFARE DESFire; its
- * balance lives in a key-protected value file we CANNOT read without the
- * operator's keys. NFC here yields the tag's serial (UID) and any NDEF records
- * only. We surface that as `source:"card"` provenance and NEVER present it as a
- * verified balance — the balance stays the server ledger's job.
+ * Honesty (spec §5.5.1a): the tullave card is an encrypted MIFARE DESFire whose
+ * balance sits in a key-protected file we CANNOT read. NFC yields only the tag
+ * serial (UID) and any NDEF records — surfaced as `source:"card"`, never a
+ * verified balance.
  */
 
 export interface NfcCardRead {
   serialNumber?: string;
   records: { type: string; text: string }[];
-  /** A digit run found in NDEF text, if any (some cards expose a printed number). */
   numericId?: string;
 }
 
+interface NativeNfcPlugin {
+  isSupported?: () => Promise<{ supported?: boolean; isSupported?: boolean }>;
+  isEnabled?: () => Promise<{ enabled?: boolean; isEnabled?: boolean }>;
+  requestPermissions?: () => Promise<unknown>;
+  startScanSession: (options?: unknown) => Promise<void>;
+  stopScanSession: (options?: unknown) => Promise<void>;
+  addListener: (event: string, cb: (e: any) => void) => Promise<{ remove: () => Promise<void> }>;
+}
+
+function getNativeNfc(): NativeNfcPlugin | null {
+  const cap = (window as any).Capacitor;
+  if (!cap || typeof cap.isNativePlatform !== 'function' || !cap.isNativePlatform()) return null;
+  const nfc = cap.Plugins?.Nfc;
+  return nfc && typeof nfc.startScanSession === 'function' ? (nfc as NativeNfcPlugin) : null;
+}
+
 export function isNfcSupported(): boolean {
-  return typeof window !== 'undefined' && 'NDEFReader' in window;
+  return typeof window !== 'undefined' && (getNativeNfc() !== null || 'NDEFReader' in window);
 }
 
-function decodeRecord(record: any): { type: string; text: string } | null {
+// ─── byte helpers ────────────────────────────────────────
+function bytesToHex(bytes: number[] | undefined): string | undefined {
+  if (!bytes || bytes.length === 0) return undefined;
+  return bytes.map((b) => (b & 0xff).toString(16).padStart(2, '0')).join(':').toUpperCase();
+}
+
+/** Decode one capawesome NdefRecord (payload is a raw byte array). */
+function decodeNativeRecord(rec: any): { type: string; text: string } | null {
+  const payload: number[] = Array.isArray(rec?.payload) ? rec.payload : [];
+  const type: number[] = Array.isArray(rec?.type) ? rec.type : [];
+  if (payload.length === 0) return null;
   try {
-    if (record.recordType === 'text') {
-      const dec = new TextDecoder(record.encoding || 'utf-8');
-      return { type: 'text', text: dec.decode(record.data) };
+    // Well-known Text record ('T' = 0x54): [status, lang…, text…]. Low 6 bits of
+    // the status byte are the language-code length.
+    if (type[0] === 0x54) {
+      const langLen = payload[0] & 0x3f;
+      const text = new TextDecoder('utf-8').decode(new Uint8Array(payload.slice(1 + langLen)));
+      return { type: 'text', text };
     }
-    if (record.recordType === 'url' || record.recordType === 'absolute-url') {
-      const dec = new TextDecoder();
-      return { type: 'url', text: dec.decode(record.data) };
+    if (type[0] === 0x55) {
+      const text = new TextDecoder('utf-8').decode(new Uint8Array(payload.slice(1)));
+      return { type: 'url', text };
     }
+    const text = new TextDecoder('utf-8').decode(new Uint8Array(payload));
+    return { type: 'ndef', text: text.replace(/[^\x20-\x7e]/g, '').trim() };
   } catch {
-    /* undecodable record — skip it */
+    return null;
   }
-  return null;
 }
 
-/**
- * Scan one NFC tag. Resolves on the first read, rejects on error/cancel.
- * Pass an AbortSignal to cancel (e.g. a "cancelar" button or timeout).
- */
-export function scanCard(signal?: AbortSignal): Promise<NfcCardRead> {
-  if (!isNfcSupported()) return Promise.reject(new Error('NFC no está disponible en este dispositivo'));
+function toResult(serialNumber: string | undefined, records: { type: string; text: string }[]): NfcCardRead {
+  const digits = records.map((r) => r.text).join(' ').replace(/\D/g, '');
+  return { serialNumber, records, numericId: digits.length >= 10 ? digits : undefined };
+}
 
+// ─── native path (capawesome) ───────────────────────────
+async function scanNative(nfc: NativeNfcPlugin, signal?: AbortSignal): Promise<NfcCardRead> {
+  const sup = await nfc.isSupported?.().catch(() => undefined);
+  if (sup && sup.supported === false && sup.isSupported === false) {
+    throw new Error('Este teléfono no tiene NFC');
+  }
+  const en = await nfc.isEnabled?.().catch(() => undefined);
+  if (en && en.enabled === false && en.isEnabled === false) {
+    throw new Error('Activa el NFC en los ajustes del teléfono');
+  }
+  await nfc.requestPermissions?.().catch(() => undefined);
+
+  return new Promise<NfcCardRead>((resolve, reject) => {
+    let handle: { remove: () => Promise<void> } | null = null;
+    let settled = false;
+    const cleanup = () => {
+      void nfc.stopScanSession().catch(() => undefined);
+      void handle?.remove().catch(() => undefined);
+    };
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    nfc
+      .addListener('nfcTagScanned', (event: any) => {
+        const tag = event?.nfcTag ?? event;
+        const records: { type: string; text: string }[] = [];
+        for (const rec of tag?.message?.records ?? []) {
+          const decoded = decodeNativeRecord(rec);
+          if (decoded && decoded.text) records.push(decoded);
+        }
+        finish(() => resolve(toResult(bytesToHex(tag?.id), records)));
+      })
+      .then((h) => {
+        handle = h;
+        if (settled) cleanup();
+        return nfc.startScanSession();
+      })
+      .catch((err) => finish(() => reject(err instanceof Error ? err : new Error('No se pudo iniciar el NFC'))));
+
+    signal?.addEventListener('abort', () => finish(() => reject(new DOMException('Lectura cancelada', 'AbortError'))));
+  });
+}
+
+// ─── web path (NDEFReader) ──────────────────────────────
+function scanWeb(signal?: AbortSignal): Promise<NfcCardRead> {
   const Reader = (window as any).NDEFReader;
   const reader = new Reader();
-
   return new Promise<NfcCardRead>((resolve, reject) => {
     let settled = false;
     const done = (fn: () => void) => {
@@ -56,29 +135,43 @@ export function scanCard(signal?: AbortSignal): Promise<NfcCardRead> {
       settled = true;
       fn();
     };
-
     reader.onreading = (event: any) => {
       const records: { type: string; text: string }[] = [];
       for (const rec of event.message?.records ?? []) {
-        const decoded = decodeRecord(rec);
-        if (decoded) records.push(decoded);
+        try {
+          if (rec.recordType === 'text' || rec.recordType === 'url') {
+            records.push({ type: rec.recordType, text: new TextDecoder(rec.encoding || 'utf-8').decode(rec.data) });
+          }
+        } catch {
+          /* skip */
+        }
       }
-      const joined = records.map((r) => r.text).join(' ');
-      const digits = joined.replace(/\D/g, '');
-      done(() =>
-        resolve({
-          serialNumber: event.serialNumber,
-          records,
-          numericId: digits.length >= 10 ? digits : undefined,
-        })
-      );
+      done(() => resolve(toResult(event.serialNumber, records)));
     };
     reader.onreadingerror = () => done(() => reject(new Error('No se pudo leer la tarjeta. Inténtalo de nuevo.')));
-
     reader
       .scan(signal ? { signal } : undefined)
-      .catch((err: unknown) => done(() => reject(err instanceof Error ? err : new Error('NFC no permitido'))));
-
+      .catch((err: any) =>
+        done(() =>
+          reject(
+            new Error(
+              /denied/i.test(String(err?.message))
+                ? 'El sistema no permitió el NFC web. En la app instalada usa el lector NFC nativo.'
+                : err instanceof Error
+                  ? err.message
+                  : 'NFC no permitido'
+            )
+          )
+        )
+      );
     signal?.addEventListener('abort', () => done(() => reject(new DOMException('Lectura cancelada', 'AbortError'))));
   });
+}
+
+/** Scan one NFC tag. Prefers the native plugin, falls back to Web NFC. */
+export function scanCard(signal?: AbortSignal): Promise<NfcCardRead> {
+  const native = getNativeNfc();
+  if (native) return scanNative(native, signal);
+  if (typeof window !== 'undefined' && 'NDEFReader' in window) return scanWeb(signal);
+  return Promise.reject(new Error('NFC no está disponible en este dispositivo'));
 }

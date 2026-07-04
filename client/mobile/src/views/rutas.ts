@@ -64,7 +64,7 @@ export function createRutasView(): View {
     const chip = h('button', { class: 'chip', type: 'button', text: f.label });
     if (f.id === 'all') chip.classList.add('active');
     chip.addEventListener('click', () => {
-      clearLine();
+      // Keep the active line/area (if any) — chips sub-filter type WITHIN it.
       activeFilter = f.id;
       chipEls.forEach((c, id) => c.classList.toggle('active', id === activeFilter));
       render();
@@ -91,11 +91,10 @@ export function createRutasView(): View {
   function render(): void {
     const q = norm(query.trim());
     const matched = state.routes.filter((r) => {
-      // Line mode (Explora por línea): troncal routes whose zone letters include
-      // the chosen line — e.g. "F" matches F19, GF..., etc.
-      if (lineFilter) {
-        return r.type === 'troncal' && getRouteZoneLetters(r.code).includes(lineFilter);
-      }
+      // Line/area mode (Explora por línea): keep any route (troncal OR zonal)
+      // whose zone letters include the chosen area — the type chips below then
+      // sub-filter troncal / zonal / ambos within that area.
+      if (lineFilter && !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
       if (!matchesFilter(r, activeFilter)) return false;
       if (!q) return true;
       return norm(`${r.code} ${r.name} ${r.origin} ${r.destination}`).includes(q);
@@ -153,7 +152,7 @@ export function createRutasView(): View {
       });
       lineBanner.replaceChildren(
         badge,
-        h('span', { class: 'line-banner-text', text: `Línea ${letter} · troncal` }),
+        h('span', { class: 'line-banner-text', text: `Área ${letter} · usa los chips para filtrar tipo` }),
         x
       );
       lineBanner.style.setProperty('--line-color', color);

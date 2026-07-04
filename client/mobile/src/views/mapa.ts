@@ -30,9 +30,37 @@ export function createMapaView(): MapaView {
       controller = new MapController(canvas);
       controller.onSelectStation = (rec) => openStationSheet(rec);
       if (state.stations.length) controller.setStations(state.stations);
+      if (state.zonalStops.length) controller.setParaderos(state.zonalStops);
     }
     return controller;
   }
+
+  // Map filter panel — website-style layer toggles (Estaciones / Paraderos).
+  const LAYERS_ICON =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>';
+  const filterBtn = h('button', { class: 'map-fab map-filter-btn', type: 'button', 'aria-label': 'Capas del mapa', html: LAYERS_ICON });
+  const filterPanel = h('div', { class: 'map-filter-panel hidden' });
+  const mkFilterRow = (key: 'stations' | 'paraderos', label: string, on: boolean) => {
+    const cb = h('input', { type: 'checkbox' }) as HTMLInputElement;
+    cb.checked = on;
+    cb.addEventListener('change', () => {
+      const c = ensureController();
+      if (key === 'stations') c.setStationsVisible(cb.checked);
+      else c.setParaderosVisible(cb.checked);
+      haptic('light');
+    });
+    return h('label', { class: 'map-filter-row' }, [cb, h('span', { class: `mf-dot mf-${key}` }), h('span', { class: 'mf-label', text: label })]);
+  };
+  filterPanel.append(
+    h('div', { class: 'map-filter-title', text: 'Mostrar en el mapa' }),
+    mkFilterRow('stations', 'Estaciones', true),
+    mkFilterRow('paraderos', 'Paraderos zonales', false)
+  );
+  filterBtn.addEventListener('click', () => {
+    filterPanel.classList.toggle('hidden');
+    haptic('light');
+  });
+  el.append(filterBtn, filterPanel);
 
   // Active-route banner (shows when a route is drawn).
   const banner = h('div', { class: 'map-route-banner hidden' });
@@ -97,6 +125,7 @@ export function createMapaView(): MapaView {
   }
 
   bus.on('routes:ready', () => controller?.setStations(state.stations));
+  bus.on('stops:ready', () => controller?.setParaderos(state.zonalStops));
 
   return {
     el,
@@ -107,6 +136,7 @@ export function createMapaView(): MapaView {
       const c = ensureController();
       c.resize();
       if (state.stations.length) c.setStations(state.stations);
+      if (state.zonalStops.length) c.setParaderos(state.zonalStops);
       requestAnimationFrame(() => c.resize());
     },
   };

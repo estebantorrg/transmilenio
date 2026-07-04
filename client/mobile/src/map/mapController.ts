@@ -34,9 +34,13 @@ export class MapController {
   private ready = false;
   private activeRouteId: string | null = null;
   private pendingStations: StationRecord[] | null = null;
+  private pendingParaderos: StationRecord[] | null = null;
   private pendingRoute: { route: RouteListItem; onLive?: RouteLiveHandler } | null = null;
   private pendingUser: [number, number] | null = null;
   private pendingFly: { coordinate: [number, number]; zoom: number } | null = null;
+  // Map-filter state (user intent). Global layers hide while a route is active.
+  private stationsOn = true;
+  private paraderosOn = false;
   onSelectStation: (rec: StationRecord) => void = () => {};
 
   constructor(container: HTMLElement) {
@@ -127,6 +131,23 @@ export class MapController {
       },
     });
 
+    // Whole-network zonal paraderos (thousands) — hidden by default; toggled
+    // from the map filter panel so the map isn't crowded out of the box.
+    map.addSource('tm-paraderos', { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: 'tm-paraderos-layer',
+      type: 'circle',
+      source: 'tm-paraderos',
+      layout: { visibility: 'none' },
+      minzoom: 12.5,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.2, 16, 4.4],
+        'circle-color': '#00c2de',
+        'circle-stroke-color': '#06121b',
+        'circle-stroke-width': 1.2,
+      },
+    });
+
     map.addSource('tm-user', { type: 'geojson', data: EMPTY_FC });
     map.addLayer({
       id: 'tm-user-halo',
@@ -141,7 +162,7 @@ export class MapController {
       paint: { 'circle-radius': 6, 'circle-color': '#3b82f6', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 },
     });
 
-    map.on('click', 'tm-stations-layer', (e) => {
+    const pickHandler = (kind: 'station' | 'stop') => (e: maplibregl.MapLayerMouseEvent) => {
       const f = e.features?.[0];
       if (!f) return;
       const p = f.properties as any;
@@ -151,10 +172,12 @@ export class MapController {
         direccion: p.direccion || '',
         coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
         wagonCount: Number(p.wagonCount) || 0,
-        kind: 'station',
+        kind,
       });
-    });
-    for (const layer of ['tm-stations-layer', 'tm-stops-layer']) {
+    };
+    map.on('click', 'tm-stations-layer', pickHandler('station'));
+    map.on('click', 'tm-paraderos-layer', pickHandler('stop'));
+    for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer']) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
     }
@@ -164,6 +187,10 @@ export class MapController {
     if (this.pendingStations) {
       this.setStations(this.pendingStations);
       this.pendingStations = null;
+    }
+    if (this.pendingParaderos) {
+      this.setParaderos(this.pendingParaderos);
+      this.pendingParaderos = null;
     }
     if (this.pendingUser) {
       this.setUser(this.pendingUser);
@@ -178,6 +205,9 @@ export class MapController {
       this.pendingRoute = null;
       void this.showRoute(route, onLive);
     }
+    // Sync station/paradero layers to the current filter state (in case a toggle
+    // fired before the style finished loading).
+    this.applyBaseLayerVisibility();
   }
 
   setStations(records: StationRecord[]): void {
@@ -196,15 +226,48 @@ export class MapController {
     });
   }
 
-  setLayerVisible(which: 'stations' | 'stops', visible: boolean): void {
-    if (!this.ready) return;
-    const vis = visible ? 'visible' : 'none';
-    if (which === 'stations') {
-      this.map.setLayoutProperty('tm-stations-layer', 'visibility', vis);
-      this.map.setLayoutProperty('tm-stations-label', 'visibility', vis);
-    } else {
-      this.map.setLayoutProperty('tm-stops-layer', 'visibility', vis);
+  setParaderos(records: StationRecord[]): void {
+    if (!this.ready) {
+      this.pendingParaderos = records;
+      return;
     }
+    const src = this.map.getSource('tm-paraderos') as maplibregl.GeoJSONSource | undefined;
+    src?.setData({
+      type: 'FeatureCollection',
+      features: records.map((r) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: r.coordinate },
+        properties: { code: r.code, name: r.name, direccion: r.direccion },
+      })),
+    });
+  }
+
+  /** Map-filter toggles (station / zonal-stop layers). Persist even under a route. */
+  setStationsVisible(on: boolean): void {
+    this.stationsOn = on;
+    this.applyBaseLayerVisibility();
+  }
+
+  setParaderosVisible(on: boolean): void {
+    this.paraderosOn = on;
+    this.applyBaseLayerVisibility();
+  }
+
+  /** Whole-network layers follow the filters, but are always hidden while a route
+   *  is shown so only that route's own stops remain (spec: route detail clarity). */
+  private applyBaseLayerVisibility(): void {
+    if (!this.ready) return;
+    const routeActive = this.activeRouteId !== null;
+    const stations = !routeActive && this.stationsOn ? 'visible' : 'none';
+    const paraderos = !routeActive && this.paraderosOn ? 'visible' : 'none';
+    this.map.setLayoutProperty('tm-stations-layer', 'visibility', stations);
+    this.map.setLayoutProperty('tm-stations-label', 'visibility', stations);
+    this.map.setLayoutProperty('tm-paraderos-layer', 'visibility', paraderos);
+  }
+
+  private setStopsVisible(visible: boolean): void {
+    if (!this.ready) return;
+    this.map.setLayoutProperty('tm-stops-layer', 'visibility', visible ? 'visible' : 'none');
   }
 
   private fitPadding(): maplibregl.PaddingOptions {
@@ -242,11 +305,10 @@ export class MapController {
         properties: { color, name: s.nombre },
       })),
     });
-    this.setLayerVisible('stops', true);
-    // While a route is active, hide the whole-network station layer so only the
-    // stops this route actually serves are visible (they live in tm-stops).
-    this.map.setLayoutProperty('tm-stations-layer', 'visibility', 'none');
-    this.map.setLayoutProperty('tm-stations-label', 'visibility', 'none');
+    this.setStopsVisible(true);
+    // Route active → hide the whole-network station/paradero layers so only the
+    // stops this route serves (tm-stops) remain.
+    this.applyBaseLayerVisibility();
 
     if (paths.length) {
       const bounds = new maplibregl.LngLatBounds();
@@ -274,12 +336,9 @@ export class MapController {
     this.activeRouteId = null;
     (this.map.getSource('tm-route') as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
     (this.map.getSource('tm-stops') as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
-    this.setLayerVisible('stops', false);
-    // Restore the whole-network station layer hidden while the route was shown.
-    if (this.ready) {
-      this.map.setLayoutProperty('tm-stations-layer', 'visibility', 'visible');
-      this.map.setLayoutProperty('tm-stations-label', 'visibility', 'visible');
-    }
+    this.setStopsVisible(false);
+    // Route cleared → restore the whole-network layers per the user's filters.
+    this.applyBaseLayerVisibility();
     if (busesModule) (await busesModule).stopBusTracking();
   }
 
