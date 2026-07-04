@@ -34,24 +34,6 @@ export function createMapaView(): MapaView {
     return controller;
   }
 
-  // Floating top bar: layer chips.
-  const topbar = h('div', { class: 'map-topbar' });
-  const layers = h('div', { class: 'map-layers' });
-  const layerState = { stations: true, stops: false };
-  const mkToggle = (key: 'stations' | 'stops', label: string) => {
-    const b = h('button', { class: `map-chip${layerState[key] ? ' on' : ''}`, type: 'button', text: label });
-    b.addEventListener('click', () => {
-      layerState[key] = !layerState[key];
-      b.classList.toggle('on', layerState[key]);
-      ensureController().setLayerVisible(key, layerState[key]);
-      haptic('light');
-    });
-    return b;
-  };
-  layers.append(mkToggle('stations', 'Estaciones'), mkToggle('stops', 'Paraderos'));
-  topbar.append(layers);
-  el.append(topbar);
-
   // Active-route banner (shows when a route is drawn).
   const banner = h('div', { class: 'map-route-banner hidden' });
   const bannerBadgeSlot = h('div', { class: 'mrb-badge' });

@@ -11,8 +11,8 @@ export interface AppContext {
   focusPoint: (rec: StationRecord) => void;
   /** Draw the user's blue dot on the map (no tab switch). */
   setUserLocation: (coord: [number, number]) => void;
-  /** Jump to the Rutas tab pre-seeded with a search query. */
-  openRoutesFiltered: (query: string) => void;
+  /** Jump to the Rutas tab filtered to a troncal line (Explora por línea). */
+  openLine: (letter: string) => void;
 }
 
 let ctx: AppContext | null = null;

@@ -150,10 +150,11 @@ x-relay-secret: <secret>
 * **Fallback chain** (`client/src/services/api.ts` → `getLiveBuses`): native app HTTP (§5.2.1b) → Live Bridge extension → direct CO relay (`VITE_LIVE_RELAY_URL`, §5.2.2 browser-direct) → `/api/buses` (main server relay). Each tier degrades gracefully to the next (spec §4.2); absent both the extension and a configured relay, behavior is unchanged.
 
 #### 5.2.1b Native Android App (`mobile/`)
-* Capacitor 6 shell bundling the identical web client build (`mobile/scripts/build-web.mjs` → `mobile/www`, website `client/dist` untouched). Client module: `client/src/services/nativeLive.ts`; detection is runtime-only (`window.Capacitor`), so the web bundle gains no dependency.
+* Capacitor 6 shell bundling a **dedicated app UI** ("TransMi Go", `client/mobile/`) — a ground-up bottom-tab front-end that must look nothing like the website but reuses ONLY the website's data/service layer via the `@shared` alias (→ `client/src`), so the two clients never drift (spec §1.1 R2). Built by `client`'s `build:mobile`/`dev:mobile` scripts (Vite `--config mobile/vite.config.ts`); `mobile/scripts/build-web.mjs` runs `build:mobile` → `mobile/www` (website `client/dist` untouched). Runtime-only Capacitor detection (`window.Capacitor`), so the web build gains no dependency.
+* **Catalog cache**: the app persists the master-catalog response in IndexedDB (`client/mobile/src/lib/cache.ts`) and boots stale-while-revalidate — a returning user paints instantly from cache while a fresh copy is fetched and re-applied only when it changed. The catalog is the sole critical payload (spec §4.2); ArcGIS/live layers still degrade independently.
 * **Live tier 0**: on-device native HTTP (`CapacitorHttp`) calls the live host directly — native requests are exempt from browser CORS and egress from the phone's own IP, so any user on a Colombian connection satisfies both §5.2.1 constraints with zero server involvement. Runs the same troncal name-candidate loop as the extension worker. Outside CO the geofence rejects it and the chain falls through to the web tiers unchanged.
 * **API transport**: all other `/api/*` calls (catalog, ArcGIS, card, geocode) also go through native HTTP against the hosted server (`VITE_API_BASE_URL`, baked at build; default `https://transmilenio.onrender.com/api`, override `TM_MOBILE_API_BASE`) — webview CORS never applies, so `CLIENT_ORIGINS` needs no app entry.
-* **Service worker**: not registered inside the app (`client/src/main.ts` guard) — assets ship in the APK; SW caching would only risk stale catalogs.
+* **Service worker**: not registered inside the app (main-entry guard) — assets ship in the APK, and the IndexedDB catalog cache above replaces any need for SW caching (which would only risk stale catalogs).
 * **Permissions**: `INTERNET`, `ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION` (webview geolocation for "mi ubicación").
 
 #### 5.2.2 Relay Setup
@@ -269,6 +270,7 @@ All mounted on `/api`:
   `Content-Length` must be computed from the exact JSON body bytes.
 * **Server contract**: `/api/card/read` validates the card number, sends the exact upstream shape, decodes gzip, does not cache, and never logs or stores the full card number.
 * **Source separation**: `/lectura_tarjeta` returns the server ledger only. The official mobile UI can show newer balance and multiple movements after a phone tap because it reads NFC card memory locally. Web/server code must not infer or fabricate those hidden card movements from the server response. Any future NFC/native bridge must merge as `source:"card"` with provenance distinct from `source:"server"`.
+* **App NFC read (`client/mobile/src/services/nfc.ts`)**: the mobile app reads the card over **Web NFC** (`NDEFReader`, dependency-free; hidden where unsupported). The tullave chip is an encrypted MIFARE DESFire whose balance sits in a key-protected file the app cannot read, so NFC yields only the tag **serial (UID)** and any NDEF records — surfaced as `source:"card"` provenance and NEVER as a verified balance. If NDEF exposes a card number the app auto-consults the server ledger; the balance stays server-sourced.
 
 #### 5.5.2 Caching & Timeouts
 * **Caching**:

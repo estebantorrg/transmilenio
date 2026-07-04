@@ -243,6 +243,10 @@ export class MapController {
       })),
     });
     this.setLayerVisible('stops', true);
+    // While a route is active, hide the whole-network station layer so only the
+    // stops this route actually serves are visible (they live in tm-stops).
+    this.map.setLayoutProperty('tm-stations-layer', 'visibility', 'none');
+    this.map.setLayoutProperty('tm-stations-label', 'visibility', 'none');
 
     if (paths.length) {
       const bounds = new maplibregl.LngLatBounds();
@@ -270,6 +274,12 @@ export class MapController {
     this.activeRouteId = null;
     (this.map.getSource('tm-route') as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
     (this.map.getSource('tm-stops') as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
+    this.setLayerVisible('stops', false);
+    // Restore the whole-network station layer hidden while the route was shown.
+    if (this.ready) {
+      this.map.setLayoutProperty('tm-stations-layer', 'visibility', 'visible');
+      this.map.setLayoutProperty('tm-stations-label', 'visibility', 'visible');
+    }
     if (busesModule) (await busesModule).stopBusTracking();
   }
 

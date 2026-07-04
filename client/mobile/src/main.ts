@@ -50,7 +50,7 @@ async function main(): Promise<void> {
   if (state.native) document.body.classList.add('native-app');
 
   // Build views.
-  type RutasView = View & { setFilter: (f: string, q?: string) => void };
+  type RutasView = View & { setLine: (letter: string) => void };
   const inicio = createInicioView();
   const rutas = createRutasView() as RutasView;
   const mapa = createMapaView() as MapaView;
@@ -107,9 +107,9 @@ async function main(): Promise<void> {
       mapa.focusPoint(rec);
     },
     setUserLocation: (coord) => mapa.setUser(coord),
-    openRoutesFiltered: (query: string) => {
+    openLine: (letter: string) => {
       navigate('rutas');
-      rutas.setFilter('all', query);
+      rutas.setLine(letter);
     },
   });
 

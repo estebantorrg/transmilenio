@@ -16,6 +16,9 @@ import { nativeJsonRequest } from '@shared/services/nativeLive';
 import type { MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
 import { bus, setRoutes, state, type HealthInfo, type StationRecord } from './state';
+import { idbGet, idbSet } from './lib/cache';
+
+const CATALOG_KEY = 'catalog:v1';
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const LIVE_RELAY_URL = String(import.meta.env.VITE_LIVE_RELAY_URL || '');
@@ -54,48 +57,88 @@ export function wakeBackend(): Promise<unknown> {
   return fetch(`${API_BASE}/health`).catch(() => undefined);
 }
 
-/**
- * Loads the required catalog + optional ArcGIS layers, builds the unified route
- * list, and seeds `state`. Throws only if the master catalog itself is
- * unreachable (spec §4.2 — catalog is critical, everything else degrades).
- */
-export async function loadCore(onProgress: (pct: number, label: string) => void): Promise<void> {
-  onProgress(12, 'Despertando el servidor…');
-  await wakeBackend();
+/** Build routes/stations/counts from a catalog (+ optional ArcGIS troncal geometry). */
+function applyCatalog(catalog: MasterCatalog, troncalRoutes: TroncalRouteFeature[] = [], corridorCount?: number): void {
+  state.catalog = catalog;
+  setRouteTypeIndex(catalog);
+  const routes = buildRouteList(troncalRoutes, catalog);
+  const stations = catalogStationRecords(catalog);
+  state.stations = stations;
+  state.counts = {
+    troncal: routes.filter((r) => r.type === 'troncal').length,
+    zonal: routes.filter((r) => r.type === 'zonal').length,
+    stations: stations.length,
+    stops: state.counts.stops,
+    cable: corridorCount ?? state.counts.cable,
+  };
+  setRoutes(routes);
+}
 
-  onProgress(22, 'Descargando catálogo maestro…');
+/** Cheap signature to detect whether a fresh catalog differs from the cached one. */
+function catalogSignature(payload: MasterCatalogResponse): string {
+  const c = payload.data || { stations: {}, routes: {} };
+  return `${payload.count}:${Object.keys(c.routes || {}).length}:${Object.keys(c.stations || {}).length}`;
+}
+
+/** Fetch the fresh catalog + ArcGIS troncal layers. Throws if the catalog is unreachable. */
+async function fetchFresh(): Promise<{ payload: MasterCatalogResponse; troncalRoutes: TroncalRouteFeature[]; corridorCount: number }> {
   const [troncalRes, corridorsRes, catalogRes] = await Promise.allSettled([
     api.getTroncalRoutes(),
     api.getTroncalCorridors(),
     api.getMasterCatalog(),
   ]);
-
   if (catalogRes.status !== 'fulfilled') {
     throw new Error(catalogRes.reason instanceof Error ? catalogRes.reason.message : 'catálogo no disponible');
   }
-  const catalogPayload = catalogRes.value as MasterCatalogResponse;
-  const catalog = catalogPayload.data || { stations: {}, routes: {} };
-  state.catalog = catalog;
-  setRouteTypeIndex(catalog);
-
-  onProgress(70, 'Trazando rutas…');
-  const troncalRoutes = unwrap<TroncalRouteFeature>(troncalRes as PromiseSettledResult<ApiResponse<TroncalRouteFeature>>);
-  const routes = buildRouteList(troncalRoutes, catalog);
-  const stations = catalogStationRecords(catalog);
-  state.stations = stations;
-
-  const troncalCount = routes.filter((r) => r.type === 'troncal').length;
-  const zonalCount = routes.filter((r) => r.type === 'zonal').length;
-  state.counts = {
-    troncal: troncalCount,
-    zonal: zonalCount,
-    stations: stations.length,
-    stops: 0,
-    cable: corridorsRes.status === 'fulfilled' ? corridorsRes.value.features.length : 0,
+  return {
+    payload: catalogRes.value as MasterCatalogResponse,
+    troncalRoutes: unwrap<TroncalRouteFeature>(troncalRes as PromiseSettledResult<ApiResponse<TroncalRouteFeature>>),
+    corridorCount: corridorsRes.status === 'fulfilled' ? corridorsRes.value.features.length : 0,
   };
+}
 
-  onProgress(88, 'Ordenando líneas…');
-  setRoutes(routes);
+/**
+ * Cache-first boot (stale-while-revalidate). A returning user paints instantly
+ * from the IndexedDB-cached catalog while a fresh copy is fetched in the
+ * background; a first-time user waits for the network once. Throws only when
+ * there is neither a cache nor a reachable catalog (spec §4.2 — catalog is
+ * critical, everything else degrades).
+ */
+export async function loadCore(onProgress: (pct: number, label: string) => void): Promise<void> {
+  const cached = await idbGet<MasterCatalogResponse>(CATALOG_KEY);
+  if (cached?.data && Object.keys(cached.data.routes || {}).length > 0) {
+    onProgress(85, 'Cargando desde caché…');
+    applyCatalog(cached.data);
+    onProgress(100, '¡Listo!');
+    // Revalidate silently; don't block boot on the (possibly cold) network.
+    void revalidate(catalogSignature(cached));
+    return;
+  }
+
+  onProgress(14, 'Despertando el servidor…');
+  await wakeBackend();
+  onProgress(35, 'Descargando catálogo maestro…');
+  const fresh = await fetchFresh();
+  onProgress(82, 'Trazando rutas…');
+  applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.troncalRoutes, fresh.corridorCount);
+  // Persist for next launch without delaying first paint.
+  void idbSet(CATALOG_KEY, fresh.payload);
+}
+
+/**
+ * Background refresh after a cache-first boot. Only re-applies (and re-caches)
+ * when the catalog actually changed — avoids re-rendering the list under the
+ * user on the common no-change launch.
+ */
+async function revalidate(cachedSig: string): Promise<void> {
+  try {
+    const fresh = await fetchFresh();
+    if (catalogSignature(fresh.payload) === cachedSig) return; // unchanged — keep cache paint
+    applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.troncalRoutes, fresh.corridorCount);
+    await idbSet(CATALOG_KEY, fresh.payload);
+  } catch (err) {
+    console.warn('[data] catalog revalidation failed (using cache):', err);
+  }
 }
 
 /** Background pass: enrich zonal routes with their stops and expose stop records. */

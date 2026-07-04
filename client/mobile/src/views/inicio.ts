@@ -126,7 +126,7 @@ export function createInicioView(): View {
       chip.style.color = needsDarkText(color) ? '#0a0e17' : '#fff';
       chip.addEventListener('click', () => {
         haptic('light');
-        app().openRoutesFiltered(letter);
+        app().openLine(letter);
       });
       grid.append(chip);
     }

@@ -3,8 +3,12 @@
 import { api, type CardBalanceRead } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
 import { forgetCard, getCards, rememberCard } from '../lib/storage';
+import { isNfcSupported, scanCard, type NfcCardRead } from '../services/nfc';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
+
+const NFC_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9a13 13 0 0 1 0 6M9 6.5a19 19 0 0 1 0 11M13 5a25 25 0 0 1 0 14M17.5 6.5a19 19 0 0 1 0 11"/></svg>';
 
 function groupDigits(digits: string): string {
   return digits.replace(/\D/g, '').replace(/(.{4})/g, '$1 ').trim();
@@ -32,11 +36,10 @@ export function createSaldoView(): View {
   }) as HTMLInputElement;
 
   const submit = h('button', { class: 'btn btn-primary card-submit', type: 'submit', html: `${ICONS.card}<span>Consultar</span>` });
-  const form = h('form', { class: 'card-form' }, [
-    h('label', { class: 'field-label', text: 'Número de tarjeta' }),
-    input,
-    submit,
-  ]) as HTMLFormElement;
+  const nfcBtn = h('button', { class: 'btn btn-ghost card-nfc', type: 'button', html: `${NFC_ICON}<span>Acercar tarjeta (NFC)</span>` });
+  const formChildren = [h('label', { class: 'field-label', text: 'Número de tarjeta' }), input, submit];
+  if (isNfcSupported()) formChildren.push(nfcBtn);
+  const form = h('form', { class: 'card-form' }, formChildren) as HTMLFormElement;
 
   const recentWrap = h('div', { class: 'card-recents' });
   const result = h('div', { class: 'card-result' });
@@ -129,9 +132,7 @@ export function createSaldoView(): View {
     );
   }
 
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const digits = input.value.replace(/\D/g, '');
+  async function consult(digits: string): Promise<void> {
     if (digits.length < 6) {
       toast('Número de tarjeta inválido', 'warn');
       return;
@@ -153,15 +154,97 @@ export function createSaldoView(): View {
     } finally {
       submit.classList.remove('busy');
     }
+  }
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    void consult(input.value.replace(/\D/g, ''));
   });
 
-  // Placeholder result state.
-  result.append(
-    h('div', { class: 'empty' }, [
-      h('div', { class: 'empty-title', text: 'Sin consulta' }),
-      h('div', { class: 'empty-text', html: 'Ingresa el número de tu tarjeta <b>tullave</b> para ver el saldo del servidor.' }),
-    ])
-  );
+  // ── NFC read (Web NFC) ──
+  function renderNfcResult(read: NfcCardRead): void {
+    const rows = [
+      h('div', { class: 'nfc-row' }, [
+        h('span', { text: 'Serial (UID)' }),
+        h('strong', { text: read.serialNumber || '—' }),
+      ]),
+    ];
+    for (const rec of read.records.slice(0, 4)) {
+      rows.push(h('div', { class: 'nfc-row' }, [h('span', { text: rec.type }), h('strong', { text: rec.text })]));
+    }
+    result.replaceChildren(
+      h('div', { class: 'nfc-card' }, [
+        h('div', { class: 'nfc-card-head', html: `${NFC_ICON}<span>Tarjeta leída (NFC)</span>` }),
+        ...rows,
+      ]),
+      h('div', { class: 'provenance' }, [
+        h('div', { class: 'provenance-title', html: `${NFC_ICON} Sobre la lectura NFC` }),
+        h('div', {
+          class: 'provenance-text',
+          html:
+            read.numericId
+              ? 'Se detectó un número en la tarjeta; consultando el <b>saldo del servidor</b>…'
+              : 'La tarjeta <b>tullave</b> es un chip DESFire cifrado: su saldo real vive en una memoria protegida por llaves del operador que esta app no puede leer. El NFC solo entrega el <b>serial</b> y datos NDEF. El saldo verificado sigue siendo el del servidor.',
+        }),
+      ])
+    );
+  }
+
+  let nfcAbort: AbortController | null = null;
+  async function readNfc(): Promise<void> {
+    if (!isNfcSupported()) {
+      toast('NFC no disponible en este dispositivo', 'warn');
+      return;
+    }
+    nfcAbort?.abort();
+    nfcAbort = new AbortController();
+    const signal = nfcAbort.signal;
+    nfcBtn.classList.add('busy');
+
+    const cancel = h('button', { class: 'btn btn-ghost', type: 'button', text: 'Cancelar' });
+    cancel.addEventListener('click', () => nfcAbort?.abort());
+    result.replaceChildren(
+      h('div', { class: 'nfc-prompt' }, [
+        h('div', { class: 'nfc-wave', html: NFC_ICON }),
+        h('div', { class: 'nfc-prompt-text', text: 'Acerca tu tarjeta tullave a la parte trasera del teléfono…' }),
+        cancel,
+      ])
+    );
+    haptic('medium');
+
+    try {
+      const read = await scanCard(signal);
+      haptic('heavy');
+      renderNfcResult(read);
+      if (read.numericId) {
+        input.value = groupDigits(read.numericId);
+        void consult(read.numericId);
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        renderPlaceholder();
+      } else {
+        renderError(err instanceof Error ? err.message : 'Error NFC');
+      }
+    } finally {
+      nfcBtn.classList.remove('busy');
+      nfcAbort = null;
+    }
+  }
+  nfcBtn.addEventListener('click', readNfc);
+
+  function renderPlaceholder(): void {
+    result.replaceChildren(
+      h('div', { class: 'empty' }, [
+        h('div', { class: 'empty-title', text: 'Sin consulta' }),
+        h('div', {
+          class: 'empty-text',
+          html: 'Ingresa el número de tu tarjeta <b>tullave</b> o acércala por NFC para ver el saldo del servidor.',
+        }),
+      ])
+    );
+  }
+  renderPlaceholder();
 
   return {
     el,
