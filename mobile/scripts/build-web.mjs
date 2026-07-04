@@ -1,11 +1,12 @@
 /**
- * Builds the web client for the Android shell.
+ * Builds the app front-end for the Android shell.
  *
- * Reuses `client/` exactly as deployed on the website — same code, same build —
- * only pointed at the hosted API (the APK has no same-origin backend) and
- * emitted into `mobile/www` so the website's own `client/dist` is untouched.
- * `sw.js` is dropped from the copy: the native app skips SW registration
- * (see client/src/main.ts) and shipping a dead worker would be noise.
+ * The APK ships the dedicated **mobile app** (`client/mobile/`), a ground-up
+ * app UI that shares only the website's data/service layer (`@shared`) — never
+ * its look. It is pointed at the hosted API (the APK has no same-origin backend)
+ * and emitted into `mobile/www` so the website's own `client/dist` is untouched.
+ * `sw.js` (copied from the shared public dir) is dropped: the native app skips
+ * SW registration and shipping a dead worker would be noise.
  *
  * Override the API with TM_MOBILE_API_BASE, e.g. a local server during dev:
  *   TM_MOBILE_API_BASE=http://192.168.1.10:3002/api npm run build:web
@@ -21,11 +22,11 @@ const clientDir = path.resolve(mobileDir, '..', 'client');
 const wwwDir = path.join(mobileDir, 'www');
 
 const apiBase = (process.env.TM_MOBILE_API_BASE || 'https://transmilenio.onrender.com/api').replace(/\/$/, '');
-console.log(`[mobile] Building web client against API: ${apiBase}`);
+console.log(`[mobile] Building mobile app against API: ${apiBase}`);
 
 const result = spawnSync(
   process.platform === 'win32' ? 'npm.cmd' : 'npm',
-  ['--prefix', clientDir, 'run', 'build', '--', '--outDir', wwwDir, '--emptyOutDir'],
+  ['--prefix', clientDir, 'run', 'build:mobile', '--', '--outDir', wwwDir, '--emptyOutDir'],
   {
     stdio: 'inherit',
     shell: process.platform === 'win32',

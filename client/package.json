@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:mobile": "vite --config mobile/vite.config.ts",
+    "build:mobile": "vite build --config mobile/vite.config.ts"
   },
   "dependencies": {
     "@types/three": "^0.184.1",

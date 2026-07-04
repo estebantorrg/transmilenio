@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#070b12" />
+  <title>TransMi Go</title>
+  <meta name="description" content="TransMi Go — la app nativa para moverte en TransMilenio y SITP: rutas en vivo, buses en tiempo real, saldo y planificador." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- Boot splash -->
+  <div id="boot" class="boot">
+    <div class="boot-mark">
+      <span class="boot-ring"></span>
+      <img class="boot-logo" src="/transmiLogo.png" alt="" width="64" height="64" />
+    </div>
+    <div class="boot-name">TransMi <b>Go</b></div>
+    <div class="boot-status" id="boot-status">Encendiendo motores…</div>
+    <div class="boot-track"><span id="boot-fill" class="boot-fill"></span></div>
+  </div>
+
+  <!-- App root — screens + bottom tab bar are built in TS -->
+  <div id="app" class="app" aria-hidden="true">
+    <main id="screens" class="screens"></main>
+    <nav id="tabbar" class="tabbar" aria-label="Navegación principal"></nav>
+  </div>
+
+  <!-- Sheet host (route detail, station, planner…) -->
+  <div id="sheet-host" class="sheet-host" aria-hidden="true"></div>
+  <div id="toast-host" class="toast-host" aria-live="polite"></div>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
