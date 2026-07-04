@@ -4,6 +4,7 @@ import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLOR
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { h } from '../lib/dom';
 import { needsDarkText } from '../lib/format';
+import { getZonalAreas } from '../data';
 import { bus, state } from '../state';
 import { openRouteSheet } from '../ui/detailSheets';
 import { ICONS, routeCard } from '../ui/components';
@@ -73,12 +74,29 @@ export function createRutasView(): View {
     chipRow.append(chip);
   }
 
-  // Active "line" context banner (from Inicio → Explora por línea).
+  // Active area context: a troncal corridor line (A–P) OR a SITP numeric zone
+  // (1–13) — mutually exclusive, both shown via the same banner.
   let lineFilter: string | null = null;
+  let zoneFilter: number | null = null;
   const lineBanner = h('div', { class: 'line-banner hidden' });
-  const clearLine = (): void => {
+  const clearArea = (): void => {
     lineFilter = null;
+    zoneFilter = null;
     lineBanner.classList.add('hidden');
+  };
+
+  const showAreaBanner = (badgeText: string, label: string, color: string): void => {
+    const badge = h('span', { class: 'line-banner-badge', text: badgeText });
+    badge.style.background = color;
+    badge.style.color = needsDarkText(color) ? '#0a0e17' : '#fff';
+    const x = h('button', { class: 'line-banner-x', type: 'button', 'aria-label': 'Quitar filtro', text: '✕' });
+    x.addEventListener('click', () => {
+      clearArea();
+      render();
+    });
+    lineBanner.replaceChildren(badge, h('span', { class: 'line-banner-text', text: label }), x);
+    lineBanner.style.setProperty('--line-color', color);
+    lineBanner.classList.remove('hidden');
   };
 
   const countLine = h('div', { class: 'list-count' });
@@ -91,10 +109,14 @@ export function createRutasView(): View {
   function render(): void {
     const q = norm(query.trim());
     const matched = state.routes.filter((r) => {
-      // Line/area mode (Explora por línea): keep any route (troncal OR zonal)
-      // whose zone letters include the chosen area — the type chips below then
-      // sub-filter troncal / zonal / ambos within that area.
-      if (lineFilter && !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
+      if (lineFilter) {
+        // Troncal corridor line (A–P) — TransMilenio only.
+        if (r.type !== 'troncal' || !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
+      } else if (zoneFilter != null) {
+        // SITP numeric zone from the ArcGIS feed — authoritative, covers even
+        // numeric-coded routes that carry no zone letter.
+        if (!getZonalAreas(r.code).includes(zoneFilter)) return false;
+      }
       if (!matchesFilter(r, activeFilter)) return false;
       if (!q) return true;
       return norm(`${r.code} ${r.name} ${r.origin} ${r.destination}`).includes(q);
@@ -121,7 +143,7 @@ export function createRutasView(): View {
 
   let searchTimer: number | undefined;
   input.addEventListener('input', () => {
-    if (input.value) clearLine();
+    if (input.value) clearArea();
     query = input.value;
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(render, 90);
@@ -136,28 +158,24 @@ export function createRutasView(): View {
       if (state.routes.length && list.childElementCount === 0) render();
     },
     setLine: (letter: string) => {
+      clearArea();
       lineFilter = letter;
       activeFilter = 'all';
       chipEls.forEach((c, id) => c.classList.toggle('active', id === 'all'));
       query = '';
       input.value = '';
-      const color = TRONCAL_COLORS[letter] || '#e3342f';
-      const badge = h('span', { class: 'line-banner-badge', text: letter });
-      badge.style.background = color;
-      badge.style.color = needsDarkText(color) ? '#0a0e17' : '#fff';
-      const x = h('button', { class: 'line-banner-x', type: 'button', 'aria-label': 'Quitar línea', text: '✕' });
-      x.addEventListener('click', () => {
-        clearLine();
-        render();
-      });
-      lineBanner.replaceChildren(
-        badge,
-        h('span', { class: 'line-banner-text', text: `Área ${letter} · usa los chips para filtrar tipo` }),
-        x
-      );
-      lineBanner.style.setProperty('--line-color', color);
-      lineBanner.classList.remove('hidden');
+      showAreaBanner(letter, `Línea ${letter} · TransMilenio troncal`, TRONCAL_COLORS[letter] || '#e3342f');
       render();
     },
-  } as View & { setLine: (letter: string) => void };
+    setZone: (zone: number) => {
+      clearArea();
+      zoneFilter = zone;
+      activeFilter = 'all';
+      chipEls.forEach((c, id) => c.classList.toggle('active', id === 'all'));
+      query = '';
+      input.value = '';
+      showAreaBanner(String(zone), `Zona SITP ${zone} · zonal`, '#00a7c4');
+      render();
+    },
+  } as View & { setLine: (letter: string) => void; setZone: (zone: number) => void };
 }

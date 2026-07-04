@@ -61,6 +61,10 @@ interface AppState {
   catalog: MasterCatalog;
   stations: StationRecord[];
   zonalStops: StationRecord[];
+  /** SITP numeric zones (1–13) each route touches, keyed by variant-base code (from the ArcGIS zonal-routes feed). */
+  zonalAreas: Map<string, number[]>;
+  /** Sorted list of SITP zone numbers actually present in the network. */
+  zones: number[];
   counts: { troncal: number; zonal: number; stations: number; stops: number; cable: number };
   health: HealthInfo | null;
   tab: TabId;
@@ -73,6 +77,8 @@ export const state: AppState = {
   catalog: { stations: {}, routes: {} },
   stations: [],
   zonalStops: [],
+  zonalAreas: new Map(),
+  zones: [],
   counts: { troncal: 0, zonal: 0, stations: 0, stops: 0, cable: 0 },
   health: null,
   tab: 'inicio',

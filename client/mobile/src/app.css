@@ -243,6 +243,7 @@ input { font-family: inherit; }
 .line-grid { display: flex; flex-wrap: wrap; gap: 9px; }
 .line-chip { width: 46px; height: 46px; border-radius: 13px; border: 0; font-family: var(--font-head); font-weight: 800; font-size: 19px; box-shadow: var(--shadow); }
 .line-chip:active { transform: scale(0.94); }
+.zone-chip { background: rgba(0, 167, 196, 0.16); color: var(--cyan); border: 1px solid rgba(0, 167, 196, 0.45); box-shadow: none; font-size: 17px; }
 
 /* ── Bottom sheets ─────────────────────────────────────── */
 .sheet-host { position: fixed; inset: 0; z-index: 60; pointer-events: none; }

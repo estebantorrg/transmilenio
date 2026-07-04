@@ -115,10 +115,16 @@ export const queries = {
       service: 'consulta_trazados_troncales',
     }),
 
+  // Attributes only (no geometry): the huge zonal route geometries are never
+  // used (zonal lines come from catalog trazado), and returning them made this
+  // endpoint time out (502/503). Only the zona fields are needed — for the app's
+  // "Zonas SITP" browse (spec §5.4.2 / §5.5.1).
   zonalRoutes: () =>
     queryFeatureLayer({
       folder: 'Zonal',
       service: 'consulta_rutas_zonales',
+      outFields: 'route_name_ruta_zonal,codigo_definitivo_ruta_zonal,zona_origen_ruta_zonal,zona_destino_ruta_zonal',
+      returnGeometry: false,
     }),
 
   zonalStops: () =>

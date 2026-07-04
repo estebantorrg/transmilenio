@@ -233,6 +233,9 @@ Reconciles ArcGIS points with TransMi catalog stops.
 #### 5.4.2 Zonal Stop Resolver
 Aggregates route tags from ArcGIS `consulta_paraderos_rutas` and catalog fallbacks. Deduplicates by normalized route code.
 
+#### 5.4.2a SITP Zone Browse (`consulta_rutas_zonales`)
+The zonal-routes layer assigns every zonal route to **numeric SITP zones** (1–13; `0` = portal/troncal terminus) via `zona_origen_ruta_zonal` + `zona_destino_ruta_zonal` — authoritative even for numeric-coded routes that carry no zone letter (e.g. `661`, `139`). The mobile app's "Zonas SITP" browse builds a `code → zones[]` map from this feed (`client/mobile/src/data.ts` → `buildZonalAreas` / `variantBase`, which collapses catalog zero-padding `F019`→`F19` and direction/variant suffixes so both spellings match). This is separate from the troncal "líneas" (corridor letters A–P, a different taxonomy). `/api/zonal/routes` is served **attributes-only** (`returnGeometry=false`) — the route geometries are unused (zonal lines come from catalog trazado) and returning them timed the endpoint out.
+
 #### 5.4.3 Route Color Palette
 * **Trunk Corridors**:
   * `A`: `#0C3A95` | `B`: `#75C347` | `C`: `#FFB741` | `D`: `#6867B4`

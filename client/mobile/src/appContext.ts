@@ -13,6 +13,8 @@ export interface AppContext {
   setUserLocation: (coord: [number, number]) => void;
   /** Jump to the Rutas tab filtered to a troncal line (Explora por línea). */
   openLine: (letter: string) => void;
+  /** Jump to the Rutas tab filtered to a SITP numeric zone (1–13). */
+  openZone: (zone: number) => void;
 }
 
 let ctx: AppContext | null = null;

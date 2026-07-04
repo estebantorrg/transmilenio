@@ -136,11 +136,32 @@ export function createInicioView(): View {
     );
   }
 
+  // ── Explore by SITP zone (numeric, from the ArcGIS feed) ──
+  const zoneSection = h('div', { class: 'home-section' });
+  function renderZones(): void {
+    zoneSection.classList.toggle('hidden', state.zones.length === 0);
+    if (state.zones.length === 0) return;
+    const grid = h('div', { class: 'line-grid' });
+    for (const zone of state.zones) {
+      const chip = h('button', { class: 'line-chip zone-chip', type: 'button', text: String(zone) });
+      chip.addEventListener('click', () => {
+        haptic('light');
+        app().openZone(zone);
+      });
+      grid.append(chip);
+    }
+    zoneSection.replaceChildren(
+      h('div', { class: 'section-head' }, [h('span', { class: 'section-title', html: `${ICONS.near} Zonas SITP` })]),
+      grid
+    );
+  }
+
   renderFavorites();
   renderRecents();
   renderLines();
+  renderZones();
 
-  el.append(hero, statusCard, actions, favSection, lineSection, recentSection);
+  el.append(hero, statusCard, actions, favSection, lineSection, zoneSection, recentSection);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {
@@ -149,6 +170,7 @@ export function createInicioView(): View {
     renderRecents();
     renderLines();
   });
+  bus.on('stops:ready', renderZones);
   bus.on('favorites:changed', renderFavorites);
 
   let clockTimer: number | undefined;

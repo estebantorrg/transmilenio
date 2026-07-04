@@ -141,12 +141,68 @@ async function revalidate(cachedSig: string): Promise<void> {
   }
 }
 
-/** Background pass: enrich zonal routes with their stops and expose stop records. */
+/**
+ * Normalizes a route code to match the ArcGIS zonal-routes feed against the
+ * catalog: strips a trailing direction/variant (`-2`, `A`) and the catalog's
+ * zero-padding after the zone letter (`F019` → `F19`). Applied to BOTH sides so
+ * the two spellings collapse to the same key.
+ */
+export function variantBase(code: string): string {
+  let s = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+  s = s.replace(/-\d+[A-Z]?$|[A-Z]$/, '');
+  s = s.replace(/^([A-Z]+)0+(\d)/, '$1$2');
+  return normalizeRouteCodeForMatch(s);
+}
+
+/** SITP numeric zones (1–13) a route touches, from the ArcGIS feed. */
+export function getZonalAreas(code: string): number[] {
+  return state.zonalAreas.get(variantBase(code)) ?? [];
+}
+
+/**
+ * Builds `state.zonalAreas` (code → SITP zone numbers) + `state.zones` from the
+ * ArcGIS `consulta_rutas_zonales` feed. Zones are the union of `zona_origen` and
+ * `zona_destino` (1–13; 0 = portal/troncal is dropped). This is authoritative —
+ * it covers even numeric-coded routes that carry no zone letter.
+ */
+function buildZonalAreas(features: any[]): void {
+  const map = new Map<string, Set<number>>();
+  const present = new Set<number>();
+  for (const f of features) {
+    const a = f.attributes ?? {};
+    const key = variantBase(a.route_name_ruta_zonal || a.codigo_definitivo_ruta_zonal || '');
+    if (!key) continue;
+    const zones = [a.zona_origen_ruta_zonal, a.zona_destino_ruta_zonal]
+      .map((z) => Number(z))
+      .filter((z) => Number.isInteger(z) && z >= 1 && z <= 13);
+    if (zones.length === 0) continue;
+    let set = map.get(key);
+    if (!set) map.set(key, (set = new Set()));
+    for (const z of zones) {
+      set.add(z);
+      present.add(z);
+    }
+  }
+  state.zonalAreas = new Map([...map].map(([k, v]) => [k, [...v].sort((x, y) => x - y)]));
+  state.zones = [...present].sort((x, y) => x - y);
+}
+
+/** Background pass: SITP zones + enrich zonal routes with their stops and stop records. */
 export async function loadBackground(): Promise<void> {
-  const [stopsRes, mapRes] = await Promise.allSettled([api.getZonalStops(), api.getZonalStopRoutes()]);
+  const [zonalRes, stopsRes, mapRes] = await Promise.allSettled([
+    api.getZonalRoutes(),
+    api.getZonalStops(),
+    api.getZonalStopRoutes(),
+  ]);
+
+  buildZonalAreas(unwrap<any>(zonalRes as PromiseSettledResult<ApiResponse<any>>));
+
   const stops = unwrap<any>(stopsRes as PromiseSettledResult<ApiResponse<any>>);
   const mappings = unwrap<any>(mapRes as PromiseSettledResult<ApiResponse<any>>);
-  if (stops.length === 0) return;
+  if (stops.length === 0) {
+    bus.emit('stops:ready', undefined); // still surfaces the zones we just built
+    return;
+  }
 
   const stopLookup = new Map<string, any>();
   for (const s of stops) {

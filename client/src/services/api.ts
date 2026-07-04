@@ -209,6 +209,9 @@ export const api = {
   getTroncalCorridors: () =>
     fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
 
+  getZonalRoutes: () =>
+    fetchJson<ApiResponse<any>>('/zonal/routes'),
+
   getZonalStops: () =>
     fetchJson<ApiResponse<any>>('/zonal/stops'),
 
