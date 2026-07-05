@@ -24,6 +24,13 @@ export const RUTA_FACIL_COLOR = '#000000';
 export const DEFAULT_TRONCAL_COLOR = '#FB2C17';
 export const DEFAULT_ZONAL_COLOR = '#00608B';
 
+// Shared map/system semantic colors so the website and the mobile app render the
+// SAME transit semantics (spec §5.4.3): troncal estación = red, zonal paradero =
+// blue, TransMiCable = orange. Per-client chrome/theme stays distinct (§5.2.1b).
+export const STATION_COLOR = DEFAULT_TRONCAL_COLOR; // troncal estación (red)
+export const PARADERO_COLOR = '#3B82F6';            // zonal paradero (blue)
+export const CABLE_COLOR = '#F97316';               // TransMiCable (orange)
+
 const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
 const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
 

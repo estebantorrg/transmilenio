@@ -10,7 +10,7 @@
 
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { getRouteAccentColor } from '@shared/utils/routeColors';
+import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { StationRecord } from '../state';
@@ -106,7 +106,7 @@ export class MapController {
       source: 'tm-stations',
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.2, 14, 5.5, 17, 9],
-        'circle-color': '#e3342f',
+        'circle-color': STATION_COLOR,
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1, 16, 2.4],
       },
@@ -142,7 +142,7 @@ export class MapController {
       minzoom: 12.5,
       paint: {
         'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 2.2, 16, 4.4],
-        'circle-color': '#00c2de',
+        'circle-color': PARADERO_COLOR,
         'circle-stroke-color': '#06121b',
         'circle-stroke-width': 1.2,
       },

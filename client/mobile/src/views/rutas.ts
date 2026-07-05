@@ -1,6 +1,6 @@
 /** Rutas tab — searchable, filterable route browser. */
 
-import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '@shared/utils/routeColors';
+import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { h } from '../lib/dom';
 import { needsDarkText } from '../lib/format';
@@ -165,7 +165,7 @@ export function createRutasView(): View {
       chipEls.forEach((c, id) => c.classList.toggle('active', id === 'all'));
       query = '';
       input.value = '';
-      showAreaBanner(letter, `Línea ${letter} · TransMilenio troncal`, TRONCAL_COLORS[letter] || '#e3342f');
+      showAreaBanner(letter, `Línea ${letter} · TransMilenio troncal`, TRONCAL_COLORS[letter] || STATION_COLOR);
       render();
     },
     setZone: (zone: number) => {
@@ -176,7 +176,7 @@ export function createRutasView(): View {
       query = '';
       input.value = '';
       const label = state.zoneLabels.get(zone);
-      showAreaBanner(String(zone), label ? `Zona ${zone} · ${label}` : `Zona SITP ${zone}`, '#00a7c4');
+      showAreaBanner(String(zone), label ? `Zona ${zone} · ${label}` : `Zona SITP ${zone}`, PARADERO_COLOR);
       render();
     },
   } as View & { setLine: (letter: string) => void; setZone: (zone: number) => void };

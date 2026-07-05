@@ -21,6 +21,11 @@
   --green: #34d399;
   --blue: #4b8dff;
   --cyan: #00c2de;
+  /* Transit-semantic colors — match the website palette (spec §5.4.3) so a
+     troncal estación / zonal paradero reads the same in both clients. Distinct
+     from the brand --red/--cyan chrome above (§5.2.1b). */
+  --station: #fb2c17;
+  --paradero: #3b82f6;
   --radius: 20px;
   --radius-sm: 13px;
   --tabbar-h: 62px;
@@ -247,7 +252,7 @@ input { font-family: inherit; }
 .zone-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .zone-pill { display: flex; align-items: center; gap: 10px; background: rgba(0, 167, 196, 0.1); border: 1px solid rgba(0, 167, 196, 0.32); border-radius: 13px; padding: 9px 11px; color: var(--text); text-align: left; transition: transform 0.12s ease; }
 .zone-pill:active { transform: scale(0.97); }
-.zone-num { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--cyan); color: #04121a; font-family: var(--font-head); font-weight: 800; font-size: 14px; }
+.zone-num { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 9px; background: var(--paradero); color: #04121a; font-family: var(--font-head); font-weight: 800; font-size: 14px; }
 .zone-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Bottom sheets ─────────────────────────────────────── */
@@ -309,8 +314,8 @@ input { font-family: inherit; }
 .st-header { display: flex; align-items: center; gap: 12px; }
 .st-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; flex: none; }
 .st-icon svg { width: 22px; height: 22px; color: #fff; }
-.st-icon.is-station { background: var(--red); }
-.st-icon.is-stop { background: var(--cyan); }
+.st-icon.is-station { background: var(--station); }
+.st-icon.is-stop { background: var(--paradero); }
 .st-name { font-family: var(--font-head); font-weight: 700; font-size: 17px; }
 .st-kind { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
 .st-addr { font-size: 13px; color: var(--muted); margin: 12px 0 8px; }
@@ -328,14 +333,14 @@ input { font-family: inherit; }
 .near-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 13px; color: var(--text); text-align: left; }
 .near-row:active { background: var(--surface-2); }
 .near-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-.near-dot.is-station { background: var(--red); box-shadow: 0 0 0 3px rgba(227, 52, 47, 0.18); }
-.near-dot.is-stop { background: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 194, 222, 0.16); }
+.near-dot.is-station { background: var(--station); box-shadow: 0 0 0 3px rgba(251, 44, 23, 0.18); }
+.near-dot.is-stop { background: var(--paradero); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16); }
 .near-mid { flex: 1; min-width: 0; }
 .near-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .near-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .near-kind { flex: none; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
-.near-kind.is-station { color: var(--red-2); background: rgba(227, 52, 47, 0.14); }
-.near-kind.is-stop { color: var(--cyan); background: rgba(0, 194, 222, 0.14); }
+.near-kind.is-station { color: var(--red-2); background: rgba(251, 44, 23, 0.14); }
+.near-kind.is-stop { color: var(--paradero); background: rgba(59, 130, 246, 0.14); }
 .near-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
 .near-right { text-align: right; flex: none; }
 .near-dist { font-family: var(--font-head); font-weight: 650; font-size: 14px; }
@@ -386,8 +391,8 @@ input { font-family: inherit; }
 .map-filter-row:active { background: var(--surface-3); }
 .map-filter-row input { width: 18px; height: 18px; accent-color: var(--red); flex: none; }
 .mf-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.mf-stations { background: var(--red); }
-.mf-paraderos { background: var(--cyan); }
+.mf-stations { background: var(--station); }
+.mf-paraderos { background: var(--paradero); }
 .mf-label { font-size: 13.5px; }
 
 .map-route-banner { position: absolute; left: 12px; right: 12px; bottom: 20px; z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
@@ -412,8 +417,8 @@ input { font-family: inherit; }
 .pl-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--border); color: var(--text); padding: 11px 13px; }
 .pl-opt:active { background: var(--surface-3); }
 .pl-opt-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
-.pl-opt-dot.station { background: var(--red); }
-.pl-opt-dot.stop { background: var(--cyan); }
+.pl-opt-dot.station { background: var(--station); }
+.pl-opt-dot.stop { background: var(--paradero); }
 .pl-opt-name { font-size: 13.5px; font-weight: 550; }
 .pl-opt-sub { font-size: 11.5px; color: var(--muted-2); }
 .pl-options { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }

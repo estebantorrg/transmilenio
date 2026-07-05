@@ -1,6 +1,6 @@
 /** Route-detail and station-detail bottom sheets (shared by every tab). */
 
-import { getRouteAccentColor } from '@shared/utils/routeColors';
+import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
@@ -51,7 +51,9 @@ export function openRouteSheet(route: RouteListItem): void {
 
   const tags = h('div', { class: 'rd-tags' });
   tags.append(h('span', { class: 'rd-tag', text: routeTypeLabel(route) }));
-  if (route.length && route.length > 200) tags.append(h('span', { class: 'rd-tag', text: `${(route.length / 1000).toFixed(1)} km` }));
+  // ArcGIS longitud_ruta_troncal is already in kilometres (verified: ~13–24),
+  // matching the website's route.length display — do not divide by 1000.
+  if (route.length && route.length > 0.2) tags.append(h('span', { class: 'rd-tag', text: `${route.length.toFixed(1)} km` }));
   if (route.busType) tags.append(h('span', { class: 'rd-tag', text: route.busType }));
   sheet.body.append(tags);
 
@@ -151,7 +153,7 @@ function routesServing(code: string): RouteListItem[] {
 
 export function openStationSheet(station: StationRecord): void {
   const isStation = station.kind === 'station';
-  const sheet = openSheet({ accent: isStation ? '#e3342f' : '#00a7c4' });
+  const sheet = openSheet({ accent: isStation ? STATION_COLOR : PARADERO_COLOR });
 
   const header = h('div', { class: 'st-header' });
   const icon = h('span', { class: `st-icon ${isStation ? 'is-station' : 'is-stop'}`, html: ICONS.route });
