@@ -50,17 +50,19 @@ const rootIdx = json.scenes[json.scene ?? 0].nodes.find((i) => json.nodes[i].mes
 const node = json.nodes[rootIdx];
 const q = node.rotation || [0, 0, 0, 1];
 const t0 = node.translation || [0, 0, 0];
+const s = node.scale || [1, 1, 1];
 
 // POSITION accessor of the (only) primitive.
 const posAcc = json.accessors[json.meshes[node.mesh].primitives[0].attributes.POSITION];
 const [lnx, lny, lnz] = posAcc.min;
 const [lxx, lxy, lxz] = posAcc.max;
 
-// Transform the 8 local-bbox corners into world space (t0 + R·corner).
+// Transform the 8 local-bbox corners into world space: T + R·(S·corner) — the
+// node's full TRS, so a non-identity node scale still bakes the correct pivot.
 let wmin = [Infinity, Infinity, Infinity];
 let wmax = [-Infinity, -Infinity, -Infinity];
 for (const cx of [lnx, lxx]) for (const cy of [lny, lxy]) for (const cz of [lnz, lxz]) {
-  const r = qrot(q, [cx, cy, cz]);
+  const r = qrot(q, [cx * s[0], cy * s[1], cz * s[2]]);
   for (let k = 0; k < 3; k++) {
     const v = t0[k] + r[k];
     wmin[k] = Math.min(wmin[k], v);

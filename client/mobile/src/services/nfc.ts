@@ -93,12 +93,14 @@ function toResult(serialNumber: string | undefined, records: { type: string; tex
 
 // ─── native path (capawesome) ───────────────────────────
 async function scanNative(nfc: NativeNfcPlugin, signal?: AbortSignal): Promise<NfcCardRead> {
+  // Plugin versions report under either key; coalesce so a single-key `false`
+  // (e.g. `{ supported: false }`) still trips the guard.
   const sup = await nfc.isSupported?.().catch(() => undefined);
-  if (sup && sup.supported === false && sup.isSupported === false) {
+  if (sup && (sup.supported ?? sup.isSupported) === false) {
     throw new Error('Este teléfono no tiene NFC');
   }
   const en = await nfc.isEnabled?.().catch(() => undefined);
-  if (en && en.enabled === false && en.isEnabled === false) {
+  if (en && (en.enabled ?? en.isEnabled) === false) {
     throw new Error('Activa el NFC en los ajustes del teléfono');
   }
   await nfc.requestPermissions?.().catch(() => undefined);

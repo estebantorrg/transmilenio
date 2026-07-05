@@ -1,10 +1,10 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
 import { initRouter, findRoutes, sortJourneyPlans, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
-import { getRouteAccentColor } from '@shared/utils/routeColors';
+import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
-import { allPoints, state, type StationRecord } from '../state';
+import { allPoints, bus, state, type StationRecord } from '../state';
 import { openSheet } from '../ui/sheet';
 import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
@@ -16,6 +16,12 @@ interface Endpoint {
 }
 
 let routerReady = false;
+// Background enrichment adds zonal-route stops after boot (data.ts loadBackground).
+// Invalidate the built graph so the next search rebuilds it with the enriched
+// stops — mirrors the website's post-enrichment router rebuild (main.ts).
+bus.on('stops:ready', () => {
+  routerReady = false;
+});
 function ensureRouter(): void {
   if (routerReady && state.routes.length) return;
   initRouter(state.routes, []);
@@ -41,7 +47,7 @@ function searchPoints(query: string): StationRecord[] {
 
 export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpoint }): void {
   ensureRouter();
-  const sheet = openSheet({ title: 'Planear viaje', accent: '#e3342f', full: true });
+  const sheet = openSheet({ title: 'Planear viaje', accent: STATION_COLOR, full: true });
 
   let origin: Endpoint | null = seed?.origin ?? null;
   let destination: Endpoint | null = seed?.destination ?? null;
@@ -253,7 +259,7 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
       } else {
         const color =
           step.routeType === 'cable'
-            ? '#00a7c4'
+            ? CABLE_COLOR
             : getRouteAccentColor({ code: step.routeCode || '', type: (step.routeType as 'troncal' | 'zonal') || 'zonal' } as any);
         const leg = h('span', { class: 'leg leg-ride', text: step.routeCode || '·' });
         leg.style.background = color;

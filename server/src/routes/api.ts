@@ -258,7 +258,7 @@ router.post('/buses', async (req: Request, res: Response) => {
   const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
   const nombre = normalizeRequestText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
   const nombreCandidates = normalizeLiveNameCandidates(req.body?.nombreCandidates);
-  const routeType: 'troncal' | 'zonal' = req.body.type === 'zonal' ? 'zonal' : 'troncal';
+  const routeType: 'troncal' | 'zonal' = req.body?.type === 'zonal' ? 'zonal' : 'troncal';
 
   if (!ruta) {
     res.status(400).json({ success: false, error: 'ruta is required' });

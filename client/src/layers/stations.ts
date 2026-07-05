@@ -340,9 +340,11 @@ export function catalogStationsToFeatures(catalog: MasterCatalog): TroncalStatio
   let objectid = 1;
 
   for (const [key, station] of Object.entries(catalog.stations)) {
-    const isTroncal =
-      station.sistema === 'TransMilenio' ||
-      (station.tipoServicio || '').toUpperCase() === 'TRONCAL';
+    // Classify by CODE, not sistema/tipoServicio: the light catalog this
+    // fallback consumes may omit both fields on a real TM station, which would
+    // silently drop it exactly when ArcGIS already failed. TM…-coded nodes are
+    // the troncal estaciones (spec §5.4.1a; same rule as the mobile twin).
+    const isTroncal = /^TM\d+$/i.test(String(station.codigo || key).trim());
     if (!isTroncal) continue;
 
     const [latRaw, lngRaw] = String(station.coordenada || '').split(',');

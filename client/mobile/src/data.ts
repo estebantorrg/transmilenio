@@ -175,9 +175,9 @@ export function getZonalAreas(code: string): number[] {
 
 /**
  * Builds `state.zonalAreas` (code → SITP zone numbers) + `state.zones` from the
- * ArcGIS `consulta_rutas_zonales` feed. Zones are the union of `zona_origen` and
- * `zona_destino` (1–13; 0 = portal/troncal is dropped). This is authoritative —
- * it covers even numeric-coded routes that carry no zone letter.
+ * ArcGIS `consulta_rutas_zonales` feed. A route is assigned only to its home zone
+ * (`zona_origen`, 1–13); `zona_destino` is deliberately ignored (see below). This
+ * is authoritative — it covers even numeric-coded routes that carry no zone letter.
  */
 function buildZonalAreas(features: any[]): void {
   const map = new Map<string, Set<number>>();

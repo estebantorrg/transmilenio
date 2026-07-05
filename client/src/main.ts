@@ -362,6 +362,12 @@ function getNativeLocation(highAccuracy = true): Promise<{ longitude: number; la
         }
       },
       // High accuracy + no cached fix → device GPS, not a coarse network/IP guess.
+      // Our own maxTimer owns the deadline, so give the browser the full budget.
+      {
+        enableHighAccuracy: highAccuracy,
+        maximumAge: highAccuracy ? 0 : 60_000,
+        timeout: GEO_MAX_WAIT_MS,
+      },
     );
   });
 }
