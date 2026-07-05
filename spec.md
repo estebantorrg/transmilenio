@@ -220,9 +220,10 @@ Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (th
 Reconciles ArcGIS points with TransMi catalog stops.
 * **Match Order**:
   1. Terminal platform clusters (merging fragments within 180m).
-  2. Exact ID match.
-  3. Name and distance proximity.
-* **Merged stations (no split)**: Avenida Jiménez (`TM0013`) and Ricaurte (`TM0069`) are single stations — the former "Calle 13" halves no longer exist as separate stops, so no wagon-based split is applied. The catalog files each as one merged stop (`parseCatalogStop`, `routeCatalog.ts`) and the ArcGIS platform points collapse via the 180 m cluster (`VERIFIED_SPLITS` emptied, `stationCatalogResolver.ts`).
+  2. Verified platform splits (`VERIFIED_SPLITS`, see below).
+  3. Exact ID match.
+  4. Name and distance proximity.
+* **Verified platform splits**: Avenida Jiménez (`TM0013`) and Ricaurte (`TM0069`) are each physically **two separate stations** — a Caracas/NQS trunk platform and a Calle 13 platform. The official app files each pair under **one merged stop code**, but ArcGIS exposes each platform as its own point. `VERIFIED_SPLITS` (`stationCatalogResolver.ts`) splits the merged catalog stop back into its platforms **by wagon**, so both stations render distinctly with their own name and route set: Av. Jiménez → Caracas (`TM0013` wagons `A,B,C`, node `9110`) + CL 13 (wagons `D,E`, node `14003`); Ricaurte → NQS (`TM0069` wagons `A,B,C`, node `7111`) + CL 13 (wagons `D,E,F`, node `12003`). The two ArcGIS platform points are matched by node id / normalized name; wagon partitions are kept in sync with the catalog.
 * **Both-direction route tags** (`groupCatalogRoutesByDirection`, `stations.ts`): A TransMilenio route serves a station in **both directions**, so each direction is shown as its own tag. Wagon route tags are grouped by **código + destination name** — so a ruta fácil like `3` shows `3 → Portal Tunal` AND `3 → Corferias` (both directions; data carries both as distinct ids/nombres), and lettered pairs `B72`/`H72` show as their two codes. Only genuine duplicates (same código **and** destination) collapse into one tag; the tooltip lists the destination(s). Wagons are left exactly as the catalog files them (no merging across platforms).
 * **Audit**: Diagnostic output exposed via `window.__tmStationAudit`.
 
