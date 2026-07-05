@@ -3,6 +3,7 @@ import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
 import { geocodeAddress } from '../services/geocode.js';
+import zlib from 'zlib';
 
 const router = Router();
 
@@ -118,25 +119,30 @@ router.get('/troncal/corridors', async (_req: Request, res: Response) => {
 
 router.get('/troncal/master-catalog', async (req: Request, res: Response) => {
   try {
-    const loadedAt = tmApi.getCatalogLoadedAt() || 0;
-    const etag = `W/"catalog-${loadedAt}"`;
-    
+    const { gzip, count, etag } = await tmApi.getCatalogLightGzip();
+
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache
-    
+    res.setHeader('Vary', 'Accept-Encoding');
+    res.setHeader('X-Catalog-Count', String(count));
+
     if (req.headers['if-none-match'] === etag) {
       res.status(304).end();
       return;
     }
 
-    const catalog = tmApi.getCatalogLight();
-    const count = Object.keys(catalog.stations || {}).length;
-    res.json({
-      success: true,
-      data: catalog,
-      count,
-      stale: tmApi.isCatalogStale()
-    });
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+    // Stream the precomputed gzip body verbatim — no per-request stringify or
+    // re-compression (spec §1.1 R2; the old path was the main OOM source under
+    // concurrency). Every real browser accepts gzip; the identity fallback is
+    // only for the odd client that opts out via `Accept-Encoding`.
+    if (req.acceptsEncodings('gzip')) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(gzip);
+    } else {
+      res.end(zlib.gunzipSync(gzip));
+    }
   } catch (error) {
     console.error('Error fetching master catalog:', error);
     res.status(500).json({ success: false, error: 'Failed to load master catalog' });
@@ -589,6 +595,11 @@ router.get('/health', async (_req: Request, res: Response) => {
     liveTrackingVersion: tmApi.LIVE_TRACKING_VERSION,
     syncInProgress: tmApi.isSyncInProgress(),
     uptime: process.uptime(),
+    memory: (() => {
+      const m = process.memoryUsage();
+      const mb = (n: number) => Math.round(n / 1048576);
+      return { rssMB: mb(m.rss), heapUsedMB: mb(m.heapUsed), heapTotalMB: mb(m.heapTotal), externalMB: mb(m.external) };
+    })(),
   };
 
   // Surface the proxy pool only when the fallback is enabled (importing it boots

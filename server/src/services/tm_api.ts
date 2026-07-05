@@ -11,6 +11,7 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
+import { promisify } from 'util';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -281,8 +282,27 @@ export async function getRouteInfo(
 // ─── In-Memory Catalog ──────────────────────────────────
 
 let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
-let masterCatalogLight: any = null;
+// Serialized, gzip-compressed `/troncal/master-catalog` body, built once per
+// catalog version and streamed straight to clients. The old code cached the
+// light catalog as a live OBJECT (~50 MB, held forever alongside the full
+// ~220 MB catalog) and Express re-`JSON.stringify`d + re-gzipped it on every
+// cache miss — those transient allocations, multiplied across concurrent
+// requests, were the main OOM trigger on the 512 MB host. Now the light object
+// and its ~15 MB JSON string live only for the duration of one build and are
+// GC'd, leaving just this compact (~5 MB) buffer resident. Null = needs rebuild.
+let lightCatalogGzip: Buffer | null = null;
+let lightCatalogStationCount = 0;
+// De-dupes concurrent first-hit builds so a burst of requests compresses once.
+let lightCatalogBuilding: Promise<Buffer> | null = null;
 let catalogLoadedAt: number = 0;
+
+const gzipAsync = promisify(zlib.gzip);
+
+/** Drop the cached gzip body so the next request rebuilds it from the new catalog. */
+function invalidateLightCatalog(): void {
+  lightCatalogGzip = null;
+  lightCatalogStationCount = 0;
+}
 
 export function getCatalogFilePath(): string {
   return CATALOG_FILE;
@@ -328,7 +348,7 @@ export async function loadCatalogFromDisk(): Promise<void> {
     // Prefer the catalog's own sync timestamp; fall back to file mtime for
     // legacy catalogs written before syncedAt existed.
     catalogLoadedAt = typeof parsed.syncedAt === 'number' ? parsed.syncedAt : stats.mtimeMs;
-    masterCatalogLight = null; // Clear light catalog cache!
+    invalidateLightCatalog();
 
     const stationCount = Object.keys(masterCatalog.stations || {}).length;
     const totalRoutes = Object.values(masterCatalog.stations || {}).reduce((sum, s) => {
@@ -454,9 +474,7 @@ function simplifyTraceForLight(trace: RouteTrace | undefined): RouteTrace | unde
   return simplified.length > 0 ? simplified : undefined;
 }
 
-export function getCatalogLight(): any {
-  if (masterCatalogLight) return masterCatalogLight;
-
+function buildCatalogLight(): { stations: Record<string, any>; routes: Record<string, any[]> } {
   console.log('[TM API] Generating lightweight master catalog...');
   const cleanStations: Record<string, any> = {};
   for (const [code, station] of Object.entries(masterCatalog.stations || {})) {
@@ -531,12 +549,49 @@ export function getCatalogLight(): any {
     });
   }
 
-  masterCatalogLight = {
+  return {
     stations: cleanStations,
     routes: cleanRoutes,
   };
+}
 
-  return masterCatalogLight;
+export interface LightCatalogArtifact {
+  gzip: Buffer;
+  count: number;
+  etag: string;
+}
+
+/**
+ * Returns the gzip-compressed `/troncal/master-catalog` HTTP body, building it
+ * once per catalog version. Compression runs on the libuv threadpool (async
+ * `zlib.gzip`) so the event loop never blocks (spec §1.1 R2), and concurrent
+ * first-hits share a single build via {@link lightCatalogBuilding}. The
+ * intermediate light object + its JSON string are released the moment the gzip
+ * buffer is produced, so steady-state RSS holds only the full catalog + this
+ * ~5 MB buffer — never a second full copy.
+ */
+export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
+  const etag = `W/"catalog-${catalogLoadedAt}"`;
+  if (lightCatalogGzip) {
+    return { gzip: lightCatalogGzip, count: lightCatalogStationCount, etag };
+  }
+  if (!lightCatalogBuilding) {
+    lightCatalogBuilding = (async () => {
+      const light = buildCatalogLight();
+      lightCatalogStationCount = Object.keys(light.stations).length;
+      const body = JSON.stringify({
+        success: true,
+        data: light,
+        count: lightCatalogStationCount,
+        stale: isCatalogStale(),
+      });
+      const gz = await gzipAsync(body);
+      lightCatalogGzip = gz;
+      return gz;
+    })().finally(() => { lightCatalogBuilding = null; });
+  }
+  const gzip = await lightCatalogBuilding;
+  return { gzip, count: lightCatalogStationCount, etag };
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
@@ -577,45 +632,45 @@ function isDuplicateRoute(a: { codigo: string; nombre: string }, b: { codigo: st
  * `previous` — routes, variants, station-wagon mappings — is retained.
  */
 export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): MasterCatalog {
-  const merged: MasterCatalog = {
-    stations: { ...fresh.stations },
-    routes: { ...fresh.routes },
-  };
+  // Merge `previous` INTO `fresh` in place and return `fresh`. The caller passes
+  // a disposable fresh catalog, so mutating it avoids allocating a third full
+  // ~220 MB structure during sync — cutting the peak that OOM-kills a small host
+  // (spec §1.1 R2). Only entries the fresh sync missed are grafted on; fresh
+  // always wins on conflict, so the published data is identical to before.
 
   // Routes: union by code; within a code, union variants by normalized name (fresh wins).
   for (const [code, oldVariants] of Object.entries(previous.routes || {})) {
-    const freshVariants = merged.routes[code];
+    const freshVariants = fresh.routes[code];
     if (!freshVariants) {
-      merged.routes[code] = oldVariants;
+      fresh.routes[code] = oldVariants;
       continue;
     }
     const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
     const retained = oldVariants.filter((v) => !freshKeys.has(cleanRouteName(v.nombre)));
-    if (retained.length > 0) merged.routes[code] = [...freshVariants, ...retained];
+    if (retained.length > 0) freshVariants.push(...retained);
   }
 
   // Stations: union by code; union wagons; within a wagon, union route refs by normalized code+name.
   for (const [stationCode, oldStation] of Object.entries(previous.stations || {})) {
-    const freshStation = merged.stations[stationCode];
+    const freshStation = fresh.stations[stationCode];
     if (!freshStation) {
-      merged.stations[stationCode] = oldStation;
+      fresh.stations[stationCode] = oldStation;
       continue;
     }
-    const mergedWagons: CatalogStation['wagons'] = { ...freshStation.wagons };
+    const freshWagons = freshStation.wagons || (freshStation.wagons = {});
     for (const [wagon, oldRoutes] of Object.entries(oldStation.wagons || {})) {
-      const freshRoutes = mergedWagons[wagon];
+      const freshRoutes = freshWagons[wagon];
       if (!freshRoutes) {
-        mergedWagons[wagon] = oldRoutes;
+        freshWagons[wagon] = oldRoutes;
         continue;
       }
       const freshKeys = new Set(freshRoutes.map((r) => `${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
       const retained = oldRoutes.filter((r) => !freshKeys.has(`${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
-      if (retained.length > 0) mergedWagons[wagon] = [...freshRoutes, ...retained];
+      if (retained.length > 0) freshRoutes.push(...retained);
     }
-    merged.stations[stationCode] = { ...freshStation, wagons: mergedWagons };
   }
 
-  return merged;
+  return fresh;
 }
 
 /**
@@ -687,7 +742,7 @@ export async function pruneCatalogFileInPlace(): Promise<number> {
   const pruned = pruneUnservedStationRoutes(masterCatalog);
   if (pruned > 0) {
     await writeCatalogAtomically(masterCatalog);
-    masterCatalogLight = null;
+    invalidateLightCatalog();
   }
   return pruned;
 }
@@ -836,7 +891,7 @@ export async function syncMasterCatalog(): Promise<void> {
     merged.syncedAt = Date.now();
     await writeCatalogAtomically(merged);
     masterCatalog = merged;
-    masterCatalogLight = null; // Clear light catalog cache!
+    invalidateLightCatalog();
     catalogLoadedAt = merged.syncedAt;
 
     const stationCount = Object.keys(masterCatalog.stations).length;

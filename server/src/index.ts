@@ -109,10 +109,22 @@ async function start(): Promise<void> {
   app.listen(PORT, () => {
     console.log(`\n🚌 Transmilenio API Proxy running on http://localhost:${PORT}\n`);
 
-    // Auto-sync if catalog is stale or missing
+    // Auto-sync if catalog is stale or missing — OFF by default. A full sync
+    // holds the old + new + merged catalogs at once (~700 MB peak) and OOM-kills
+    // a 512 MB web instance; it also overwrites the curated Git-LFS catalog with
+    // a partial fetch. Production ships the committed catalog and serves it
+    // read-only (spec §4.3); refresh it offline via `npm run sync` (its own
+    // process) and redeploy. Opt in with TM_ENABLE_AUTO_SYNC=1 only on a box
+    // with the headroom (≥1 GB).
     if (isCatalogStale()) {
-      console.log('[TM API] Catalog is stale or missing. Starting background sync...');
-      syncMasterCatalog().catch((err) => console.error('[Auto-Sync Error]', err));
+      if (process.env.TM_ENABLE_AUTO_SYNC === '1') {
+        console.log('[TM API] Catalog is stale or missing. Starting background sync...');
+        syncMasterCatalog().catch((err) => console.error('[Auto-Sync Error]', err));
+      } else {
+        console.warn('[TM API] Catalog is stale or missing, but auto-sync is disabled ' +
+          '(set TM_ENABLE_AUTO_SYNC=1 to enable). Serving the on-disk catalog; ' +
+          'run `npm run sync` offline and redeploy to refresh.');
+      }
     }
   });
 }

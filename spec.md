@@ -130,6 +130,8 @@ x-relay-secret: <secret>
   * Random delay 800ms–1500ms between calls.
   * Max retries: 3. Retry delay: 3000ms.
   * Stale catalog limit: 7 days.
+  * **Memory**: a full sync briefly holds the previous + freshly-fetched catalogs at once; `mergeCatalogs` grafts the previous INTO the fresh catalog **in place** (no third ~220 MB copy). Boot **auto-sync is OFF by default** — it OOM-kills a small web instance and would overwrite the curated Git-LFS catalog with a partial fetch. Production serves the committed catalog read-only (§4.3); refresh it offline via `npm run sync` (its own process) and redeploy. Opt into boot auto-sync with `TM_ENABLE_AUTO_SYNC=1` only on a host with ≥1 GB headroom.
+  * **Heap sizing**: the web process caps V8 old-space to fit its container (`node --max-old-space-size=460`, root `start`) so GC runs before the platform OOM-kills — never `2048` on a 512 MB instance. `GET /api/health` exposes `memory` (`rssMB`, `heapUsedMB`, …) for monitoring.
 
 #### 5.1.4 Lightweight Catalog
 `getCatalogLight()` formats condensed payload for browser transport:
@@ -278,6 +280,7 @@ All mounted on `/api`:
 #### 5.5.2 Caching & Timeouts
 * **Caching**:
   * ArcGIS endpoints cached in-memory with 10-minute TTL.
+  * **Master catalog (memory-critical)**: `/api/troncal/master-catalog` is served from a **precomputed gzip buffer** built once per catalog version (`getCatalogLightGzip`, `tm_api.ts`) and streamed verbatim (`Content-Encoding: gzip`) — never re-`JSON.stringify`d or re-gzipped per request. The light catalog is NOT retained as a live object; only the ~5 MB buffer + the full catalog stay resident. This removes the transient per-request allocations that OOM-killed the 512 MB host under concurrency (§4.3). ETag `W/"catalog-<loadedAt>"` → `304`; concurrent first-hits share one build; identity fallback for clients that refuse gzip.
   * **Static assets** (`server/src/index.ts`): fingerprinted `/assets/*` served `Cache-Control: public, max-age=31536000, immutable`; `index.html` `no-cache` (so new asset hashes are picked up on deploy); other public files (models, draco, icons) `max-age=86400`.
   * **Service worker** (`client/public/sw.js`, registered in `main.ts`): cache-first for hashed assets + models/draco/fonts, stale-while-revalidate for `/api/troncal/master-catalog`, network-first for the HTML shell. Live `/api/*` is never cached. Versioned cache (`tm-cache-v1`); old versions purged on `activate`.
 * **Timeouts**:
