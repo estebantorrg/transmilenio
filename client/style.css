@@ -997,6 +997,183 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--tm-red-light);
 }
 
+/* ─── SITP zone browse chips ───────────────────────────────
+   A horizontal scroll row (up to ~14 zones + labels), revealed only under the
+   Zonal filter. Unlike the equal-width type segments these size to content. */
+.zone-chips {
+  display: flex;
+  gap: 6px;
+  padding: 8px 16px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.zone-chips::-webkit-scrollbar {
+  display: none;
+}
+.zone-chips.hidden {
+  display: none;
+}
+.zone-chip {
+  flex: 0 0 auto;
+  padding: 5px 12px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.zone-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+.zone-chip.active {
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--tm-red-light);
+}
+
+/* ─── Cerca panel (nearest stations & paraderos) ──────────── */
+.cerca-locate-btn {
+  margin: 14px 16px 10px;
+}
+.cerca-chips {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px 8px;
+}
+.cerca-chip {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.cerca-chip:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+.cerca-chip.active {
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--tm-red-light);
+}
+.cerca-status {
+  padding: 0 16px;
+  min-height: 16px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+}
+.cerca-status:not(:empty) {
+  padding-bottom: 6px;
+}
+
+.near-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 12px 16px;
+}
+.near-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+.near-row:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+}
+.near-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.near-dot.is-station {
+  background: var(--tm-red-light);
+}
+.near-dot.is-stop {
+  background: #3b82f6;
+}
+.near-mid {
+  flex: 1;
+  min-width: 0;
+}
+.near-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.near-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.near-kind {
+  flex: 0 0 auto;
+  padding: 2px 6px;
+  border-radius: 99px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.near-kind.is-station {
+  color: var(--tm-red-light);
+  background: color-mix(in srgb, var(--tm-red-light) 16%, transparent);
+}
+.near-kind.is-stop {
+  color: #93c5fd;
+  background: color-mix(in srgb, #3b82f6 18%, transparent);
+}
+.near-sub {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+.near-right {
+  flex: 0 0 auto;
+  text-align: right;
+}
+.near-dist {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.near-walk {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+
 /* ─── Mobile sheet drag handle ────────────────────────── */
 
 .sheet-handle {
@@ -1936,9 +2113,12 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* ─── Segmented tab indicator (sliding pill) ──────────────
-   A single pill slides between Explorar/Planear instead of each tab toggling
-   its own background — the difference between a web toggle and an app segment.
-   `:has()` gated so unsupported engines keep the per-button active background. */
+   A single pill slides between Explorar/Cerca/Planear instead of each tab
+   toggling its own background — the difference between a web toggle and an app
+   segment. Three equal segments: inner width minus 8px padding minus two 4px
+   gaps → each tab is (100% - 16px)/3; the pill translates by its own width plus
+   one gap per step. `:has()` gated so unsupported engines keep the per-button
+   active background. */
 @supports selector(:has(*)) {
   .sidebar-tabs {
     position: relative;
@@ -1950,14 +2130,17 @@ body.sidebar-collapsed .sidebar-fab {
     top: 4px;
     bottom: 4px;
     left: 4px;
-    width: calc((100% - 12px) / 2);
+    width: calc((100% - 16px) / 3);
     background: var(--bg-secondary);
     border-radius: var(--radius-md);
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
     transition: transform 300ms cubic-bezier(0.32, 0.72, 0, 1);
   }
-  .sidebar-tabs:has(#tab-planner.active)::before {
+  .sidebar-tabs:has(#tab-cerca.active)::before {
     transform: translateX(calc(100% + 4px));
+  }
+  .sidebar-tabs:has(#tab-planner.active)::before {
+    transform: translateX(calc(200% + 8px));
   }
   .tab-btn {
     position: relative;
@@ -2286,7 +2469,8 @@ body.sidebar-collapsed .sidebar-fab {
 /* ─── Panels ─────────────────────────────────────────── */
 
 .explore-panel,
-.planner-panel {
+.planner-panel,
+.cerca-panel {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -2295,12 +2479,14 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 .explore-panel::-webkit-scrollbar,
-.planner-panel::-webkit-scrollbar {
+.planner-panel::-webkit-scrollbar,
+.cerca-panel::-webkit-scrollbar {
   width: 4px;
 }
 
 .explore-panel::-webkit-scrollbar-thumb,
-.planner-panel::-webkit-scrollbar-thumb {
+.planner-panel::-webkit-scrollbar-thumb,
+.cerca-panel::-webkit-scrollbar-thumb {
   background: var(--border-medium);
   border-radius: 2px;
 }

@@ -71,6 +71,10 @@
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <span>Explorar</span>
       </button>
+      <button id="tab-cerca" class="tab-btn" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6-5.686-6-10a6 6 0 0 1 12 0c0 4.314-6 10-6 10z"/><circle cx="12" cy="11" r="2.5"/></svg>
+        <span>Cerca</span>
+      </button>
       <button id="tab-planner" class="tab-btn" type="button">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
         <span>Planear</span>
@@ -92,7 +96,11 @@
         <button class="filter-chip" type="button" data-filter="troncal" role="tab" aria-selected="false">Troncal</button>
         <button class="filter-chip" type="button" data-filter="zonal" role="tab" aria-selected="false">Zonal</button>
         <button class="filter-chip" type="button" data-filter="alimentador" role="tab" aria-selected="false">Alim.</button>
+        <button class="filter-chip" type="button" data-filter="facil" role="tab" aria-selected="false">Fácil</button>
       </div>
+
+      <!-- SITP zone browse (shown only under the Zonal filter) -->
+      <div class="zone-chips hidden" id="zone-chips" role="tablist" aria-label="Filtrar rutas zonales por zona SITP"></div>
 
       <!-- Layer Toggles -->
       <div class="layer-toggles collapsed" id="layer-toggles">
@@ -269,6 +277,29 @@
         <div class="planner-empty-state">
           <div class="card-empty-title">Planifica tu viaje</div>
           <div class="card-empty-text">Elige tu origen y destino para encontrar la mejor ruta en TransMilenio y SITP.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cerca Panel (nearest stations & paraderos by GPS) -->
+    <div id="cerca-panel" class="cerca-panel hidden">
+      <button id="cerca-locate" class="footer-action cerca-locate-btn" type="button">
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="footer-action-label">Usar mi ubicación</span>
+        <span class="footer-action-spinner" aria-hidden="true"></span>
+      </button>
+
+      <div class="cerca-chips" id="cerca-chips" role="tablist" aria-label="Filtrar por tipo de punto">
+        <button class="cerca-chip active" type="button" data-kind="all" role="tab" aria-selected="true">Ambos</button>
+        <button class="cerca-chip" type="button" data-kind="station" role="tab" aria-selected="false">Estaciones</button>
+        <button class="cerca-chip" type="button" data-kind="stop" role="tab" aria-selected="false">Paraderos</button>
+      </div>
+
+      <div id="cerca-status" class="cerca-status" role="status" aria-live="polite"></div>
+      <div id="cerca-list" class="near-list">
+        <div class="empty-state">
+          <div class="empty-state-title">Cerca de ti</div>
+          <div class="empty-state-text">Usa tu ubicación para ver las estaciones y paraderos más cercanos con tiempos a pie.</div>
         </div>
       </div>
     </div>

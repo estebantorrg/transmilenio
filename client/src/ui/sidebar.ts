@@ -5,8 +5,9 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
+import { getRouteAccentColor, isAlimentadorRoute, isRutaFacilCode } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
+import { getZonalAreas, getZoneLabel } from '../data/zones';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
  *  honest API outcomes. Mirrors `TrackingStatus` in `layers/buses.ts`. */
@@ -51,8 +52,10 @@ let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 
-type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador';
+type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador' | 'facil';
 let currentFilter: RouteFilter = 'all';
+// SITP zone narrowing, active only under the Zonal filter (null = all zones).
+let currentZone: number | null = null;
 let searchQuery = '';
 
 const FAV_KEY = 'tm:favorites';
@@ -244,8 +247,56 @@ async function shareRoute(route: RouteListItem): Promise<void> {
 /** Apply a route filter and reflect it across both control surfaces. */
 function setRouteFilter(filter: RouteFilter): void {
   currentFilter = filter;
+  // The SITP zone browse only makes sense under the Zonal filter; leaving it
+  // clears any active zone so the other filters aren't silently narrowed.
+  if (filter !== 'zonal') currentZone = null;
   syncFilterButtons();
+  syncZoneChips();
   applyFilters();
+}
+
+// ─── SITP zone browse (spec §5.4.2a) ──────────────────────
+// Zonal routes carry a home SITP zone (1–13). When the Zonal filter is active we
+// reveal a chip row so users can narrow the list to a single zone.
+let availableZones: number[] = [];
+
+export function setAvailableZones(zones: number[]): void {
+  availableZones = zones;
+  renderZoneChips();
+  syncZoneChips();
+}
+
+function renderZoneChips(): void {
+  const row = document.getElementById('zone-chips');
+  if (!row) return;
+  if (availableZones.length === 0) {
+    row.innerHTML = '';
+    return;
+  }
+  const chip = (zone: number | null): string => {
+    const active = currentZone === zone;
+    const label = zone === null ? 'Todas' : getZoneLabel(zone) || `Zona ${zone}`;
+    const title = zone === null ? 'Todas las zonas' : `Zona ${zone}${getZoneLabel(zone) ? ` · ${getZoneLabel(zone)}` : ''}`;
+    return `<button class="zone-chip${active ? ' active' : ''}" type="button" role="tab"
+      aria-selected="${active}" data-zone="${zone === null ? '' : zone}" title="${escapeHTML(title)}">${escapeHTML(label)}</button>`;
+  };
+  row.innerHTML = [chip(null), ...availableZones.map((z) => chip(z))].join('');
+  row.querySelectorAll<HTMLButtonElement>('.zone-chip').forEach((el) => {
+    el.addEventListener('click', () => {
+      const raw = el.dataset.zone;
+      currentZone = raw ? Number(raw) : null;
+      renderZoneChips();
+      applyFilters();
+    });
+  });
+}
+
+/** Show the zone row only under the Zonal filter, and only if zones are known. */
+function syncZoneChips(): void {
+  const row = document.getElementById('zone-chips');
+  if (!row) return;
+  const show = currentFilter === 'zonal' && availableZones.length > 0;
+  row.classList.toggle('hidden', !show);
 }
 
 function syncFilterButtons(): void {
@@ -353,7 +404,11 @@ export function handleMobileBack(): boolean {
     return true;
   }
   const plannerPanel = document.getElementById('planner-panel');
-  if (plannerPanel && !plannerPanel.classList.contains('hidden')) {
+  const cercaPanel = document.getElementById('cerca-panel');
+  const onSecondaryTab =
+    (plannerPanel && !plannerPanel.classList.contains('hidden')) ||
+    (cercaPanel && !cercaPanel.classList.contains('hidden'));
+  if (onSecondaryTab) {
     document.getElementById('tab-explore')?.click();
     return true;
   }
@@ -831,6 +886,8 @@ function matchesTypeFilter(r: RouteListItem): boolean {
       return r.type === 'zonal';
     case 'alimentador':
       return isAlimentadorRoute(r) || r.subType === 'alimentador';
+    case 'facil':
+      return isRutaFacilCode(r.code);
     default:
       return true;
   }
@@ -848,6 +905,10 @@ function applyFilters(): void {
       .filter((r): r is RouteListItem => !!r);
   } else {
     base = allRoutes.filter(matchesTypeFilter);
+    // Narrow to a single SITP zone when browsing zonal routes by zone.
+    if (currentFilter === 'zonal' && currentZone !== null) {
+      base = base.filter((r) => getZonalAreas(r.code).includes(currentZone!));
+    }
   }
 
   if (searchQuery) {

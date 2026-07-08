@@ -437,56 +437,55 @@ function initCustomDropdowns(): void {
 }
 
 /**
- * Switch tabs between Route Exploration and Journey Planning.
+ * Switch between the sidebar's top-level panels (Explorar / Cerca / Planear).
+ * One generic controller so the tab set stays data-driven instead of a growing
+ * pile of per-tab handlers.
  */
+const SIDEBAR_TABS = [
+  { tab: 'tab-explore', panel: 'explore-panel' },
+  { tab: 'tab-cerca', panel: 'cerca-panel' },
+  { tab: 'tab-planner', panel: 'planner-panel' },
+] as const;
+
 function initTabs(): void {
-  const tabExplore = document.getElementById('tab-explore')!;
-  const tabPlanner = document.getElementById('tab-planner')!;
-  const explorePanel = document.getElementById('explore-panel')!;
-  const plannerPanel = document.getElementById('planner-panel')!;
-
-  tabExplore.addEventListener('click', () => {
-    // Close card balance panel if open
+  const activate = (activeTab: string): void => {
     const sidebar = document.getElementById('sidebar')!;
+
+    // Close card balance panel if open.
     if (sidebar.classList.contains('card-open')) {
       document.getElementById('card-detail-close')?.click();
     }
 
-    tabExplore.classList.add('active');
-    tabPlanner.classList.remove('active');
-    explorePanel.classList.remove('hidden');
-    plannerPanel.classList.add('hidden');
+    for (const { tab, panel } of SIDEBAR_TABS) {
+      const isActive = tab === activeTab;
+      document.getElementById(tab)?.classList.toggle('active', isActive);
+      document.getElementById(panel)?.classList.toggle('hidden', !isActive);
+    }
+
     setMapPickMode(null);
-    
-    // Clear active journey highlights from map when leaving planner
-    clearJourneyPath(mapInstance);
-    
-    // Restore sidebar details overlay if a route was active
-    if (sidebar.classList.contains('detail-open')) {
-      document.getElementById('route-detail')?.classList.remove('hidden');
-    }
-  });
 
-  tabPlanner.addEventListener('click', () => {
-    // Close card balance panel if open
-    const sidebar = document.getElementById('sidebar')!;
-    if (sidebar.classList.contains('card-open')) {
-      document.getElementById('card-detail-close')?.click();
+    // The route-detail overlay belongs to Explore; hide it on the other tabs so
+    // their panels are visible, restore it when returning to Explore.
+    const routeDetail = document.getElementById('route-detail');
+    if (activeTab === 'tab-explore') {
+      if (sidebar.classList.contains('detail-open')) routeDetail?.classList.remove('hidden');
+    } else {
+      routeDetail?.classList.add('hidden');
     }
 
-    tabPlanner.classList.add('active');
-    tabExplore.classList.remove('active');
-    plannerPanel.classList.remove('hidden');
-    explorePanel.classList.add('hidden');
-    
-    // Hide standard route details overlay when entering planner
-    document.getElementById('route-detail')?.classList.add('hidden');
-    
-    // Redraw current selected journey plan if available
-    if (activePlanIndex !== null && calculatedPlans[activePlanIndex]) {
-      drawJourneyPath(mapInstance, calculatedPlans[activePlanIndex]);
+    // Journey highlight lives only while the planner is active.
+    if (activeTab === 'tab-planner') {
+      if (activePlanIndex !== null && calculatedPlans[activePlanIndex]) {
+        drawJourneyPath(mapInstance, calculatedPlans[activePlanIndex]);
+      }
+    } else {
+      clearJourneyPath(mapInstance);
     }
-  });
+  };
+
+  for (const { tab } of SIDEBAR_TABS) {
+    document.getElementById(tab)?.addEventListener('click', () => activate(tab));
+  }
 }
 
 function setMapPickMode(mode: 'origin' | 'destination' | null): void {

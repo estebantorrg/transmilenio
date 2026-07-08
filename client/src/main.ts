@@ -24,11 +24,14 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones } from './ui/sidebar';
+import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
+import { isWithinBogota } from './utils/geo';
+import { initCerca, setNearbyPoints, type NearbyPoint } from './ui/cerca';
 import {
   buildRouteList,
   dedupeStops,
@@ -151,23 +154,67 @@ function getMapFitPadding(): { top: number; bottom: number; left: number; right:
 
 // ─── Nearby Stations (geolocation) ────────────────────────
 
-const BOGOTA_BOUNDS = {
-  minLat: 4.4,
-  maxLat: 4.85,
-  minLng: -74.25,
-  maxLng: -73.95,
-};
-const BOGOTA_CENTER: [number, number] = [-74.1071, 4.6486];
+// Shared draggable "you are here" marker, placed by both the footer "Estaciones
+// cerca" action and the Cerca tab so the two never fight over separate markers.
+let userMarker: maplibregl.Marker | null = null;
 
-function isWithinBogota(lng: number, lat: number): boolean {
-  return lat >= BOGOTA_BOUNDS.minLat && lat <= BOGOTA_BOUNDS.maxLat &&
-         lng >= BOGOTA_BOUNDS.minLng && lng <= BOGOTA_BOUNDS.maxLng;
+// The Cerca tab's point universe: troncal estaciones (known at boot) plus zonal
+// paraderos (enriched in the background). Kept as two lists so the stops arrival
+// simply re-pushes the union.
+let nearbyStationPoints: NearbyPoint[] = [];
+let nearbyStopPoints: NearbyPoint[] = [];
+function pushNearbyPoints(): void {
+  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints]);
+}
+
+/**
+ * Drops (or moves) the user-location marker, recentring the map when `fly`, and
+ * opens the popup for the closest troncal station. Geolocation is processed
+ * entirely client-side (no PII stored).
+ */
+function placeUserMarker(
+  map: maplibregl.Map,
+  longitude: number,
+  latitude: number,
+  fly = true,
+  openNearest = true
+): void {
+  userMarker?.remove();
+  const el = document.createElement('div');
+  el.className = 'user-location-dot';
+  el.title = 'Arrastra para ajustar tu ubicación';
+
+  userMarker = new maplibregl.Marker({ element: el, draggable: true })
+    .setLngLat([longitude, latitude])
+    .addTo(map);
+
+  userMarker.on('dragend', () => {
+    const lngLat = userMarker!.getLngLat();
+    console.log('[Nearby] User adjusted exact location via drag');
+    setSessionExactLocation(lngLat.lng, lngLat.lat, 'manual');
+    placeUserMarker(map, lngLat.lng, lngLat.lat, false);
+  });
+
+  if (fly) {
+    map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
+  }
+
+  if (!openNearest) return;
+  const nearest = getNearestVisibleStation(longitude, latitude);
+  if (nearest) {
+    if (fly) {
+      map.once('moveend', () => {
+        showStationPopupByCode(map, nearest.code, nearest.coordinate);
+      });
+    } else {
+      showStationPopupByCode(map, nearest.code, nearest.coordinate);
+    }
+  }
 }
 
 /**
  * Wires the "Estaciones cerca" footer action: locates the user, recenters
- * the map on their position and opens the popup for the closest troncal
- * station. Geolocation is processed entirely client-side (no PII stored).
+ * the map on their position and opens the popup for the closest troncal station.
  */
 function initNearbyStations(map: maplibregl.Map): void {
   const btn = document.getElementById('nearby-stations') as HTMLButtonElement | null;
@@ -175,45 +222,11 @@ function initNearbyStations(map: maplibregl.Map): void {
 
   const label = btn.querySelector('.footer-action-label');
   const defaultText = label?.textContent ?? 'Estaciones cerca';
-  let userMarker: maplibregl.Marker | null = null;
 
   const restore = (message: string): void => {
     if (label) {
       label.textContent = message;
       window.setTimeout(() => { label.textContent = defaultText; }, 2500);
-    }
-  };
-
-  const placeUser = (longitude: number, latitude: number, fly = true): void => {
-    userMarker?.remove();
-    const el = document.createElement('div');
-    el.className = 'user-location-dot';
-    el.title = 'Arrastra para ajustar tu ubicación';
-    
-    userMarker = new maplibregl.Marker({ element: el, draggable: true })
-      .setLngLat([longitude, latitude])
-      .addTo(map);
-
-    userMarker.on('dragend', () => {
-      const lngLat = userMarker!.getLngLat();
-      console.log('[Nearby] User adjusted exact location via drag');
-      setSessionExactLocation(lngLat.lng, lngLat.lat, 'manual');
-      placeUser(lngLat.lng, lngLat.lat, false);
-    });
-
-    if (fly) {
-      map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
-    }
-
-    const nearest = getNearestVisibleStation(longitude, latitude);
-    if (nearest) {
-      if (fly) {
-        map.once('moveend', () => {
-          showStationPopupByCode(map, nearest.code, nearest.coordinate);
-        });
-      } else {
-        showStationPopupByCode(map, nearest.code, nearest.coordinate);
-      }
     }
   };
 
@@ -228,9 +241,9 @@ function initNearbyStations(map: maplibregl.Map): void {
       if (!isWithinBogota(lng, lat)) {
         throw new Error('Ubicación fuera de los límites de Bogotá');
       }
-      
-      placeUser(lng, lat);
-      
+
+      placeUserMarker(map, lng, lat);
+
       if (result.source === 'ip') {
         restore('Ubicación aproximada (IP)');
       }
@@ -517,6 +530,18 @@ async function main(): Promise<void> {
     addStationsLayer(map, stations);
     stationCount = stations.length;
 
+    // Seed the Cerca point universe with troncal estaciones (zonal paraderos
+    // are appended once the background load resolves them).
+    nearbyStationPoints = stations
+      .map((s): NearbyPoint => ({
+        codigo: String(s.attributes?.numero_estacion ?? ''),
+        name: s.attributes?.nombre_estacion || 'Estación',
+        coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
+        direccion: s.attributes?.ubicacion_estacion || '',
+        kind: 'station',
+      }))
+      .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+
     // 4. Mappings and Stops (Initialize empty stops layer first, background load will update it)
     updateProgress(98, 'Renderizando rutas zonales...');
     addZonalRoutesLayer(map, zonalListItems);
@@ -718,6 +743,23 @@ async function main(): Promise<void> {
 
   initNearbyStations(map);
 
+  // Cerca tab — nearest stations/paraderos by GPS. Reuses the map's location
+  // cascade + user marker so nothing is duplicated (spec §1.1 R2).
+  initCerca({
+    resolveLocation: () => resolveUserLocation(),
+    onLocated: (lng, lat, source) => placeUserMarker(map, lng, lat, source === 'gps', false),
+    onSelect: (point) => {
+      map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
+      if (point.kind === 'station') {
+        const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
+        if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
+      } else {
+        showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
+      }
+    },
+  });
+  pushNearbyPoints();
+
   // Android hardware-back close chain (native shell only; no-op on the web).
   initNativeBack();
 
@@ -741,14 +783,22 @@ async function main(): Promise<void> {
       .catch((error) => console.error('[Planner] Failed to load planner module:', error));
   }, 400);
 
-  // 5. Background Loading: fetch Zonal Stops and Zonal stop-route mappings asynchronously
+  // 5. Background Loading: fetch Zonal Stops, stop-route mappings, and the
+  //    zonal-routes feed (SITP zones) asynchronously.
   Promise.allSettled([
     api.getZonalStops(),
-    api.getZonalStopRoutes()
-  ]).then(([zonalStopsResult, zonalStopRoutesResult]) => {
+    api.getZonalStopRoutes(),
+    api.getZonalRoutes()
+  ]).then(([zonalStopsResult, zonalStopRoutesResult, zonalRoutesResult]) => {
     try {
       const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
       const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);
+
+      // SITP zone index (spec §5.4.2a) — drives the "Zonas SITP" browse chips.
+      const zonalRoutesRes = optionalFeatures('Zonal routes (zones)', zonalRoutesResult);
+      buildZonalAreas(zonalRoutesRes.features, routeList);
+      setAvailableZones(getZones());
+      console.log(`✅ Background load: SITP zones: ${getZones().length}`);
 
       console.log(`✅ Background load: Zonal stops: ${zonalStopsRes.features.length}`);
       console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
@@ -797,6 +847,18 @@ async function main(): Promise<void> {
         updateStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
 
         stopsCount = zonalStopsRes.features.length;
+
+        // Append zonal paraderos to the Cerca point universe.
+        nearbyStopPoints = zonalStopsRes.features
+          .map((s: any): NearbyPoint => ({
+            codigo: String(s.attributes?.cenefa ?? ''),
+            name: s.attributes?.nombre || 'Paradero',
+            coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
+            direccion: s.attributes?.direccion_bandera || s.attributes?.via || '',
+            kind: 'stop',
+          }))
+          .filter((p: NearbyPoint) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+        pushNearbyPoints();
         updateCounts({
           troncal: routeCounts.troncal,
           zonal: routeCounts.zonal,
