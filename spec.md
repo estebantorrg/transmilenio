@@ -275,7 +275,24 @@ All mounted on `/api`:
   `Content-Length` must be computed from the exact JSON body bytes.
 * **Server contract**: `/api/card/read` validates the card number, sends the exact upstream shape, decodes gzip, does not cache, and never logs or stores the full card number.
 * **Source separation**: `/lectura_tarjeta` returns the server ledger only. The official mobile UI can show newer balance and multiple movements after a phone tap because it reads NFC card memory locally. Web/server code must not infer or fabricate those hidden card movements from the server response. Any future NFC/native bridge must merge as `source:"card"` with provenance distinct from `source:"server"`.
-* **App NFC read (`client/mobile/src/services/nfc.ts`)**: three runtime-detected backends, so the web bundle keeps no hard dependency and needs no code import — detection is runtime-only. Android's System WebView **disables Web NFC** (`NDEFReader` → "NFC permission request denied"), so inside the APK a **native plugin is mandatory**; the app tries them in order: (1) **`phonegap-nfc`** (free/MIT, `window.nfc`) — now a declared `mobile/` dependency, so it registers automatically on `npm install` + `npm run apk` (which runs `cap sync`), no manual plugin install; (2) **`@capawesome-team/capacitor-nfc`** (`Capacitor.Plugins.Nfc`, sponsorware); (3) **Web NFC** (`NDEFReader`) only outside the APK. With no plugin present in the APK the read fails with an explicit "install the NFC plugin and rebuild" message. The tullave chip is an encrypted MIFARE DESFire whose balance sits in a key-protected file the app cannot read, so NFC yields only the tag **serial (UID)** + NDEF records — `source:"card"`, NEVER a verified balance. A card number found in NDEF auto-consults the server ledger; the balance stays server-sourced.
+* **App NFC read (`client/mobile/src/services/nfc.ts`)**: three runtime-detected backends, so the web bundle keeps no hard dependency and needs no code import — detection is runtime-only. Android's System WebView **disables Web NFC** (`NDEFReader` → "NFC permission request denied"), so inside the APK a **native plugin is mandatory**; the app tries them in order: (1) **`phonegap-nfc`** (free/MIT, `window.nfc`) — a declared `mobile/` dependency, so it registers automatically on `npm install` + `npm run apk` (which runs `cap sync`), no manual plugin install (patched for Android 12+/14 — see [[apk-nfc-beam-api34]]); (2) **`@capawesome-team/capacitor-nfc`** (`Capacitor.Plugins.Nfc`, sponsorware); (3) **Web NFC** (`NDEFReader`) only outside the APK. With no plugin present in the APK the read fails with an explicit "install the NFC plugin and rebuild" message. **Correction (verified §5.5.1b):** the tullave chip is a **Calypso** card, NOT an unreadable encrypted DESFire. Its balance + last 10 movements + 16-digit card number are readable with **plain, unauthenticated ISO-7816 APDUs (no keys)** via `phonegap-nfc` `transceive()`. NFC therefore yields a real `source:"card"` balance and movement history on-device — the earlier "UID only, balance is server-only" claim was wrong.
+
+#### 5.5.1b tullave Calypso NFC protocol (reverse-engineered, validated)
+Decoded from the official app **v2.9.6** (`com.nexura.transmilenio`, `MainActivity.ndefReadTag`) and **validated live on-device** (Frida hook on `IsoDep.transceive`, real card). All reads are **unauthenticated** — no DESFire/Calypso session, no keys. Use `IsoDep` (tech `IsoDep`/`NfcA`/`NfcB`), `setTimeout(20000)`, then transceive in order (hex):
+
+```text
+1. SELECT AID     00 A4 04 00 07 D4 10 00 00 03 00 01   → FCI 6F31…  (Calypso transit app)
+2. GET balance    90 4C 00 00 04                         → respA  (e.g. 0000 98EE 9000)
+3. READ BINARY    00 B0 86 00 42                         → respB  (66 B; may be all-zero)
+4. SELECT EF 4200 00 A4 00 00 02 42 00                   → respC  (FCI; card # inside)
+5. READ RECORD    00 B2 <rec> 24 2E    rec = 0x01..0x0A  → 46-byte movement records
+```
+
+Parsing (all multi-byte fields **big-endian**; strip the trailing `9000` SW before indexing):
+* **Balance (COP)** = `BE(respA[0:4]) + BE(respA[5:8])`. If `hex(respB[0:4])` starts with `01`, adjust: `balance = reversedA − BE(respB[4:8])` (signed).
+* **Card number** (16-digit BCD) = `hex(respC[8:16])`.
+* **Movement** (per 46-byte record): `type = rec[0]` (`01`=Viaje en bus, `02`=Recarga, `04`=Cancelación recarga); `saldoFinal = BE(rec[3:6])`; `monto = BE(rec[11:14])`; datetime = `DD/MM/YYYY HH:MM:SS` from `rec[29] rec[28] rec[26]rec[27] rec[30] rec[31] rec[32]` (hex-as-decimal). Records with no valid response end the loop.
+* Provenance stays `source:"card"`; the server ledger (`/lectura_tarjeta`, §5.5.1a) remains `source:"server"`. The card read is authoritative for live balance since it is the chip itself.
 
 #### 5.5.2 Caching & Timeouts
 * **Caching**:

@@ -3,7 +3,7 @@
 import { api, type CardBalanceRead } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
 import { forgetCard, getCards, rememberCard } from '../lib/storage';
-import { isNfcSupported, scanCard, type NfcCardRead } from '../services/nfc';
+import { isNfcSupported, scanCard, canReadCardBalance, readCardBalance, type NfcCardRead, type NfcBalanceRead } from '../services/nfc';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
@@ -17,6 +17,10 @@ function groupDigits(digits: string): string {
 function maskCard(digits: string): string {
   const d = digits.replace(/\D/g, '');
   return d.length <= 4 ? d : `•••• ${d.slice(-4)}`;
+}
+
+function formatCOP(n: number): string {
+  return `$ ${Math.round(n).toLocaleString('es-CO')}`;
 }
 
 export function createSaldoView(): View {
@@ -190,6 +194,52 @@ export function createSaldoView(): View {
     );
   }
 
+  // Direct card read (Calypso, spec §5.5.1b) — real balance + movements, no server.
+  function renderCardBalance(read: NfcBalanceRead): void {
+    const card = h('div', { class: 'balance-card' });
+    card.append(
+      h('div', { class: 'balance-top' }, [
+        h('span', { class: 'balance-label', text: 'Saldo (tarjeta)' }),
+        h('span', { class: 'balance-src', text: 'NFC' }),
+      ]),
+      h('div', { class: 'balance-amount', text: formatCOP(read.balanceCOP) }),
+      h('div', { class: 'balance-card-num', text: maskCard(read.numeroTarjeta) })
+    );
+    result.replaceChildren(card);
+
+    if (read.movements.length) {
+      const mv = h('div', { class: 'mv-section' });
+      mv.append(h('div', { class: 'rd-section-title', text: `Movimientos (tarjeta · ${read.movements.length})` }));
+      for (const m of read.movements) {
+        mv.append(
+          h('div', { class: 'mv-row' }, [
+            h('div', {}, [
+              h('div', { class: 'mv-type', text: m.type }),
+              h('div', { class: 'mv-when', text: m.occurredAt || '' }),
+            ]),
+            h('div', {}, [
+              h('div', { class: 'mv-amt', text: m.amountCOP != null ? formatCOP(m.amountCOP) : '' }),
+              h('div', { class: 'mv-when', text: m.finalBalanceCOP != null ? `Saldo: ${formatCOP(m.finalBalanceCOP)}` : '' }),
+            ]),
+          ])
+        );
+      }
+      result.append(mv);
+    }
+
+    result.append(
+      h('div', { class: 'provenance' }, [
+        h('div', { class: 'provenance-title', html: `${NFC_ICON} Sobre estos datos` }),
+        h('div', {
+          class: 'provenance-text',
+          html:
+            'Leído <b>directamente de la tarjeta</b> por NFC (chip Calypso, lectura sin llaves). ' +
+            'Es el saldo y los últimos movimientos que guarda el propio chip — no depende del servidor.',
+        }),
+      ])
+    );
+  }
+
   let nfcAbort: AbortController | null = null;
   async function readNfc(): Promise<void> {
     if (!isNfcSupported()) {
@@ -211,6 +261,34 @@ export function createSaldoView(): View {
       ])
     );
     haptic('medium');
+
+    // Prefer the direct Calypso read (real balance). Fall back to NDEF + server.
+    // NOTE: no `finally` here — on fall-through we must keep `nfcAbort`/busy state
+    // so the Cancel button still aborts the fallback scan below.
+    if (canReadCardBalance()) {
+      try {
+        const read = await readCardBalance(signal);
+        haptic('heavy');
+        if (read.numeroTarjeta) {
+          input.value = groupDigits(read.numeroTarjeta);
+          rememberCard(read.numeroTarjeta.replace(/\D/g, ''));
+          renderRecents();
+        }
+        renderCardBalance(read);
+        nfcBtn.classList.remove('busy');
+        nfcAbort = null;
+        return;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          renderPlaceholder();
+          nfcBtn.classList.remove('busy');
+          nfcAbort = null;
+          return;
+        }
+        // Fall through to the NDEF + server path on read failure (keep busy/abort).
+        console.warn('[saldo] Calypso read failed, falling back to server:', err);
+      }
+    }
 
     try {
       const read = await scanCard(signal);
