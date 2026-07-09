@@ -135,14 +135,14 @@ export function createCercaView(): View {
   return {
     el,
     onShow: () => {
-      if (!userCoord) {
-        const cached = getSessionExactLocation();
-        if (cached && inBogota(cached.lng, cached.lat)) {
-          userCoord = [cached.lng, cached.lat];
-          status.textContent = 'Ubicación de esta sesión';
-          render();
-        }
-      }
+      // Re-sync from the session fix every time: the Mapa fab and the planner
+      // GPS button also store it, so a locate made elsewhere re-ranks this list.
+      const cached = getSessionExactLocation();
+      if (!cached || !inBogota(cached.lng, cached.lat)) return;
+      if (userCoord && userCoord[0] === cached.lng && userCoord[1] === cached.lat) return;
+      userCoord = [cached.lng, cached.lat];
+      status.textContent = 'Ubicación de esta sesión';
+      render();
     },
   };
 }

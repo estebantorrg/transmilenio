@@ -1039,7 +1039,11 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* ─── Cerca panel (nearest stations & paraderos) ──────────── */
-.cerca-locate-btn {
+.footer-action.cerca-locate-btn {
+  /* .footer-action sets width:100% (later in this file, so it needs the
+     compound selector to lose), which ignores these side margins and overflows
+     the sidebar's clipped edge — let flex stretch size it instead. */
+  width: auto;
   margin: 14px 16px 10px;
 }
 .cerca-chips {

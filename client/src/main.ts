@@ -32,7 +32,7 @@ import { getRouteAccentColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { isWithinBogota } from './utils/geo';
-import { initCerca, setNearbyPoints, type NearbyPoint } from './ui/cerca';
+import { initCerca, setCercaLocation, setNearbyPoints, type NearbyPoint } from './ui/cerca';
 import { escapeHTML } from './utils/html';
 import {
   buildRouteList,
@@ -197,6 +197,10 @@ function placeUserMarker(
     setSessionExactLocation(lngLat.lng, lngLat.lat, 'manual');
     placeUserMarker(map, lngLat.lng, lngLat.lat, false);
   });
+
+  // Keep the Cerca ranking pinned to the marker no matter which flow moved it
+  // (footer locate, Cerca locate, or a manual drag).
+  setCercaLocation(longitude, latitude);
 
   if (fly) {
     map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });

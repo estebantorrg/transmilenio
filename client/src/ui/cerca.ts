@@ -62,6 +62,15 @@ export function setNearbyPoints(next: NearbyPoint[]): void {
   if (userCoord) render();
 }
 
+/**
+ * Fix the user location from outside the panel (footer locate, or dragging the
+ * map marker) so the ranked list always follows the marker.
+ */
+export function setCercaLocation(lng: number, lat: number): void {
+  userCoord = [lng, lat];
+  render();
+}
+
 function setStatus(text: string): void {
   const el = document.getElementById('cerca-status');
   if (el) el.textContent = text;

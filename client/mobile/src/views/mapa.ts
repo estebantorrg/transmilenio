@@ -4,6 +4,7 @@ import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { LiveBusResult } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
+import { setSessionExactLocation } from '@shared/utils/sessionLocation';
 import { bus, state, type StationRecord } from '../state';
 import { MapController } from '../map/mapController';
 import { openStationSheet } from '../ui/detailSheets';
@@ -114,6 +115,8 @@ export function createMapaView(): MapaView {
         navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 12000 });
       });
       const coord: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+      // Share the fix with the other tabs (Cerca re-ranks from it on show).
+      setSessionExactLocation(coord[0], coord[1], 'gps');
       const c = ensureController();
       c.setUser(coord);
       c.flyTo(coord, 15.5);
