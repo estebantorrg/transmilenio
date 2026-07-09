@@ -394,6 +394,26 @@ System aligns with spec when:
 5. **Card Balance**: Lectura de saldo reproduces the observed `/lectura_tarjeta` request, labels server-only data as such, and never presents missing NFC card-memory movements as verified data.
 6. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
 
+---
+
+### 5.8 Official App API Surface (reverse-engineered)
+
+Full backend inventory decoded from the official app **v2.9.6** (`com.nexura.transmilenio`, `Client/APIServiceInterface.java` + the `ApiClient*` Retrofit builders). Six hosts. `loader.php` calls use the `lServicio`/`lTipo`/`lFuncion` query pattern (§5.1.2).
+
+**Host 1 — Catalog** `https://api.buscador-rutas.transmilenio.gov.co/` (no auth; `okhttp` UA; `loader.php?lServicio=Rutas&lTipo=api&lFuncion=<fn>`). We **use**: `searchRutaByTipo` (route search, §5.1.2) + `infoRuta` (route detail). **Unused, worth mining** (exact `lFuncion` values from the app): **`getParaderosList`** (full paraderos list — alt to ArcGIS zonal stops), **`searchRutasByEstacionTroncales`** (`&estacion=` → routes serving a troncal station), plus `getRutasDeUnaEstacionZonal` (`&parada=`), `getZonasOperacionales` (`&tipo_ruta=`), `getPortalesEstacionesAlimentadoras`, `getRutasAlimentadoras` (`&estacion_portal=`), `getEstacionesDeUnTroncal` (`&troncal=`), `searchStations` (`&search=`), `searchRoutesbyStop` (`&parada=`), `searchRoutesbyZoneOperational` (`&tipo_ruta=&zona=`). Plus `twitter/hashtags.php` + `twitter/timeline.php` (service alerts).
+
+**Host 2 — Live/Bodega** `https://tmsa-transmiapp-shvpc.uc.r.appspot.com/` (CO-IP geofenced; headers `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` + `uuid` + `version`). We **use**: `POST /buses` (troncal live), `POST /location/ruta` (zonal live), `POST /lectura_tarjeta` (card ledger). **Unused, high value**: **`POST /paradero/buses`** (`getLlegadas`) → **real-time arrivals/ETA at a paradero** — we surface nothing like this. Response (`LlegadasItem[]`) per approaching bus: `ruta_extraida` (código), `color_ruta`, `ruta_sae` (id), `destino_limpio` (destino), `distancia`, **`labeltiempo`** (ETA label), `labelparadero`. This is a ready-made "próximo bus en X min" feature; **`GET /puntos_recarga`** + **`GET /puntos_personalizacion`** (recharge/personalization POIs, `TuLlave` model); `POST /getServicios`, `POST /consultar_programacion` (schedules). Out of scope: `911denuncias`, `guardar_reporte`.
+
+**Host 3 — Journey Planner (OTP)** `https://planeador.transmilenio.gov.co/otp/routers/default/plan2` — a real **OpenTripPlanner** instance (`origen`, `destino`, `transferencias`, `bannedAgencies`, `date`, `time`, `mode`). **Unused** — we roll our own client graph router (§6.1). The official OTP is authoritative multimodal routing and should replace or cross-check ours.
+
+**Host 4 — SITP** `http://app.sitp.gov.co/api/` (**HTTP**, Basic auth `transmilenio:rtoi33pqApp` = `Basic dHJhbnNtaWxlbmlvOnJ0b2kzM3BxQXBw`) — `places` geocoding/autocomplete. Unused. (Credential is embedded in the public APK; treat as low-trust, not a secret.)
+
+**Host 5 — Firebase Storage** `https://firebasestorage.googleapis.com/` — `info.json` (app config/help) + static map images. Unused (we have our own assets).
+
+**WebView-only** (not JSON APIs): `app.sitp.gov.co/mapa`, `planner.maasapp.co`, `recargatullave.transmilenio.maasapp.co` (card recharge).
+
+**Net opportunities:** (a) **arrivals** via `/paradero/buses`; (b) **official OTP** journey planning; (c) **recharge-point** POI layer; (d) station↔route lookups straight from `loader.php` instead of re-deriving. **Correction:** card balance is no longer server-only — read it offline via NFC (§5.5.1b).
+
 ## 6. Future Goals & Rules
 
 ### 6.1 Platform Goals & Action Items

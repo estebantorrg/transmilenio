@@ -9,7 +9,8 @@ export interface StationRecord {
   direccion: string;
   coordinate: [number, number];
   wagonCount: number;
-  kind: 'station' | 'stop';
+  kind: 'station' | 'stop' | 'recharge';
+  hours?: string; // recharge points only (weekday hours)
 }
 
 export interface HealthInfo {
@@ -61,6 +62,7 @@ interface AppState {
   catalog: MasterCatalog;
   stations: StationRecord[];
   zonalStops: StationRecord[];
+  rechargePoints: StationRecord[];
   /** SITP numeric zones (1–13) each route touches, keyed by variant-base code (from the ArcGIS zonal-routes feed). */
   zonalAreas: Map<string, number[]>;
   /** Sorted list of SITP zone numbers actually present in the network. */
@@ -79,6 +81,7 @@ export const state: AppState = {
   catalog: { stations: {}, routes: {} },
   stations: [],
   zonalStops: [],
+  rechargePoints: [],
   zonalAreas: new Map(),
   zones: [],
   zoneLabels: new Map(),
@@ -98,7 +101,7 @@ export function getRoute(id: string): RouteListItem | undefined {
   return state.routeById.get(id);
 }
 
-/** All station + zonal-stop records combined (for search / nearby). */
+/** All station + zonal-stop + recharge records combined (for search / nearby). */
 export function allPoints(): StationRecord[] {
-  return state.stations.concat(state.zonalStops);
+  return state.stations.concat(state.zonalStops, state.rechargePoints);
 }

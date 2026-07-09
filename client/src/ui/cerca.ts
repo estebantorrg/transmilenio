@@ -14,10 +14,11 @@ export interface NearbyPoint {
   name: string;
   coordinate: [number, number];
   direccion: string;
-  kind: 'station' | 'stop';
+  kind: 'station' | 'stop' | 'recharge';
+  hours?: string; // recharge points only (weekday hours)
 }
 
-type KindFilter = 'all' | 'station' | 'stop';
+type KindFilter = 'all' | 'station' | 'stop' | 'recharge';
 type LocationResult = { longitude: number; latitude: number; source: 'gps' | 'ip' };
 
 interface CercaOptions {
@@ -132,17 +133,24 @@ function render(): void {
   });
 }
 
+const KIND_META: Record<NearbyPoint['kind'], { cls: string; label: string; fallback: string }> = {
+  station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
+  stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
+  recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
+};
+
 function nearRowHtml(point: NearbyPoint, meters: number): string {
-  const isStation = point.kind === 'station';
-  const kindLabel = isStation ? 'Estación' : 'Paradero';
-  const sub = point.direccion || (isStation ? 'Estación troncal' : 'Paradero zonal');
+  const meta = KIND_META[point.kind];
+  const sub = point.kind === 'recharge'
+    ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
+    : point.direccion || meta.fallback;
   return `
     <button class="near-row" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}">
-      <span class="near-dot ${isStation ? 'is-station' : 'is-stop'}"></span>
+      <span class="near-dot ${meta.cls}"></span>
       <div class="near-mid">
         <div class="near-name-row">
           <span class="near-name">${escapeHTML(point.name)}</span>
-          <span class="near-kind ${isStation ? 'is-station' : 'is-stop'}">${kindLabel}</span>
+          <span class="near-kind ${meta.cls}">${meta.label}</span>
         </div>
         <div class="near-sub">${escapeHTML(sub)}</div>
       </div>

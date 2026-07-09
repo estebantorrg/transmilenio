@@ -328,7 +328,54 @@ export const api = {
       undefined,
       1
     ),
+
+  /** tullave recharge-point POIs (static catalog, spec §5.8). */
+  getRechargePoints: () => fetchJson<RechargePointsResponse>('/recarga-points', 15_000, undefined, 1),
+
+  /** Real-time arrivals/ETAs at a paradero (spec §5.8). Never hard-fails.
+   *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
+   *  0 retries — live requests must not stack (spec §3.4). */
+  getArrivals: (paradero: string) =>
+    fetchJson<ArrivalsResponse>('/arrivals', 15_000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paradero }),
+    }, 0),
 };
+
+export interface ArrivalItem {
+  codigo: string;
+  idRuta: string;
+  destino: string;
+  color: string;
+  paradero: string;
+  tiempo: string;
+  distancia: string;
+}
+export interface ArrivalsResponse {
+  success: boolean;
+  count?: number;
+  arrivals?: ArrivalItem[];
+  source?: string | null;
+  error?: string;
+}
+
+export interface RechargePoint {
+  nombre: string;
+  direccion: string;
+  localidad: string;
+  latitud: number;
+  longitud: number;
+  hds?: string;
+  exs?: string;
+  wks?: string;
+}
+export interface RechargePointsResponse {
+  success: boolean;
+  count?: number;
+  points?: RechargePoint[];
+  error?: string;
+}
 
 export interface GeoIpResponse {
   success: boolean;

@@ -4,6 +4,9 @@ import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
 import { geocodeAddress } from '../services/geocode.js';
 import zlib from 'zlib';
+import { readFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 const router = Router();
 
@@ -236,6 +239,29 @@ router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
   }
 });
 
+// ─── Recharge Points (tullave POIs) ───────────────────────
+// Static POI catalog committed from a Colombian egress (spec §5.8, see
+// `sync_recarga.ts`). Served read-only with no runtime geofence dependency.
+
+let rechargePointsCache: any[] | null = null;
+async function loadRechargePoints(): Promise<any[]> {
+  if (rechargePointsCache) return rechargePointsCache;
+  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'recarga_points.json');
+  rechargePointsCache = JSON.parse(await readFile(file, 'utf8'));
+  return rechargePointsCache!;
+}
+
+router.get('/recarga-points', async (_req: Request, res: Response) => {
+  try {
+    const points = await loadRechargePoints();
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.json({ success: true, count: points.length, points });
+  } catch (error) {
+    console.error('Error loading recharge points:', error);
+    res.status(500).json({ success: false, error: 'Failed to load recharge points' });
+  }
+});
+
 // ─── Cable Endpoints ──────────────────────────────────────
 
 router.get('/cable/stations', async (_req: Request, res: Response) => {
@@ -322,6 +348,27 @@ router.post('/buses', async (req: Request, res: Response) => {
       return;
     }
     res.json({ success: true, status: 'unreachable', confidence: 'low', count: 0, data: [], source: null });
+  }
+});
+
+// ─── Arrivals (llegadas at a paradero) ────────────────────
+// Real-time bus arrivals/ETAs at a stop (spec §5.8). Rides the same CO live
+// transport as /buses; like it, never hard-fails — empty list on any outage.
+router.post('/arrivals', async (req: Request, res: Response) => {
+  const paradero = normalizeRequestText(
+    req.body?.paradero ?? req.body?.cenefa ?? req.body?.codigo,
+    LIVE_ROUTE_CODE_MAX_LENGTH
+  );
+  if (!paradero) {
+    res.status(400).json({ success: false, error: 'paradero is required' });
+    return;
+  }
+  try {
+    const { arrivals, source } = await tmApi.fetchArrivals(paradero);
+    res.json({ success: true, count: arrivals.length, arrivals, source });
+  } catch (error: any) {
+    console.error('[/arrivals] Error:', error?.message || error);
+    res.json({ success: true, count: 0, arrivals: [], source: null });
   }
 });
 

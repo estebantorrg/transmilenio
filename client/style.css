@@ -1117,6 +1117,9 @@ body.sidebar-collapsed .sidebar-fab {
 .near-dot.is-stop {
   background: #3b82f6;
 }
+.near-dot.is-recharge {
+  background: #22c55e;
+}
 .near-mid {
   flex: 1;
   min-width: 0;
@@ -1151,6 +1154,54 @@ body.sidebar-collapsed .sidebar-fab {
 .near-kind.is-stop {
   color: #93c5fd;
   background: color-mix(in srgb, #3b82f6 18%, transparent);
+}
+.near-kind.is-recharge {
+  color: #86efac;
+  background: color-mix(in srgb, #22c55e 18%, transparent);
+}
+
+/* ─── Stop-popup real-time arrivals (spec §5.8) ──────────── */
+.popup-arrivals {
+  margin-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 8px;
+}
+.arr-loading,
+.arr-empty {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  padding: 2px 0;
+}
+.arr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+.arr-badge {
+  flex: 0 0 auto;
+  min-width: 34px;
+  text-align: center;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+.arr-dest {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+}
+.arr-time {
+  flex: 0 0 auto;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-primary);
 }
 .near-sub {
   margin-top: 2px;

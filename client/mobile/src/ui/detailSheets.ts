@@ -2,7 +2,7 @@
 
 import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
-import type { LiveBusResult } from '@shared/services/api';
+import { api, type LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
 import { h, escapeHTML, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
@@ -151,6 +151,36 @@ function routesServing(code: string): RouteListItem[] {
   return out;
 }
 
+/** Fetch + render real-time arrivals for a stop into `host` (spec §5.8). */
+async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
+  if (!cenefa) {
+    host.replaceChildren(h('div', { class: 'muted', text: 'Sin código de paradero.' }));
+    return;
+  }
+  try {
+    const res = await api.getArrivals(cenefa);
+    const arrivals = res.arrivals ?? [];
+    if (arrivals.length === 0) {
+      host.replaceChildren(h('div', { class: 'muted', text: 'Sin llegadas en este momento.' }));
+      return;
+    }
+    host.replaceChildren(
+      ...arrivals.slice(0, 8).map((a) => {
+        const badge = h('span', { class: 'arr-badge', text: a.codigo || '—' });
+        badge.style.background = a.color || PARADERO_COLOR;
+        if (needsDarkText(a.color || PARADERO_COLOR)) badge.style.color = '#12151b';
+        return h('div', { class: 'arr-row' }, [
+          badge,
+          h('span', { class: 'arr-dest', text: a.destino }),
+          h('span', { class: 'arr-time', text: a.tiempo || a.distancia || '' }),
+        ]);
+      })
+    );
+  } catch {
+    host.replaceChildren(h('div', { class: 'muted', text: 'Llegadas no disponibles.' }));
+  }
+}
+
 export function openStationSheet(station: StationRecord): void {
   const isStation = station.kind === 'station';
   const sheet = openSheet({ accent: isStation ? STATION_COLOR : PARADERO_COLOR });
@@ -180,6 +210,18 @@ export function openStationSheet(station: StationRecord): void {
     app().focusPoint(station);
   });
   sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]));
+
+  // Real-time arrivals (spec §5.8) — only for zonal paraderos, whose `code` is
+  // the cenefa `/paradero/buses` expects. Troncal stations use a different keying,
+  // so skip the (always-empty) call for them.
+  if (station.kind === 'stop') {
+    const arrSection = h('div', { class: 'rd-section' });
+    arrSection.append(h('div', { class: 'rd-section-title', text: 'Próximas llegadas' }));
+    const arrBody = h('div', { class: 'arr-body' }, [h('div', { class: 'muted', text: 'Buscando llegadas…' })]);
+    arrSection.append(arrBody);
+    sheet.body.append(arrSection);
+    void loadArrivals(station.code, arrBody);
+  }
 
   const serving = routesServing(station.code);
   const section = h('div', { class: 'rd-section' });

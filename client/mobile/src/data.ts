@@ -300,6 +300,26 @@ export async function loadBackground(): Promise<void> {
   // ArcGIS zonal stops are used only for the route-stop enrichment above and the
   // SITP zones built earlier. Signal the zones/enrichment are ready.
   bus.emit('stops:ready', undefined);
+
+  // Recharge POIs (static catalog, spec §5.8) → Cerca "Recargas" kind. Independent
+  // of the enrichment above, so it doesn't block the ready signal.
+  api.getRechargePoints()
+    .then((res) => {
+      if (!res.success || !res.points) return;
+      state.rechargePoints = res.points
+        .map((p, i): StationRecord => ({
+          code: `rp-${i}`,
+          name: p.nombre,
+          direccion: [p.direccion, p.localidad].filter(Boolean).join(', '),
+          coordinate: [p.longitud, p.latitud],
+          wagonCount: 0,
+          kind: 'recharge',
+          hours: p.wks,
+        }))
+        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+      bus.emit('stops:ready', undefined);
+    })
+    .catch((err) => console.warn('[data] recharge points load failed:', err));
 }
 
 /** Poll `/api/health` and derive whether live tracking can reach the CO API. */

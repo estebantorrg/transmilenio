@@ -10,6 +10,7 @@ import { createMap, initMapImages } from './map';
 import { api } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
+import { showPopup } from './layers/popup';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
 import {
   addTroncalCorridorsLayer,
@@ -32,6 +33,7 @@ import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { isWithinBogota } from './utils/geo';
 import { initCerca, setNearbyPoints, type NearbyPoint } from './ui/cerca';
+import { escapeHTML } from './utils/html';
 import {
   buildRouteList,
   dedupeStops,
@@ -163,8 +165,9 @@ let userMarker: maplibregl.Marker | null = null;
 // simply re-pushes the union.
 let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
+let nearbyRechargePoints: NearbyPoint[] = [];
 function pushNearbyPoints(): void {
-  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints]);
+  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints]);
 }
 
 /**
@@ -210,6 +213,21 @@ function placeUserMarker(
       showStationPopupByCode(map, nearest.code, nearest.coordinate);
     }
   }
+}
+
+/** Lightweight popup for a tullave recharge POI (name/address/hours). */
+function showRechargePopup(map: maplibregl.Map, point: NearbyPoint): void {
+  const hours = point.hours ? `<div class="popup-meta"><span>Lun–Vie ${escapeHTML(point.hours)}</span></div>` : '';
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow" style="color:#22c55e">Punto de recarga tullave</div>
+      <div class="popup-title">${escapeHTML(point.name)}</div>
+      ${point.direccion ? `<div class="popup-meta"><span>${escapeHTML(point.direccion)}</span></div>` : ''}
+      ${hours}
+    </div>`;
+  // Reuse the shared single-popup helper so recharge popups replace (not stack
+  // on top of) any open station/stop popup.
+  showPopup(map, point.coordinate, html, { offset: 12, maxWidth: '280px' });
 }
 
 /**
@@ -750,7 +768,9 @@ async function main(): Promise<void> {
     onLocated: (lng, lat, source) => placeUserMarker(map, lng, lat, source === 'gps', false),
     onSelect: (point) => {
       map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
-      if (point.kind === 'station') {
+      if (point.kind === 'recharge') {
+        showRechargePopup(map, point);
+      } else if (point.kind === 'station') {
         const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
         if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
       } else {
@@ -759,6 +779,24 @@ async function main(): Promise<void> {
     },
   });
   pushNearbyPoints();
+
+  // Recharge POIs (static catalog, spec §5.8) → the Cerca "Recargas" kind.
+  api.getRechargePoints()
+    .then((res) => {
+      if (!res.success || !res.points) return;
+      nearbyRechargePoints = res.points
+        .map((p, i): NearbyPoint => ({
+          codigo: `rp-${i}`,
+          name: p.nombre,
+          coordinate: [p.longitud, p.latitud],
+          direccion: p.direccion || p.localidad || '',
+          kind: 'recharge',
+          hours: p.wks,
+        }))
+        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+      pushNearbyPoints();
+    })
+    .catch((error) => console.warn('[Recharge] Failed to load recharge points:', error));
 
   // Android hardware-back close chain (native shell only; no-op on the web).
   initNativeBack();

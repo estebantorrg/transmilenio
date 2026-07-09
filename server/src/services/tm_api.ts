@@ -1053,7 +1053,14 @@ function decodeBody(raw: Buffer, encoding: string | string[] | undefined): Promi
   });
 }
 
-async function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
+/** Shared decode + JSON + upstream-error handling for any live-host endpoint.
+ *  The `normalize` step is what differs (buses vs arrivals). */
+async function parseLivePayload(
+  raw: Buffer,
+  encoding: string | string[] | undefined,
+  source: string,
+  normalize: (payload: any) => any[]
+): Promise<any[]> {
   const body = await decodeBody(raw, encoding).catch(() => raw);
   const text = body.toString('utf-8');
 
@@ -1061,7 +1068,7 @@ async function parseLiveResponse(raw: Buffer, encoding: string | string[] | unde
   try {
     payload = JSON.parse(text);
   } catch {
-    throw new Error(`${source}: Live Buses JSON parse error (${text.slice(0, 120)})`);
+    throw new Error(`${source}: Live JSON parse error (${text.slice(0, 120)})`);
   }
 
   if (payload?.success === false) {
@@ -1073,7 +1080,15 @@ async function parseLiveResponse(raw: Buffer, encoding: string | string[] | unde
     throw new Error(`${source}: Status: ${problemStatus} ${payload.title || payload.detail || ''}`.trim());
   }
 
-  return normalizeLiveBusesPayload(payload);
+  return normalize(payload);
+}
+
+function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
+  return parseLivePayload(raw, encoding, source, normalizeLiveBusesPayload);
+}
+
+function parseArrivalsResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
+  return parseLivePayload(raw, encoding, source, normalizeArrivalsPayload);
 }
 
 function requestLiveJson(
@@ -1082,7 +1097,8 @@ function requestLiveJson(
   postData: string,
   timeoutMs: number,
   agent?: https.Agent,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  parse: (raw: Buffer, encoding: string | string[] | undefined, source: string) => Promise<any[]> = parseLiveResponse
 ): Promise<any[]> {
   const requestLib = url.protocol === 'http:' ? http : https;
   const source = `${url.protocol}//${url.hostname}${url.pathname}`;
@@ -1114,7 +1130,7 @@ function requestLiveJson(
         }
 
         try {
-          resolve(await parseLiveResponse(raw, res.headers['content-encoding'], source));
+          resolve(await parse(raw, res.headers['content-encoding'], source));
         } catch (error) {
           reject(error);
         }
@@ -1230,7 +1246,8 @@ async function raceProxyWave(
   postData: string,
   SimpleProxyAgent: typeof import('./proxy_manager.js').SimpleProxyAgent,
   ProxyManager: typeof import('./proxy_manager.js').ProxyManager,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  parse?: (raw: Buffer, encoding: string | string[] | undefined, source: string) => Promise<any[]>
 ): Promise<any[]> {
   const controller = new AbortController();
   // Link parent signal so the overall timeout can cancel the proxy race.
@@ -1246,7 +1263,8 @@ async function raceProxyWave(
         postData,
         LIVE_PROXY_TIMEOUT_MS,
         new SimpleProxyAgent(proxy.ip, proxy.port),
-        controller.signal
+        controller.signal,
+        parse
       );
       ProxyManager.reportSuccess(proxy.ip, proxy.port, Date.now() - started);
       return buses;
@@ -1471,5 +1489,101 @@ export async function fetchLiveBuses(
     throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
   } finally {
     clearTimeout(overallTimer);
+  }
+}
+
+// ─── Arrivals (llegadas at a paradero, spec §5.8) ─────────
+const ARRIVALS_TIMEOUT_MS = 9_000;
+
+/** Normalize the `/paradero/buses` response to a stable arrivals array. */
+function normalizeArrivalsPayload(payload: any): any[] {
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data) ? payload.data
+    : Array.isArray(payload?.buses) ? payload.buses
+    : Array.isArray(payload?.llegadas) ? payload.llegadas
+    : Array.isArray(payload?.vehiculos) ? payload.vehiculos
+    : [];
+  return list
+    .filter((it: any) => it && typeof it === 'object')
+    .map((it: any) => ({
+      codigo: String(it.ruta_extraida ?? it.codigo ?? '').trim(),
+      idRuta: String(it.ruta_sae ?? it.idRuta ?? '').trim(),
+      destino: String(it.destino_limpio ?? it.destino ?? it.nombre ?? '').trim(),
+      color: String(it.color_ruta ?? it.color ?? '').trim(),
+      paradero: String(it.labelparadero ?? it.paradero ?? '').trim(),
+      tiempo: String(it.labeltiempo ?? it.tiempo ?? it.time ?? '').trim(),
+      distancia: String(it.distancia ?? '').trim(),
+    }))
+    .filter((it: any) => it.codigo || it.destino);
+}
+
+export interface ArrivalsResult {
+  arrivals: any[];
+  source: LiveBusSource;
+}
+
+function buildArrivalsHeaders(postData: string): Record<string, string | number> {
+  return {
+    'Accept-Encoding': 'identity',
+    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    'Connection': 'Keep-Alive',
+    'Host': LIVE_API_HOST,
+    'User-Agent': 'okhttp/4.12.0',
+    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
+    'version': '2.9.5',
+    'Content-Type': 'application/json; charset=UTF-8',
+    'Content-Length': Buffer.byteLength(postData),
+  };
+}
+
+/**
+ * Real-time arrivals at a paradero (`POST /paradero/buses`, spec §5.8). Reuses
+ * the live transport tiers: direct (Colombian egress) → public CO proxy (prod
+ * fallback). Never throws for "no buses" — returns an empty list.
+ */
+export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
+  const cenefa = normalizeLiveText(paradero, LIVE_ROUTE_CODE_MAX_LENGTH);
+  if (!cenefa) return { arrivals: [], source: 'direct' };
+
+  const url = new URL(`${LIVE_API_ORIGIN}/paradero/buses`);
+  const postData = JSON.stringify({ paradero: cenefa });
+  const headers = buildArrivalsHeaders(postData);
+
+  const overall = new AbortController();
+  const timer = setTimeout(() => overall.abort(), LIVE_OVERALL_TIMEOUT_MS);
+  try {
+    // 1. Direct (works when the backend egress is Colombian: local / CO host).
+    try {
+      const arrivals = await requestLiveJson(url, headers, postData, ARRIVALS_TIMEOUT_MS, undefined, overall.signal, parseArrivalsResponse);
+      return { arrivals, source: 'direct' };
+    } catch (error) {
+      if (!isGeofenceRejection(error)) {
+        console.warn('[TM API] arrivals direct failed:', (error as any)?.message || error);
+      }
+    }
+
+    // 2. Public Colombian proxy (opt-in prod fallback, §5.2.5).
+    if (allowPublicColombianProxyFallback()) {
+      const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
+      if ((await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS)) > 0) {
+        const tried = new Set<string>();
+        for (let wave = 1; wave <= CO_PROXY_MAX_WAVES; wave++) {
+          if (overall.signal.aborted) break;
+          const proxies = ProxyManager.getProxies(CO_PROXY_RACE_WIDTH, tried);
+          if (proxies.length === 0) break;
+          for (const p of proxies) tried.add(`${p.ip}:${p.port}`);
+          try {
+            const arrivals = await raceProxyWave(proxies, url, headers, postData, SimpleProxyAgent, ProxyManager, overall.signal, parseArrivalsResponse);
+            return { arrivals, source: 'public-co-proxy' };
+          } catch {
+            /* dead wave — try the next */
+          }
+        }
+      }
+    }
+    return { arrivals: [], source: 'direct' };
+  } finally {
+    clearTimeout(timer);
   }
 }

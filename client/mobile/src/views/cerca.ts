@@ -9,7 +9,13 @@ import { openStationSheet } from '../ui/detailSheets';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
-type KindFilter = 'all' | 'station' | 'stop';
+type KindFilter = 'all' | 'station' | 'stop' | 'recharge';
+
+const KIND_META: Record<StationRecord['kind'], { cls: string; label: string; fallback: string }> = {
+  station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
+  stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
+  recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
+};
 
 const BOGOTA_BOUNDS = { minLat: 4.4, maxLat: 4.85, minLng: -74.25, maxLng: -73.95 };
 function inBogota(lng: number, lat: number): boolean {
@@ -30,7 +36,7 @@ export function createCercaView(): View {
   let kindFilter: KindFilter = 'all';
   const chipRow = h('div', { class: 'chip-row' });
   const chipEls = new Map<KindFilter, HTMLElement>();
-  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos']] as const) {
+  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas']] as const) {
     const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
     chip.addEventListener('click', () => {
       kindFilter = id;
@@ -67,17 +73,18 @@ export function createCercaView(): View {
   }
 
   function nearRow(point: StationRecord, meters: number): HTMLElement {
-    const isStation = point.kind === 'station';
+    const meta = KIND_META[point.kind];
     const row = h('button', { class: 'near-row', type: 'button' });
-    const dot = h('span', { class: `near-dot ${isStation ? 'is-station' : 'is-stop'}` });
+    const dot = h('span', { class: `near-dot ${meta.cls}` });
     const nameRow = h('div', { class: 'near-name-row' }, [
       h('span', { class: 'near-name', text: point.name }),
-      h('span', { class: `near-kind ${isStation ? 'is-station' : 'is-stop'}`, text: isStation ? 'Estación' : 'Paradero' }),
+      h('span', { class: `near-kind ${meta.cls}`, text: meta.label }),
     ]);
-    const mid = h('div', { class: 'near-mid' }, [
-      nameRow,
-      h('div', { class: 'near-sub', text: point.direccion || (isStation ? 'Estación troncal' : 'Paradero zonal') }),
-    ]);
+    const sub =
+      point.kind === 'recharge'
+        ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
+        : point.direccion || meta.fallback;
+    const mid = h('div', { class: 'near-mid' }, [nameRow, h('div', { class: 'near-sub', text: sub })]);
     const right = h('div', { class: 'near-right' }, [
       h('div', { class: 'near-dist', text: formatDistance(meters) }),
       h('div', { class: 'near-walk', text: `${walkMinutes(meters)} min` }),
@@ -86,7 +93,12 @@ export function createCercaView(): View {
     row.addEventListener('click', () => {
       haptic('light');
       app().focusPoint(point);
-      openStationSheet(point);
+      // Recharge POIs aren't stations — focus the map + toast instead of a station sheet.
+      if (point.kind === 'recharge') {
+        toast(point.hours ? `${point.name} · Lun–Vie ${point.hours}` : point.name, 'info');
+      } else {
+        openStationSheet(point);
+      }
     });
     return row;
   }
