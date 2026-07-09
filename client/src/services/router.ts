@@ -1081,3 +1081,44 @@ export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
   const toStop = uniqueStops.get(toCode);
   return !!(fromStop && toStop && fromStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(fromStop, toStop));
 }
+
+/**
+ * Replace each straight-line walk leg with a real OSRM pedestrian route
+ * (geometry + distance + time), then recompute plan totals and re-rank — the
+ * initial search uses straight-line estimates, so the shown answer is only
+ * accurate after this pass. Shared by the website and mobile planners so both
+ * get identical walking. Tunnel transfers keep their straight geometry.
+ * Mutates `plans` in place and returns it.
+ */
+export async function enrichWalkingGeometries(
+  plans: JourneyPlan[],
+  sortBy?: 'transfers' | 'time' | 'walk'
+): Promise<JourneyPlan[]> {
+  const jobs: Promise<void>[] = [];
+  for (const plan of plans) {
+    for (const step of plan.steps) {
+      if (step.type !== 'walk' || !step.path || step.path.length !== 2) continue;
+      if (isTunnelTransfer(step.fromCode, step.toCode)) {
+        step.isTunnel = true;
+        continue;
+      }
+      const [from, to] = step.path;
+      jobs.push(
+        fetchWalkingPath(from, to).then((res) => {
+          step.path = res.coordinates;
+          step.distance = res.distance;
+          step.time = res.time;
+        })
+      );
+    }
+  }
+  if (jobs.length === 0) return plans;
+  await Promise.all(jobs);
+
+  for (const plan of plans) {
+    plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
+    plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
+  }
+  sortJourneyPlans(plans, sortBy);
+  return plans;
+}

@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, fetchWalkingPath, isTunnelTransfer, sortJourneyPlans, type JourneyPlan, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, type JourneyPlan, type CableStationInput } from '../services/router';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
@@ -1135,48 +1135,14 @@ function getMapFitPadding(): { top: number; bottom: number; left: number; right:
 }
 
 async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number): Promise<void> {
-  const promises: Promise<void>[] = [];
-
-  plans.forEach((plan) => {
-    plan.steps.forEach((step) => {
-      if (step.type === 'walk' && step.path && step.path.length === 2) {
-        if (isTunnelTransfer(step.fromCode, step.toCode)) {
-          // Keep straight line geometry, distance, and time for tunnel transfers
-          step.isTunnel = true;
-          return;
-        }
-        const [from, to] = step.path;
-        const p = fetchWalkingPath(from, to).then((res) => {
-          if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
-          step.path = res.coordinates;
-          step.distance = res.distance;
-          step.time = res.time;
-        });
-        promises.push(p);
-      }
-    });
-  });
-
-  if (promises.length === 0) return;
-
+  // Core walk-refinement (OSRM fetch, total recompute, re-rank) is shared with
+  // the mobile planner (spec §1.1 R2). Here we only add the website's staleness
+  // guard + selection preservation + re-render.
+  const selectedPlan = activePlanIndex !== null ? plans[activePlanIndex] : null;
   try {
-    await Promise.all(promises);
+    await enrichPlansWalking(plans, lastSortBy);
     if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
-    
-    // Recalculate totals for all plans
-    plans.forEach((plan) => {
-      plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
-      plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
-    });
-
-    // Initial ranking used straight-line walk estimates; re-rank with the now
-    // accurate routed distances/times so the best option per the user's
-    // preference is first. Keep the user's current selection by reference.
-    const selectedPlan = activePlanIndex !== null ? plans[activePlanIndex] : null;
-    sortJourneyPlans(plans, lastSortBy);
-    activePlanIndex = selectedPlan ? plans.indexOf(selectedPlan) : 0;
-
-    // Re-render UI and update map preserving active selection
+    activePlanIndex = selectedPlan ? Math.max(0, plans.indexOf(selectedPlan)) : 0;
     renderResults(plans, true);
   } catch (error) {
     console.error('[Planner] Error enriching walking paths:', error);

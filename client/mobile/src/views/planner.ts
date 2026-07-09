@@ -1,6 +1,6 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
-import { initRouter, findRoutes, sortJourneyPlans, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
 import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
@@ -16,6 +16,8 @@ interface Endpoint {
 }
 
 let routerReady = false;
+// Bumped per search so a stale walk-enrichment doesn't overwrite a newer result.
+let searchSeq = 0;
 // Background enrichment adds zonal-route stops after boot (data.ts loadBackground).
 // Invalidate the built graph so the next search rebuilds it with the enriched
 // stops — mirrors the website's post-enrichment router rebuild (main.ts).
@@ -197,9 +199,17 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
           minWalk: sortBy === 'walk',
           sortBy,
         };
+        const seq = ++searchSeq;
         const plans = findRoutes(params);
         sortJourneyPlans(plans, sortBy);
         renderPlans(results, plans.slice(0, 4));
+        // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
+        // re-render if this is still the latest search (spec §1.1 R2 shared fn).
+        void enrichWalkingGeometries(plans, sortBy)
+          .then(() => {
+            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4));
+          })
+          .catch((err) => console.warn('[planner] walk enrichment failed:', err));
       } catch (err) {
         console.error('[planner]', err);
         results.replaceChildren(h('div', { class: 'empty' }, [h('div', { class: 'empty-title', text: 'Error al calcular' })]));
