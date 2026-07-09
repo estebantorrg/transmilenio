@@ -1,0 +1,128 @@
+diff --git a/node_modules/phonegap-nfc/src/android/src/com/chariotsolutions/nfc/plugin/NfcPlugin.java b/node_modules/phonegap-nfc/src/android/src/com/chariotsolutions/nfc/plugin/NfcPlugin.java
+index e8256d8..7a79095 100644
+--- a/node_modules/phonegap-nfc/src/android/src/com/chariotsolutions/nfc/plugin/NfcPlugin.java
++++ b/node_modules/phonegap-nfc/src/android/src/com/chariotsolutions/nfc/plugin/NfcPlugin.java
+@@ -35,7 +35,7 @@ import android.os.Bundle;
+ import android.os.Parcelable;
+ import android.util.Log;
+ 
+-public class NfcPlugin extends CordovaPlugin implements NfcAdapter.OnNdefPushCompleteCallback {
++public class NfcPlugin extends CordovaPlugin {
+     private static final String REGISTER_MIME_TYPE = "registerMimeType";
+     private static final String REMOVE_MIME_TYPE = "removeMimeType";
+     private static final String REGISTER_NDEF = "registerNdef";
+@@ -546,9 +546,7 @@ public class NfcPlugin extends CordovaPlugin implements NfcAdapter.OnNdefPushCom
+                         nfcAdapter.enableForegroundDispatch(getActivity(), getPendingIntent(), intentFilters, techLists);
+                     }
+ 
+-                    if (p2pMessage != null) {
+-                        nfcAdapter.setNdefPushMessage(p2pMessage, getActivity());
+-                    }
++                    // Android Beam (NDEF push) was removed in Android 14 (API 34); no-op.
+                 } catch (IllegalStateException e) {
+                     // issue 110 - user exits app with home button while nfc is initializing
+                     Log.w(TAG, "Illegal State Exception starting NFC. Assuming application is terminating.");
+@@ -575,75 +573,21 @@ public class NfcPlugin extends CordovaPlugin implements NfcAdapter.OnNdefPushCom
+         });
+     }
+ 
++    // Android Beam (NDEF push / handover) was removed in Android 14 (API 34).
+     private void startNdefBeam(final CallbackContext callbackContext, final Uri[] uris) {
+-        getActivity().runOnUiThread(() -> {
+-
+-            NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+-
+-            if (nfcAdapter == null) {
+-                callbackContext.error(STATUS_NO_NFC);
+-            } else if (!nfcAdapter.isNdefPushEnabled()) {
+-                callbackContext.error(STATUS_NDEF_PUSH_DISABLED);
+-            } else {
+-                nfcAdapter.setOnNdefPushCompleteCallback(NfcPlugin.this, getActivity());
+-                try {
+-                    nfcAdapter.setBeamPushUris(uris, getActivity());
+-
+-                    PluginResult result = new PluginResult(PluginResult.Status.NO_RESULT);
+-                    result.setKeepCallback(true);
+-                    handoverCallback = callbackContext;
+-                    callbackContext.sendPluginResult(result);
+-
+-                } catch (IllegalArgumentException e) {
+-                    callbackContext.error(e.getMessage());
+-                }
+-            }
+-        });
++        callbackContext.error(STATUS_NDEF_PUSH_DISABLED);
+     }
+ 
+     private void startNdefPush(final CallbackContext callbackContext) {
+-        getActivity().runOnUiThread(() -> {
+-
+-            NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+-
+-            if (nfcAdapter == null) {
+-                callbackContext.error(STATUS_NO_NFC);
+-            } else if (!nfcAdapter.isNdefPushEnabled()) {
+-                callbackContext.error(STATUS_NDEF_PUSH_DISABLED);
+-            } else {
+-                nfcAdapter.setNdefPushMessage(p2pMessage, getActivity());
+-                nfcAdapter.setOnNdefPushCompleteCallback(NfcPlugin.this, getActivity());
+-
+-                PluginResult result = new PluginResult(PluginResult.Status.NO_RESULT);
+-                result.setKeepCallback(true);
+-                shareTagCallback = callbackContext;
+-                callbackContext.sendPluginResult(result);
+-            }
+-        });
++        callbackContext.error(STATUS_NDEF_PUSH_DISABLED);
+     }
+ 
+     private void stopNdefPush() {
+-        getActivity().runOnUiThread(() -> {
+-
+-            NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+-
+-            if (nfcAdapter != null) {
+-                nfcAdapter.setNdefPushMessage(null, getActivity());
+-            }
+-
+-        });
++        // Android Beam removed in API 34 — nothing to tear down.
+     }
+ 
+     private void stopNdefBeam() {
+-        getActivity().runOnUiThread(() -> {
+-
+-            NfcAdapter nfcAdapter = NfcAdapter.getDefaultAdapter(getActivity());
+-
+-            if (nfcAdapter != null) {
+-                nfcAdapter.setBeamPushUris(null, getActivity());
+-            }
+-
+-        });
++        // Android Beam removed in API 34 — nothing to tear down.
+     }
+ 
+     private void addToTechList(String[] techs) {
+@@ -835,22 +779,6 @@ public class NfcPlugin extends CordovaPlugin implements NfcAdapter.OnNdefPushCom
+         getActivity().setIntent(intent);
+     }
+ 
+-    @Override
+-    public void onNdefPushComplete(NfcEvent event) {
+-
+-        // handover (beam) take precedence over share tag (ndef push)
+-        if (handoverCallback != null) {
+-            PluginResult result = new PluginResult(PluginResult.Status.OK, "Beamed Message to Peer");
+-            result.setKeepCallback(true);
+-            handoverCallback.sendPluginResult(result);
+-        } else if (shareTagCallback != null) {
+-            PluginResult result = new PluginResult(PluginResult.Status.OK, "Shared Message with Peer");
+-            result.setKeepCallback(true);
+-            shareTagCallback.sendPluginResult(result);
+-        }
+-
+-    }
+-
+     /**
+      * Enable I/O operations to the tag from this TagTechnology object.
+      * *

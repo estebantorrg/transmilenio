@@ -4,6 +4,7 @@
   "private": true,
   "description": "TransMilenio Explorer - Android app. Capacitor shell around the web client; live tracking runs natively from the device's own Colombian connection.",
   "scripts": {
+    "postinstall": "patch-package",
     "build:web": "node scripts/build-web.mjs",
     "sync": "npm run build:web && cap sync android",
     "apk": "npm run sync && cd android && gradlew assembleDebug",
@@ -16,6 +17,7 @@
     "phonegap-nfc": "^1.2.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "^6.2.1"
+    "@capacitor/cli": "^6.2.1",
+    "patch-package": "^8.0.1"
   }
 }
