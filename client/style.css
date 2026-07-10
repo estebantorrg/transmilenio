@@ -724,6 +724,10 @@ body.sidebar-collapsed .sidebar-fab {
   background: #f97316;
 }
 
+.toggle-item input:checked ~ .toggle-check.check-demand {
+  background: #ef4444;
+}
+
 .toggle-text {
   flex: 1;
   min-width: 0;
@@ -1124,6 +1128,9 @@ body.sidebar-collapsed .sidebar-fab {
 .near-dot.is-recharge {
   background: #22c55e;
 }
+.near-dot.is-transmibici {
+  background: #38bdf8;
+}
 .near-mid {
   flex: 1;
   min-width: 0;
@@ -1162,6 +1169,10 @@ body.sidebar-collapsed .sidebar-fab {
 .near-kind.is-recharge {
   color: #86efac;
   background: color-mix(in srgb, #22c55e 18%, transparent);
+}
+.near-kind.is-transmibici {
+  color: #7dd3fc;
+  background: color-mix(in srgb, #38bdf8 18%, transparent);
 }
 
 /* ─── Stop-popup real-time arrivals (spec §5.8) ──────────── */

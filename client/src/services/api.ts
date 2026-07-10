@@ -332,6 +332,12 @@ export const api = {
   /** tullave recharge-point POIs (static catalog, spec §5.8). */
   getRechargePoints: () => fetchJson<RechargePointsResponse>('/recarga-points', 15_000, undefined, 1),
 
+  /** Per-station mean weekday demand from the open Salidas dataset (spec §5.8). */
+  getStationDemand: () => fetchJson<StationDemandResponse>('/station-demand', 15_000, undefined, 1),
+
+  /** TransMiBici bike-parking POIs (static catalog, spec §5.3). */
+  getTransmibici: () => fetchJson<TransmibiciResponse>('/transmibici', 15_000, undefined, 1),
+
   /** Real-time arrivals/ETAs at a paradero (spec §5.8). Never hard-fails.
    *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
    *  0 retries — live requests must not stack (spec §3.4). */
@@ -374,6 +380,41 @@ export interface RechargePointsResponse {
   success: boolean;
   count?: number;
   points?: RechargePoint[];
+  error?: string;
+}
+
+export interface StationDemand {
+  codigo: string;
+  nodo: number | null;
+  nombre: string;
+  lat: number;
+  lon: number;
+  entradas: number;
+  salidas: number;
+  total: number;
+  rank: number;
+}
+export interface StationDemandResponse {
+  success: boolean;
+  days?: number;
+  window?: { from: string; to: string } | null;
+  count?: number;
+  stations?: StationDemand[];
+  error?: string;
+}
+
+export interface BikeParking {
+  nombre: string;
+  nodo: number | null;
+  cupos: number | null;
+  ocupacion: number | null;
+  lat: number;
+  lon: number;
+}
+export interface TransmibiciResponse {
+  success: boolean;
+  count?: number;
+  points?: BikeParking[];
   error?: string;
 }
 

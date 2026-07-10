@@ -12,6 +12,7 @@ import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures,
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
+import { addDemandLayer, toggleDemandLayer, bringDemandLayerToFront } from './layers/demandLayer';
 import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
@@ -166,8 +167,9 @@ let userMarker: maplibregl.Marker | null = null;
 let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
+let nearbyBikeParkingPoints: NearbyPoint[] = [];
 function pushNearbyPoints(): void {
-  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints]);
+  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints, ...nearbyBikeParkingPoints]);
 }
 
 /**
@@ -231,6 +233,19 @@ function showRechargePopup(map: maplibregl.Map, point: NearbyPoint): void {
     </div>`;
   // Reuse the shared single-popup helper so recharge popups replace (not stack
   // on top of) any open station/stop popup.
+  showPopup(map, point.coordinate, html, { offset: 12, maxWidth: '280px' });
+}
+
+/** Lightweight popup for a TransMiBici bike-parking POI (capacity/occupancy). */
+function showBikeParkingPopup(map: maplibregl.Map, point: NearbyPoint): void {
+  const capacity = point.hours ? `<div class="popup-meta"><span>${escapeHTML(point.hours)}</span></div>` : '';
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow" style="color:#38bdf8">Cicloparqueadero TransMiBici</div>
+      <div class="popup-title">${escapeHTML(point.name)}</div>
+      ${point.direccion ? `<div class="popup-meta"><span>${escapeHTML(point.direccion)}</span></div>` : ''}
+      ${capacity}
+    </div>`;
   showPopup(map, point.coordinate, html, { offset: 12, maxWidth: '280px' });
 }
 
@@ -472,6 +487,7 @@ async function main(): Promise<void> {
   let stopsCount = 0;
   let cableStationsCount = 0;
   let cableTracesCount = 0;
+  let demandCount = 0;
   let cableRouterStations: import('./services/router').CableStationInput[] = [];
 
   let activeRouteId: string | null = null;
@@ -712,6 +728,9 @@ async function main(): Promise<void> {
         case 'cable-stations':
           toggleCableStationsLayer(map, visible);
           break;
+        case 'demand':
+          toggleDemandLayer(map, visible);
+          break;
       }
 
       // ─── Force Global Hierarchy ───────────────────────────────────
@@ -722,6 +741,7 @@ async function main(): Promise<void> {
       bringStationsLayerToFront(map);
       bringStopsLayerToFront(map);
       bringCableLayersToFront(map);
+      bringDemandLayerToFront(map);
     },
   });
 
@@ -774,6 +794,8 @@ async function main(): Promise<void> {
       map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
       if (point.kind === 'recharge') {
         showRechargePopup(map, point);
+      } else if (point.kind === 'transmibici') {
+        showBikeParkingPopup(map, point);
       } else if (point.kind === 'station') {
         const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
         if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
@@ -801,6 +823,36 @@ async function main(): Promise<void> {
       pushNearbyPoints();
     })
     .catch((error) => console.warn('[Recharge] Failed to load recharge points:', error));
+
+  // Station demand heat overlay (open Salidas dataset, spec §5.8). Off by
+  // default; adds its own toggle-driven layer without touching station render.
+  api.getStationDemand()
+    .then((res) => {
+      if (!res.success || !res.stations?.length) return;
+      addDemandLayer(map, res.stations);
+      demandCount = res.stations.length;
+      bringDemandLayerToFront(map);
+      updateCounts({ demand: demandCount });
+    })
+    .catch((error) => console.warn('[Demand] Failed to load station demand:', error));
+
+  // TransMiBici bike-parking POIs (static catalog, spec §5.3) → Cerca "Bici" kind.
+  api.getTransmibici()
+    .then((res) => {
+      if (!res.success || !res.points) return;
+      nearbyBikeParkingPoints = res.points
+        .map((p, i): NearbyPoint => ({
+          codigo: `tb-${i}`,
+          name: p.nombre,
+          coordinate: [p.lon, p.lat],
+          direccion: '',
+          kind: 'transmibici',
+          hours: p.cupos != null ? `${p.cupos} cupos${p.ocupacion != null ? ` · ocupación ~${p.ocupacion}` : ''}` : undefined,
+        }))
+        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+      pushNearbyPoints();
+    })
+    .catch((error) => console.warn('[TransMiBici] Failed to load bike parking:', error));
 
   // Android hardware-back close chain (native shell only; no-op on the web).
   initNativeBack();

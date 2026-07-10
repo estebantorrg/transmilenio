@@ -14,11 +14,11 @@ export interface NearbyPoint {
   name: string;
   coordinate: [number, number];
   direccion: string;
-  kind: 'station' | 'stop' | 'recharge';
-  hours?: string; // recharge points only (weekday hours)
+  kind: 'station' | 'stop' | 'recharge' | 'transmibici';
+  hours?: string; // recharge points (weekday hours) / transmibici (capacity)
 }
 
-type KindFilter = 'all' | 'station' | 'stop' | 'recharge';
+type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici';
 type LocationResult = { longitude: number; latitude: number; source: 'gps' | 'ip' };
 
 interface CercaOptions {
@@ -146,11 +146,12 @@ const KIND_META: Record<NearbyPoint['kind'], { cls: string; label: string; fallb
   station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
   stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
   recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
+  transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
 };
 
 function nearRowHtml(point: NearbyPoint, meters: number): string {
   const meta = KIND_META[point.kind];
-  const sub = point.kind === 'recharge'
+  const sub = point.kind === 'recharge' || point.kind === 'transmibici'
     ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
     : point.direccion || meta.fallback;
   return `

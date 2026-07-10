@@ -1364,25 +1364,28 @@ function closeRouteDetail(): void {
 }
 
 export function updateCounts(counts: {
-  troncal: number;
-  zonal: number;
-  stations: number;
-  stops: number;
+  troncal?: number;
+  zonal?: number;
+  stations?: number;
+  stops?: number;
   cable?: number;
   cableStations?: number;
+  demand?: number;
 }): void {
-  document.getElementById('count-troncal')!.textContent = counts.troncal.toString();
-  document.getElementById('count-zonal')!.textContent = counts.zonal.toString();
-  document.getElementById('count-stations')!.textContent = counts.stations.toString();
-  document.getElementById('count-stops')!.textContent = counts.stops.toString();
-  const cableEl = document.getElementById('count-cable');
-  if (cableEl && counts.cable !== undefined) {
-    cableEl.textContent = counts.cable.toString();
-  }
-  const cableStationsEl = document.getElementById('count-cable-stations');
-  if (cableStationsEl && counts.cableStations !== undefined) {
-    cableStationsEl.textContent = counts.cableStations.toString();
-  }
+  // Every field is optional so partial updates (e.g. a late-loading layer) only
+  // touch their own badge and never clobber the others.
+  const setCount = (id: string, value: number | undefined): void => {
+    if (value === undefined) return;
+    const el = document.getElementById(id);
+    if (el) el.textContent = value.toString();
+  };
+  setCount('count-troncal', counts.troncal);
+  setCount('count-zonal', counts.zonal);
+  setCount('count-stations', counts.stations);
+  setCount('count-stops', counts.stops);
+  setCount('count-cable', counts.cable);
+  setCount('count-cable-stations', counts.cableStations);
+  setCount('count-demand', counts.demand);
 }
 
 export function selectRouteByCode(code: string): boolean {

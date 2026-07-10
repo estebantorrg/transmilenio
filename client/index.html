@@ -157,6 +157,14 @@
           </div>
           <span class="toggle-count" id="count-cable-stations">—</span>
         </label>
+        <label class="toggle-item" id="toggle-demand" title="Demanda por estación (validaciones/día)">
+          <input type="checkbox" data-layer="demand" />
+          <span class="toggle-check check-demand"></span>
+          <div class="toggle-text">
+            <div class="toggle-label">Demanda</div>
+          </div>
+          <span class="toggle-count" id="count-demand">—</span>
+        </label>
         </div>
       </div>
 
@@ -294,6 +302,7 @@
         <button class="cerca-chip" type="button" data-kind="station" role="tab" aria-selected="false">Estaciones</button>
         <button class="cerca-chip" type="button" data-kind="stop" role="tab" aria-selected="false">Paraderos</button>
         <button class="cerca-chip" type="button" data-kind="recharge" role="tab" aria-selected="false">Recargas</button>
+        <button class="cerca-chip" type="button" data-kind="transmibici" role="tab" aria-selected="false">Bici</button>
       </div>
 
       <div id="cerca-status" class="cerca-status" role="status" aria-live="polite"></div>
