@@ -15,7 +15,7 @@ import { isLiveBridgeAvailable } from '@shared/services/liveBridge';
 import { nativeJsonRequest } from '@shared/services/nativeLive';
 import type { MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
-import { bus, setRoutes, state, type HealthInfo, type StationRecord } from './state';
+import { bus, setRoutes, state, type DemandRecord, type HealthInfo, type StationRecord } from './state';
 import { idbGet, idbSet } from './lib/cache';
 
 const CATALOG_KEY = 'catalog:v1';
@@ -320,6 +320,44 @@ export async function loadBackground(): Promise<void> {
       bus.emit('stops:ready', undefined);
     })
     .catch((err) => console.warn('[data] recharge points load failed:', err));
+
+  // TransMiBici bike-parking POIs (static catalog, spec §5.5.1) → Cerca "Bici" kind.
+  api.getTransmibici()
+    .then((res) => {
+      if (!res.success || !res.points) return;
+      state.bikeParkings = res.points
+        .map((p, i): StationRecord => ({
+          code: `tb-${i}`,
+          name: p.nombre,
+          direccion: '',
+          coordinate: [p.lon, p.lat],
+          wagonCount: 0,
+          kind: 'transmibici',
+          hours: p.cupos != null ? `${p.cupos} cupos${p.ocupacion != null ? ` · ocupación ~${p.ocupacion}` : ''}` : undefined,
+        }))
+        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+      bus.emit('stops:ready', undefined);
+    })
+    .catch((err) => console.warn('[data] transmibici load failed:', err));
+
+  // Station-demand overlay data (open Salidas dataset, spec §5.5.1) → Mapa
+  // "Demanda" filter. Small committed payload; loads once in the background.
+  api.getStationDemand()
+    .then((res) => {
+      if (!res.success || !res.stations?.length) return;
+      state.demand = res.stations
+        .map((s): DemandRecord => ({
+          name: s.nombre,
+          coordinate: [s.lon, s.lat],
+          entradas: s.entradas,
+          salidas: s.salidas,
+          total: s.total,
+          rank: s.rank,
+        }))
+        .filter((d) => Number.isFinite(d.coordinate[0]) && Number.isFinite(d.coordinate[1]));
+      bus.emit('demand:ready', undefined);
+    })
+    .catch((err) => console.warn('[data] station demand load failed:', err));
 }
 
 /** Poll `/api/health` and derive whether live tracking can reach the CO API. */

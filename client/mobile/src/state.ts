@@ -9,8 +9,18 @@ export interface StationRecord {
   direccion: string;
   coordinate: [number, number];
   wagonCount: number;
-  kind: 'station' | 'stop' | 'recharge';
-  hours?: string; // recharge points only (weekday hours)
+  kind: 'station' | 'stop' | 'recharge' | 'transmibici';
+  hours?: string; // recharge (weekday hours) / transmibici (capacity · occupancy)
+}
+
+/** Per-station mean weekday footfall (open Salidas dataset, spec §5.8). */
+export interface DemandRecord {
+  name: string;
+  coordinate: [number, number];
+  entradas: number;
+  salidas: number;
+  total: number;
+  rank: number;
 }
 
 export interface HealthInfo {
@@ -27,6 +37,7 @@ export type TabId = 'inicio' | 'rutas' | 'mapa' | 'cerca' | 'saldo';
 type Events = {
   'routes:ready': void;
   'stops:ready': void;
+  'demand:ready': void;
   'health': HealthInfo;
   'tab': TabId;
   'route:open': RouteListItem;
@@ -63,6 +74,8 @@ interface AppState {
   stations: StationRecord[];
   zonalStops: StationRecord[];
   rechargePoints: StationRecord[];
+  bikeParkings: StationRecord[];
+  demand: DemandRecord[];
   /** SITP numeric zones (1–13) each route touches, keyed by variant-base code (from the ArcGIS zonal-routes feed). */
   zonalAreas: Map<string, number[]>;
   /** Sorted list of SITP zone numbers actually present in the network. */
@@ -82,6 +95,8 @@ export const state: AppState = {
   stations: [],
   zonalStops: [],
   rechargePoints: [],
+  bikeParkings: [],
+  demand: [],
   zonalAreas: new Map(),
   zones: [],
   zoneLabels: new Map(),
@@ -101,7 +116,7 @@ export function getRoute(id: string): RouteListItem | undefined {
   return state.routeById.get(id);
 }
 
-/** All station + zonal-stop + recharge records combined (for search / nearby). */
+/** All station + zonal-stop + recharge + bike-parking records combined (for search / nearby). */
 export function allPoints(): StationRecord[] {
-  return state.stations.concat(state.zonalStops, state.rechargePoints);
+  return state.stations.concat(state.zonalStops, state.rechargePoints, state.bikeParkings);
 }

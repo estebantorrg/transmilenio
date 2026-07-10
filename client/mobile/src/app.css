@@ -336,6 +336,7 @@ input { font-family: inherit; }
 .near-dot.is-station { background: var(--station); box-shadow: 0 0 0 3px rgba(251, 44, 23, 0.18); }
 .near-dot.is-stop { background: var(--paradero); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16); }
 .near-dot.is-recharge { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
+.near-dot.is-transmibici { background: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
 .near-mid { flex: 1; min-width: 0; }
 .near-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .near-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -343,6 +344,7 @@ input { font-family: inherit; }
 .near-kind.is-station { color: var(--red-2); background: rgba(251, 44, 23, 0.14); }
 .near-kind.is-stop { color: var(--paradero); background: rgba(59, 130, 246, 0.14); }
 .near-kind.is-recharge { color: #86efac; background: rgba(34, 197, 94, 0.14); }
+.near-kind.is-transmibici { color: #7dd3fc; background: rgba(56, 189, 248, 0.14); }
 
 /* Real-time arrivals (spec §5.8) */
 .arr-body { display: flex; flex-direction: column; gap: 4px; }
@@ -402,6 +404,7 @@ input { font-family: inherit; }
 .mf-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
 .mf-stations { background: var(--station); }
 .mf-paraderos { background: var(--paradero); }
+.mf-demand { background: #ef4444; }
 .mf-label { font-size: 13.5px; }
 
 .map-route-banner { position: absolute; left: 12px; right: 12px; bottom: 20px; z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
@@ -428,6 +431,8 @@ input { font-family: inherit; }
 .pl-opt-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .pl-opt-dot.station { background: var(--station); }
 .pl-opt-dot.stop { background: var(--paradero); }
+.pl-opt-dot.recharge { background: #22c55e; }
+.pl-opt-dot.transmibici { background: #38bdf8; }
 .pl-opt-name { font-size: 13.5px; font-weight: 550; }
 .pl-opt-sub { font-size: 11.5px; color: var(--muted-2); }
 .pl-options { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }

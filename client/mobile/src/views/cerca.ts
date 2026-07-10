@@ -9,12 +9,13 @@ import { openStationSheet } from '../ui/detailSheets';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
-type KindFilter = 'all' | 'station' | 'stop' | 'recharge';
+type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici';
 
 const KIND_META: Record<StationRecord['kind'], { cls: string; label: string; fallback: string }> = {
   station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
   stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
   recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
+  transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
 };
 
 const BOGOTA_BOUNDS = { minLat: 4.4, maxLat: 4.85, minLng: -74.25, maxLng: -73.95 };
@@ -36,7 +37,7 @@ export function createCercaView(): View {
   let kindFilter: KindFilter = 'all';
   const chipRow = h('div', { class: 'chip-row' });
   const chipEls = new Map<KindFilter, HTMLElement>();
-  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas']] as const) {
+  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici']] as const) {
     const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
     chip.addEventListener('click', () => {
       kindFilter = id;
@@ -81,7 +82,7 @@ export function createCercaView(): View {
       h('span', { class: `near-kind ${meta.cls}`, text: meta.label }),
     ]);
     const sub =
-      point.kind === 'recharge'
+      point.kind === 'recharge' || point.kind === 'transmibici'
         ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
         : point.direccion || meta.fallback;
     const mid = h('div', { class: 'near-mid' }, [nameRow, h('div', { class: 'near-sub', text: sub })]);
@@ -93,9 +94,12 @@ export function createCercaView(): View {
     row.addEventListener('click', () => {
       haptic('light');
       app().focusPoint(point);
-      // Recharge POIs aren't stations — focus the map + toast instead of a station sheet.
+      // Recharge / bike-parking POIs aren't stations — focus the map + toast
+      // instead of a station sheet.
       if (point.kind === 'recharge') {
         toast(point.hours ? `${point.name} · Lun–Vie ${point.hours}` : point.name, 'info');
+      } else if (point.kind === 'transmibici') {
+        toast(point.hours ? `${point.name} · ${point.hours}` : point.name, 'info');
       } else {
         openStationSheet(point);
       }

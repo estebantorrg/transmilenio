@@ -13,7 +13,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
-import type { StationRecord } from '../state';
+import type { DemandRecord, StationRecord } from '../state';
 
 const BOGOTA_CENTER: [number, number] = [-74.0938, 4.6486];
 
@@ -35,13 +35,16 @@ export class MapController {
   private activeRouteId: string | null = null;
   private pendingStations: StationRecord[] | null = null;
   private pendingParaderos: StationRecord[] | null = null;
+  private pendingDemand: DemandRecord[] | null = null;
   private pendingRoute: { route: RouteListItem; onLive?: RouteLiveHandler } | null = null;
   private pendingUser: [number, number] | null = null;
   private pendingFly: { coordinate: [number, number]; zoom: number } | null = null;
   // Map-filter state (user intent). Global layers hide while a route is active.
   private stationsOn = true;
   private paraderosOn = false;
+  private demandOn = false;
   onSelectStation: (rec: StationRecord) => void = () => {};
+  onSelectDemand: (rec: DemandRecord) => void = () => {};
 
   constructor(container: HTMLElement) {
     this.map = new maplibregl.Map({
@@ -152,6 +155,37 @@ export class MapController {
       },
     });
 
+    // Station-demand heat overlay (open Salidas dataset) — graduated circles,
+    // same footfall→radius/color ramp as the website's demandLayer (spec §5.5.1).
+    // Hidden until the "Demanda" map filter enables it.
+    map.addSource('tm-demand', { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: 'tm-demand-layer',
+      type: 'circle',
+      source: 'tm-demand',
+      layout: { visibility: 'none' },
+      paint: {
+        'circle-radius': [
+          'interpolate', ['linear'], ['get', 'total'],
+          1500, 5,
+          20000, 12,
+          60000, 20,
+          135000, 30,
+        ],
+        'circle-color': [
+          'interpolate', ['linear'], ['get', 'total'],
+          1500, '#22c55e',
+          25000, '#eab308',
+          70000, '#f97316',
+          120000, '#ef4444',
+        ],
+        'circle-opacity': 0.55,
+        'circle-stroke-width': 1,
+        'circle-stroke-color': '#05070c',
+        'circle-stroke-opacity': 0.6,
+      },
+    });
+
     map.addSource('tm-user', { type: 'geojson', data: EMPTY_FC });
     map.addLayer({
       id: 'tm-user-halo',
@@ -181,7 +215,20 @@ export class MapController {
     };
     map.on('click', 'tm-stations-layer', pickHandler('station'));
     map.on('click', 'tm-paraderos-layer', pickHandler('stop'));
-    for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer']) {
+    map.on('click', 'tm-demand-layer', (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as any;
+      this.onSelectDemand({
+        name: p.name,
+        coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
+        entradas: Number(p.entradas) || 0,
+        salidas: Number(p.salidas) || 0,
+        total: Number(p.total) || 0,
+        rank: Number(p.rank) || 0,
+      });
+    });
+    for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer', 'tm-demand-layer']) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
     }
@@ -195,6 +242,10 @@ export class MapController {
     if (this.pendingParaderos) {
       this.setParaderos(this.pendingParaderos);
       this.pendingParaderos = null;
+    }
+    if (this.pendingDemand) {
+      this.setDemand(this.pendingDemand);
+      this.pendingDemand = null;
     }
     if (this.pendingUser) {
       this.setUser(this.pendingUser);
@@ -246,7 +297,23 @@ export class MapController {
     });
   }
 
-  /** Map-filter toggles (station / zonal-stop layers). Persist even under a route. */
+  setDemand(records: DemandRecord[]): void {
+    if (!this.ready) {
+      this.pendingDemand = records;
+      return;
+    }
+    const src = this.map.getSource('tm-demand') as maplibregl.GeoJSONSource | undefined;
+    src?.setData({
+      type: 'FeatureCollection',
+      features: records.map((d) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: d.coordinate },
+        properties: { name: d.name, total: d.total, entradas: d.entradas, salidas: d.salidas, rank: d.rank },
+      })),
+    });
+  }
+
+  /** Map-filter toggles (station / zonal-stop / demand layers). Persist even under a route. */
   setStationsVisible(on: boolean): void {
     this.stationsOn = on;
     this.applyBaseLayerVisibility();
@@ -257,6 +324,11 @@ export class MapController {
     this.applyBaseLayerVisibility();
   }
 
+  setDemandVisible(on: boolean): void {
+    this.demandOn = on;
+    this.applyBaseLayerVisibility();
+  }
+
   /** Whole-network layers follow the filters, but are always hidden while a route
    *  is shown so only that route's own stops remain (spec: route detail clarity). */
   private applyBaseLayerVisibility(): void {
@@ -264,9 +336,11 @@ export class MapController {
     const routeActive = this.activeRouteId !== null;
     const stations = !routeActive && this.stationsOn ? 'visible' : 'none';
     const paraderos = !routeActive && this.paraderosOn ? 'visible' : 'none';
+    const demand = !routeActive && this.demandOn ? 'visible' : 'none';
     this.map.setLayoutProperty('tm-stations-layer', 'visibility', stations);
     this.map.setLayoutProperty('tm-stations-label', 'visibility', stations);
     this.map.setLayoutProperty('tm-paraderos-layer', 'visibility', paraderos);
+    this.map.setLayoutProperty('tm-demand-layer', 'visibility', demand);
   }
 
   private setStopsVisible(visible: boolean): void {

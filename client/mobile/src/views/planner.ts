@@ -34,6 +34,14 @@ function norm(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
+/** Suggestion sub-label when a point has no address, per kind. */
+const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
+  station: 'Estación',
+  stop: 'Paradero',
+  recharge: 'Punto de recarga',
+  transmibici: 'Cicloparqueadero',
+};
+
 function searchPoints(query: string): StationRecord[] {
   const q = norm(query.trim());
   if (q.length < 2) return [];
@@ -92,7 +100,7 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
             h('span', { class: `pl-opt-dot ${p.kind}` }),
             h('div', {}, [
               h('div', { class: 'pl-opt-name', text: p.name }),
-              h('div', { class: 'pl-opt-sub', text: p.direccion || (p.kind === 'station' ? 'Estación' : 'Paradero') }),
+              h('div', { class: 'pl-opt-sub', text: p.direccion || PL_KIND_FALLBACK[p.kind] }),
             ]),
           ]);
           item.addEventListener('click', () => {

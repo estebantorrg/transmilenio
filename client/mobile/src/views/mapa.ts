@@ -30,8 +30,15 @@ export function createMapaView(): MapaView {
     if (!controller) {
       controller = new MapController(canvas);
       controller.onSelectStation = (rec) => openStationSheet(rec);
+      // Demand circles aren't stations — a compact toast fits the app's
+      // sheet/toast interaction model (no map popups on mobile).
+      controller.onSelectDemand = (d) => {
+        const nf = new Intl.NumberFormat('es-CO');
+        toast(`#${d.rank} ${d.name} · ≈${nf.format(d.total)} validaciones/día`, 'info');
+      };
       if (state.stations.length) controller.setStations(state.stations);
       if (state.zonalStops.length) controller.setParaderos(state.zonalStops);
+      if (state.demand.length) controller.setDemand(state.demand);
     }
     return controller;
   }
@@ -41,13 +48,14 @@ export function createMapaView(): MapaView {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>';
   const filterBtn = h('button', { class: 'map-fab map-filter-btn', type: 'button', 'aria-label': 'Capas del mapa', html: LAYERS_ICON });
   const filterPanel = h('div', { class: 'map-filter-panel hidden' });
-  const mkFilterRow = (key: 'stations' | 'paraderos', label: string, on: boolean) => {
+  const mkFilterRow = (key: 'stations' | 'paraderos' | 'demand', label: string, on: boolean) => {
     const cb = h('input', { type: 'checkbox' }) as HTMLInputElement;
     cb.checked = on;
     cb.addEventListener('change', () => {
       const c = ensureController();
       if (key === 'stations') c.setStationsVisible(cb.checked);
-      else c.setParaderosVisible(cb.checked);
+      else if (key === 'paraderos') c.setParaderosVisible(cb.checked);
+      else c.setDemandVisible(cb.checked);
       haptic('light');
     });
     return h('label', { class: 'map-filter-row' }, [cb, h('span', { class: `mf-dot mf-${key}` }), h('span', { class: 'mf-label', text: label })]);
@@ -55,7 +63,8 @@ export function createMapaView(): MapaView {
   filterPanel.append(
     h('div', { class: 'map-filter-title', text: 'Mostrar en el mapa' }),
     mkFilterRow('stations', 'Estaciones', true),
-    mkFilterRow('paraderos', 'Paraderos zonales', false)
+    mkFilterRow('paraderos', 'Paraderos zonales', false),
+    mkFilterRow('demand', 'Demanda', false)
   );
   filterBtn.addEventListener('click', () => {
     filterPanel.classList.toggle('hidden');
@@ -132,6 +141,7 @@ export function createMapaView(): MapaView {
     controller?.setParaderos(state.zonalStops);
   });
   bus.on('stops:ready', () => controller?.setParaderos(state.zonalStops));
+  bus.on('demand:ready', () => controller?.setDemand(state.demand));
 
   return {
     el,
@@ -143,6 +153,7 @@ export function createMapaView(): MapaView {
       c.resize();
       if (state.stations.length) c.setStations(state.stations);
       if (state.zonalStops.length) c.setParaderos(state.zonalStops);
+      if (state.demand.length) c.setDemand(state.demand);
       requestAnimationFrame(() => c.resize());
     },
   };
