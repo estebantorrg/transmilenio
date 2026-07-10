@@ -62,15 +62,16 @@ export async function syncRechargePoints(): Promise<number> {
   return points.length;
 }
 
-// Run directly (not when imported).
+// Run directly (not when imported). Sets `exitCode` instead of calling
+// `process.exit()` — a hard exit races libuv handle teardown on Windows
+// (assertion in async.c) while the undici pool is still closing.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   syncRechargePoints()
     .then((n) => {
       console.log(`[sync:recarga] Wrote ${n} recharge points to ${OUT}`);
-      process.exit(0);
     })
     .catch((err) => {
       console.error('[sync:recarga] Failed:', err?.message || err);
-      process.exit(1);
+      process.exitCode = 1;
     });
 }
