@@ -13,6 +13,28 @@ import { bus, state, type StationRecord } from '../state';
 import { openSheet } from './sheet';
 import { ICONS, liveChip, routeBadge, routeTypeLabel } from './components';
 
+/**
+ * Detail sheets (route / station) REPLACE each other instead of stacking: the
+ * route↔station ping-pong (timeline stop → station sheet → route chip → …)
+ * used to pile sheets without bound. Non-detail sheets (planner) still stack
+ * beneath normally.
+ */
+let activeDetail: import('./sheet').SheetHandle | null = null;
+
+function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sheet').SheetHandle {
+  activeDetail?.close();
+  const onClose = options?.onClose;
+  const sheet = openSheet({
+    ...options,
+    onClose: () => {
+      if (activeDetail === sheet) activeDetail = null;
+      onClose?.();
+    },
+  });
+  activeDetail = sheet;
+  return sheet;
+}
+
 function starButton(route: RouteListItem): HTMLElement {
   const btn = h('button', { class: 'star-btn', type: 'button', 'aria-label': 'Favorito' });
   const paint = () => {
@@ -34,7 +56,7 @@ function starButton(route: RouteListItem): HTMLElement {
 export function openRouteSheet(route: RouteListItem): void {
   pushRecent(route.id);
   const accent = getRouteAccentColor(route);
-  const sheet = openSheet({ accent, full: true, onClose: () => poller.stop() });
+  const sheet = openDetailSheet({ accent, full: true, onClose: () => poller.stop() });
 
   // ── Header ──
   const header = h('div', { class: 'rd-header' });
@@ -183,7 +205,7 @@ async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
 
 export function openStationSheet(station: StationRecord): void {
   const isStation = station.kind === 'station';
-  const sheet = openSheet({ accent: isStation ? STATION_COLOR : PARADERO_COLOR });
+  const sheet = openDetailSheet({ accent: isStation ? STATION_COLOR : PARADERO_COLOR });
 
   const header = h('div', { class: 'st-header' });
   const icon = h('span', { class: `st-icon ${isStation ? 'is-station' : 'is-stop'}`, html: ICONS.route });
@@ -238,7 +260,7 @@ export function openStationSheet(station: StationRecord): void {
       chip.style.borderColor = c;
       if (needsDarkText(c)) chip.style.color = '#dfe5ee';
       chip.addEventListener('click', () => {
-        sheet.close();
+        // openRouteSheet replaces this sheet (detail sheets never stack).
         openRouteSheet(route);
       });
       grid.append(chip);
