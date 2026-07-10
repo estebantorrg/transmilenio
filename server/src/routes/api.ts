@@ -262,6 +262,53 @@ router.get('/recarga-points', async (_req: Request, res: Response) => {
   }
 });
 
+// ─── Station Demand (Salidas ridership) ───────────────────
+// Mean weekday entry/exit counts per troncal station, aggregated offline from
+// the open "Salidas" dataset and committed (spec §5.8, see `sync_demand.ts`).
+// Served read-only — no bulk download/parse on the hot path.
+
+let stationDemandCache: any | null = null;
+async function loadStationDemand(): Promise<any> {
+  if (stationDemandCache) return stationDemandCache;
+  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'station_demand.json');
+  stationDemandCache = JSON.parse(await readFile(file, 'utf8'));
+  return stationDemandCache!;
+}
+
+router.get('/station-demand', async (_req: Request, res: Response) => {
+  try {
+    const demand = await loadStationDemand();
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.json({ success: true, ...demand });
+  } catch (error) {
+    console.error('Error loading station demand:', error);
+    res.status(500).json({ success: false, error: 'Failed to load station demand' });
+  }
+});
+
+// ─── TransMiBici (bike-parking POIs) ──────────────────────
+// Secure bike-parking facilities at stations, with capacity/occupancy (spec
+// §5.3, see `sync_transmibici.ts`). Static committed catalog.
+
+let transmibiciCache: any[] | null = null;
+async function loadTransmibici(): Promise<any[]> {
+  if (transmibiciCache) return transmibiciCache;
+  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'transmibici.json');
+  transmibiciCache = JSON.parse(await readFile(file, 'utf8'));
+  return transmibiciCache!;
+}
+
+router.get('/transmibici', async (_req: Request, res: Response) => {
+  try {
+    const points = await loadTransmibici();
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.json({ success: true, count: points.length, points });
+  } catch (error) {
+    console.error('Error loading transmibici:', error);
+    res.status(500).json({ success: false, error: 'Failed to load transmibici' });
+  }
+});
+
 // ─── Cable Endpoints ──────────────────────────────────────
 
 router.get('/cable/stations', async (_req: Request, res: Response) => {

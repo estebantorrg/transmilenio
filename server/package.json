@@ -10,7 +10,9 @@
     "relay:co": "tsx src/colombia_live_relay.ts",
     "build": "tsc && node --input-type=module -e \"import fs from 'fs'; fs.cpSync('src/data', 'dist/data', { recursive: true });\"",
     "start": "node dist/index.js",
-    "sync:recarga": "tsx src/sync_recarga.ts"
+    "sync:recarga": "tsx src/sync_recarga.ts",
+    "sync:demand": "tsx src/sync_demand.ts",
+    "sync:transmibici": "tsx src/sync_transmibici.ts"
   },
   "dependencies": {
     "compression": "^1.8.1",
