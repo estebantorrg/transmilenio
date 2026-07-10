@@ -86,16 +86,20 @@ export class MapController {
       },
     });
 
+    // Active-route stops: accent fill + white stroke (same scheme as the station
+    // circles) so they read on the dark basemap at fit zoom for EVERY accent —
+    // the old dark fill + accent stroke vanished for black-accent rutas fáciles
+    // (spec §5.4.3 RF = #000000) and was near-invisible for the rest.
     map.addSource('tm-stops', { type: 'geojson', data: EMPTY_FC });
     map.addLayer({
       id: 'tm-stops-layer',
       type: 'circle',
       source: 'tm-stops',
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 3, 16, 6],
-        'circle-color': '#0b0f18',
-        'circle-stroke-color': ['get', 'color'],
-        'circle-stroke-width': 2,
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.5, 14, 5.5, 17, 8],
+        'circle-color': ['get', 'color'],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.2, 16, 2.2],
       },
     });
 
