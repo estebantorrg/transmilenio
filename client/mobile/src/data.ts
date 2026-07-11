@@ -12,16 +12,64 @@ import { isAlimentadorRoute, normalizeRouteCodeForMatch } from '@shared/utils/ro
 import { setRouteTypeIndex } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
 import { isLiveBridgeAvailable } from '@shared/services/liveBridge';
-import { nativeJsonRequest } from '@shared/services/nativeLive';
+import type {
+  BikeParking,
+  RechargePoint,
+  RechargePointsResponse,
+  StationDemandResponse,
+  TransmibiciResponse,
+} from '@shared/services/api';
 import type { MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
 import { bus, setRoutes, state, type DemandRecord, type HealthInfo, type StationRecord } from './state';
 import { idbGet, idbSet } from './lib/cache';
 
+// APK-bundled offline datasets. On a Colombian phone the app hits the official
+// government hosts directly for everything dynamic (spec §5.2.1b), but the master
+// catalog and the offline-aggregated POI/demand payloads have no single official
+// endpoint — so they ship inside the APK, generated from the committed server
+// data by `npm run bundle:mobile` (see server/src/bundle_mobile_data.ts). `?url`
+// keeps the heavy catalog out of the JS bundle; Capacitor serves it locally.
+import catalogAssetUrl from './generated/catalog.light.json?url';
+import recargaAssetUrl from './generated/recarga_points.json?url';
+import transmibiciAssetUrl from './generated/transmibici.json?url';
+import demandAssetUrl from './generated/station_demand.json?url';
+
 const CATALOG_KEY = 'catalog:v1';
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
 const LIVE_RELAY_URL = String(import.meta.env.VITE_LIVE_RELAY_URL || '');
+
+/** Fetch a bundled JSON asset from the local APK origin (no network). */
+async function loadBundledJson<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`bundled asset ${url} → ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+/** Catalog: bundled asset in the app, our API on the website. */
+function fetchCatalogResponse(): Promise<MasterCatalogResponse> {
+  return state.native ? loadBundledJson<MasterCatalogResponse>(catalogAssetUrl) : api.getMasterCatalog();
+}
+
+// Static POI/demand datasets: bundled assets in the app (each wrapped in the same
+// `{ success, ... }` envelope its API endpoint returns), our API on the website.
+async function fetchRechargePoints(): Promise<RechargePointsResponse> {
+  if (!state.native) return api.getRechargePoints();
+  const points = await loadBundledJson<RechargePoint[]>(recargaAssetUrl);
+  return { success: true, count: points.length, points };
+}
+
+async function fetchTransmibici(): Promise<TransmibiciResponse> {
+  if (!state.native) return api.getTransmibici();
+  const points = await loadBundledJson<BikeParking[]>(transmibiciAssetUrl);
+  return { success: true, count: points.length, points };
+}
+
+async function fetchStationDemand(): Promise<StationDemandResponse> {
+  if (!state.native) return api.getStationDemand();
+  const demand = await loadBundledJson<Omit<StationDemandResponse, 'success'>>(demandAssetUrl);
+  return { success: true, ...demand };
+}
 
 function parseLatLng(coordenada: string | undefined): [number, number] | null {
   if (!coordenada || !coordenada.includes(',')) return null;
@@ -61,8 +109,13 @@ function unwrap<T>(res: PromiseSettledResult<ApiResponse<T>>): T[] {
   return res.status === 'fulfilled' && res.value.success ? res.value.features || [] : [];
 }
 
-/** Wake the (possibly cold) backend before firing heavy requests. */
+/** Non-native (browser dev) API base — the app itself hits official hosts directly. */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '');
+
+/** Wake the (possibly cold) backend before firing heavy requests. In the app the
+ *  catalog is a bundled asset and there is no backend to wake, so this is a no-op. */
 export function wakeBackend(): Promise<unknown> {
+  if (state.native) return Promise.resolve();
   return fetch(`${API_BASE}/health`).catch(() => undefined);
 }
 
@@ -95,7 +148,7 @@ async function fetchFresh(): Promise<{ payload: MasterCatalogResponse; troncalRo
   const [troncalRes, corridorsRes, catalogRes] = await Promise.allSettled([
     api.getTroncalRoutes(),
     api.getTroncalCorridors(),
-    api.getMasterCatalog(),
+    fetchCatalogResponse(),
   ]);
   if (catalogRes.status !== 'fulfilled') {
     throw new Error(catalogRes.reason instanceof Error ? catalogRes.reason.message : 'catálogo no disponible');
@@ -303,7 +356,7 @@ export async function loadBackground(): Promise<void> {
 
   // Recharge POIs (static catalog, spec §5.8) → Cerca "Recargas" kind. Independent
   // of the enrichment above, so it doesn't block the ready signal.
-  api.getRechargePoints()
+  fetchRechargePoints()
     .then((res) => {
       if (!res.success || !res.points) return;
       state.rechargePoints = res.points
@@ -322,7 +375,7 @@ export async function loadBackground(): Promise<void> {
     .catch((err) => console.warn('[data] recharge points load failed:', err));
 
   // TransMiBici bike-parking POIs (static catalog, spec §5.5.1) → Cerca "Bici" kind.
-  api.getTransmibici()
+  fetchTransmibici()
     .then((res) => {
       if (!res.success || !res.points) return;
       state.bikeParkings = res.points
@@ -342,7 +395,7 @@ export async function loadBackground(): Promise<void> {
 
   // Station-demand overlay data (open Salidas dataset, spec §5.5.1) → Mapa
   // "Demanda" filter. Small committed payload; loads once in the background.
-  api.getStationDemand()
+  fetchStationDemand()
     .then((res) => {
       if (!res.success || !res.stations?.length) return;
       state.demand = res.stations
@@ -360,20 +413,31 @@ export async function loadBackground(): Promise<void> {
     .catch((err) => console.warn('[data] station demand load failed:', err));
 }
 
-/** Poll `/api/health` and derive whether live tracking can reach the CO API. */
+/** Derive health/live-capability. In the app there is no server: the catalog is
+ *  a bundled asset and live tracking runs natively from the phone's own CO IP, so
+ *  health is computed locally. The browser-dev build still polls `/api/health`. */
 export async function fetchHealth(): Promise<void> {
   const liveCapable =
     isNativeLiveAvailable() || (await isLiveBridgeAvailable().catch(() => false)) || Boolean(LIVE_RELAY_URL);
 
+  if (state.native) {
+    const health: HealthInfo = {
+      ok: true,
+      catalogStations: Object.keys(state.catalog?.stations || {}).length,
+      catalogStale: false, // bundled with the app — refreshed on app update, not stale
+      liveTrackingVersion: 'native',
+      liveCapable,
+      reachedAt: Date.now(),
+    };
+    state.health = health;
+    bus.emit('health', health);
+    return;
+  }
+
   let payload: any = null;
   try {
-    const native = await nativeJsonRequest(`${API_BASE}/health`, undefined, 8000).catch(() => null);
-    if (native && native.data != null) {
-      payload = typeof native.data === 'string' ? JSON.parse(native.data) : native.data;
-    } else {
-      const res = await fetch(`${API_BASE}/health`);
-      payload = res.ok ? await res.json() : null;
-    }
+    const res = await fetch(`${API_BASE}/health`);
+    payload = res.ok ? await res.json() : null;
   } catch {
     payload = null;
   }

@@ -18,6 +18,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true # master_catalog.json (Git LFS) — the mobile bundle is generated from it
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -44,8 +46,9 @@ jobs:
         working-directory: mobile
         run: npm install
 
-      # Builds client/ into mobile/www against the hosted API, then copies into
-      # the Android project. API base overridable via TM_MOBILE_API_BASE.
+      # Regenerates the APK-bundled offline data from the committed server data,
+      # builds client/ into mobile/www, then copies into the Android project. The
+      # native app hits the official hosts directly (spec §5.2.1b) — no API base baked.
       - name: Build web + sync Android
         working-directory: mobile
         run: npm run sync

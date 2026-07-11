@@ -21,3 +21,7 @@ live_buses_dump.json
 # local-only reverse-engineering research (official app APK + capture
 # tooling, spec §5.5.1b/§5.8) — never committed/redistributed, see research/README.md
 research/
+
+# mobile offline bundle — derived from committed server data by
+# `npm run bundle:mobile` (server); regenerated on every `mobile` build:web (spec §5.2.1b)
+client/mobile/src/generated/

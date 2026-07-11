@@ -7,6 +7,7 @@ import type {
 import type { MasterCatalogResponse } from '../types/catalog';
 import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
+import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../utils/liveBus';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
@@ -200,23 +201,41 @@ async function postLiveRelayDirect(payload: unknown): Promise<any> {
 }
 
 export const api = {
+  // Inside the Android app the data-layer requests hit the official government /
+  // public hosts DIRECTLY via native HTTP (spec §5.2.1b) — no web server in the
+  // path. The browser client keeps calling our `/api/*` backend. Each method
+  // below routes on `isNativeLiveAvailable()`; the two clients share this one
+  // module so they never drift (spec §1.1 R2). ArcGIS/arrivals/card/walking have
+  // official-host equivalents (below); the catalog + POI/demand datasets have no
+  // single official endpoint and are read from APK-bundled assets instead
+  // (`client/mobile/src/data.ts`).
   getTroncalRoutes: () =>
-    fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes'),
+    isNativeLiveAvailable()
+      ? officialApi.getTroncalRoutes()
+      : fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes'),
 
   getTroncalStations: () =>
     fetchJson<ApiResponse<TroncalStationFeature>>('/troncal/stations'),
 
   getTroncalCorridors: () =>
-    fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
+    isNativeLiveAvailable()
+      ? officialApi.getTroncalCorridors()
+      : fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
 
   getZonalRoutes: () =>
-    fetchJson<ApiResponse<any>>('/zonal/routes'),
+    isNativeLiveAvailable()
+      ? officialApi.getZonalRoutes()
+      : fetchJson<ApiResponse<any>>('/zonal/routes'),
 
   getZonalStops: () =>
-    fetchJson<ApiResponse<any>>('/zonal/stops'),
+    isNativeLiveAvailable()
+      ? officialApi.getZonalStops()
+      : fetchJson<ApiResponse<any>>('/zonal/stops'),
 
   getZonalStopRoutes: () =>
-    fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
+    isNativeLiveAvailable()
+      ? officialApi.getZonalStopRoutes()
+      : fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
 
   getCableStations: () =>
     fetchJson<ApiResponse<any>>('/cable/stations'),
@@ -231,13 +250,15 @@ export const api = {
     fetchJson<any>(`/troncal/route/${encodeURIComponent(code)}`),
 
   readCardBalance: (numeroTarjeta: string, consultar: 'true' | 'false' = 'false') =>
-    fetchJson<CardBalanceResponse>('/card/read', 15_000, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ numero_tarjeta: numeroTarjeta, consultar }),
-    }, 0),
+    isNativeLiveAvailable()
+      ? officialApi.readCardBalance(numeroTarjeta, consultar)
+      : fetchJson<CardBalanceResponse>('/card/read', 15_000, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ numero_tarjeta: numeroTarjeta, consultar }),
+        }, 0),
 
   /**
    * Resolve live buses through the tiered cascade, always returning a structured
@@ -322,12 +343,14 @@ export const api = {
     fetchJson<any>(`/geocode?q=${encodeURIComponent(q)}`, 8_000, undefined, 1),
 
   getWalkingRoute: (from: [number, number], to: [number, number]) =>
-    fetchJson<WalkingRouteResponse>(
-      `/walking-route?from=${encodeURIComponent(from.join(','))}&to=${encodeURIComponent(to.join(','))}`,
-      10_000,
-      undefined,
-      1
-    ),
+    isNativeLiveAvailable()
+      ? officialApi.getWalkingRoute(from, to)
+      : fetchJson<WalkingRouteResponse>(
+          `/walking-route?from=${encodeURIComponent(from.join(','))}&to=${encodeURIComponent(to.join(','))}`,
+          10_000,
+          undefined,
+          1
+        ),
 
   /** tullave recharge-point POIs (static catalog, spec §5.8). */
   getRechargePoints: () => fetchJson<RechargePointsResponse>('/recarga-points', 15_000, undefined, 1),
@@ -342,11 +365,13 @@ export const api = {
    *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
    *  0 retries — live requests must not stack (spec §3.4). */
   getArrivals: (paradero: string) =>
-    fetchJson<ArrivalsResponse>('/arrivals', 15_000, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paradero }),
-    }, 0),
+    isNativeLiveAvailable()
+      ? officialApi.getArrivals(paradero)
+      : fetchJson<ArrivalsResponse>('/arrivals', 15_000, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ paradero }),
+        }, 0),
 };
 
 export interface ArrivalItem {

@@ -15,8 +15,8 @@
 
 import { findBusPayloadArray } from '../utils/liveBus';
 
-const LIVE_HOST = 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
-const APPID = '9a2c3b48f0c24ae9bfba38e94f27c3ea';
+export const LIVE_HOST = 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
+export const APPID = '9a2c3b48f0c24ae9bfba38e94f27c3ea';
 const REQUEST_TIMEOUT_MS = 9_000;
 
 interface NativeHttpResponse {
@@ -45,6 +45,31 @@ function getNativeHttp(): NativeHttpPlugin | null {
 
 export function isNativeLiveAvailable(): boolean {
   return typeof window !== 'undefined' && getNativeHttp() !== null;
+}
+
+/**
+ * Low-level native HTTP call, exposing the CapacitorHttp plugin to the other
+ * official-host clients (`officialApi.ts`). Bodies are passed as objects and
+ * serialized by the plugin — the shape proven by {@link fetchLiveOnce}. Throws
+ * when not running inside the app; callers gate on {@link isNativeLiveAvailable}.
+ */
+export function nativeHttpRequest(options: {
+  method: string;
+  url: string;
+  headers?: Record<string, string>;
+  data?: unknown;
+  timeoutMs: number;
+}): Promise<NativeHttpResponse> {
+  const http = getNativeHttp();
+  if (!http) throw new Error('Native HTTP unavailable (not running inside the app)');
+  return http.request({
+    method: options.method,
+    url: options.url,
+    headers: options.headers,
+    data: options.data,
+    connectTimeout: options.timeoutMs,
+    readTimeout: options.timeoutMs,
+  });
 }
 
 /**

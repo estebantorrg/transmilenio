@@ -35,7 +35,7 @@ These rules govern every change. Violations block merge.
 | **Backend API** | Node.js + Express + TypeScript (compiled to ESModule) |
 | **Data Sync / Exec** | tsx (TypeScript Execute) + PowerShell scripts |
 | **Data / Cache** | Local JSON (`master_catalog.json`) + In-memory TTL caches |
-| **Mobile Shell** | Capacitor 6 (Android, `mobile/`) bundling the same Vite client; native HTTP for live + API (§5.2.1b) |
+| **Mobile Shell** | Capacitor 6 (Android, `mobile/`) bundling a dedicated app UI; native HTTP **direct to the official TransMi / public hosts** for all data, catalog + POI bundled in the APK — no web server of ours in the path (§5.2.1b) |
 
 ### 2.2 System Flow
 
@@ -153,10 +153,10 @@ x-relay-secret: <secret>
 
 #### 5.2.1b Native Android App (`mobile/`)
 * Capacitor 6 shell bundling a **dedicated app UI** ("TransMi Go", `client/mobile/`) — a ground-up bottom-tab front-end that must look nothing like the website but reuses ONLY the website's data/service layer via the `@shared` alias (→ `client/src`), so the two clients never drift (spec §1.1 R2). Built by `client`'s `build:mobile`/`dev:mobile` scripts (Vite `--config mobile/vite.config.ts`); `mobile/scripts/build-web.mjs` runs `build:mobile` → `mobile/www` (website `client/dist` untouched). Runtime-only Capacitor detection (`window.Capacitor`), so the web build gains no dependency.
-* **Catalog cache**: the app persists the master-catalog response in IndexedDB (`client/mobile/src/lib/cache.ts`) and boots stale-while-revalidate — a returning user paints instantly from cache while a fresh copy is fetched and re-applied only when it changed. The catalog is the sole critical payload (spec §4.2); ArcGIS/live layers still degrade independently.
-* **Live tier 0**: on-device native HTTP (`CapacitorHttp`) calls the live host directly — native requests are exempt from browser CORS and egress from the phone's own IP, so any user on a Colombian connection satisfies both §5.2.1 constraints with zero server involvement. Runs the same troncal name-candidate loop as the extension worker. Outside CO the geofence rejects it and the chain falls through to the web tiers unchanged.
-* **API transport**: all other `/api/*` calls (catalog, ArcGIS, card, geocode) also go through native HTTP against the hosted server (`VITE_API_BASE_URL`, baked at build; default `https://transmilenio.onrender.com/api`, override `TM_MOBILE_API_BASE`) — webview CORS never applies, so `CLIENT_ORIGINS` needs no app entry.
-* **Service worker**: not registered inside the app (main-entry guard) — assets ship in the APK, and the IndexedDB catalog cache above replaces any need for SW caching (which would only risk stale catalogs).
+* **No server of ours in the path** — the app is a native peer of the official TransMi app, not a client of our website. It talks to the official government / public hosts **directly** via native HTTP (`CapacitorHttp`, exempt from webview CORS, egressing from the phone's own Colombian IP), and reads the two payloads with no single official endpoint from **APK-bundled assets**. This is the mobile exception to §2.3 (the browser client still calls `/api/*`); `CLIENT_ORIGINS` needs no app entry because the app never calls our server. The switch is one branch in the shared `api.ts` (`isNativeLiveAvailable()` → `client/src/services/officialApi.ts`), so the two clients stay in sync (spec §1.1 R2).
+* **Bundled offline data**: the master catalog and the offline-aggregated POI/demand datasets (recharge points §5.5.1, TransMiBici §5.3, station-demand §5.8) have no single official endpoint, so they ship **inside the APK** — generated from the committed server data by `npm run bundle:mobile` (`server/src/bundle_mobile_data.ts` → `client/mobile/src/generated/`, regenerated on every `mobile` build:web, gitignored). `data.ts` reads them from local assets (`?url`, served by Capacitor with no network), so boot is instant and fully offline; they refresh only on app update. The catalog uses the exact `getCatalogLight()` transform the API serves, so the two clients never drift (spec §1.1 R2).
+* **Direct hosts** (native, gated by `isNativeLiveAvailable()` in `api.ts` → `officialApi.ts`): **ArcGIS** troncal/zonal layers → `gis.transmilenio.gov.co` (§5.3, same pagination as the server); **live tier 0** troncal/zonal buses → the live host (`CapacitorHttp`, same name-candidate loop as the extension worker); **arrivals** → `POST /paradero/buses`; **card ledger** → `POST /lectura_tarjeta` (§5.5.1a — the phone's CO IP satisfies the geofence natively, no proxy); **walking geometry** → public OSRM foot (§5.6). Outside CO the geofence rejects the live/card calls and they degrade exactly as the web tiers do.
+* **Service worker**: not registered inside the app (main-entry guard) — assets ship in the APK, and the bundled catalog above replaces any need for SW caching (which would only risk stale catalogs).
 * **Permissions**: `INTERNET`, `ACCESS_COARSE_LOCATION`/`ACCESS_FINE_LOCATION` (webview geolocation for "mi ubicación").
 
 #### 5.2.2 Relay Setup
@@ -251,7 +251,7 @@ The zonal-routes layer assigns every zonal route to **numeric SITP zones** (1–
 ### 5.5 Backend API Contract & Local Dev Configuration
 
 #### 5.5.1 API Endpoints
-All mounted on `/api`:
+All mounted on `/api`. These serve the **browser client**; the native app does not call them — it hits the official hosts directly and reads the catalog/POIs from bundled assets (§5.2.1b).
 * `GET /api/health`: Exposes catalog status (`catalogStale`, `syncInProgress`, `catalogStations`), ArcGIS + live cache entry counts (`cacheEntries`, `liveCacheEntries`), `liveTrackingVersion`, uptime, and — when the public-proxy fallback is enabled — `proxyPool` stats (§5.2.5).
 * `GET /api/debug-buses`: Test payload endpoint (tests route `1` / `Universidades`).
 * `GET /api/geoip`: Approximate client location from IP (fallback when native geolocation is blocked; zero PII stored — §3.3).
