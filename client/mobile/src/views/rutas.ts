@@ -122,7 +122,21 @@ export function createRutasView(): View {
       if (!q) return true;
       return norm(`${r.code} ${r.name} ${r.origin} ${r.destination}`).includes(q);
     });
-    matched.sort((a, b) => a.code.localeCompare(b.code, 'es', { numeric: true }));
+    // Under a search, exact/prefix code hits outrank text matches (e.g. "7"
+    // surfaces ruta 7 before 7-1 and before names containing a 7).
+    const rank = (r: RouteListItem): number => {
+      const code = norm(r.code);
+      if (code === q) return 0;
+      if (code.startsWith(q)) return 1;
+      return 2;
+    };
+    matched.sort((a, b) => {
+      if (q) {
+        const byRank = rank(a) - rank(b);
+        if (byRank !== 0) return byRank;
+      }
+      return a.code.localeCompare(b.code, 'es', { numeric: true });
+    });
 
     list.replaceChildren();
     const shown = matched.slice(0, RENDER_CAP);
