@@ -6,7 +6,7 @@ name: Deploy relay function
 # push touching the function bundle, or manually via the Actions tab.
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   OCI_PRIVATE_KEY   — PEM private key for the transmi-ci user (multi-line)
+#   OCI_PRIVATE_KEY_B64 — base64 of the PEM private key for the transmi-ci user
 #   OCI_USER_OCID     — OCID of the transmi-ci user
 #   OCI_FINGERPRINT   — API key fingerprint for that key
 #   OCI_TENANCY_OCID  — tenancy OCID (also the root compartment)
@@ -40,13 +40,14 @@ jobs:
 
       - name: Write OCI config
         env:
-          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_PRIVATE_KEY_B64: ${{ secrets.OCI_PRIVATE_KEY_B64 }}
           OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
           OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
         run: |
           mkdir -p ~/.oci
-          printf '%s\n' "$OCI_PRIVATE_KEY" > ~/.oci/key.pem
+          # Key is stored base64-encoded so the multi-line PEM survives paste intact.
+          printf '%s' "$OCI_PRIVATE_KEY_B64" | base64 -d > ~/.oci/key.pem
           chmod 600 ~/.oci/key.pem
           cat > ~/.oci/config <<EOF
           [DEFAULT]
