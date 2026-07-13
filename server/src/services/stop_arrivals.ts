@@ -70,9 +70,11 @@ const ROUTE_BUDGET_MS = 8_500;
 // PARTIAL result, never a transport error). Remaining routes resolve on the
 // next open (12 s result cache) rather than failing the popup.
 const OVERALL_BUDGET_MS = 12_000;
-// Cache computed arrivals briefly so re-opening a popup (or a second client)
-// doesn't re-run the whole live fan-out; well under the 15 s poll window.
-const RESULT_CACHE_TTL_MS = 12_000;
+// Cache computed arrivals so re-opening a popup (or a second client) is instant
+// instead of re-running the whole ~9 s live fan-out. ETAs drift only slightly
+// over this window (they're shown in whole minutes), so a modestly long TTL is
+// the right trade for responsiveness.
+const RESULT_CACHE_TTL_MS = 30_000;
 
 const DEG2RAD = Math.PI / 180;
 const EARTH_R = 6_371_000;
