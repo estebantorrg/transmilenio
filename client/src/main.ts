@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
@@ -26,7 +26,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints } from './ui/sidebar';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor } from './utils/routeColors';
@@ -169,7 +169,10 @@ let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
 let nearbyBikeParkingPoints: NearbyPoint[] = [];
 function pushNearbyPoints(): void {
-  setNearbyPoints([...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints, ...nearbyBikeParkingPoints]);
+  const union = [...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints, ...nearbyBikeParkingPoints];
+  setNearbyPoints(union);
+  // Same universe feeds the Explore search's station/paradero hits (§1.1 R2).
+  setSearchPoints(union);
 }
 
 /**
@@ -569,16 +572,16 @@ async function main(): Promise<void> {
     stationCount = stations.length;
 
     // Seed the Cerca point universe with troncal estaciones (zonal paraderos
-    // are appended once the background load resolves them).
-    nearbyStationPoints = stations
-      .map((s): NearbyPoint => ({
-        codigo: String(s.attributes?.numero_estacion ?? ''),
-        name: s.attributes?.nombre_estacion || 'Estación',
-        coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
-        direccion: s.attributes?.ubicacion_estacion || '',
-        kind: 'station',
-      }))
-      .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+    // are appended once the background load resolves them). Names come from the
+    // layer's RESOLVED points so verified splits (Av. Jiménez, Ricaurte) list
+    // under the same label the map shows, not the raw ArcGIS name.
+    nearbyStationPoints = getStationDisplayPoints().map((p): NearbyPoint => ({
+      codigo: p.codigo,
+      name: p.name,
+      coordinate: p.coordinate,
+      direccion: p.direccion,
+      kind: 'station',
+    }));
 
     // 4. Mappings and Stops (Initialize empty stops layer first, background load will update it)
     updateProgress(98, 'Renderizando rutas zonales...');
@@ -622,6 +625,22 @@ async function main(): Promise<void> {
     },
     { troncal: 0, zonal: 0 }
   );
+
+  // Shared point-focus flow: fly to the point and open its popup. Used by the
+  // Cerca rows and the Explore search's station/paradero hits (spec §1.1 R2).
+  const focusNearbyPoint = (point: NearbyPoint): void => {
+    map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
+    if (point.kind === 'recharge') {
+      showRechargePopup(map, point);
+    } else if (point.kind === 'transmibici') {
+      showBikeParkingPopup(map, point);
+    } else if (point.kind === 'station') {
+      const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
+      if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
+    } else {
+      showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
+    }
+  };
 
   initSidebar({
     onRouteSelect: async (route: RouteListItem) => {
@@ -708,6 +727,7 @@ async function main(): Promise<void> {
         }
       }
     },
+    onPointSelect: focusNearbyPoint,
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
         case 'troncal':
@@ -790,19 +810,7 @@ async function main(): Promise<void> {
   initCerca({
     resolveLocation: () => resolveUserLocation(),
     onLocated: (lng, lat, source) => placeUserMarker(map, lng, lat, source === 'gps', false),
-    onSelect: (point) => {
-      map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
-      if (point.kind === 'recharge') {
-        showRechargePopup(map, point);
-      } else if (point.kind === 'transmibici') {
-        showBikeParkingPopup(map, point);
-      } else if (point.kind === 'station') {
-        const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
-        if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
-      } else {
-        showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
-      }
-    },
+    onSelect: focusNearbyPoint,
   });
   pushNearbyPoints();
 

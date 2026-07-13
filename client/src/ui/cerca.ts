@@ -149,11 +149,21 @@ const KIND_META: Record<NearbyPoint['kind'], { cls: string; label: string; fallb
   transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
 };
 
-function nearRowHtml(point: NearbyPoint, meters: number): string {
+/** Shared row renderer for a nearby/searchable point. `meters` is optional so
+ *  the sidebar's station search (no user fix required) reuses the same row
+ *  without a distance column (spec §1.1 R2 — no duplicated markup). */
+export function nearRowHtml(point: NearbyPoint, meters?: number): string {
   const meta = KIND_META[point.kind];
   const sub = point.kind === 'recharge' || point.kind === 'transmibici'
     ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
     : point.direccion || meta.fallback;
+  const right = typeof meters === 'number' && Number.isFinite(meters)
+    ? `
+      <div class="near-right">
+        <div class="near-dist">${escapeHTML(formatDistance(meters))}</div>
+        <div class="near-walk">${walkMinutes(meters)} min</div>
+      </div>`
+    : '';
   return `
     <button class="near-row" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}">
       <span class="near-dot ${meta.cls}"></span>
@@ -164,9 +174,6 @@ function nearRowHtml(point: NearbyPoint, meters: number): string {
         </div>
         <div class="near-sub">${escapeHTML(sub)}</div>
       </div>
-      <div class="near-right">
-        <div class="near-dist">${escapeHTML(formatDistance(meters))}</div>
-        <div class="near-walk">${walkMinutes(meters)} min</div>
-      </div>
+      ${right}
     </button>`;
 }

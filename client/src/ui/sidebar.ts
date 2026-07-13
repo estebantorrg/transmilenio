@@ -8,6 +8,7 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, isAlimentadorRoute, isRutaFacilCode } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
+import { nearRowHtml, type NearbyPoint } from './cerca';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
  *  honest API outcomes. Mirrors `TrackingStatus` in `layers/buses.ts`. */
@@ -51,6 +52,16 @@ let onRouteSelect: ((route: RouteListItem) => void) | null = null;
 let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
+let onPointSelect: ((point: NearbyPoint) => void) | null = null;
+
+// Station/paradero universe searched alongside routes (fed by main.ts from the
+// same list the Cerca tab uses, so the two never drift — spec §1.1 R2).
+let searchPoints: NearbyPoint[] = [];
+
+export function setSearchPoints(points: NearbyPoint[]): void {
+  searchPoints = points.filter((p) => p.kind === 'station' || p.kind === 'stop');
+  if (searchQuery) applyFilters();
+}
 
 type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador' | 'facil';
 let currentFilter: RouteFilter = 'all';
@@ -579,11 +590,13 @@ export function initSidebar(options: {
   onRouteDeselect: () => void;
   onLayerToggle: (layer: string, visible: boolean) => void;
   onStopSelect?: (stop: any, routeType: 'troncal' | 'zonal') => void;
+  onPointSelect?: (point: NearbyPoint) => void;
 }): void {
   onRouteSelect = options.onRouteSelect;
   onRouteDeselect = options.onRouteDeselect;
   onLayerToggle = options.onLayerToggle;
   onStopSelect = options.onStopSelect || null;
+  onPointSelect = options.onPointSelect || null;
 
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
@@ -950,11 +963,83 @@ function searchRank(route: RouteListItem, q: string): number {
   return 2;
 }
 
+// Stations/paraderos matching the active search, shown above the route hits so
+// "busca … estaciones" (the search placeholder) is actually true.
+const pointHaystacks = new WeakMap<NearbyPoint, { name: string; extra: string }>();
+function pointHaystack(point: NearbyPoint): { name: string; extra: string } {
+  let hay = pointHaystacks.get(point);
+  if (!hay) {
+    hay = {
+      name: normalizeSearchText(point.name),
+      extra: normalizeSearchText(`${point.codigo} ${point.direccion}`),
+    };
+    pointHaystacks.set(point, hay);
+  }
+  return hay;
+}
+
+const SEARCH_POINT_LIMIT = 6;
+
+function matchingSearchPoints(): NearbyPoint[] {
+  const q = normalizeSearchText(searchQuery);
+  // Single-char queries would match half the network — noise, not results.
+  if (q.length < 2) return [];
+  const scored: { p: NearbyPoint; s: number }[] = [];
+  for (const p of searchPoints) {
+    const hay = pointHaystack(p);
+    let s: number;
+    if (hay.name.startsWith(q)) s = 0;
+    else if (hay.name.includes(q)) s = 1;
+    else if (hay.extra.includes(q)) s = 2;
+    else continue;
+    // Estaciones outrank paraderos at equal text relevance.
+    if (p.kind === 'stop') s += 0.5;
+    scored.push({ p, s });
+  }
+  scored.sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
+  // Same-named paraderos (opposite platforms, repeated barrio stops) would fill
+  // every slot with one name. Without a user fix there is no distance to break
+  // the tie, so cap each kind+name at two rows (the address sub-line still
+  // distinguishes those two); the full set remains reachable via Cerca.
+  const perName = new Map<string, number>();
+  const out: NearbyPoint[] = [];
+  for (const { p } of scored) {
+    const key = `${p.kind}|${pointHaystack(p).name}`;
+    const count = perName.get(key) ?? 0;
+    if (count >= 2) continue;
+    perName.set(key, count + 1);
+    out.push(p);
+    if (out.length === SEARCH_POINT_LIMIT) break;
+  }
+  return out;
+}
+
 function renderRouteList(routes: RouteListItem[]): void {
   const container = document.getElementById('route-list')!;
   const countEl = document.getElementById('route-list-count')!;
 
   countEl.textContent = `${routes.length}`;
+
+  // Station/paradero hits render above the routes while searching (never under
+  // the fav/recent views, which are route collections by definition).
+  const pointMatches =
+    searchQuery && currentFilter !== 'fav' && currentFilter !== 'recent' ? matchingSearchPoints() : [];
+  const pointsHtml = pointMatches.length
+    ? `
+      <div class="search-points">
+        <div class="search-points-title">Estaciones y paraderos</div>
+        ${pointMatches.map((p) => nearRowHtml(p)).join('')}
+        ${routes.length > 0 ? '<div class="search-points-title">Rutas</div>' : ''}
+      </div>`
+    : '';
+  const wirePointClicks = (): void => {
+    container.querySelectorAll<HTMLButtonElement>('.search-points .near-row').forEach((row) => {
+      row.addEventListener('click', () => {
+        const point = pointMatches.find((p) => p.kind === row.dataset.kind && p.codigo === row.dataset.code);
+        if (point) onPointSelect?.(point);
+      });
+    });
+  };
 
   if (routes.length === 0) {
     const empty =
@@ -963,18 +1048,19 @@ function renderRouteList(routes: RouteListItem[]): void {
         : currentFilter === 'recent'
         ? { title: 'Sin recientes', text: 'Las rutas que abras aparecerán aquí.' }
         : { title: 'Sin rutas', text: 'Prueba con otro código, estación o destino.' };
-    container.innerHTML = `
+    container.innerHTML = pointsHtml || `
       <div class="empty-state">
         <div class="empty-state-title">${empty.title}</div>
         <div class="empty-state-text">${empty.text}</div>
       </div>
     `;
+    wirePointClicks();
     return;
   }
 
   const visible = routes.slice(0, 200);
 
-  container.innerHTML = visible
+  container.innerHTML = pointsHtml + visible
     .map((route) => {
       const badgeColor = safeColor(getRouteAccentColor(route));
       const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
@@ -1057,6 +1143,8 @@ function renderRouteList(routes: RouteListItem[]): void {
       if (!isFav && currentFilter === 'fav') applyFilters();
     });
   });
+
+  wirePointClicks();
 }
 
 // Element focus returns here when the route detail closes (keyboard a11y).

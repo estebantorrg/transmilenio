@@ -228,6 +228,23 @@ function showStationPopup(
 
 // ─── Layer Setup ────────────────────────────────────────
 
+/** One entry per rendered station, carrying the RESOLVED display name (verified
+ *  splits included) so list UIs (Cerca, search) match the map labels instead of
+ *  echoing raw ArcGIS names — e.g. both Av. Jiménez platforms arrive named
+ *  "Temporal AV. Jiménez - Inter Eléctricas" upstream. Filled by addStationsLayer. */
+export interface StationDisplayPoint {
+  codigo: string;
+  name: string;
+  coordinate: [number, number];
+  direccion: string;
+}
+
+let stationDisplayPoints: StationDisplayPoint[] = [];
+
+export function getStationDisplayPoints(): StationDisplayPoint[] {
+  return stationDisplayPoints;
+}
+
 export function addStationsLayer(
   map: maplibregl.Map,
   stations: TroncalStationFeature[]
@@ -271,6 +288,15 @@ export function addStationsLayer(
       };
     }),
   };
+
+  stationDisplayPoints = geojson.features
+    .map((f) => ({
+      codigo: String((f.properties as any)?.stationCode ?? ''),
+      name: String((f.properties as any)?.name ?? ''),
+      coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
+      direccion: String((f.properties as any)?.location ?? ''),
+    }))
+    .filter((p) => p.name && Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
 
   map.addSource('stations', { type: 'geojson', data: geojson });
 
