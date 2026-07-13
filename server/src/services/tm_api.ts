@@ -12,6 +12,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { promisify } from 'util';
+import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1563,7 +1564,20 @@ export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
       }
     }
 
-    // 2. Public Colombian proxy (opt-in prod fallback, §5.2.5).
+    // 2. Colombia relay (OCI Function, Bogotá egress) — reliable CO path.
+    if (isColombiaRelayConfigured()) {
+      try {
+        const { upstreamStatus, payload } = await relayForward('/paradero/buses', { paradero: cenefa }, ARRIVALS_TIMEOUT_MS, overall.signal);
+        if (upstreamStatus === 200) {
+          return { arrivals: normalizeArrivalsPayload(payload), source: 'co-relay' };
+        }
+        console.warn(`[TM API] arrivals CO relay upstream status ${upstreamStatus}`);
+      } catch (error) {
+        console.warn('[TM API] arrivals CO relay failed:', (error as any)?.message || error);
+      }
+    }
+
+    // 3. Public Colombian proxy (opt-in prod fallback, §5.2.5).
     if (allowPublicColombianProxyFallback()) {
       const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
       if ((await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS)) > 0) {

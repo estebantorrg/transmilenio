@@ -1,5 +1,6 @@
 import https from 'https';
 import zlib from 'zlib';
+import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 
 const CARD_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const CARD_API_PATH = '/lectura_tarjeta';
@@ -221,6 +222,58 @@ async function fetchCardRowsViaColombianProxy(postData: string): Promise<Record<
   }
 }
 
+/**
+ * Reads the card ledger through the Colombia relay (OCI Function, Bogotá egress).
+ * Returns the ledger rows on a 200 upstream; throws otherwise so the caller can
+ * fall through to the public proxy.
+ */
+async function fetchCardRowsViaRelay(
+  cardNumber: string,
+  consultar: 'true' | 'false'
+): Promise<Record<string, unknown>[]> {
+  const { upstreamStatus, payload } = await relayForward('/lectura_tarjeta', {
+    numero_tarjeta: cardNumber,
+    consultar,
+  });
+  if (upstreamStatus !== 200) {
+    const clientStatus = upstreamStatus === 401 || upstreamStatus === 451 ? 503 : 502;
+    throw new CardBalanceError(`Card API status ${upstreamStatus} (via CO relay)`, clientStatus, upstreamStatus);
+  }
+  return Array.isArray(payload) ? payload.filter(isRow) : [];
+}
+
+/**
+ * Geofence fallback ladder for a Colombian egress: the reliable CO relay first,
+ * then the opt-in flaky public proxy pool. Throws an informative error if neither
+ * is available/works.
+ */
+async function fetchCardRowsViaColombianEgress(
+  cardNumber: string,
+  consultar: 'true' | 'false',
+  postData: string,
+  geofenceUpstreamStatus?: number
+): Promise<Record<string, unknown>[]> {
+  // 1. CO relay (OCI Function) — reliable, preferred.
+  if (isColombiaRelayConfigured()) {
+    try {
+      return await fetchCardRowsViaRelay(cardNumber, consultar);
+    } catch (error: any) {
+      console.warn('[card] CO relay card read failed, trying public proxy:', error?.message || error);
+    }
+  }
+
+  // 2. Public CO proxy — opt-in best-effort egress (spec §5.2.5).
+  if (allowPublicColombianProxyFallback()) {
+    return fetchCardRowsViaColombianProxy(postData);
+  }
+
+  throw new CardBalanceError(
+    'Card API is CO-IP geofenced and this server egress is not Colombian. Configure the Colombia relay (TRANSMILENIO_COLOMBIA_RELAY_URL) or set TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1, or run the backend from a Colombian egress.',
+    503,
+    geofenceUpstreamStatus
+  );
+}
+
 function normalizeServerMovement(item: Record<string, unknown>, fallbackCardNumber: string): CardBalanceMovement {
   const upstreamCardNumber = String(item.numero_tarjeta ?? '').trim();
   return {
@@ -246,18 +299,14 @@ export async function fetchCardBalance(
     rows = await requestCardRows(postData, CARD_REQUEST_TIMEOUT_MS);
   } catch (error) {
     const geofenced = error instanceof CardBalanceError && (error.upstreamStatus === 401 || error.upstreamStatus === 451);
-    if (geofenced && allowPublicColombianProxyFallback()) {
-      // 2. Public CO proxy — opt-in best-effort egress (spec §5.2.5).
-      rows = await fetchCardRowsViaColombianProxy(postData);
-    } else if (geofenced) {
-      throw new CardBalanceError(
-        'Card API is CO-IP geofenced and this server egress is not Colombian. Set TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1 (public CO proxy, spec §5.2.5) or run the backend from a Colombian egress.',
-        503,
-        error.upstreamStatus
-      );
-    } else {
-      throw error;
-    }
+    if (!geofenced) throw error;
+    // 2. Geofenced: reach a Colombian egress — CO relay first, then public proxy.
+    rows = await fetchCardRowsViaColombianEgress(
+      numeroTarjeta,
+      consultar,
+      postData,
+      error instanceof CardBalanceError ? error.upstreamStatus : undefined
+    );
   }
 
   const maskedCardNumber = maskCardNumber(numeroTarjeta);
