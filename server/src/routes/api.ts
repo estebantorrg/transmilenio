@@ -669,7 +669,7 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
       const live = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
       diagnostics.live = { success: true, count: live.buses.length, source: live.source };
     } catch (err: any) {
-      diagnostics.live = { success: false, error: 'Live fetch failed', code: err.code };
+      diagnostics.live = { success: false, error: err?.message || String(err), code: err?.code };
     }
 
     res.setHeader('Cache-Control', 'no-store');
