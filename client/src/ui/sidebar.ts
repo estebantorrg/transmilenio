@@ -618,6 +618,18 @@ export function initSidebar(options: {
     applyFilters();
   });
 
+  // ArrowDown steps into the results; Enter opens the top hit directly.
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'Enter') return;
+    const first = document.querySelector<HTMLElement>(
+      '#route-list .search-points .near-row, #route-list .route-item'
+    );
+    if (!first) return;
+    e.preventDefault();
+    if (e.key === 'ArrowDown') first.focus();
+    else first.click();
+  });
+
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
     searchQuery = '';
@@ -1108,8 +1120,25 @@ function renderRouteList(routes: RouteListItem[]): void {
     `;
   }
 
-  const items = Array.from(container.querySelectorAll<HTMLElement>('.route-item'));
-  items.forEach((el, index) => {
+  // One keyboard column across BOTH result kinds: station/paradero rows first,
+  // then route items. ArrowUp from the top result returns to the search box.
+  const focusables = Array.from(
+    container.querySelectorAll<HTMLElement>('.search-points .near-row, .route-item')
+  );
+  focusables.forEach((el, index) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusables[Math.min(index + 1, focusables.length - 1)]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (index === 0) (document.getElementById('search-input') as HTMLInputElement | null)?.focus();
+        else focusables[index - 1]?.focus();
+      }
+    });
+  });
+
+  container.querySelectorAll<HTMLElement>('.route-item').forEach((el) => {
     const open = () => {
       const route = allRoutes.find((item) => item.id === el.dataset.id);
       if (route) selectRoute(route);
@@ -1119,12 +1148,6 @@ function renderRouteList(routes: RouteListItem[]): void {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         open();
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        items[Math.min(index + 1, items.length - 1)]?.focus();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        items[Math.max(index - 1, 0)]?.focus();
       }
     });
   });
