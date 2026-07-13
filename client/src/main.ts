@@ -494,6 +494,9 @@ async function main(): Promise<void> {
   let cableRouterStations: import('./services/router').CableStationInput[] = [];
 
   let activeRouteId: string | null = null;
+  // Routes whose geometry has already been upgraded from the light (160-pt,
+  // spec §5.1.4) overview trace to the full-resolution official `trazado`.
+  const fullTraceLoaded = new Set<string>();
 
   try {
     // 1. Fetch data in parallel. The cached master catalog is required; live
@@ -647,8 +650,13 @@ async function main(): Promise<void> {
       activeRouteId = route.id;
       await stopLiveBusTracking();
 
-      // On-demand loading of catalog routes (geometries and stops)
-      if (route.source === 'catalog' && (!route.geometry || !route.stops || route.stops.length === 0)) {
+      // Upgrade the selected route to its FULL official trace + stops. The
+      // overview list carries the light (160-pt, spec §5.1.4) trace — and for
+      // troncal routes an ArcGIS geometry, not the app's own trazado — so the
+      // highlighted route must be re-hydrated from the route-detail endpoint
+      // (full-resolution `variant.trazado`, straight from the catalog) to be
+      // displayed 100% as the TransMi app provides it. Done once per route.
+      if (route.source === 'catalog' && !fullTraceLoaded.has(route.id)) {
         try {
           const detailRes = await api.getRouteDetail(route.code);
           if (activeRouteId !== route.id) return; // User switched routes during async load
@@ -663,7 +671,10 @@ async function main(): Promise<void> {
               const detailGeometry = traceToGeometry(variant.trazado);
               if (detailGeometry) route.geometry = detailGeometry;
               if (routeHasDualStops(vStops)) route.subType = 'dual';
-              route.stops = dedupeStops(vStops.map((stop: any) => parseCatalogStop(stop, variant, catalog)).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
+              if (!route.stops || route.stops.length === 0) {
+                route.stops = dedupeStops(vStops.map((stop: any) => parseCatalogStop(stop, variant, catalog)).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
+              }
+              fullTraceLoaded.add(route.id);
             }
           }
         } catch (error) {
