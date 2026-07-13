@@ -1,0 +1,78 @@
+name: Deploy relay function
+
+# Builds the OCI Function in scripts/oci-func and deploys it to sa-bogota-1,
+# replacing the manual Cloud Shell `fn deploy`. Runs on any push that touches
+# the function bundle (or manually via the Actions tab).
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   OCI_PRIVATE_KEY   — PEM private key for the transmi-ci user (multi-line)
+#   OCI_USER_OCID     — OCID of the transmi-ci user
+#   OCI_FINGERPRINT   — API key fingerprint for that key
+#   OCI_TENANCY_OCID  — tenancy OCID (also the root compartment)
+#   OCIR_USERNAME     — <namespace>/Default/transmi-ci
+#   OCIR_TOKEN        — OCIR auth token for the transmi-ci user
+#   OCIR_NAMESPACE    — object-storage namespace (OCIR registry owner)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/oci-func/**'
+      - '.github/workflows/deploy-relay.yml'
+  workflow_dispatch:
+
+env:
+  OCI_REGION: sa-bogota-1
+  OCI_API_URL: https://functions.sa-bogota-1.oci.oraclecloud.com
+  OCIR_REGISTRY_HOST: bog.ocir.io
+  FN_APP: transmi-relay
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Fn CLI
+        run: curl -LSs https://raw.githubusercontent.com/fnproject/cli/master/install | sh
+
+      - name: Write OCI config
+        env:
+          OCI_PRIVATE_KEY: ${{ secrets.OCI_PRIVATE_KEY }}
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_PRIVATE_KEY" > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=$OCI_REGION
+          key_file=$HOME/.oci/key.pem
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Docker login to OCIR
+        env:
+          OCIR_TOKEN: ${{ secrets.OCIR_TOKEN }}
+          OCIR_USERNAME: ${{ secrets.OCIR_USERNAME }}
+        run: printf '%s' "$OCIR_TOKEN" | docker login "$OCIR_REGISTRY_HOST" -u "$OCIR_USERNAME" --password-stdin
+
+      - name: Configure Fn context
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          OCIR_NAMESPACE: ${{ secrets.OCIR_NAMESPACE }}
+        run: |
+          fn create context bog --provider oracle --api-url "$OCI_API_URL" || true
+          fn use context bog
+          fn update context oracle.compartment-id "$OCI_TENANCY_OCID"
+          fn update context api-url "$OCI_API_URL"
+          fn update context registry "$OCIR_REGISTRY_HOST/$OCIR_NAMESPACE/$FN_APP"
+
+      - name: Deploy function
+        working-directory: scripts/oci-func
+        run: fn --verbose deploy --app "$FN_APP"

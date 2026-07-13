@@ -1,0 +1,11 @@
+{
+  "name": "transmi-relay",
+  "version": "1.0.0",
+  "description": "TransMilenio Colombian live-tracking relay (OCI Function).",
+  "main": "func.js",
+  "author": "estebantorrg",
+  "license": "MIT",
+  "dependencies": {
+    "@fnproject/fdk": ">=0.0.25"
+  }
+}
