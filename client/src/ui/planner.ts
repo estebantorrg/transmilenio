@@ -1195,6 +1195,20 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
   });
 }
 
+// Zonal rides stop at paraderos; troncal/cable rides at estaciones. The step
+// wording follows the actual stop kind instead of calling everything "estación".
+function rideStopsNoun(routeType: string | undefined, count: number): string {
+  const zonal = routeType === 'zonal';
+  if (count === 1) return zonal ? 'paradero' : 'estación';
+  return zonal ? 'paraderos' : 'estaciones';
+}
+
+function intermediateStopsNoun(routeType: string | undefined, count: number): string {
+  const zonal = routeType === 'zonal';
+  if (count === 1) return zonal ? 'paradero intermedio' : 'estación intermedia';
+  return zonal ? 'paraderos intermedios' : 'estaciones intermedias';
+}
+
 function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
   const segmentColors = assignSegmentColors(plan);
   container.innerHTML = plan.steps
@@ -1234,7 +1248,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
         const stopsToggleHtml = step.stops && step.stops.length > 0
           ? `
             <button type="button" class="journey-step-substops-btn" data-step-index="${i}" aria-expanded="false">
-              <span>👁 Ver ${step.stops.length} ${step.stops.length === 1 ? 'estación intermedia' : 'estaciones intermedias'}</span>
+              <span>👁 Ver ${step.stops.length} ${intermediateStopsNoun(step.routeType, step.stops.length)}</span>
             </button>
             <ul class="journey-step-substops-list hidden">
               ${step.stops.map((s) => `<li>${escapeHTML(s)}</li>`).join('')}
@@ -1254,7 +1268,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
               </div>
               <div class="journey-step-desc">
                 En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong> (Dirección ${escapeHTML(step.toName)})<br/>
-                Viajar <strong>${step.stopCount} ${step.stopCount === 1 ? 'estación' : 'estaciones'}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
+                Viajar <strong>${step.stopCount} ${rideStopsNoun(step.routeType, step.stopCount ?? 0)}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
               ${stopsToggleHtml}
             </div>
@@ -1279,7 +1293,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
       const isHidden = list.classList.toggle('hidden');
       button.setAttribute('aria-expanded', String(!isHidden));
       const planStep = plan.steps[stepIdx];
-      const text = planStep.stops?.length === 1 ? 'estación intermedia' : 'estaciones intermedias';
+      const text = intermediateStopsNoun(planStep.routeType, planStep.stops?.length ?? 0);
 
       labelSpan.textContent = isHidden
         ? `👁 Ver ${planStep.stops?.length} ${text}`
