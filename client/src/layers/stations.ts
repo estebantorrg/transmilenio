@@ -39,6 +39,19 @@ function stationArrivalsCode(
   return APP_STOP_CODE_RE.test(stationCode) ? stationCode : '';
 }
 
+/** For verified-split stations, the route codes that board THIS platform's
+ *  wagons — used to keep only this platform's arrivals from the union the server
+ *  returns for the shared source code. `undefined` for normal stations (no
+ *  filtering needed: their wagon set already equals the serving-route set). */
+function platformAllowedCodes(resolved: ResolvedCatalogStation | undefined): string[] | undefined {
+  if (!resolved || !resolved.matchMethod.startsWith('verified-split')) return undefined;
+  const codes = new Set<string>();
+  for (const routes of Object.values(resolved.wagons)) {
+    for (const route of routes) if (route.codigo) codes.add(route.codigo);
+  }
+  return Array.from(codes);
+}
+
 const STATION_LAYERS = [
   'stations-circle',
   'stations-hitbox',
@@ -240,7 +253,7 @@ function showStationPopup(
 
   showPopup(map, coords as [number, number], html, { offset: 12, maxWidth: '340px' });
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
-  if (arrCode) void renderStopArrivals(arrCode);
+  if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
 }
 
 // ─── Layer Setup ────────────────────────────────────────
@@ -515,6 +528,6 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   showPopup(map, coordinate, html, { offset: 12, maxWidth: '340px' });
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
-  if (arrCode) void renderStopArrivals(arrCode);
+  if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
   return true;
 }

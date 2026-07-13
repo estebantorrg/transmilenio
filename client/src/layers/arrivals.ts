@@ -10,7 +10,7 @@
 
 import { api } from '../services/api';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getStopTagColor } from '../utils/routeColors';
+import { getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
 
 /** The `<div class="popup-arrivals">` slot to embed in a popup for `code`. */
 export function arrivalsSectionHtml(code: string): string {
@@ -32,17 +32,27 @@ function etaText(etaMinutes: number, distanceMeters: number): string {
  * DOM after the await so a popup swapped mid-flight isn't overwritten. Never
  * throws — an outage renders a quiet "no disponible" line.
  */
-export async function renderStopArrivals(code: string): Promise<void> {
+export async function renderStopArrivals(code: string, allowedCodes?: Iterable<string>): Promise<void> {
   if (!code) return;
   const sel = `.popup-arrivals[data-arr-code="${CSS.escape(code)}"]`;
   if (!document.querySelector(sel)) return;
+
+  // Verified-split stations (Av. Jiménez, Ricaurte) share ONE catalog stop code
+  // per pair, so the server returns the UNION of both platforms' routes. When a
+  // caller passes the platform's own route set we keep only those, so each split
+  // popup lists arrivals for its own platform (spec §5.4.1).
+  const allow = allowedCodes
+    ? new Set(Array.from(allowedCodes, (c) => normalizeRouteCodeForMatch(c)))
+    : null;
 
   try {
     const res = await api.getStopArrivals(code);
     const el = document.querySelector<HTMLElement>(sel);
     if (!el) return; // popup changed while in flight
 
-    const arrivals = res.arrivals ?? [];
+    const arrivals = (res.arrivals ?? []).filter(
+      (a) => !allow || allow.has(normalizeRouteCodeForMatch(a.codigo))
+    );
     if (arrivals.length === 0) {
       el.innerHTML = `<div class="arr-empty">Sin buses en aproximación ahora</div>`;
       return;
