@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
+import { computeStopArrivals } from '../services/stop_arrivals.js';
 import { geocodeAddress } from '../services/geocode.js';
 import zlib from 'zlib';
 import { readFile } from 'node:fs/promises';
@@ -416,6 +417,29 @@ router.post('/arrivals', async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('[/arrivals] Error:', error?.message || error);
     res.json({ success: true, count: 0, arrivals: [], source: null });
+  }
+});
+
+// ─── Stop arrivals (global ETA per serving route) ─────────
+// For a paradero OR estación: which routes reporting a stop here (matched BY
+// CODE) have a live bus approaching, and in how long. Computed from live bus
+// positions projected onto each route's official trace (spec §5.8, §5.6).
+// Never hard-fails — empty list on any outage.
+router.post('/stop-arrivals', async (req: Request, res: Response) => {
+  const code = normalizeRequestText(
+    req.body?.code ?? req.body?.codigo ?? req.body?.cenefa ?? req.body?.paradero,
+    LIVE_ROUTE_CODE_MAX_LENGTH
+  );
+  if (!code) {
+    res.status(400).json({ success: false, error: 'code is required' });
+    return;
+  }
+  try {
+    const { arrivals, routesServing } = await computeStopArrivals(code);
+    res.json({ success: true, count: arrivals.length, routesServing, arrivals });
+  } catch (error: any) {
+    console.error('[/stop-arrivals] Error:', error?.message || error);
+    res.json({ success: true, count: 0, routesServing: 0, arrivals: [] });
   }
 });
 

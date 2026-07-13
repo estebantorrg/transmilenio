@@ -9,10 +9,10 @@ import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from
 import { showPopup } from './popup';
 import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
-import { api } from '../services/api';
 import { getStopTagColor } from '../utils/routeColors';
 import { servesZonal } from '../utils/routeType';
 import { showStationPopupByCode } from './stations';
+import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 
 export type StopRouteTag = {
   code: string;
@@ -169,11 +169,13 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
         ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${arrivalsSectionHtml(p.cenefa || '')}
       ${planActionsHtml(p.name, coords as [number, number], p.cenefa)}
     </div>
   `;
 
   showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
+  if (p.cenefa) void renderStopArrivals(p.cenefa);
 }
 
 let globalStopRoutesMap: StopRoutesMap | null = null;
@@ -438,44 +440,11 @@ export function showStopPopupByCode(
         ${address ? `<span>${escapeHTML(address)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
-      ${stopCode ? `<div class="popup-arrivals" data-cenefa="${escapeHTML(stopCode)}"><div class="arr-loading">Buscando llegadas…</div></div>` : ''}
+      ${arrivalsSectionHtml(stopCode)}
       ${planActionsHtml(name, coordinate, stopCode)}
     </div>
   `;
 
   showPopup(map, coordinate, html, { offset: 6, maxWidth: '280px' });
-  if (stopCode) void renderArrivals(stopCode);
-}
-
-/** Fetch + render real-time arrivals into an open stop popup (spec §5.8). */
-async function renderArrivals(cenefa: string): Promise<void> {
-  const sel = `.popup-arrivals[data-cenefa="${CSS.escape(cenefa)}"]`;
-  const el = document.querySelector<HTMLElement>(sel);
-  if (!el) return;
-  try {
-    const res = await api.getArrivals(cenefa);
-    const current = document.querySelector<HTMLElement>(sel); // popup may have changed
-    if (!current) return;
-    const arrivals = res.arrivals ?? [];
-    if (arrivals.length === 0) {
-      current.innerHTML = `<div class="arr-empty">Sin llegadas en este momento</div>`;
-      return;
-    }
-    current.innerHTML =
-      `<div class="popup-routes-label">Próximas llegadas<span class="popup-count">${arrivals.length}</span></div>` +
-      arrivals
-        .slice(0, 6)
-        .map(
-          (a) => `
-        <div class="arr-row">
-          <span class="arr-badge" style="background:${safeColor(a.color || '#00608B')}">${escapeHTML(a.codigo)}</span>
-          <span class="arr-dest">${escapeHTML(a.destino)}</span>
-          <span class="arr-time">${escapeHTML(a.tiempo || a.distancia || '')}</span>
-        </div>`
-        )
-        .join('');
-  } catch {
-    const current = document.querySelector<HTMLElement>(sel);
-    if (current) current.innerHTML = `<div class="arr-empty">Llegadas no disponibles</div>`;
-  }
+  if (stopCode) void renderStopArrivals(stopCode);
 }

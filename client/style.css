@@ -1233,6 +1233,18 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 700;
   color: var(--text-primary);
 }
+.arr-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.arr-eta {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  color: var(--text-primary);
+}
 .near-sub {
   margin-top: 2px;
   overflow: hidden;

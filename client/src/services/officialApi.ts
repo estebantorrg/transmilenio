@@ -30,6 +30,8 @@ import type {
   CardBalanceRead,
   CardBalanceResponse,
   WalkingRouteResponse,
+  StopArrival,
+  StopArrivalsResponse,
 } from './api';
 
 // ─── ArcGIS FeatureServer (mirrors server/src/services/arcgis.ts) ──────────
@@ -168,6 +170,38 @@ async function getArrivals(paradero: string): Promise<ArrivalsResponse> {
     console.warn('[officialApi] arrivals failed:', error);
     return { success: true, count: 0, arrivals: [], source: null };
   }
+}
+
+/** Parse minutes out of a live ETA label ("5 min", "Llegando", "300 m"). */
+function parseEtaMinutes(tiempo: string, distancia: string): { etaMinutes: number; distanceMeters: number } {
+  const minMatch = /(\d+)\s*min/i.exec(tiempo);
+  const mMatch = /(\d+)\s*m\b/i.exec(distancia || tiempo);
+  const distanceMeters = mMatch ? Number(mMatch[1]) : 0;
+  const etaMinutes = minMatch ? Number(minMatch[1]) : (/lleg/i.test(tiempo) ? 0 : 0);
+  return { etaMinutes, distanceMeters };
+}
+
+/**
+ * Native stop-arrivals. Without a server to run the full trace-projection
+ * fan-out, the app relies on the official `/paradero/buses` imminent-arrivals
+ * feed and adapts its ETA labels into the shared StopArrival shape. Estación
+ * (TM…) codes aren't served by that endpoint, so they return empty on-device.
+ */
+async function getStopArrivals(code: string): Promise<StopArrivalsResponse> {
+  const base = await getArrivals(code);
+  const arrivals: StopArrival[] = (base.arrivals ?? []).map((it) => {
+    const { etaMinutes, distanceMeters } = parseEtaMinutes(it.tiempo, it.distancia);
+    return {
+      codigo: it.codigo,
+      destino: it.destino,
+      color: it.color,
+      type: 'zonal' as const,
+      etaMinutes,
+      distanceMeters,
+      busCount: 1,
+    };
+  });
+  return { success: true, count: arrivals.length, routesServing: arrivals.length, arrivals };
 }
 
 // ─── Card ledger (`/lectura_tarjeta`, spec §5.5.1a) ────────────────────────
@@ -311,6 +345,7 @@ export const officialApi = {
   getZonalStops: () => arcgisResponse(ARCGIS_LAYERS.zonalStops),
   getZonalStopRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalStopRoutes),
   getArrivals,
+  getStopArrivals,
   readCardBalance,
   getWalkingRoute,
 };

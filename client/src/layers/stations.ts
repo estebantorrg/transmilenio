@@ -24,6 +24,20 @@ import {
   type StationCatalogAudit,
 } from './stationCatalogResolver';
 import { isZonalService } from '../utils/routeType';
+import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
+
+const APP_STOP_CODE_RE = /^TM\d+$/i;
+
+/** The catalog TM… code to query live arrivals for — the resolved source stop
+ *  (route stops are filed by these codes), falling back to a TM-shaped code. */
+function stationArrivalsCode(
+  resolved: ResolvedCatalogStation | undefined,
+  stationCode: string
+): string {
+  const source = resolved?.sourceStops?.[0]?.codigo;
+  if (source) return source;
+  return APP_STOP_CODE_RE.test(stationCode) ? stationCode : '';
+}
 
 const STATION_LAYERS = [
   'stations-circle',
@@ -219,11 +233,14 @@ function showStationPopup(
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
+      ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
       ${planActionsHtml(stationName, coords as [number, number], stationCode)}
     </div>
   `;
 
   showPopup(map, coords as [number, number], html, { offset: 12, maxWidth: '340px' });
+  const arrCode = stationArrivalsCode(resolvedStation, stationCode);
+  if (arrCode) void renderStopArrivals(arrCode);
 }
 
 // ─── Layer Setup ────────────────────────────────────────
@@ -491,10 +508,13 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
+      ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
       ${planActionsHtml(resolvedStation.stationName, coordinate, stationCode)}
     </div>
   `;
 
   showPopup(map, coordinate, html, { offset: 12, maxWidth: '340px' });
+  const arrCode = stationArrivalsCode(resolvedStation, stationCode);
+  if (arrCode) void renderStopArrivals(arrCode);
   return true;
 }

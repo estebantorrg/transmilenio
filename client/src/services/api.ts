@@ -372,7 +372,36 @@ export const api = {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ paradero }),
         }, 0),
+
+  /** Global per-route ETA for any stop (paradero or estación), computed from
+   *  live bus positions projected onto each serving route's trace (spec §5.8).
+   *  Works for both TM…-coded estaciones and zonal cenefas. Never hard-fails. */
+  getStopArrivals: (code: string) =>
+    isNativeLiveAvailable()
+      ? officialApi.getStopArrivals(code)
+      : fetchJson<StopArrivalsResponse>('/stop-arrivals', 15_000, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code }),
+        }, 0),
 };
+
+export interface StopArrival {
+  codigo: string;
+  destino: string;
+  color: string;
+  type: 'troncal' | 'zonal';
+  etaMinutes: number;
+  distanceMeters: number;
+  busCount: number;
+}
+export interface StopArrivalsResponse {
+  success: boolean;
+  count?: number;
+  routesServing?: number;
+  arrivals?: StopArrival[];
+  error?: string;
+}
 
 export interface ArrivalItem {
   codigo: string;
