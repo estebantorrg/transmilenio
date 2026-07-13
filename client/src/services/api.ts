@@ -379,7 +379,7 @@ export const api = {
   getStopArrivals: (code: string) =>
     isNativeLiveAvailable()
       ? officialApi.getStopArrivals(code)
-      : fetchJson<StopArrivalsResponse>('/stop-arrivals', 15_000, {
+      : fetchJson<StopArrivalsResponse>('/stop-arrivals', 16_000, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code }),

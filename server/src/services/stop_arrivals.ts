@@ -64,12 +64,12 @@ const FANOUT_CONCURRENCY = 24;
 // that route is simply omitted from this response (it reappears once its live
 // call is fast again / from cache). Below the 9 s direct live timeout so a
 // stalled call is cut early rather than dragging the whole popup.
-const ROUTE_BUDGET_MS = 7_000;
+const ROUTE_BUDGET_MS = 8_500;
 // Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
 // timeout so the endpoint always answers (with whatever ETAs are ready — a
 // PARTIAL result, never a transport error). Remaining routes resolve on the
 // next open (12 s result cache) rather than failing the popup.
-const OVERALL_BUDGET_MS = 9_000;
+const OVERALL_BUDGET_MS = 12_000;
 // Cache computed arrivals briefly so re-opening a popup (or a second client)
 // doesn't re-run the whole live fan-out; well under the 15 s poll window.
 const RESULT_CACHE_TTL_MS = 12_000;
@@ -248,7 +248,14 @@ function findServingVariants(stopCode: string): ServingVariant[] {
 async function computeRouteEta(sv: ServingVariant): Promise<StopArrival | null> {
   let buses: any[];
   try {
-    const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, sv.candidates);
+    // ONE name candidate per route — not the full set. Each extra candidate is a
+    // separate live request (they race in parallel), so passing 5 candidates ×
+    // ~16 routes swamps the prod CO relay (a single OCI Function) with ~80
+    // concurrent forwards → tail latencies of 20 s+ → most routes get cut and
+    // the popup shows almost nothing. We don't need the multi-candidate
+    // direction disambiguation here: the trace projection already keeps only
+    // buses approaching THIS stop, so the destination name alone is enough.
+    const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, []);
     buses = Array.isArray(res.buses) ? res.buses : [];
   } catch {
     return null; // live upstream down for this route — skip, never hard-fail
