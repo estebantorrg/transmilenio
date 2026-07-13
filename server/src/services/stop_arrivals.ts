@@ -52,7 +52,24 @@ const ON_ROUTE_MAX_PERP_M = 160;
 const PASSED_STOP_EPSILON_M = 40;
 // Bound the live fan-out: a busy trunk station is served by many routes, but we
 // must not fire an unbounded number of live requests per popup (spec §3.4).
-const MAX_FANOUT_ROUTES = 20;
+const MAX_FANOUT_ROUTES = 24;
+// Fan the serving routes out in ONE wave (concurrency ≥ MAX_FANOUT) so the total
+// time is ~one live call, not a stack of sequential waves. Serializing into
+// small waves was the real cause of the multi-second stalls that surfaced as
+// "Llegadas no disponibles" — one slow route in an early wave delayed the rest.
+// The live host tolerates this burst (direct/relay), and the hard per-route cut
+// below bounds any single laggard.
+const FANOUT_CONCURRENCY = 24;
+// Per-route ceiling: a single slow route must not hold up the wave. On timeout
+// that route is simply omitted from this response (it reappears once its live
+// call is fast again / from cache). Below the 9 s direct live timeout so a
+// stalled call is cut early rather than dragging the whole popup.
+const ROUTE_BUDGET_MS = 7_000;
+// Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
+// timeout so the endpoint always answers (with whatever ETAs are ready — a
+// PARTIAL result, never a transport error). Remaining routes resolve on the
+// next open (12 s result cache) rather than failing the popup.
+const OVERALL_BUDGET_MS = 9_000;
 // Cache computed arrivals briefly so re-opening a popup (or a second client)
 // doesn't re-run the whole live fan-out; well under the 15 s poll window.
 const RESULT_CACHE_TTL_MS = 12_000;
@@ -272,14 +289,51 @@ async function computeRouteEta(sv: ServingVariant): Promise<StopArrival | null> 
   };
 }
 
+/**
+ * Run `fn` over `items` with at most `concurrency` in flight, writing each
+ * result into a shared array as it lands. Returns the array. Bounding the
+ * in-flight count keeps the live host from throttling a big fan-out, so each
+ * call stays fast and the overall deadline is rarely hit.
+ */
+function runPool(
+  items: ServingVariant[],
+  concurrency: number,
+  fn: (item: ServingVariant) => Promise<StopArrival | null>,
+  out: (StopArrival | null)[]
+): Promise<void> {
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const idx = next++;
+      if (idx >= items.length) return;
+      out[idx] = await fn(items[idx]);
+    }
+  };
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, worker);
+  return Promise.all(workers).then(() => undefined);
+}
+
+/** Resolve `p`, or `null` if it takes longer than `ms` (the work keeps running
+ *  in the background but no longer blocks the fan-out). */
+function withTimeout(p: Promise<StopArrival | null>, ms: number): Promise<StopArrival | null> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(null), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(null); });
+  });
+}
+
 // ─── Result cache ─────────────────────────────────────────
 
 const resultCache = new Map<string, { at: number; catalogAt: number; result: StopArrivalsResult }>();
 
 /**
  * Real-time arrivals for a stop (paradero or estación), computed from live bus
- * positions projected onto each serving route's official trace. Never throws —
- * an outage or empty result yields an empty arrivals list.
+ * positions projected onto each serving route's official trace.
+ *
+ * Never throws and never stalls past the client's fetch budget: the fan-out is
+ * concurrency-bounded and capped by a hard overall deadline. When the deadline
+ * hits, whatever ETAs are ready are returned (a PARTIAL result) rather than
+ * failing the popup — the rest resolve on the next open via the result cache.
  */
 export async function computeStopArrivals(stopCode: string): Promise<StopArrivalsResult> {
   const code = String(stopCode || '').trim();
@@ -295,12 +349,28 @@ export async function computeStopArrivals(stopCode: string): Promise<StopArrival
   const serving = findServingVariants(code);
   const fanned = serving.slice(0, MAX_FANOUT_ROUTES);
 
-  const settled = await Promise.all(fanned.map((sv) => computeRouteEta(sv)));
-  const arrivals = settled
+  // Shared results buffer, filled as each route lands. Read after the overall
+  // deadline so a slow tail can't hold up the whole response.
+  const out: (StopArrival | null)[] = new Array(fanned.length).fill(null);
+  let poolDone = false;
+  const pool = runPool(
+    fanned,
+    FANOUT_CONCURRENCY,
+    (sv) => withTimeout(computeRouteEta(sv), ROUTE_BUDGET_MS),
+    out
+  ).then(() => { poolDone = true; });
+  const deadline = new Promise<void>((resolve) => setTimeout(resolve, OVERALL_BUDGET_MS));
+  await Promise.race([pool, deadline]);
+
+  const arrivals = out
     .filter((a): a is StopArrival => a !== null)
     .sort((a, b) => a.etaMinutes - b.etaMinutes || a.distanceMeters - b.distanceMeters);
 
   const result: StopArrivalsResult = { arrivals, routesServing: serving.length };
-  resultCache.set(cacheKey, { at: Date.now(), catalogAt, result });
+  // Only cache once the full fan-out settled — a partial (deadline-cut) result
+  // must not be pinned for 12 s, or a slow first open would suppress the rest.
+  if (poolDone) {
+    resultCache.set(cacheKey, { at: Date.now(), catalogAt, result });
+  }
   return result;
 }
