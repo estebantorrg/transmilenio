@@ -912,17 +912,42 @@ function applyFilters(): void {
   }
 
   if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    base = base.filter(
-      (r) =>
-        r.code.toLowerCase().includes(q) ||
-        r.name.toLowerCase().includes(q) ||
-        r.origin.toLowerCase().includes(q) ||
-        r.destination.toLowerCase().includes(q)
-    );
+    const q = normalizeSearchText(searchQuery);
+    base = base
+      .filter((r) => routeSearchHaystack(r).includes(q))
+      .sort((a, b) => searchRank(a, q) - searchRank(b, q));
   }
 
   renderRouteList(base);
+}
+
+// ─── Search matching ──────────────────────────────────────
+// Accent-insensitive: catalog names carry tildes ("Fontibón", "Engativá",
+// "Américas") that users rarely type, so both sides are NFD-stripped. Haystacks
+// are cached per route — code/name/origin/destination never change after load.
+function normalizeSearchText(value: string): string {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+}
+
+const searchHaystacks = new WeakMap<RouteListItem, string>();
+function routeSearchHaystack(route: RouteListItem): string {
+  let hay = searchHaystacks.get(route);
+  if (hay === undefined) {
+    hay = normalizeSearchText(`${route.code} ${route.name} ${route.origin} ${route.destination}`);
+    searchHaystacks.set(route, hay);
+  }
+  return hay;
+}
+
+/** Rank matches so code hits surface first: exact code, code prefix, then text. */
+function searchRank(route: RouteListItem, q: string): number {
+  const code = normalizeSearchText(route.code);
+  if (code === q) return 0;
+  if (code.startsWith(q)) return 1;
+  return 2;
 }
 
 function renderRouteList(routes: RouteListItem[]): void {
