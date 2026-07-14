@@ -65,12 +65,12 @@ const FANOUT_CONCURRENCY = 24;
 // that route is simply omitted from this response (it reappears once its live
 // call is fast again / from cache). Below the 9 s direct live timeout so a
 // stalled call is cut early rather than dragging the whole popup.
-const ROUTE_BUDGET_MS = 7_000;
+const ROUTE_BUDGET_MS = 9_500;
 // Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
 // timeout so the endpoint always answers (with whatever ETAs are ready — a
 // PARTIAL result, never a transport error). Remaining routes resolve on the
 // next open (12 s result cache) rather than failing the popup.
-const OVERALL_BUDGET_MS = 8_000;
+const OVERALL_BUDGET_MS = 10_500;
 // Cache computed arrivals so re-opening a popup (or a second client) is instant
 // instead of re-running the whole ~9 s live fan-out. ETAs drift only slightly
 // over this window (they're shown in whole minutes), so a modestly long TTL is
@@ -314,7 +314,7 @@ function extractBuses(payload: any): any[] {
  * approaching THIS stop, so the destination name alone is enough for direction,
  * and extra candidates would each be another live request.
  */
-const RELAY_CALL_MS = 6_000;
+const RELAY_CALL_MS = 9_000;
 // How many name spellings to try per troncal route. The live API returns empty
 // for a Nombre that doesn't exactly match a destination, so a single literal
 // name misses many routes (destino spelling ≠ API `destino_limpio`). We fire the
