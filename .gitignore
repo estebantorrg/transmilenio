@@ -25,3 +25,9 @@ research/
 # mobile offline bundle — derived from committed server data by
 # `npm run bundle:mobile` (server); regenerated on every `mobile` build:web (spec §5.2.1b)
 client/mobile/src/generated/
+
+# Playwright
+playwright-report/
+test-results/
+blob-report/
+playwright/.local-browsers/
