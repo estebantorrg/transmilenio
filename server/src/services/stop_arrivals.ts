@@ -19,7 +19,6 @@ import {
   fetchLiveBuses,
   type CatalogRouteDetail,
 } from './tm_api.js';
-import { isColombiaRelayConfigured, relayBatchBuses, relayForward } from './co_relay.js';
 
 type RouteTrace = number[][] | number[][][];
 
@@ -65,12 +64,12 @@ const FANOUT_CONCURRENCY = 24;
 // that route is simply omitted from this response (it reappears once its live
 // call is fast again / from cache). Below the 9 s direct live timeout so a
 // stalled call is cut early rather than dragging the whole popup.
-const ROUTE_BUDGET_MS = 9_500;
+const ROUTE_BUDGET_MS = 8_500;
 // Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
 // timeout so the endpoint always answers (with whatever ETAs are ready — a
 // PARTIAL result, never a transport error). Remaining routes resolve on the
 // next open (12 s result cache) rather than failing the popup.
-const OVERALL_BUDGET_MS = 10_500;
+const OVERALL_BUDGET_MS = 12_000;
 // Cache computed arrivals so re-opening a popup (or a second client) is instant
 // instead of re-running the whole ~9 s live fan-out. ETAs drift only slightly
 // over this window (they're shown in whole minutes), so a modestly long TTL is
@@ -286,82 +285,23 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
   };
 }
 
-/** Pull a buses array out of whatever shape the live host returns. */
-function extractBuses(payload: any): any[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== 'object') return [];
-  for (const k of ['buses', 'data', 'result', 'results', 'vehiculos', 'vehicles']) {
-    if (Array.isArray(payload[k])) return payload[k];
-  }
-  return Object.values(payload).filter(
-    (v) => v && typeof v === 'object' &&
-      Number.isFinite(Number((v as any).latitude ?? (v as any).lat))
-  ) as any[];
-}
-
 /**
- * Live buses for one route, for the arrivals fan-out.
+ * Per-route live fetch + ETA.
  *
- * When the CO relay is configured (prod) we call it DIRECTLY, skipping
- * `fetchLiveBuses`'s direct-then-relay cascade: on a non-Colombian host the
- * direct attempt is a guaranteed geofence rejection that still costs ~1–2 s of
- * round-trip before the relay is even tried — multiplied across ~20 routes that
- * was the bulk of the cold latency. Going straight to the relay makes each route
- * ~one live call (~5 s). Locally (no relay) we keep `fetchLiveBuses`, whose
- * direct tier is the fast path from a Colombian egress.
- *
- * ONE name candidate per route — the trace projection already keeps only buses
- * approaching THIS stop, so the destination name alone is enough for direction,
- * and extra candidates would each be another live request.
+ * Uses `fetchLiveBuses` (its direct→CO-relay→proxy cascade, with internal name-
+ * candidate expansion) — the proven path that reliably returns buses. Attempts
+ * to skip the cascade and hit the relay directly (to shave the doomed direct
+ * tier) were tried and measured WORSE on prod: the relay's generic `/forward`
+ * shape returned near-empty for `/buses`, and the live host's per-IP concurrency
+ * throttling — not the direct tier — is the real cold-latency floor. So the
+ * cascade stays. ONE name candidate input is enough (fetchLiveBuses expands it
+ * internally), and the trace projection handles direction, so we don't pass the
+ * full candidate set (each extra one is another live request → relay swamp).
  */
-const RELAY_CALL_MS = 9_000;
-// How many name spellings to try per troncal route. The live API returns empty
-// for a Nombre that doesn't exactly match a destination, so a single literal
-// name misses many routes (destino spelling ≠ API `destino_limpio`). We fire the
-// top candidates IN PARALLEL and take the first non-empty. Kept small: peak
-// concurrency ≈ routes × this, and past ~60–80 concurrent the live host starts
-// throttling to near-zero results. 2 × ~24 routes ≈ 48 sits in the safe zone.
-const TRONCAL_CANDIDATE_ATTEMPTS = 2;
-
-async function fetchArrivalBuses(sv: ServingVariant): Promise<any[]> {
-  if (!isColombiaRelayConfigured()) {
-    // Local / Colombian egress: fetchLiveBuses's direct tier is the fast path,
-    // and it already expands name candidates internally.
-    const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, []);
-    return res.buses;
-  }
-
-  // Zonal: one call, no name needed.
-  if (sv.type === 'zonal') {
-    const { upstreamStatus, payload } = await relayForward(
-      `/location/ruta?ruta=${encodeURIComponent(sv.routeCode)}`, {}, RELAY_CALL_MS
-    );
-    return upstreamStatus === 200 ? extractBuses(payload) : [];
-  }
-
-  // Troncal: try the top name candidates in parallel through the relay (skipping
-  // fetchLiveBuses's doomed direct tier, which on a non-CO host wastes ~1–2 s per
-  // route on a guaranteed geofence rejection before the relay is even tried).
-  // Parallel ⇒ latency ≈ one live call; first non-empty wins.
-  const candidates = sv.candidates.length ? sv.candidates.slice(0, TRONCAL_CANDIDATE_ATTEMPTS) : [sv.destino];
-  const settled = await Promise.all(candidates.map(async (cand) => {
-    try {
-      const { upstreamStatus, payload } = await relayForward('/buses', { ruta: sv.routeCode, Nombre: cand }, RELAY_CALL_MS);
-      return upstreamStatus === 200 ? extractBuses(payload) : [];
-    } catch {
-      return [] as any[];
-    }
-  }));
-  for (const buses of settled) {
-    if (buses.length > 0) return buses;
-  }
-  return [];
-}
-
-/** Per-route live fetch + ETA. */
 async function computeRouteEta(sv: ServingVariant): Promise<StopArrival | null> {
   try {
-    return etaFromBuses(sv, await fetchArrivalBuses(sv));
+    const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, []);
+    return etaFromBuses(sv, res.buses);
   } catch {
     return null; // live upstream down for this route — skip, never hard-fail
   }
@@ -432,49 +372,20 @@ export async function computeStopArrivals(stopCode: string): Promise<StopArrival
     return empty;
   }
 
-  // Optional batch fast-path: fan every route out in a SINGLE gateway round-trip
-  // (the Function runs them in parallel from Colombia). In practice this did NOT
-  // beat the per-route path on prod — the official live host throttles many
-  // concurrent connections from a single IP whether they originate on Render or
-  // inside the relay Function, so the batch call just hit the same wall ~12 s
-  // later and a timed-out batch then stacked the per-route fallback on top (~21 s
-  // total). It is therefore OFF by default and gated behind TM_ARRIVALS_BATCH=1
-  // for future experimentation (e.g. if the relay gains its own upstream
-  // concurrency limiting). Default path is the reliable per-route fan-out below.
-  let out: (StopArrival | null)[] | null = null;
+  // Per-route fan-out: single wave (concurrency ≥ MAX_FANOUT) so total time is
+  // ~one live call, not stacked waves; each route capped by ROUTE_BUDGET and the
+  // whole thing by a hard overall deadline. A partial result on deadline is fine
+  // (the rest resolve on the next open); it just isn't cached.
+  const out: (StopArrival | null)[] = new Array(fanned.length).fill(null);
   let complete = false;
-  if (process.env.TM_ARRIVALS_BATCH === '1' && isColombiaRelayConfigured()) {
-    try {
-      const items = fanned.map((sv) => ({ ruta: sv.routeCode, action: sv.type, nombre: sv.candidates[0] || sv.destino }));
-      const results = await relayBatchBuses(items, OVERALL_BUDGET_MS);
-      out = fanned.map((sv, i) => {
-        const r = results[i];
-        return r && r.upstreamStatus === 200 ? etaFromBuses(sv, r.buses) : null;
-      });
-      complete = true;
-    } catch (error) {
-      console.warn('[stop-arrivals] batch relay unavailable, falling back to per-route:', (error as any)?.message || error);
-      out = null;
-    }
-  }
-
-  // Per-route path (direct/local CO egress, or batch fallback). Concurrency-
-  // bounded + capped by a hard overall deadline; a partial result on deadline is
-  // fine (the rest resolve on the next open).
-  if (out === null) {
-    const buf: (StopArrival | null)[] = new Array(fanned.length).fill(null);
-    let poolDone = false;
-    const pool = runPool(
-      fanned,
-      FANOUT_CONCURRENCY,
-      (sv) => withTimeout(computeRouteEta(sv), ROUTE_BUDGET_MS),
-      buf
-    ).then(() => { poolDone = true; });
-    const deadline = new Promise<void>((resolve) => setTimeout(resolve, OVERALL_BUDGET_MS));
-    await Promise.race([pool, deadline]);
-    out = buf;
-    complete = poolDone;
-  }
+  const pool = runPool(
+    fanned,
+    FANOUT_CONCURRENCY,
+    (sv) => withTimeout(computeRouteEta(sv), ROUTE_BUDGET_MS),
+    out
+  ).then(() => { complete = true; });
+  const deadline = new Promise<void>((resolve) => setTimeout(resolve, OVERALL_BUDGET_MS));
+  await Promise.race([pool, deadline]);
 
   const arrivals = out
     .filter((a): a is StopArrival => a !== null)
