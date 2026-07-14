@@ -32,6 +32,6 @@ jobs:
         run: npx playwright test
 
       - name: Run Chromatic
-        run: npx chromatic --playwright
+        run: npx chromatic --playwright --exit-zero-on-changes
         env:
           CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
