@@ -65,7 +65,7 @@ const FANOUT_CONCURRENCY = 24;
 // that route is simply omitted from this response (it reappears once its live
 // call is fast again / from cache). Below the 9 s direct live timeout so a
 // stalled call is cut early rather than dragging the whole popup.
-const ROUTE_BUDGET_MS = 6_500;
+const ROUTE_BUDGET_MS = 7_000;
 // Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
 // timeout so the endpoint always answers (with whatever ETAs are ready — a
 // PARTIAL result, never a transport error). Remaining routes resolve on the
@@ -314,18 +314,48 @@ function extractBuses(payload: any): any[] {
  * approaching THIS stop, so the destination name alone is enough for direction,
  * and extra candidates would each be another live request.
  */
+const RELAY_CALL_MS = 6_000;
+// How many name spellings to try per troncal route. The live API returns empty
+// for a Nombre that doesn't exactly match a destination, so a single literal
+// name misses many routes (destino spelling ≠ API `destino_limpio`). We fire the
+// top candidates IN PARALLEL and take the first non-empty. Kept small: peak
+// concurrency ≈ routes × this, and past ~60–80 concurrent the live host starts
+// throttling to near-zero results. 2 × ~24 routes ≈ 48 sits in the safe zone.
+const TRONCAL_CANDIDATE_ATTEMPTS = 2;
+
 async function fetchArrivalBuses(sv: ServingVariant): Promise<any[]> {
-  const nombre = sv.candidates[0] || sv.destino;
-  if (isColombiaRelayConfigured()) {
-    const path = sv.type === 'zonal'
-      ? `/location/ruta?ruta=${encodeURIComponent(sv.routeCode)}`
-      : '/buses';
-    const body = sv.type === 'zonal' ? {} : { ruta: sv.routeCode, Nombre: nombre };
-    const { upstreamStatus, payload } = await relayForward(path, body, ROUTE_BUDGET_MS);
+  if (!isColombiaRelayConfigured()) {
+    // Local / Colombian egress: fetchLiveBuses's direct tier is the fast path,
+    // and it already expands name candidates internally.
+    const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, []);
+    return res.buses;
+  }
+
+  // Zonal: one call, no name needed.
+  if (sv.type === 'zonal') {
+    const { upstreamStatus, payload } = await relayForward(
+      `/location/ruta?ruta=${encodeURIComponent(sv.routeCode)}`, {}, RELAY_CALL_MS
+    );
     return upstreamStatus === 200 ? extractBuses(payload) : [];
   }
-  const res = await fetchLiveBuses(sv.routeCode, nombre, sv.type, []);
-  return res.buses;
+
+  // Troncal: try the top name candidates in parallel through the relay (skipping
+  // fetchLiveBuses's doomed direct tier, which on a non-CO host wastes ~1–2 s per
+  // route on a guaranteed geofence rejection before the relay is even tried).
+  // Parallel ⇒ latency ≈ one live call; first non-empty wins.
+  const candidates = sv.candidates.length ? sv.candidates.slice(0, TRONCAL_CANDIDATE_ATTEMPTS) : [sv.destino];
+  const settled = await Promise.all(candidates.map(async (cand) => {
+    try {
+      const { upstreamStatus, payload } = await relayForward('/buses', { ruta: sv.routeCode, Nombre: cand }, RELAY_CALL_MS);
+      return upstreamStatus === 200 ? extractBuses(payload) : [];
+    } catch {
+      return [] as any[];
+    }
+  }));
+  for (const buses of settled) {
+    if (buses.length > 0) return buses;
+  }
+  return [];
 }
 
 /** Per-route live fetch + ETA. */
