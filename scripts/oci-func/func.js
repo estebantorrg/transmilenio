@@ -158,6 +158,31 @@ fdk.handle(async (input, ctx) => {
 
     const body = parseBody(input);
 
+    // ── Shape 0: batch buses ({ batch: [{ ruta, action, Nombre }, …] }) ────
+    // Fans out many live-bus lookups in ONE gateway round-trip, run in parallel
+    // from inside Colombia. This collapses the per-route cross-region latency a
+    // busy stop's arrivals fan-out would otherwise pay (N server→relay hops) into
+    // a single hop, so the stop-arrivals popup resolves in ~one live call.
+    if (Array.isArray(body.batch)) {
+      const items = body.batch.slice(0, 40);
+      const results = await Promise.all(items.map(async (it) => {
+        const ruta = String((it && it.ruta) || '').trim();
+        const action = String((it && (it.action || it.type)) || 'troncal').toLowerCase();
+        const isZonal = action === 'zonal';
+        const actionOut = isZonal ? 'zonal' : 'troncal';
+        if (!ruta) return { ruta, action: actionOut, upstreamStatus: 400, buses: [] };
+        const path = isZonal ? `/location/ruta?ruta=${encodeURIComponent(ruta)}` : '/buses';
+        const postData = isZonal ? '' : JSON.stringify({ ruta, Nombre: String((it && (it.Nombre || it.nombre)) || '').trim() });
+        try {
+          const { status, payload } = await upstreamRequest(path, 'POST', postData);
+          return { ruta, action: actionOut, upstreamStatus: status, buses: extractBuses(payload) };
+        } catch (err) {
+          return { ruta, action: actionOut, upstreamStatus: 0, error: String((err && err.message) || err), buses: [] };
+        }
+      }));
+      return { results };
+    }
+
     // ── Shape 1: generic forward ({ path, method, body }) ──────────────────
     if (body.path != null) {
       const path = String(body.path);
