@@ -18,14 +18,22 @@ import { ICONS, liveChip, routeBadge, routeTypeLabel } from './components';
  * route↔station ping-pong (timeline stop → station sheet → route chip → …)
  * used to pile sheets without bound. Non-detail sheets (planner) still stack
  * beneath normally.
+ *
+ * The replacement is done SYNCHRONOUSLY (`close(true)` + `instant`) so that no
+ * matter how fast the user taps, the DOM holds at most one detail panel — the
+ * previous one is removed the instant the next opens instead of lingering for its
+ * 300ms exit animation, which used to let a dozen half-closed panels pile up under
+ * a mashing thumb ("everything stacked").
  */
 let activeDetail: import('./sheet').SheetHandle | null = null;
 
 function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sheet').SheetHandle {
-  activeDetail?.close();
+  const replacing = activeDetail !== null;
+  activeDetail?.close(true); // synchronous — old panel gone before the new one mounts
   const onClose = options?.onClose;
   const sheet = openSheet({
     ...options,
+    instant: replacing, // swap in place; a fresh open still slides up
     onClose: () => {
       if (activeDetail === sheet) activeDetail = null;
       onClose?.();

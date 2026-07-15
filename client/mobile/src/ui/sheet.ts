@@ -5,7 +5,9 @@ import { h } from '../lib/dom';
 export interface SheetHandle {
   el: HTMLElement;
   body: HTMLElement;
-  close: () => void;
+  /** Dismiss the sheet. `immediate` removes it synchronously (no exit animation) —
+   *  used when one detail sheet replaces another so panels never pile up mid-animation. */
+  close: (immediate?: boolean) => void;
   setTitle: (t: string) => void;
 }
 
@@ -14,6 +16,9 @@ interface SheetOptions {
   accent?: string;
   onClose?: () => void;
   full?: boolean;
+  /** Appear already-open (no slide-up). Used when swapping one detail sheet for
+   *  another in place, so rapid taps read as a content swap, not a stack. */
+  instant?: boolean;
 }
 
 const stack: SheetHandle[] = [];
@@ -49,26 +54,31 @@ export function openSheet(options: SheetOptions = {}): SheetHandle {
   hostEl.append(wrap);
 
   let closed = false;
-  const close = (): void => {
+  const finalize = (): void => {
+    wrap.remove();
+    if (stack.length === 0) {
+      hostEl.classList.remove('active');
+      hostEl.setAttribute('aria-hidden', 'true');
+    }
+    options.onClose?.();
+  };
+  const close = (immediate = false): void => {
     if (closed) return;
     closed = true;
     const idx = stack.indexOf(handle);
     if (idx >= 0) stack.splice(idx, 1);
+    if (immediate) {
+      finalize();
+      return;
+    }
     wrap.classList.add('closing');
-    window.setTimeout(() => {
-      wrap.remove();
-      if (stack.length === 0) {
-        hostEl.classList.remove('active');
-        hostEl.setAttribute('aria-hidden', 'true');
-      }
-      options.onClose?.();
-    }, 240);
+    window.setTimeout(finalize, 300);
   };
 
   const handle: SheetHandle = { el: panel, body, close, setTitle: (t) => (titleEl.textContent = t) };
   stack.push(handle);
 
-  backdrop.addEventListener('click', close);
+  backdrop.addEventListener('click', () => close());
 
   // Drag-to-dismiss on the grabber.
   let startY = 0;
@@ -100,6 +110,9 @@ export function openSheet(options: SheetOptions = {}): SheetHandle {
   grabber.addEventListener('pointerup', onUp);
   grabber.addEventListener('pointercancel', onUp);
 
-  requestAnimationFrame(() => wrap.classList.add('open'));
+  // Instant = swap in place (no paint of the off-screen state → no slide); fresh
+  // open = slide up on the next frame.
+  if (options.instant) wrap.classList.add('open');
+  else requestAnimationFrame(() => wrap.classList.add('open'));
   return handle;
 }

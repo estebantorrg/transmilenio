@@ -15,6 +15,8 @@ export interface MapaView extends View {
   showRoute: (route: RouteListItem) => void;
   focusPoint: (rec: StationRecord) => void;
   setUser: (coord: [number, number]) => void;
+  /** Clear the active route + banner (+ stop live tracking). Returns true if one was showing. */
+  dismissRoute: () => boolean;
 }
 
 export function createMapaView(): MapaView {
@@ -81,11 +83,20 @@ export function createMapaView(): MapaView {
   banner.append(bannerBadgeSlot, h('div', { class: 'mrb-mid' }, [bannerName, bannerLive]), bannerClose);
   el.append(banner);
 
-  bannerClose.addEventListener('click', () => {
+  function clearActiveRoute(): void {
     void controller?.clearRoute();
     banner.classList.add('hidden');
+  }
+  bannerClose.addEventListener('click', () => {
+    clearActiveRoute();
     haptic('light');
   });
+  /** Hardware-back / programmatic dismissal of the active route. */
+  function dismissRoute(): boolean {
+    if (banner.classList.contains('hidden')) return false;
+    clearActiveRoute();
+    return true;
+  }
 
   // Locate FAB.
   const locate = h('button', { class: 'map-fab', type: 'button', 'aria-label': 'Mi ubicación', html: ICONS.locate });
@@ -148,6 +159,7 @@ export function createMapaView(): MapaView {
     showRoute,
     focusPoint,
     setUser,
+    dismissRoute,
     onShow: () => {
       const c = ensureController();
       c.resize();

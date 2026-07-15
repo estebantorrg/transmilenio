@@ -10,7 +10,7 @@
 import './app.css';
 import { state, bus, type TabId } from './state';
 import { loadCore, loadBackground, fetchHealth } from './data';
-import { setAppContext } from './appContext';
+import { setAppContext, app } from './appContext';
 import { closeTopSheet, sheetCount } from './ui/sheet';
 import { ICONS } from './ui/components';
 import { createInicioView } from './views/inicio';
@@ -115,6 +115,7 @@ async function main(): Promise<void> {
       navigate('rutas');
       rutas.setZone(zone);
     },
+    dismissMapRoute: () => mapa.dismissRoute(),
   });
 
   // Start on Inicio.
@@ -142,7 +143,7 @@ async function main(): Promise<void> {
   void loadBackground();
 }
 
-/** Android hardware back: close sheet → return to Inicio → exit. */
+/** Android hardware back: close sheet → clear active map route → return to Inicio → exit. */
 function initNativeBack(navigate: (tab: TabId) => void): void {
   const cap = (window as any).Capacitor;
   const appPlugin = cap?.Plugins?.App;
@@ -150,6 +151,11 @@ function initNativeBack(navigate: (tab: TabId) => void): void {
   appPlugin.addListener('backButton', () => {
     if (sheetCount() > 0) {
       closeTopSheet();
+      return;
+    }
+    // On the map, back first clears the drawn route (and stops its live tracking)
+    // instead of orphaning it behind the Inicio tab.
+    if (state.tab === 'mapa' && app().dismissMapRoute()) {
       return;
     }
     if (state.tab !== 'inicio') {
