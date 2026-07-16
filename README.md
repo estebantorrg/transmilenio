@@ -159,7 +159,7 @@ The developer assumes no responsibility for:
 - Disruptions in service.
 - Any legal implications arising from the scraping or redistribution of the transit data.
 
-Users are encouraged to use the [official TransMilenio website](https://www.transmilenio.gov.co) for official travel planning.
+Users are encouraged to use the [official TransMilenio website](https://www.transmilenio.gov.co) for official travel planning and the TransmiApp.
 
 ---
 
