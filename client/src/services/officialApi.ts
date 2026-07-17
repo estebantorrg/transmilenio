@@ -110,6 +110,9 @@ const ARCGIS_LAYERS = {
   },
   zonalStops: { folder: 'Zonal', service: 'consulta_paraderos_zonales' },
   zonalStopRoutes: { folder: 'Zonal', service: 'consulta_paraderos_rutas', outFields: 'cenefa,ruta', returnGeometry: false },
+  // TransMiCable (spec §5.3) — same service, two layers (mirrors server arcgis.ts).
+  cableStations: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 11 },
+  cableTraces: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 14 },
 } satisfies Record<string, ArcgisConfig>;
 
 // ─── Live/Bodega host (arrivals + card, spec §5.8 / §5.5.1a) ───────────────
@@ -344,6 +347,8 @@ export const officialApi = {
   getZonalRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalRoutes),
   getZonalStops: () => arcgisResponse(ARCGIS_LAYERS.zonalStops),
   getZonalStopRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalStopRoutes),
+  getCableStations: () => arcgisResponse(ARCGIS_LAYERS.cableStations),
+  getCableTrazado: () => arcgisResponse(ARCGIS_LAYERS.cableTraces),
   getArrivals,
   getStopArrivals,
   readCardBalance,

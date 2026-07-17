@@ -9,13 +9,14 @@ import { openStationSheet } from '../ui/detailSheets';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
-type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici';
+type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici' | 'cable';
 
 const KIND_META: Record<StationRecord['kind'], { cls: string; label: string; fallback: string }> = {
   station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
   stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
   recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
   transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
+  cable: { cls: 'is-cable', label: 'Cable', fallback: 'Estación TransMiCable' },
 };
 
 const BOGOTA_BOUNDS = { minLat: 4.4, maxLat: 4.85, minLng: -74.25, maxLng: -73.95 };
@@ -37,7 +38,7 @@ export function createCercaView(): View {
   let kindFilter: KindFilter = 'all';
   const chipRow = h('div', { class: 'chip-row' });
   const chipEls = new Map<KindFilter, HTMLElement>();
-  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici']] as const) {
+  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici'], ['cable', 'Cable']] as const) {
     const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
     chip.addEventListener('click', () => {
       kindFilter = id;
@@ -100,6 +101,8 @@ export function createCercaView(): View {
         toast(point.hours ? `${point.name} · Lun–Vie ${point.hours}` : point.name, 'info');
       } else if (point.kind === 'transmibici') {
         toast(point.hours ? `${point.name} · ${point.hours}` : point.name, 'info');
+      } else if (point.kind === 'cable') {
+        toast(`${point.name} · TransMiCable`, 'info');
       } else {
         openStationSheet(point);
       }
@@ -135,6 +138,7 @@ export function createCercaView(): View {
 
   locateBtn.addEventListener('click', locate);
   bus.on('stops:ready', () => userCoord && render());
+  bus.on('cable:ready', () => userCoord && render());
 
   return {
     el,

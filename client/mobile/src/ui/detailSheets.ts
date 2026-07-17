@@ -11,6 +11,7 @@ import { LivePoller } from '../live/liveStatus';
 import { app } from '../appContext';
 import { bus, state, type StationRecord } from '../state';
 import { openSheet } from './sheet';
+import { openPlannerSheet } from '../views/planner';
 import { ICONS, liveChip, routeBadge, routeTypeLabel } from './components';
 
 /**
@@ -41,6 +42,35 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
   });
   activeDetail = sheet;
   return sheet;
+}
+
+/** Share a route via the native share sheet, Web Share, or clipboard fallback. */
+async function shareRoute(route: RouteListItem): Promise<void> {
+  const title = `${route.code} · ${route.name}`;
+  const text = `${route.code} · ${route.origin} → ${route.destination} (TransMi Go)`;
+  const cap = (window as any).Capacitor;
+  const sharePlugin = cap?.Plugins?.Share;
+  const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
+  try {
+    if (cap?.isNativePlatform?.() && sharePlugin?.share) {
+      await sharePlugin.share({ title, text, dialogTitle: 'Compartir ruta' });
+      return;
+    }
+    if (typeof nav.share === 'function') {
+      await nav.share({ title, text });
+      return;
+    }
+    if (nav.clipboard?.writeText) {
+      await nav.clipboard.writeText(text);
+      toast('Ruta copiada al portapapeles', 'ok');
+      return;
+    }
+    toast('Compartir no disponible', 'warn');
+  } catch (err) {
+    // User cancelling the native/Web share sheet is not an error.
+    if (err instanceof DOMException && err.name === 'AbortError') return;
+    toast('No se pudo compartir', 'warn');
+  }
 }
 
 function starButton(route: RouteListItem): HTMLElement {
@@ -76,7 +106,12 @@ export function openRouteSheet(route: RouteListItem): void {
       html: `${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`,
     }),
   ]);
-  header.append(badge, titles, starButton(route));
+  const shareBtn = h('button', { class: 'star-btn', type: 'button', 'aria-label': 'Compartir ruta', html: ICONS.share });
+  shareBtn.addEventListener('click', () => {
+    haptic('light');
+    void shareRoute(route);
+  });
+  header.append(badge, titles, shareBtn, starButton(route));
   sheet.body.append(header);
 
   const tags = h('div', { class: 'rd-tags' });
@@ -85,6 +120,10 @@ export function openRouteSheet(route: RouteListItem): void {
   // matching the website's route.length display — do not divide by 1000.
   if (route.length && route.length > 0.2) tags.append(h('span', { class: 'rd-tag', text: `${route.length.toFixed(1)} km` }));
   if (route.busType) tags.append(h('span', { class: 'rd-tag', text: route.busType }));
+  if (route.operator) tags.append(h('span', { class: 'rd-tag', text: route.operator }));
+  // Sistema label mirrors the website route detail (spec §1.1 R2 wording parity).
+  const sistema = route.subType === 'dual' ? 'TransMilenio Dual' : route.type === 'troncal' ? 'TransMilenio Troncal' : 'SITP Zonal';
+  tags.append(h('span', { class: 'rd-tag', text: sistema }));
   sheet.body.append(tags);
 
   // ── Live status ──
@@ -239,7 +278,18 @@ export function openStationSheet(station: StationRecord): void {
     sheet.close();
     app().focusPoint(station);
   });
-  sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]));
+  // Seed the planner from this point ("Desde aquí / Hasta aquí" — website parity).
+  const seedPlanner = (role: 'origin' | 'destination') => {
+    haptic('medium');
+    const ep = { coord: station.coordinate, code: station.code, name: station.name };
+    sheet.close();
+    openPlannerSheet(role === 'origin' ? { origin: ep } : { destination: ep });
+  };
+  const fromBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.plan}<span>Desde aquí</span>` });
+  fromBtn.addEventListener('click', () => seedPlanner('origin'));
+  const toBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.near}<span>Hasta aquí</span>` });
+  toBtn.addEventListener('click', () => seedPlanner('destination'));
+  sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]), h('div', { class: 'rd-actions rd-actions-2' }, [fromBtn, toBtn]));
 
   // Real-time arrivals (spec §5.8) — only for zonal paraderos, whose `code` is
   // the cenefa `/paradero/buses` expects. Troncal stations use a different keying,

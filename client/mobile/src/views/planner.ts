@@ -24,9 +24,14 @@ let searchSeq = 0;
 bus.on('stops:ready', () => {
   routerReady = false;
 });
+// TransMiCable stations arrive after boot too — rebuild the graph so journeys
+// can route over the cable line (spec §6.1; shared router handles the edges).
+bus.on('cable:ready', () => {
+  routerReady = false;
+});
 function ensureRouter(): void {
   if (routerReady && state.routes.length) return;
-  initRouter(state.routes, []);
+  initRouter(state.routes, state.cableRouterStations);
   routerReady = true;
 }
 
@@ -40,6 +45,7 @@ const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
   stop: 'Paradero',
   recharge: 'Punto de recarga',
   transmibici: 'Cicloparqueadero',
+  cable: 'Estación TransMiCable',
 };
 
 function searchPoints(query: string): StationRecord[] {

@@ -2,6 +2,7 @@
 
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { MasterCatalog } from '@shared/types/catalog';
+import type { CableStationInput } from '@shared/services/router';
 
 export interface StationRecord {
   code: string;
@@ -9,7 +10,7 @@ export interface StationRecord {
   direccion: string;
   coordinate: [number, number];
   wagonCount: number;
-  kind: 'station' | 'stop' | 'recharge' | 'transmibici';
+  kind: 'station' | 'stop' | 'recharge' | 'transmibici' | 'cable';
   hours?: string; // recharge (weekday hours) / transmibici (capacity · occupancy)
 }
 
@@ -38,6 +39,7 @@ type Events = {
   'routes:ready': void;
   'stops:ready': void;
   'demand:ready': void;
+  'cable:ready': void;
   'health': HealthInfo;
   'tab': TabId;
   'route:open': RouteListItem;
@@ -75,6 +77,12 @@ interface AppState {
   zonalStops: StationRecord[];
   rechargePoints: StationRecord[];
   bikeParkings: StationRecord[];
+  /** TransMiCable gondola stations (spec §5.3) — shown on the map + Cerca. */
+  cableStations: StationRecord[];
+  /** Raw ArcGIS cable trace features (LineStrings) for the map layer. */
+  cableTraces: any[];
+  /** Cable stations in the router's input shape, for journey planning over the cable line. */
+  cableRouterStations: CableStationInput[];
   demand: DemandRecord[];
   /** SITP numeric zones (1–13) each route touches, keyed by variant-base code (from the ArcGIS zonal-routes feed). */
   zonalAreas: Map<string, number[]>;
@@ -96,6 +104,9 @@ export const state: AppState = {
   zonalStops: [],
   rechargePoints: [],
   bikeParkings: [],
+  cableStations: [],
+  cableTraces: [],
+  cableRouterStations: [],
   demand: [],
   zonalAreas: new Map(),
   zones: [],
@@ -116,7 +127,7 @@ export function getRoute(id: string): RouteListItem | undefined {
   return state.routeById.get(id);
 }
 
-/** All station + zonal-stop + recharge + bike-parking records combined (for search / nearby). */
+/** All station + zonal-stop + recharge + bike-parking + cable records combined (for search / nearby). */
 export function allPoints(): StationRecord[] {
-  return state.stations.concat(state.zonalStops, state.rechargePoints, state.bikeParkings);
+  return state.stations.concat(state.zonalStops, state.rechargePoints, state.bikeParkings, state.cableStations);
 }

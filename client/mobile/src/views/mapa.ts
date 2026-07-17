@@ -38,9 +38,13 @@ export function createMapaView(): MapaView {
         const nf = new Intl.NumberFormat('es-CO');
         toast(`#${d.rank} ${d.name} · ≈${nf.format(d.total)} validaciones/día`, 'info');
       };
+      // Cable stations aren't station sheets — a toast matches the app's model.
+      controller.onSelectCable = (s) =>
+        toast(`${s.name} · TransMiCable · cabinas ~cada 20 s`, 'info');
       if (state.stations.length) controller.setStations(state.stations);
       if (state.zonalStops.length) controller.setParaderos(state.zonalStops);
       if (state.demand.length) controller.setDemand(state.demand);
+      if (state.cableStations.length) controller.setCable(state.cableStations, state.cableTraces);
     }
     return controller;
   }
@@ -50,13 +54,14 @@ export function createMapaView(): MapaView {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>';
   const filterBtn = h('button', { class: 'map-fab map-filter-btn', type: 'button', 'aria-label': 'Capas del mapa', html: LAYERS_ICON });
   const filterPanel = h('div', { class: 'map-filter-panel hidden' });
-  const mkFilterRow = (key: 'stations' | 'paraderos' | 'demand', label: string, on: boolean) => {
+  const mkFilterRow = (key: 'stations' | 'paraderos' | 'demand' | 'cable', label: string, on: boolean) => {
     const cb = h('input', { type: 'checkbox' }) as HTMLInputElement;
     cb.checked = on;
     cb.addEventListener('change', () => {
       const c = ensureController();
       if (key === 'stations') c.setStationsVisible(cb.checked);
       else if (key === 'paraderos') c.setParaderosVisible(cb.checked);
+      else if (key === 'cable') c.setCableVisible(cb.checked);
       else c.setDemandVisible(cb.checked);
       haptic('light');
     });
@@ -66,6 +71,7 @@ export function createMapaView(): MapaView {
     h('div', { class: 'map-filter-title', text: 'Mostrar en el mapa' }),
     mkFilterRow('stations', 'Estaciones', true),
     mkFilterRow('paraderos', 'Paraderos zonales', false),
+    mkFilterRow('cable', 'TransMiCable', false),
     mkFilterRow('demand', 'Demanda', false)
   );
   filterBtn.addEventListener('click', () => {
@@ -153,6 +159,7 @@ export function createMapaView(): MapaView {
   });
   bus.on('stops:ready', () => controller?.setParaderos(state.zonalStops));
   bus.on('demand:ready', () => controller?.setDemand(state.demand));
+  bus.on('cable:ready', () => controller?.setCable(state.cableStations, state.cableTraces));
 
   return {
     el,
@@ -166,6 +173,7 @@ export function createMapaView(): MapaView {
       if (state.stations.length) c.setStations(state.stations);
       if (state.zonalStops.length) c.setParaderos(state.zonalStops);
       if (state.demand.length) c.setDemand(state.demand);
+      if (state.cableStations.length) c.setCable(state.cableStations, state.cableTraces);
       requestAnimationFrame(() => c.resize());
     },
   };

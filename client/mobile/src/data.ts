@@ -393,6 +393,36 @@ export async function loadBackground(): Promise<void> {
     })
     .catch((err) => console.warn('[data] transmibici load failed:', err));
 
+  // TransMiCable (spec §5.3): gondola stations + trazado. Native app fetches
+  // ArcGIS directly; browser dev hits our /cable/* endpoints. Feeds the map
+  // cable layer, the Cerca "Cable" kind, and the planner's cable routing — the
+  // exact field mapping the website uses (main.ts) so the two never drift.
+  Promise.allSettled([api.getCableStations(), api.getCableTrazado()])
+    .then(([stationsRes, tracesRes]) => {
+      const stations = unwrap<any>(stationsRes as PromiseSettledResult<ApiResponse<any>>);
+      const traces = unwrap<any>(tracesRes as PromiseSettledResult<ApiResponse<any>>);
+      if (stations.length === 0 && traces.length === 0) return;
+
+      state.cableTraces = traces;
+      state.cableStations = stations
+        .map((s: any): StationRecord => ({
+          code: String(s.attributes?.cod_nodo ?? ''),
+          name: s.attributes?.nom_est || 'Estación TransMiCable',
+          direccion: '',
+          coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
+          wagonCount: 0,
+          kind: 'cable',
+        }))
+        .filter((s) => s.code && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]));
+      state.cableRouterStations = state.cableStations.map((s) => {
+        const src = stations.find((f: any) => String(f.attributes?.cod_nodo ?? '') === s.code);
+        return { codigo: s.code, nombre: s.name, coordinate: s.coordinate, orden: Number(src?.attributes?.num_est) || 0 };
+      });
+      state.counts.cable = state.cableStations.length;
+      bus.emit('cable:ready', undefined);
+    })
+    .catch((err) => console.warn('[data] cable load failed:', err));
+
   // Station-demand overlay data (open Salidas dataset, spec §5.5.1) → Mapa
   // "Demanda" filter. Small committed payload; loads once in the background.
   fetchStationDemand()

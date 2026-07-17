@@ -10,7 +10,7 @@
 
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
+import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { DemandRecord, StationRecord } from '../state';
@@ -36,6 +36,7 @@ export class MapController {
   private pendingStations: StationRecord[] | null = null;
   private pendingParaderos: StationRecord[] | null = null;
   private pendingDemand: DemandRecord[] | null = null;
+  private pendingCable: { stations: StationRecord[]; traces: any[] } | null = null;
   private pendingRoute: { route: RouteListItem; onLive?: RouteLiveHandler } | null = null;
   private pendingUser: [number, number] | null = null;
   private pendingFly: { coordinate: [number, number]; zoom: number } | null = null;
@@ -43,8 +44,10 @@ export class MapController {
   private stationsOn = true;
   private paraderosOn = false;
   private demandOn = false;
+  private cableOn = false;
   onSelectStation: (rec: StationRecord) => void = () => {};
   onSelectDemand: (rec: DemandRecord) => void = () => {};
+  onSelectCable: (rec: StationRecord) => void = () => {};
 
   constructor(container: HTMLElement) {
     this.map = new maplibregl.Map({
@@ -186,6 +189,54 @@ export class MapController {
       },
     });
 
+    // TransMiCable (spec §5.3) — orange gondola line + stations, hidden until the
+    // "TransMiCable" map filter enables it (mirrors the website's cable layer).
+    map.addSource('tm-cable-line', { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: 'tm-cable-line-layer',
+      type: 'line',
+      source: 'tm-cable-line',
+      layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' },
+      paint: {
+        'line-color': CABLE_COLOR,
+        'line-width': ['interpolate', ['linear'], ['zoom'], 11, 3, 16, 6],
+        'line-opacity': 0.85,
+      },
+    });
+    map.addSource('tm-cable-stations', { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: 'tm-cable-stations-layer',
+      type: 'circle',
+      source: 'tm-cable-stations',
+      layout: { visibility: 'none' },
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.4, 14, 5.5, 17, 8.5],
+        'circle-color': CABLE_COLOR,
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1.1, 16, 2.2],
+      },
+    });
+    map.addLayer({
+      id: 'tm-cable-stations-label',
+      type: 'symbol',
+      source: 'tm-cable-stations',
+      minzoom: 13,
+      layout: {
+        visibility: 'none',
+        'text-field': ['get', 'name'],
+        'text-size': 11,
+        'text-offset': [0, 1.2],
+        'text-anchor': 'top',
+        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-max-width': 8,
+      },
+      paint: {
+        'text-color': CABLE_COLOR,
+        'text-halo-color': '#05070c',
+        'text-halo-width': 1.6,
+      },
+    });
+
     map.addSource('tm-user', { type: 'geojson', data: EMPTY_FC });
     map.addLayer({
       id: 'tm-user-halo',
@@ -215,6 +266,19 @@ export class MapController {
     };
     map.on('click', 'tm-stations-layer', pickHandler('station'));
     map.on('click', 'tm-paraderos-layer', pickHandler('stop'));
+    map.on('click', 'tm-cable-stations-layer', (e) => {
+      const f = e.features?.[0];
+      if (!f) return;
+      const p = f.properties as any;
+      this.onSelectCable({
+        code: p.code,
+        name: p.name,
+        direccion: '',
+        coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
+        wagonCount: 0,
+        kind: 'cable',
+      });
+    });
     map.on('click', 'tm-demand-layer', (e) => {
       const f = e.features?.[0];
       if (!f) return;
@@ -228,7 +292,7 @@ export class MapController {
         rank: Number(p.rank) || 0,
       });
     });
-    for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer', 'tm-demand-layer']) {
+    for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer', 'tm-demand-layer', 'tm-cable-stations-layer']) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
       map.on('mouseleave', layer, () => (map.getCanvas().style.cursor = ''));
     }
@@ -246,6 +310,10 @@ export class MapController {
     if (this.pendingDemand) {
       this.setDemand(this.pendingDemand);
       this.pendingDemand = null;
+    }
+    if (this.pendingCable) {
+      this.setCable(this.pendingCable.stations, this.pendingCable.traces);
+      this.pendingCable = null;
     }
     if (this.pendingUser) {
       this.setUser(this.pendingUser);
@@ -313,7 +381,32 @@ export class MapController {
     });
   }
 
-  /** Map-filter toggles (station / zonal-stop / demand layers). Persist even under a route. */
+  setCable(stations: StationRecord[], traces: any[]): void {
+    if (!this.ready) {
+      this.pendingCable = { stations, traces };
+      return;
+    }
+    (this.map.getSource('tm-cable-line') as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: traces
+        .map((t) => ({
+          type: 'Feature' as const,
+          geometry: { type: 'LineString' as const, coordinates: (t.geometry?.paths?.[0] ?? []) as number[][] },
+          properties: { name: t.attributes?.nom_traz || 'TransMiCable' },
+        }))
+        .filter((f) => f.geometry.coordinates.length > 1),
+    });
+    (this.map.getSource('tm-cable-stations') as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: stations.map((s) => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: s.coordinate },
+        properties: { code: s.code, name: s.name },
+      })),
+    });
+  }
+
+  /** Map-filter toggles (station / zonal-stop / demand / cable layers). Persist even under a route. */
   setStationsVisible(on: boolean): void {
     this.stationsOn = on;
     this.applyBaseLayerVisibility();
@@ -329,6 +422,11 @@ export class MapController {
     this.applyBaseLayerVisibility();
   }
 
+  setCableVisible(on: boolean): void {
+    this.cableOn = on;
+    this.applyBaseLayerVisibility();
+  }
+
   /** Whole-network layers follow the filters, but are always hidden while a route
    *  is shown so only that route's own stops remain (spec: route detail clarity). */
   private applyBaseLayerVisibility(): void {
@@ -337,10 +435,14 @@ export class MapController {
     const stations = !routeActive && this.stationsOn ? 'visible' : 'none';
     const paraderos = !routeActive && this.paraderosOn ? 'visible' : 'none';
     const demand = !routeActive && this.demandOn ? 'visible' : 'none';
+    const cable = !routeActive && this.cableOn ? 'visible' : 'none';
     this.map.setLayoutProperty('tm-stations-layer', 'visibility', stations);
     this.map.setLayoutProperty('tm-stations-label', 'visibility', stations);
     this.map.setLayoutProperty('tm-paraderos-layer', 'visibility', paraderos);
     this.map.setLayoutProperty('tm-demand-layer', 'visibility', demand);
+    this.map.setLayoutProperty('tm-cable-line-layer', 'visibility', cable);
+    this.map.setLayoutProperty('tm-cable-stations-layer', 'visibility', cable);
+    this.map.setLayoutProperty('tm-cable-stations-label', 'visibility', cable);
   }
 
   private setStopsVisible(visible: boolean): void {
