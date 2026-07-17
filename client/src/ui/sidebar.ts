@@ -5,7 +5,7 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getRouteAccentColor, isAlimentadorRoute, isRutaFacilCode } from '../utils/routeColors';
+import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
 import { nearRowHtml, type NearbyPoint } from './cerca';
@@ -67,6 +67,8 @@ type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador
 let currentFilter: RouteFilter = 'all';
 // SITP zone narrowing, active only under the Zonal filter (null = all zones).
 let currentZone: number | null = null;
+// Troncal corridor-line narrowing, active only under the Troncal filter (null = all lines).
+let currentLine: string | null = null;
 let searchQuery = '';
 
 const FAV_KEY = 'tm:favorites';
@@ -261,8 +263,11 @@ function setRouteFilter(filter: RouteFilter): void {
   // The SITP zone browse only makes sense under the Zonal filter; leaving it
   // clears any active zone so the other filters aren't silently narrowed.
   if (filter !== 'zonal') currentZone = null;
+  // The corridor-line browse only makes sense under the Troncal filter.
+  if (filter !== 'troncal') currentLine = null;
   syncFilterButtons();
   syncZoneChips();
+  syncLineChips();
   applyFilters();
 }
 
@@ -307,6 +312,55 @@ function syncZoneChips(): void {
   const row = document.getElementById('zone-chips');
   if (!row) return;
   const show = currentFilter === 'zonal' && availableZones.length > 0;
+  row.classList.toggle('hidden', !show);
+}
+
+// ─── Troncal corridor-line browse (parity with the app's Inicio line chips) ──
+// TransMilenio troncal codes carry a corridor letter (A–P); the app lets users
+// browse by it (getRouteZoneLetters). This mirrors it under the Troncal filter.
+let availableLines: string[] = [];
+
+function computeAvailableLines(): void {
+  const present = new Set<string>();
+  for (const r of allRoutes) {
+    if (r.type !== 'troncal') continue;
+    for (const letter of getRouteZoneLetters(r.code)) present.add(letter);
+  }
+  // Keep the canonical corridor order (A, B, C, … from TRONCAL_COLORS).
+  availableLines = Object.keys(TRONCAL_COLORS).filter((l) => present.has(l));
+}
+
+function renderLineChips(): void {
+  const row = document.getElementById('line-chips');
+  if (!row) return;
+  if (availableLines.length === 0) {
+    row.innerHTML = '';
+    return;
+  }
+  const chip = (line: string | null): string => {
+    const active = currentLine === line;
+    const label = line === null ? 'Todas' : line;
+    const color = line ? TRONCAL_COLORS[line] : '';
+    const style = line ? ` style="--line-color:${safeColor(color)}"` : '';
+    return `<button class="zone-chip line-chip${active ? ' active' : ''}" type="button" role="tab"
+      aria-selected="${active}" data-line="${line ?? ''}"${style} title="${line === null ? 'Todas las líneas' : `Línea ${escapeHTML(line)}`}">${escapeHTML(label)}</button>`;
+  };
+  row.innerHTML = [chip(null), ...availableLines.map((l) => chip(l))].join('');
+  row.querySelectorAll<HTMLButtonElement>('.line-chip').forEach((el) => {
+    el.addEventListener('click', () => {
+      const raw = el.dataset.line;
+      currentLine = raw ? raw : null;
+      renderLineChips();
+      applyFilters();
+    });
+  });
+}
+
+/** Show the line row only under the Troncal filter, and only if lines are known. */
+function syncLineChips(): void {
+  const row = document.getElementById('line-chips');
+  if (!row) return;
+  const show = currentFilter === 'troncal' && availableLines.length > 0;
   row.classList.toggle('hidden', !show);
 }
 
@@ -894,6 +948,9 @@ export function setRoutes(routes: RouteListItem[]): void {
     return a.code.localeCompare(b.code, undefined, { numeric: true });
   });
 
+  computeAvailableLines();
+  renderLineChips();
+  syncLineChips();
   applyFilters();
 
   // First time routes are available, restore any shared deep link (#/r/<code>).
@@ -933,6 +990,10 @@ function applyFilters(): void {
     // Narrow to a single SITP zone when browsing zonal routes by zone.
     if (currentFilter === 'zonal' && currentZone !== null) {
       base = base.filter((r) => getZonalAreas(r.code).includes(currentZone!));
+    }
+    // Narrow to a single corridor line when browsing troncal routes by line.
+    if (currentFilter === 'troncal' && currentLine !== null) {
+      base = base.filter((r) => getRouteZoneLetters(r.code).includes(currentLine!));
     }
   }
 
