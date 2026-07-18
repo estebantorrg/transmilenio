@@ -165,7 +165,7 @@ Users are encouraged to use the [official TransMilenio website](https://www.tran
 
 ## 📄 License
 
-This project's code is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for the full text.
+This project's code is licensed under the **MIT License**. See the [LICENSE.md](LICENSE.md) file for the full text.
 
 **Copyright (c) 2026 Esteban.** All Rights Reserved.
 
