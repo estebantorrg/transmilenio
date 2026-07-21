@@ -188,7 +188,7 @@ export function createSaldoView(): View {
           html:
             read.numericId
               ? 'Se detectó un número en la tarjeta; consultando el <b>saldo del servidor</b>…'
-              : 'La tarjeta <b>tullave</b> es un chip DESFire cifrado: su saldo real vive en una memoria protegida por llaves del operador que esta app no puede leer. El NFC solo entrega el <b>serial</b> y datos NDEF. El saldo verificado sigue siendo el del servidor.',
+              : 'No se pudo leer el saldo directamente del chip <b>Calypso</b> en este intento (acércala de nuevo, bien centrada y sin moverla). El NFC entregó solo el <b>serial</b> y datos NDEF; mientras tanto, el saldo mostrado proviene del <b>servidor</b>.',
         }),
       ])
     );

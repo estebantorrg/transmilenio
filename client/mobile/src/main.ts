@@ -79,20 +79,39 @@ async function main(): Promise<void> {
     tabbar.append(btn);
   }
 
-  function navigate(next: TabId): void {
-    if (next === state.tab && !views[next].el.classList.contains('screen-hidden')) return;
-    const current = views[state.tab];
-    current.onHide?.();
-    current.el.classList.add('screen-hidden');
-    tabButtons.get(state.tab)?.classList.remove('active');
+  // Back stack of visited tabs (most-recent last). Hardware back retraces it
+  // instead of always dumping the user on Inicio — the app's worst UX bug was
+  // "I go back and it sends somewhere I wasn't." Forward navigations are the ONLY
+  // writers (pop-to-existing keeps it deduped); back reads it with record=false.
+  const navStack: TabId[] = ['inicio'];
 
-    state.tab = next;
-    const view = views[next];
-    view.el.classList.remove('screen-hidden');
-    tabButtons.get(next)?.classList.add('active');
-    view.onShow?.();
-    bus.emit('tab', next);
-    screens.scrollTo({ top: 0 });
+  function navigate(next: TabId, record = true): void {
+    const alreadyVisible = next === state.tab && !views[next].el.classList.contains('screen-hidden');
+    if (!alreadyVisible) {
+      const current = views[state.tab];
+      current.onHide?.();
+      current.el.classList.add('screen-hidden');
+      const prevBtn = tabButtons.get(state.tab);
+      prevBtn?.classList.remove('active');
+      prevBtn?.removeAttribute('aria-current');
+
+      state.tab = next;
+      const view = views[next];
+      view.el.classList.remove('screen-hidden');
+      const nextBtn = tabButtons.get(next);
+      nextBtn?.classList.add('active');
+      nextBtn?.setAttribute('aria-current', 'page');
+      view.onShow?.();
+      bus.emit('tab', next);
+      screens.scrollTo({ top: 0 });
+    }
+    if (record) {
+      // Revisiting a tab already in the trail pops back to it (no duplicate),
+      // so the stack stays short and back always retraces a sane path.
+      const existing = navStack.indexOf(next);
+      if (existing >= 0) navStack.length = existing + 1;
+      else navStack.push(next);
+    }
   }
 
   // App context wiring for sheets/views.
@@ -120,10 +139,38 @@ async function main(): Promise<void> {
 
   // Start on Inicio.
   views.inicio.el.classList.remove('screen-hidden');
-  tabButtons.get('inicio')?.classList.add('active');
+  const inicioBtn = tabButtons.get('inicio');
+  inicioBtn?.classList.add('active');
+  inicioBtn?.setAttribute('aria-current', 'page');
   views.inicio.onShow?.();
 
-  initNativeBack(navigate);
+  // Android hardware back: close sheet → clear active map route → retrace the tab
+  // trail → exit (only from Inicio with an empty trail).
+  const cap = (window as any).Capacitor;
+  const appPlugin = cap?.Plugins?.App;
+  if (cap?.isNativePlatform?.() && appPlugin?.addListener) {
+    appPlugin.addListener('backButton', () => {
+      if (sheetCount() > 0) {
+        closeTopSheet();
+        return;
+      }
+      // On the map, back first clears the drawn route (and stops its live tracking)
+      // instead of orphaning it behind the previous tab.
+      if (state.tab === 'mapa' && app().dismissMapRoute()) {
+        return;
+      }
+      if (navStack.length > 1) {
+        navStack.pop(); // drop the current tab…
+        navigate(navStack[navStack.length - 1], false); // …and show the one before it
+        return;
+      }
+      if (state.tab !== 'inicio') {
+        navigate('inicio', false);
+        return;
+      }
+      appPlugin.exitApp?.();
+    });
+  }
 
   // Load data.
   try {
@@ -141,29 +188,6 @@ async function main(): Promise<void> {
   // Non-blocking follow-ups.
   void fetchHealth();
   void loadBackground();
-}
-
-/** Android hardware back: close sheet → clear active map route → return to Inicio → exit. */
-function initNativeBack(navigate: (tab: TabId) => void): void {
-  const cap = (window as any).Capacitor;
-  const appPlugin = cap?.Plugins?.App;
-  if (!cap?.isNativePlatform?.() || !appPlugin?.addListener) return;
-  appPlugin.addListener('backButton', () => {
-    if (sheetCount() > 0) {
-      closeTopSheet();
-      return;
-    }
-    // On the map, back first clears the drawn route (and stops its live tracking)
-    // instead of orphaning it behind the Inicio tab.
-    if (state.tab === 'mapa' && app().dismissMapRoute()) {
-      return;
-    }
-    if (state.tab !== 'inicio') {
-      navigate('inicio');
-      return;
-    }
-    appPlugin.exitApp?.();
-  });
 }
 
 main().catch((err) => console.error('[main] fatal', err));

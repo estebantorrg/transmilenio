@@ -56,8 +56,20 @@ export function createCercaView(): View {
 
   let userCoord: [number, number] | null = null;
 
+  function showLocateHint(): void {
+    list.replaceChildren(
+      h('div', { class: 'empty' }, [
+        h('div', { class: 'empty-title', text: 'Sin ubicación' }),
+        h('div', { class: 'empty-text', text: 'Toca “Usar mi ubicación” para ver estaciones y paraderos a tu alrededor.' }),
+      ])
+    );
+  }
+
   function render(): void {
-    if (!userCoord) return;
+    if (!userCoord) {
+      showLocateHint();
+      return;
+    }
     const [lng, lat] = userCoord;
     const ranked = allPoints()
       .filter((p) => kindFilter === 'all' || p.kind === kindFilter)
@@ -94,14 +106,17 @@ export function createCercaView(): View {
     row.append(dot, mid, right);
     row.addEventListener('click', () => {
       haptic('light');
-      app().focusPoint(point);
-      // Recharge / bike-parking POIs aren't stations — focus the map + toast
-      // instead of a station sheet.
+      // Stations/stops open their detail sheet in place (it has its own "Ver en el
+      // mapa" button) — tapping a list row must NOT yank the user to the Map tab.
+      // POIs (recharge/bici/cable) have no sheet, so for those we focus the map + toast.
       if (point.kind === 'recharge') {
+        app().focusPoint(point);
         toast(point.hours ? `${point.name} · Lun–Vie ${point.hours}` : point.name, 'info');
       } else if (point.kind === 'transmibici') {
+        app().focusPoint(point);
         toast(point.hours ? `${point.name} · ${point.hours}` : point.name, 'info');
       } else if (point.kind === 'cable') {
+        app().focusPoint(point);
         toast(`${point.name} · TransMiCable`, 'info');
       } else {
         openStationSheet(point);
@@ -137,6 +152,7 @@ export function createCercaView(): View {
   }
 
   locateBtn.addEventListener('click', locate);
+  showLocateHint();
   bus.on('stops:ready', () => userCoord && render());
   bus.on('cable:ready', () => userCoord && render());
 

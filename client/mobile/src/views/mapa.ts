@@ -74,9 +74,25 @@ export function createMapaView(): MapaView {
     mkFilterRow('cable', 'TransMiCable', false),
     mkFilterRow('demand', 'Demanda', false)
   );
+  // Close the layer panel when tapping anywhere outside it (the map, another FAB) —
+  // an open panel that only closes via its own button used to sit covering the map.
+  const onOutside = (e: Event): void => {
+    if (filterPanel.classList.contains('hidden')) return;
+    const t = e.target as Node;
+    if (filterPanel.contains(t) || filterBtn.contains(t)) return;
+    filterPanel.classList.add('hidden');
+    el.removeEventListener('pointerdown', onOutside);
+  };
   filterBtn.addEventListener('click', () => {
+    const opening = filterPanel.classList.contains('hidden');
     filterPanel.classList.toggle('hidden');
     haptic('light');
+    if (opening) {
+      // Defer so this same tap doesn't immediately re-close the panel.
+      setTimeout(() => el.addEventListener('pointerdown', onOutside), 0);
+    } else {
+      el.removeEventListener('pointerdown', onOutside);
+    }
   });
   el.append(filterBtn, filterPanel);
 
@@ -92,6 +108,7 @@ export function createMapaView(): MapaView {
   function clearActiveRoute(): void {
     void controller?.clearRoute();
     banner.classList.add('hidden');
+    el.classList.remove('has-route');
   }
   bannerClose.addEventListener('click', () => {
     clearActiveRoute();
@@ -105,7 +122,7 @@ export function createMapaView(): MapaView {
   }
 
   // Locate FAB.
-  const locate = h('button', { class: 'map-fab', type: 'button', 'aria-label': 'Mi ubicación', html: ICONS.locate });
+  const locate = h('button', { class: 'map-fab map-locate-btn', type: 'button', 'aria-label': 'Mi ubicación', html: ICONS.locate });
   locate.addEventListener('click', () => locateUser());
   el.append(locate);
 
@@ -116,6 +133,7 @@ export function createMapaView(): MapaView {
 
   function showRoute(route: RouteListItem): void {
     banner.classList.remove('hidden');
+    el.classList.add('has-route');
     bannerBadgeSlot.replaceChildren(routeBadge(route, 'md'));
     bannerName.textContent = route.name;
     setBannerLive('loading');

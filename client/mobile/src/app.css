@@ -397,6 +397,9 @@ input { font-family: inherit; }
 .map-fab { position: absolute; right: 14px; bottom: 24px; z-index: 5; width: 50px; height: 50px; border-radius: 16px; background: rgba(9, 13, 22, 0.9); backdrop-filter: blur(12px); border: 1px solid var(--border-2); color: var(--text); display: grid; place-items: center; box-shadow: var(--shadow); }
 .map-fab svg { width: 23px; height: 23px; }
 .map-fab.busy svg { animation: spin 0.9s linear infinite; color: var(--blue); }
+/* Lift the locate FAB above the active-route banner so the two don't overlap. */
+.map-locate-btn { transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+.screen-mapa.has-route .map-locate-btn { bottom: 96px; }
 .map-filter-btn { top: calc(var(--safe-top) + 12px); bottom: auto; width: 44px; height: 44px; }
 .map-filter-btn svg { width: 21px; height: 21px; }
 .map-filter-panel { position: absolute; top: calc(var(--safe-top) + 64px); right: 14px; z-index: 6; width: 214px; background: rgba(11, 16, 27, 0.96); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 14px; padding: 8px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 2px; animation: screen-in 0.18s ease; }

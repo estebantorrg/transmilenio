@@ -282,7 +282,7 @@ export function openStationSheet(station: StationRecord): void {
   const seedPlanner = (role: 'origin' | 'destination') => {
     haptic('medium');
     const ep = { coord: station.coordinate, code: station.code, name: station.name };
-    sheet.close();
+    sheet.close(true); // synchronous — no sheet-over-sheet cross-animation
     openPlannerSheet(role === 'origin' ? { origin: ep } : { destination: ep });
   };
   const fromBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.plan}<span>Desde aquí</span>` });

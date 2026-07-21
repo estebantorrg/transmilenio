@@ -166,7 +166,7 @@ export function createInicioView(): View {
   renderLines();
   renderZones();
 
-  el.append(hero, statusCard, actions, favSection, lineSection, zoneSection, recentSection);
+  el.append(hero, statusCard, actions, favSection, recentSection, lineSection, zoneSection);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {

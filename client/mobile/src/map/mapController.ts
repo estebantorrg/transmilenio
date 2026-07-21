@@ -121,11 +121,13 @@ export class MapController {
         'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1, 16, 2.4],
       },
     });
+    // Labels from the default open zoom (map starts at 12) — at 13.5 the map
+    // opened with anonymous dots and names only appeared after zooming in.
     map.addLayer({
       id: 'tm-stations-label',
       type: 'symbol',
       source: 'tm-stations',
-      minzoom: 13.5,
+      minzoom: 12,
       layout: {
         'text-field': ['get', 'name'],
         'text-size': 11,
@@ -155,6 +157,30 @@ export class MapController {
         'circle-color': PARADERO_COLOR,
         'circle-stroke-color': '#06121b',
         'circle-stroke-width': 1.2,
+      },
+    });
+    // Paradero names on the map itself — before this layer existed the only way
+    // to learn a stop's name was tapping it. minzoom is higher than stations
+    // (~7400 stops vs ~140); MapLibre collision keeps the visible set readable.
+    map.addLayer({
+      id: 'tm-paraderos-label',
+      type: 'symbol',
+      source: 'tm-paraderos',
+      minzoom: 14,
+      layout: {
+        visibility: 'none',
+        'text-field': ['get', 'name'],
+        'text-size': 10,
+        'text-offset': [0, 1],
+        'text-anchor': 'top',
+        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-max-width': 8,
+        'text-optional': true,
+      },
+      paint: {
+        'text-color': PARADERO_COLOR,
+        'text-halo-color': '#05070c',
+        'text-halo-width': 1.4,
       },
     });
 
@@ -251,46 +277,50 @@ export class MapController {
       paint: { 'circle-radius': 6, 'circle-color': '#3b82f6', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 },
     });
 
-    const pickHandler = (kind: 'station' | 'stop') => (e: maplibregl.MapLayerMouseEvent) => {
-      const f = e.features?.[0];
-      if (!f) return;
+    // Tap picking. Per-layer `click` handlers require the tap to land exactly on
+    // the feature — a fingertip covers far more than these 3–9 px circles, so
+    // taps routinely "did nothing". Instead hit-test a finger-sized box around
+    // the tap across every pickable layer and dispatch the closest feature.
+    // queryRenderedFeatures only returns features from visible layers, so hidden
+    // filters / route mode need no special-casing.
+    const TAP_PAD_PX = 14;
+    const TAP_LAYERS = ['tm-stations-layer', 'tm-paraderos-layer', 'tm-cable-stations-layer', 'tm-demand-layer'];
+    map.on('click', (e) => {
+      const feats = map.queryRenderedFeatures(
+        [
+          [e.point.x - TAP_PAD_PX, e.point.y - TAP_PAD_PX],
+          [e.point.x + TAP_PAD_PX, e.point.y + TAP_PAD_PX],
+        ],
+        { layers: TAP_LAYERS.filter((id) => map.getLayer(id)) }
+      );
+      if (!feats.length) return;
+      const distToTap = (f: maplibregl.MapGeoJSONFeature): number =>
+        map.project((f.geometry as GeoJSON.Point).coordinates as [number, number]).dist(e.point);
+      feats.sort((a, b) => distToTap(a) - distToTap(b));
+      const f = feats[0];
       const p = f.properties as any;
-      this.onSelectStation({
-        code: p.code,
-        name: p.name,
-        direccion: p.direccion || '',
-        coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
-        wagonCount: Number(p.wagonCount) || 0,
-        kind,
-      });
-    };
-    map.on('click', 'tm-stations-layer', pickHandler('station'));
-    map.on('click', 'tm-paraderos-layer', pickHandler('stop'));
-    map.on('click', 'tm-cable-stations-layer', (e) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      const p = f.properties as any;
-      this.onSelectCable({
-        code: p.code,
-        name: p.name,
-        direccion: '',
-        coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
-        wagonCount: 0,
-        kind: 'cable',
-      });
-    });
-    map.on('click', 'tm-demand-layer', (e) => {
-      const f = e.features?.[0];
-      if (!f) return;
-      const p = f.properties as any;
-      this.onSelectDemand({
-        name: p.name,
-        coordinate: (f.geometry as GeoJSON.Point).coordinates as [number, number],
-        entradas: Number(p.entradas) || 0,
-        salidas: Number(p.salidas) || 0,
-        total: Number(p.total) || 0,
-        rank: Number(p.rank) || 0,
-      });
+      const coordinate = (f.geometry as GeoJSON.Point).coordinates as [number, number];
+      if (f.layer.id === 'tm-demand-layer') {
+        this.onSelectDemand({
+          name: p.name,
+          coordinate,
+          entradas: Number(p.entradas) || 0,
+          salidas: Number(p.salidas) || 0,
+          total: Number(p.total) || 0,
+          rank: Number(p.rank) || 0,
+        });
+      } else if (f.layer.id === 'tm-cable-stations-layer') {
+        this.onSelectCable({ code: p.code, name: p.name, direccion: '', coordinate, wagonCount: 0, kind: 'cable' });
+      } else {
+        this.onSelectStation({
+          code: p.code,
+          name: p.name,
+          direccion: p.direccion || '',
+          coordinate,
+          wagonCount: Number(p.wagonCount) || 0,
+          kind: f.layer.id === 'tm-stations-layer' ? 'station' : 'stop',
+        });
+      }
     });
     for (const layer of ['tm-stations-layer', 'tm-stops-layer', 'tm-paraderos-layer', 'tm-demand-layer', 'tm-cable-stations-layer']) {
       map.on('mouseenter', layer, () => (map.getCanvas().style.cursor = 'pointer'));
@@ -439,6 +469,7 @@ export class MapController {
     this.map.setLayoutProperty('tm-stations-layer', 'visibility', stations);
     this.map.setLayoutProperty('tm-stations-label', 'visibility', stations);
     this.map.setLayoutProperty('tm-paraderos-layer', 'visibility', paraderos);
+    this.map.setLayoutProperty('tm-paraderos-label', 'visibility', paraderos);
     this.map.setLayoutProperty('tm-demand-layer', 'visibility', demand);
     this.map.setLayoutProperty('tm-cable-line-layer', 'visibility', cable);
     this.map.setLayoutProperty('tm-cable-stations-layer', 'visibility', cable);
