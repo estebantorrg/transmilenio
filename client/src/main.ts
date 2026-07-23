@@ -22,7 +22,6 @@ import {
   toggleZonalRoutes,
   highlightRoute,
   clearHighlight,
-  normalizeRouteCodeForMatch,
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
@@ -36,7 +35,9 @@ import { isWithinBogota } from './utils/geo';
 import { initCerca, setCercaLocation, setNearbyPoints, type NearbyPoint } from './ui/cerca';
 import { escapeHTML } from './utils/html';
 import {
+  applyZonalStopEnrichment,
   buildRouteList,
+  buildZonalStopGroups,
   dedupeStops,
   getLiveNameCandidates,
   normalizeRouteText,
@@ -932,40 +933,13 @@ async function main(): Promise<void> {
       console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
 
       if (zonalStopsRes.features.length > 0 && zonalStopRoutesRes.features.length > 0) {
-        // Build stop-route lookup map
-        const stopLookup = new Map<string, any>();
-        zonalStopsRes.features.forEach((s: any) => {
-          const cenefa = s.attributes?.cenefa;
-          if (cenefa) stopLookup.set(cenefa, s);
-        });
-
-        const routeToStops = new Map<string, any[]>();
-        zonalStopRoutesRes.features.forEach((m: any) => {
-          const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
-          const cenefa = m.attributes?.cenefa;
-          if (routeCode && cenefa && stopLookup.has(cenefa)) {
-            const stop = stopLookup.get(cenefa);
-            if (!stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) return;
-            if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
-            routeToStops.get(routeCode)!.push({
-              nombre: stop.attributes?.nombre || 'Paradero',
-              codigo: cenefa,
-              coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
-              direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
-              kind: 'stop',
-            });
-          }
-        });
-
-        // Enrich stop lists only. Route lines must come from official trazado data.
-        routeList.forEach((route) => {
-          if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
-            const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
-            if (stops) {
-              route.stops = dedupeStops(stops);
-            }
-          }
-        });
+        // Enrich stop lists only (direction-split + orden-sorted, shared with
+        // buildRouteList and the mobile app — spec §1.1 R2). Route lines must
+        // come from official trazado data.
+        applyZonalStopEnrichment(
+          routeList,
+          buildZonalStopGroups(zonalStopsRes.features, zonalStopRoutesRes.features)
+        );
 
         // Update zonal routes map source with newly loaded geometries
         updateZonalRoutes(map, routeList.filter(r => r.type === 'zonal'));

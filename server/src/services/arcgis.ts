@@ -137,7 +137,10 @@ export const queries = {
     queryFeatureLayer({
       folder: 'Zonal',
       service: 'consulta_paraderos_rutas',
-      outFields: 'cenefa,ruta',
+      // `orden` (e.g. "CBO012"/"NOR045") carries the riding sequence per
+      // direction — without it a route's stops arrive in objectid order and the
+      // planner graph would chain them arbitrarily.
+      outFields: 'cenefa,ruta,orden',
       returnGeometry: false,
     }),
 

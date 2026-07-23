@@ -205,6 +205,99 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   return items;
 }
 
+/**
+ * Zonal stop enrichment (ArcGIS `consulta_paraderos_rutas` + `consulta_paraderos_zonales`).
+ *
+ * The mapping layer files BOTH directions of a route under one `ruta` code and
+ * only the `orden` attribute (a direction prefix + a numeric riding sequence,
+ * e.g. "CBO012" / "NOR045") distinguishes and orders them. Aggregating in
+ * feature (objectid) order interleaves the two directions, which poisons the
+ * journey-planner graph with arbitrary stop-to-stop edges — so stops are split
+ * per direction prefix and sorted by their numeric sequence here, and each
+ * route variant then picks the direction whose endpoints match its own.
+ */
+export function buildZonalStopGroups(zonalStops: any[], zonalMappings: any[]): Map<string, RouteStop[][]> {
+  const stopLookup = new Map<string, any>();
+  for (const s of zonalStops) {
+    const cenefa = s.attributes?.cenefa;
+    if (cenefa) stopLookup.set(cenefa, s);
+  }
+
+  // route code -> direction prefix -> [{sequence, stop}]
+  const byCodeAndPrefix = new Map<string, Map<string, { sequence: number; stop: RouteStop }[]>>();
+  for (const m of zonalMappings) {
+    const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
+    const cenefa = m.attributes?.cenefa;
+    const stop = cenefa ? stopLookup.get(cenefa) : null;
+    if (!routeCode || !stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) continue;
+
+    const orden = String(m.attributes?.orden ?? '');
+    const match = orden.match(/^(\D*)(\d+)$/);
+    const prefix = match ? match[1] : '';
+    const sequence = match ? Number(match[2]) : Number.MAX_SAFE_INTEGER;
+
+    let prefixes = byCodeAndPrefix.get(routeCode);
+    if (!prefixes) byCodeAndPrefix.set(routeCode, (prefixes = new Map()));
+    let group = prefixes.get(prefix);
+    if (!group) prefixes.set(prefix, (group = []));
+    group.push({
+      sequence,
+      stop: {
+        nombre: stop.attributes?.nombre || 'Paradero',
+        codigo: cenefa,
+        coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
+        direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
+        kind: 'stop',
+      },
+    });
+  }
+
+  const groupsByCode = new Map<string, RouteStop[][]>();
+  for (const [code, prefixes] of byCodeAndPrefix) {
+    const groups: RouteStop[][] = [];
+    for (const entries of prefixes.values()) {
+      entries.sort((a, b) => a.sequence - b.sequence);
+      const stops = dedupeStops(entries.map((entry) => entry.stop));
+      if (stops.length > 1) groups.push(stops);
+    }
+    if (groups.length > 0) groupsByCode.set(code, groups);
+  }
+  return groupsByCode;
+}
+
+/** Loose endpoint-name match used to pair a direction group with a route variant. */
+function endpointNameMatches(routeEndpoint: string, stopName: string): boolean {
+  const a = cleanRouteText(routeEndpoint);
+  const b = cleanRouteText(stopName);
+  return Boolean(a && b && (a.includes(b) || b.includes(a)));
+}
+
+/**
+ * Fills the stop list of zonal routes that lack catalog stops from the ArcGIS
+ * direction groups: each variant gets the direction whose first/last stop names
+ * best match its own origin/destination, falling back to the longest group.
+ */
+export function applyZonalStopEnrichment(routes: RouteListItem[], groupsByCode: Map<string, RouteStop[][]>): void {
+  for (const route of routes) {
+    if (route.type !== 'zonal' || (route.stops && route.stops.length > 0)) continue;
+    const groups = groupsByCode.get(normalizeRouteCodeForMatch(route.code));
+    if (!groups) continue;
+
+    let best: RouteStop[] | null = null;
+    let bestScore = -1;
+    for (const group of groups) {
+      const score =
+        (endpointNameMatches(route.destination, group[group.length - 1].nombre) ? 2 : 0) +
+        (endpointNameMatches(route.origin, group[0].nombre) ? 1 : 0);
+      if (score > bestScore || (score === bestScore && group.length > (best?.length ?? 0))) {
+        bestScore = score;
+        best = group;
+      }
+    }
+    if (best) route.stops = best;
+  }
+}
+
 function addUniqueLiveName(candidates: string[], value: unknown): void {
   const text = String(value || '').trim();
   if (!text) return;
@@ -308,41 +401,10 @@ export function buildRouteList(
   });
 
   // 3. Enrich Zonal routes with stops from mappings if missing
+  const merged = Array.from(mergedRoutes.values());
   if (zonalStops.length > 0 && zonalMappings.length > 0) {
-    const stopLookup = new Map<string, any>();
-    zonalStops.forEach(s => {
-      const cenefa = s.attributes?.cenefa;
-      if (cenefa) stopLookup.set(cenefa, s);
-    });
-
-    const routeToStops = new Map<string, any[]>();
-    zonalMappings.forEach(m => {
-      const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
-      const cenefa = m.attributes?.cenefa;
-      if (routeCode && cenefa && stopLookup.has(cenefa)) {
-        const stop = stopLookup.get(cenefa);
-        if (!stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) return;
-        if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
-        routeToStops.get(routeCode)!.push({
-          nombre: stop.attributes?.nombre || 'Paradero',
-          codigo: cenefa,
-          coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
-          direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
-          kind: 'stop',
-        });
-      }
-    });
-
-    // Apply to mergedRoutes
-    for (const route of mergedRoutes.values()) {
-      if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
-        const stops = routeToStops.get(normalizeRouteCodeForMatch(route.code));
-        if (stops) {
-          route.stops = dedupeStops(stops);
-        }
-      }
-    }
+    applyZonalStopEnrichment(merged, buildZonalStopGroups(zonalStops, zonalMappings));
   }
 
-  return Array.from(mergedRoutes.values());
+  return merged;
 }

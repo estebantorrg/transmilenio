@@ -1,10 +1,11 @@
-import { api } from './api';
 import type { RouteListItem } from '../types/transmilenio';
 
 export interface GraphEdge {
   to: string;
+  toIdx: number;      // dense node index of `to` (search hot path)
   routeCode: string;
   routeId: string;
+  routeIdx: number;   // dense route index (WALKING_ROUTE_IDX for walks)
   type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
   time: number;
@@ -36,7 +37,7 @@ export interface JourneyStep {
   routeCode?: string;
   routeType?: 'troncal' | 'zonal' | 'cable';
   distance: number; // in meters
-  time: number; // in minutes
+  time: number; // in minutes (ride steps include the expected boarding wait)
   stopCount?: number;
   stops?: string[]; // Intermediate stop names (excluding boarding/alighting)
   path?: [number, number][]; // Coordinates for this leg
@@ -60,9 +61,17 @@ export interface RouteSearchParams {
   sortBy?: 'transfers' | 'time' | 'walk';
 }
 
-// Global router state
+// Global router state. The search runs on dense numeric indexes (node idx ×
+// route idx) — string keys in the hot loop cost more than the graph math.
 let uniqueStops = new Map<string, RouteStop>();
-let graphAdjacency = new Map<string, GraphEdge[]>();
+let stopList: RouteStop[] = [];
+let stopIndexByCode = new Map<string, number>();
+let adjacency: GraphEdge[][] = [];
+let routeKeySpan = 0;      // routeIdx values: 0..routes-1, then walking, then start
+let walkingRouteIdx = 0;
+let startRouteIdx = 0;
+let routesById = new Map<string, RouteListItem>();
+let routeIndexById = new Map<string, number>();
 let rawRoutesList: RouteListItem[] = [];
 let rawCableStations: CableStationInput[] = [];
 
@@ -73,22 +82,72 @@ const CABLE_ROUTE_CODE = 'Cable';
 const CABLE_ROUTE_ID = 'cable-tmc';
 const CABLE_TUNAL_CODE = '40000'; // cod_nodo of the Tunal cable station
 const PORTAL_TUNAL_STATION_CODE = 'TM0119'; // troncal Portal Tunal node
-// Gondola cruise speed incl. station dwell (~9 km/h effective end-to-end).
-const CABLE_SPEED_M_PER_MINUTE = 150;
-const CABLE_DWELL_MINUTES = 0.5;
+// Gondola line speed + station dwell, calibrated to the real ~13–14 min
+// Tunal → Mirador del Paraíso end-to-end run over the 3.4 km line.
+const CABLE_SPEED_M_PER_MINUTE = 300; // 18 km/h
+const CABLE_DWELL_MINUTES = 0.4;
+
+// In-motion cruise speeds + per-stop dwell, calibrated so effective door-to-door
+// speeds land on the published figures: troncal ≈ 26–27 km/h commercial speed,
+// SITP zonal ≈ 13–15 km/h in mixed traffic.
+const TRONCAL_SPEED_M_PER_MINUTE = 533; // 32 km/h between stations
+const TRONCAL_DWELL_MINUTES = 0.5;
+const ZONAL_SPEED_M_PER_MINUTE = 300;   // 18 km/h between stops
+const ZONAL_DWELL_MINUTES = 0.35;
+
+// Expected wait when boarding a service (≈ half a typical route headway).
+// Charged in BOTH time and cost on every boarding — first ride and transfers —
+// so itineraries with fewer/higher-frequency boardings win realistically and
+// the displayed total is an honest door-to-door estimate, not a fantasy where
+// every bus is already at the platform.
+const BOARD_WAIT_MINUTES: Record<'troncal' | 'zonal' | 'cable', number> = {
+  troncal: 3,
+  zonal: 6,
+  cable: 1,
+};
 
 const WALK_SPEED_M_PER_MINUTE = 75;
-const WALK_TRANSFER_THRESHOLD_M = 320;
-const MAX_WALK_NEIGHBORS = 4;
+const WALK_TRANSFER_THRESHOLD_M = 500;
+const MAX_WALK_NEIGHBORS = 6;
 const ACCESS_SEARCH_RADIUS_M = 1500;
 const ACCESS_CANDIDATE_LIMIT = 12;
-const WALK_COST_WEIGHT = 20.0;
+// Stations guaranteed as access candidates in mixed mode even when paraderos
+// crowd them out of the nearest-N list (a slightly longer walk to a troncal
+// station is often the far better trip).
+const ACCESS_STATION_RADIUS_M = 1200;
+const ACCESS_STATION_LIMIT = 4;
 const MAX_TRANSFERS = 3;
-const MIN_WALK_COST_WEIGHT = 50.0;
-const TRANSFER_PENALTY_MINUTES = 8.0;
 // Above this straight-line distance a walking-only itinerary is not realistic;
 // prefer the "no routes found" state over an absurd multi-km walk suggestion.
 const WALK_ONLY_FALLBACK_MAX_M = 2500;
+
+/**
+ * Preference = the EXACT optimization criterion, enforced lexicographically:
+ *
+ *   - 'transfers': cost = transfers·10⁶ + door-to-door minutes. The optimum is
+ *     the mathematically minimum number of transbordos reachable in the graph;
+ *     among equal-transfer routes the fastest wins.
+ *   - 'time': cost = door-to-door expected minutes (walks at real pace, boarding
+ *     waits included, no artificial penalties). The optimum is the fastest trip.
+ *   - 'walk': cost = walked meters·10³ + door-to-door minutes. The optimum walks
+ *     the fewest meters (access + transfers + egress); time breaks ties.
+ *
+ * Dijkstra/A* stays exact on these scalarizations (non-negative edges, optimal
+ * substructure), so the top result is provably optimal for its criterion within
+ * the network model and the access radius — not a weighted approximation.
+ */
+type SearchPreference = 'transfers' | 'time' | 'walk';
+
+function getSearchPreference(sortBy: 'transfers' | 'time' | 'walk' | undefined, minWalk: boolean): SearchPreference {
+  if (sortBy === 'time') return 'time';
+  if (sortBy === 'walk' || minWalk) return 'walk';
+  return 'transfers';
+}
+
+// Lexicographic scales: one primary unit outweighs any achievable secondary
+// (door-to-door minutes are bounded far below both).
+const TRANSFER_PRIMARY_SCALE = 1e6;
+const WALK_PRIMARY_SCALE = 1e3; // per walked meter
 
 const STATION_TUNNEL_CONNECTIONS = new Set([
   tunnelKey('07111', '12003'),
@@ -150,6 +209,45 @@ export function getDistance(coord1: [number, number], coord2: [number, number]):
   return R * c;
 }
 
+// ── Spatial grid ────────────────────────────────────────────────────────────
+// Uniform lat/lng grid over all stops so neighbor lookups (walk transfers,
+// access-node search) are O(cell) instead of O(all stops). ~550 m cells.
+const GRID_CELL_DEG = 0.005;
+let spatialGrid = new Map<string, RouteStop[]>();
+
+function gridKey(cx: number, cy: number): string {
+  return `${cx}|${cy}`;
+}
+
+function buildSpatialGrid(): void {
+  spatialGrid = new Map();
+  for (const stop of uniqueStops.values()) {
+    const key = gridKey(Math.floor(stop.coordinate[0] / GRID_CELL_DEG), Math.floor(stop.coordinate[1] / GRID_CELL_DEG));
+    const bucket = spatialGrid.get(key);
+    if (bucket) bucket.push(stop);
+    else spatialGrid.set(key, [stop]);
+  }
+}
+
+/** All stops within `radiusM` of `coordinate`, with distances, unsorted. */
+function stopsWithinRadius(coordinate: [number, number], radiusM: number): { stop: RouteStop; distance: number }[] {
+  const cellSpan = Math.ceil(radiusM / 111320 / GRID_CELL_DEG) + 1;
+  const cx = Math.floor(coordinate[0] / GRID_CELL_DEG);
+  const cy = Math.floor(coordinate[1] / GRID_CELL_DEG);
+  const found: { stop: RouteStop; distance: number }[] = [];
+  for (let dx = -cellSpan; dx <= cellSpan; dx++) {
+    for (let dy = -cellSpan; dy <= cellSpan; dy++) {
+      const bucket = spatialGrid.get(gridKey(cx + dx, cy + dy));
+      if (!bucket) continue;
+      for (const stop of bucket) {
+        const distance = getDistance(coordinate, stop.coordinate);
+        if (distance <= radiusM) found.push({ stop, distance });
+      }
+    }
+  }
+  return found;
+}
+
 /**
  * Initializes the routing graph from the loaded route list.
  */
@@ -157,9 +255,15 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   rawRoutesList = routes;
   if (cableStations) rawCableStations = cableStations;
   uniqueStops.clear();
-  graphAdjacency.clear();
+  routesById = new Map(routes.map((route) => [route.id, route]));
+  routeIndexById = new Map(routes.map((route, index) => [route.id, index]));
+  const cableRouteIdx = routes.length;
+  routeIndexById.set(CABLE_ROUTE_ID, cableRouteIdx);
+  walkingRouteIdx = routes.length + 1;
+  startRouteIdx = routes.length + 2;
+  routeKeySpan = routes.length + 3;
 
-  console.log('[Router] Initializing graph builder...');
+  const startedAt = Date.now();
 
   // 1. Identify all unique stops/stations
   for (const route of routes) {
@@ -206,15 +310,19 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     });
   }
 
-  // Initialize adjacency map for each unique stop
-  for (const code of uniqueStops.keys()) {
-    graphAdjacency.set(code, []);
-  }
+  // Dense node indexes + adjacency lists
+  stopList = Array.from(uniqueStops.values());
+  stopIndexByCode = new Map(stopList.map((stop, index) => [stop.codigo, index]));
+  adjacency = stopList.map(() => []);
 
   // 2. Add Transit edges (A -> B for successive stops in routes)
   let transitEdgesCount = 0;
   for (const route of routes) {
     if (!route.stops || route.stops.length < 2) continue;
+
+    const speed = route.type === 'troncal' ? TRONCAL_SPEED_M_PER_MINUTE : ZONAL_SPEED_M_PER_MINUTE;
+    const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
+    const routeIdx = routeIndexById.get(route.id)!;
 
     for (let i = 0; i < route.stops.length - 1; i++) {
       const fromStop = route.stops[i];
@@ -222,39 +330,40 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       if (!fromStop.codigo || !toStop.codigo) continue;
 
       const distance = getDistance(fromStop.coordinate, toStop.coordinate);
-      
-      // Travel times (effective speed accounts for traffic, track curvature, queueing):
-      // Troncal: 15 km/h = 250.0 m/min. Dwell time: 60s (1.0m)
-      // Zonal: 10 km/h = 166.7 m/min. Dwell time: 36s (0.6m)
-      const speed = route.type === 'troncal' ? 250.0 : 166.7;
-      const dwell = route.type === 'troncal' ? 1.0 : 0.6;
       const time = (distance / speed) + dwell;
 
-      const edges = graphAdjacency.get(fromStop.codigo) || [];
-      edges.push({
+      adjacency[stopIndexByCode.get(fromStop.codigo)!].push({
         to: toStop.codigo,
+        toIdx: stopIndexByCode.get(toStop.codigo)!,
         routeCode: route.code,
         routeId: route.id,
+        routeIdx,
         type: route.type,
         distance,
         time,
       });
-      graphAdjacency.set(fromStop.codigo, edges);
       transitEdgesCount++;
     }
   }
 
   // 2b. Add TransMiCable ride edges between consecutive stations (both ways).
-  // Boarding the cable after any bus counts as a transbordo (route code changes).
+  // Boarding the cable after any bus counts as a transbordo (route id changes).
   for (let i = 0; i < cableLine.length - 1; i++) {
     const a = cableLine[i];
     const b = cableLine[i + 1];
     const distance = getDistance(a.coordinate, b.coordinate);
     const time = distance / CABLE_SPEED_M_PER_MINUTE + CABLE_DWELL_MINUTES;
     const edge = (from: string, to: string) => {
-      const edges = graphAdjacency.get(from) || [];
-      edges.push({ to, routeCode: CABLE_ROUTE_CODE, routeId: CABLE_ROUTE_ID, type: 'cable', distance, time });
-      graphAdjacency.set(from, edges);
+      adjacency[stopIndexByCode.get(from)!].push({
+        to,
+        toIdx: stopIndexByCode.get(to)!,
+        routeCode: CABLE_ROUTE_CODE,
+        routeId: CABLE_ROUTE_ID,
+        routeIdx: cableRouteIdx,
+        type: 'cable',
+        distance,
+        time,
+      });
       transitEdgesCount++;
     };
     edge(a.codigo, b.codigo);
@@ -263,20 +372,23 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
 
   // 3. Add short transfer walks. Station-to-station links are only verified tunnels.
   let walkingEdgesCount = 0;
-  const stopsArray = Array.from(uniqueStops.values());
 
   const addWalkingEdge = (fromCode: string, toCode: string, distance: number): void => {
-    const edges = graphAdjacency.get(fromCode) || [];
-    if (edges.some((edge) => edge.type === 'walking' && edge.to === toCode)) return;
+    const fromIdx = stopIndexByCode.get(fromCode);
+    const toIdx = stopIndexByCode.get(toCode);
+    if (fromIdx === undefined || toIdx === undefined) return;
+    const edges = adjacency[fromIdx];
+    if (edges.some((edge) => edge.type === 'walking' && edge.toIdx === toIdx)) return;
     edges.push({
       to: toCode,
+      toIdx,
       routeCode: 'walking',
       routeId: 'walking',
+      routeIdx: walkingRouteIdx,
       type: 'walking',
       distance,
       time: distance / WALK_SPEED_M_PER_MINUTE,
     });
-    graphAdjacency.set(fromCode, edges);
     walkingEdgesCount++;
   };
 
@@ -312,33 +424,24 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     addWalkingEdge(CABLE_TUNAL_CODE, PORTAL_TUNAL_STATION_CODE, dist);
   }
 
-  for (let i = 0; i < stopsArray.length; i++) {
-    const fromStop = stopsArray[i];
+  // 3c. Proximity transfer walks via the spatial grid (O(stops × neighborhood)
+  // instead of the old all-pairs scan).
+  buildSpatialGrid();
+  for (const fromStop of uniqueStops.values()) {
+    if (fromStop.kind === 'cable') continue;
     const neighbors: { stopCode: string; distance: number }[] = [];
-
-    for (let j = 0; j < stopsArray.length; j++) {
-      if (i === j) continue;
-      const toStop = stopsArray[j];
+    for (const { stop: toStop, distance } of stopsWithinRadius(fromStop.coordinate, WALK_TRANSFER_THRESHOLD_M)) {
+      if (toStop.codigo === fromStop.codigo) continue;
       if (!canCreateWalkingTransfer(fromStop, toStop)) continue;
-
-      // Quick bounding box check before heavy math
-      const dLat = Math.abs(toStop.coordinate[1] - fromStop.coordinate[1]);
-      const dLon = Math.abs(toStop.coordinate[0] - fromStop.coordinate[0]);
-      if (dLat > 0.0055 || dLon > 0.0055) continue; // ~600m bounding box threshold
-
-      const distance = getDistance(fromStop.coordinate, toStop.coordinate);
-      if (distance <= WALK_TRANSFER_THRESHOLD_M) {
-        neighbors.push({ stopCode: toStop.codigo, distance });
-      }
+      neighbors.push({ stopCode: toStop.codigo, distance });
     }
-
     // Sort neighbors by distance and take nearest few to keep transfers sane.
     neighbors.sort((a, b) => a.distance - b.distance);
     neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, n.distance));
   }
 
   console.log(
-    `[Router] Graph ready! Vertices: ${uniqueStops.size}, Transit Edges: ${transitEdgesCount}, Walking Edges: ${walkingEdgesCount}`
+    `[Router] Graph ready in ${Date.now() - startedAt}ms. Vertices: ${uniqueStops.size}, Transit Edges: ${transitEdgesCount}, Walking Edges: ${walkingEdgesCount}`
   );
 }
 
@@ -415,14 +518,15 @@ class MinHeap<T> {
 }
 
 interface DijkstraState {
-  nodeCode: string;
-  routeCode: string; // The route we arrived on ("walking", "start", or transit route code)
+  nodeIdx: number;   // dense stop index (stopList)
+  routeIdx: number;  // dense index of the route we arrived on (walking/start included)
+  routeCode: string; // label of that route ("walking", "start", or transit route code)
   routeId: string;
   cost: number;
   time: number;
   walkDistance: number;
   transfers: number;
-  parentKey: string | null;
+  parentKey: number | null;
   hasRidden: boolean;
 }
 
@@ -441,21 +545,21 @@ function getStop(code: string, virtualStops?: Map<string, RouteStop>): RouteStop
 }
 
 /**
- * Slice coordinates of a route variant between two stops.
+ * Slice coordinates of a route variant between two stops. `fallback` is the
+ * stop-to-stop chain of the ride (boarding, intermediates, alighting) — used
+ * whenever the variant has no usable geometry or the slice snaps wrong.
  */
 function sliceRouteGeometry(
   routeId: string,
   fromStopCode: string,
-  toStopCode: string
+  toStopCode: string,
+  fallback: [number, number][]
 ): [number, number][] {
-  const route = rawRoutesList.find((r) => r.id === routeId);
+  const route = routesById.get(routeId);
   const fromStop = uniqueStops.get(fromStopCode);
   const toStop = uniqueStops.get(toStopCode);
 
-  if (!fromStop || !toStop) return [];
-
-  const fallback: [number, number][] = [fromStop.coordinate, toStop.coordinate];
-
+  if (!fromStop || !toStop) return fallback;
   if (!route || !route.geometry || !route.geometry.paths || route.geometry.paths.length === 0) {
     return fallback;
   }
@@ -523,13 +627,27 @@ function sliceRouteGeometry(
 }
 
 /**
- * Collapses successive graph legs on the same route into a single Ride step.
+ * Collapses successive graph legs on the same route VARIANT into a single Ride
+ * step. Grouping is by routeId (not code) so the two directions of a same-coded
+ * route can never fuse into one impossible U-turn ride. Ride step times include
+ * the expected boarding wait; geometry is sliced once per committed step.
  */
 function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>): JourneyStep[] {
   const steps: JourneyStep[] = [];
   if (legs.length === 0) return steps;
 
   let currentStep: JourneyStep | null = null;
+  let currentRouteId: string | null = null;
+  let currentChain: [number, number][] = [];
+
+  const commitCurrent = (): void => {
+    if (!currentStep) return;
+    currentStep.path = sliceRouteGeometry(currentRouteId!, currentStep.fromCode, currentStep.toCode, currentChain);
+    steps.push(currentStep);
+    currentStep = null;
+    currentRouteId = null;
+    currentChain = [];
+  };
 
   for (const leg of legs) {
     const fromStop = getStop(leg.fromNode, virtualStops);
@@ -537,12 +655,8 @@ function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>
     if (!fromStop || !toStop) continue;
 
     if (leg.type === 'walking') {
-      // If there's an ongoing ride step, commit it
-      if (currentStep) {
-        steps.push(currentStep);
-        currentStep = null;
-      }
-      
+      commitCurrent();
+
       const key = tunnelKey(fromStop.codigo, toStop.codigo);
       let walkPath = [fromStop.coordinate, toStop.coordinate];
       let distance = leg.distance;
@@ -574,57 +688,40 @@ function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>
         path: walkPath,
         isTunnel,
       });
-    } else {
-      // Transit leg
-      if (currentStep && currentStep.type === 'ride' && currentStep.routeCode === leg.routeCode) {
-        // Extend existing ride step
-        if (currentStep.stops && fromStop.codigo !== currentStep.fromCode) {
-          const lastStop = currentStep.stops[currentStep.stops.length - 1];
-          if (lastStop !== fromStop.nombre) currentStep.stops.push(fromStop.nombre);
-        }
-        currentStep.toName = toStop.nombre;
-        currentStep.toCode = toStop.codigo;
-        currentStep.distance += leg.distance;
-        currentStep.time += leg.time;
-        if (currentStep.stopCount !== undefined) currentStep.stopCount++;
-        
-        // Append sliced coordinates
-        const slice = sliceRouteGeometry(leg.routeId, leg.fromNode, leg.toNode);
-        if (currentStep.path && slice.length > 0) {
-          // Avoid duplicating the connection point coordinate
-          currentStep.path = currentStep.path.concat(slice.slice(1));
-        }
-      } else {
-        // If there's an ongoing ride step, commit it
-        if (currentStep) {
-          steps.push(currentStep);
-        }
-
-        // Create new ride step
-        const slice = sliceRouteGeometry(leg.routeId, leg.fromNode, leg.toNode);
-        currentStep = {
-          type: 'ride',
-          fromName: fromStop.nombre,
-          fromCode: fromStop.codigo,
-          toName: toStop.nombre,
-          toCode: toStop.codigo,
-          routeCode: leg.routeCode,
-          routeType: leg.type,
-          distance: leg.distance,
-          time: leg.time,
-          stopCount: 1,
-          stops: [], // Will populate if multiple stops are traversed
-          path: slice,
-        };
+    } else if (currentStep && currentRouteId === leg.routeId) {
+      // Extend existing ride step
+      if (currentStep.stops && fromStop.codigo !== currentStep.fromCode) {
+        const lastStop = currentStep.stops[currentStep.stops.length - 1];
+        if (lastStop !== fromStop.nombre) currentStep.stops.push(fromStop.nombre);
       }
+      currentStep.toName = toStop.nombre;
+      currentStep.toCode = toStop.codigo;
+      currentStep.distance += leg.distance;
+      currentStep.time += leg.time;
+      if (currentStep.stopCount !== undefined) currentStep.stopCount++;
+      currentChain.push(toStop.coordinate);
+    } else {
+      // New ride step (first boarding or a transfer)
+      commitCurrent();
+      currentStep = {
+        type: 'ride',
+        fromName: fromStop.nombre,
+        fromCode: fromStop.codigo,
+        toName: toStop.nombre,
+        toCode: toStop.codigo,
+        routeCode: leg.routeCode,
+        routeType: leg.type,
+        distance: leg.distance,
+        time: leg.time + BOARD_WAIT_MINUTES[leg.type],
+        stopCount: 1,
+        stops: [], // Will populate if multiple stops are traversed
+      };
+      currentRouteId = leg.routeId;
+      currentChain = [fromStop.coordinate, toStop.coordinate];
     }
   }
 
-  // Commit last step
-  if (currentStep) {
-    steps.push(currentStep);
-  }
-
+  commitCurrent();
   return steps;
 }
 
@@ -658,42 +755,59 @@ function findAccessNodes(
       seenCodes.add(exact.codigo);
     }
 
-    const sourceMatches = Array.from(uniqueStops.values())
-      .filter((stop) => stop.sourceCode === selectedCode && isStopCompatible(stop, mode));
-    for (const stop of sourceMatches) {
-      if (!seenCodes.has(stop.codigo)) {
-        candidates.push({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) });
+    // Selected codes can be source codes shared by split platforms — pull the
+    // platforms from the local neighborhood instead of scanning every stop.
+    for (const { stop, distance } of stopsWithinRadius(coordinate, ACCESS_SEARCH_RADIUS_M)) {
+      if (stop.sourceCode === selectedCode && isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo)) {
+        candidates.push({ nodeCode: stop.codigo, distance });
         seenCodes.add(stop.codigo);
       }
     }
   }
 
-  // If the user does NOT want to minimize walking, we allow walking up to 400m (1-2 mins) to alternative stops/stations.
-  // This opens up direct or fewer-transfer routes.
-  const alternativeStopsRadius = minWalk ? 0 : 400;
-
-  const compatibleStops = Array.from(uniqueStops.values())
-    .filter((stop) => isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo))
-    .map((stop) => ({ nodeCode: stop.codigo, distance: getDistance(coordinate, stop.coordinate) }));
-
-  const searchRadius = selectedCode ? alternativeStopsRadius : ACCESS_SEARCH_RADIUS_M;
+  // If the user does NOT want to minimize walking, we allow walking up to 400m
+  // to alternative stops/stations. This opens up direct or fewer-transfer routes.
+  const searchRadius = selectedCode ? (minWalk ? 0 : 400) : ACCESS_SEARCH_RADIUS_M;
   const limit = selectedCode ? 6 : ACCESS_CANDIDATE_LIMIT;
 
   if (searchRadius > 0) {
-    const nearby = compatibleStops
-      .filter((candidate) => candidate.distance <= searchRadius)
-      .sort((a, b) => a.distance - b.distance)
-      .slice(0, limit);
-    candidates.push(...nearby);
+    const inRadius = stopsWithinRadius(coordinate, searchRadius)
+      .filter(({ stop }) => isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo))
+      .sort((a, b) => a.distance - b.distance);
+
+    for (const { stop, distance } of inRadius.slice(0, limit)) {
+      candidates.push({ nodeCode: stop.codigo, distance });
+      seenCodes.add(stop.codigo);
+    }
+
+    // In mixed mode paraderos are dense enough to crowd every station out of
+    // the nearest-N list; guarantee the closest stations as candidates too.
+    if (mode === 'mix' && !selectedCode) {
+      const stations = inRadius
+        .filter(({ stop, distance }) => stop.kind === 'station' && distance <= ACCESS_STATION_RADIUS_M && !seenCodes.has(stop.codigo))
+        .slice(0, ACCESS_STATION_LIMIT);
+      for (const { stop, distance } of stations) {
+        candidates.push({ nodeCode: stop.codigo, distance });
+        seenCodes.add(stop.codigo);
+      }
+    }
   }
 
   if (candidates.length > 0) {
     return candidates.sort((a, b) => a.distance - b.distance);
   }
 
-  // Fallback to absolute closest if none nearby
-  const sortedCompatible = compatibleStops.sort((a, b) => a.distance - b.distance);
-  return sortedCompatible.slice(0, Math.min(5, ACCESS_CANDIDATE_LIMIT));
+  // Fallback: widen the search ring until something compatible appears.
+  for (let radius = ACCESS_SEARCH_RADIUS_M * 2; radius <= ACCESS_SEARCH_RADIUS_M * 8; radius *= 2) {
+    const widened = stopsWithinRadius(coordinate, radius)
+      .filter(({ stop }) => isStopCompatible(stop, mode))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, 5);
+    if (widened.length > 0) {
+      return widened.map(({ stop, distance }) => ({ nodeCode: stop.codigo, distance }));
+    }
+  }
+  return [];
 }
 
 /**
@@ -715,8 +829,29 @@ export function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 't
   });
 }
 
+// The search keeps collecting arrivals a bit past the best complete journey so
+// the user gets genuine alternatives, not just the single optimum: 15 extra
+// minutes within the same primary tier, plus one primary step for 'transfers'
+// (show the +1-transbordo faster option) and ~120 m for 'walk'.
+const SECONDARY_SLACK_MINUTES = 15;
+function diversitySlack(preference: SearchPreference): number {
+  if (preference === 'transfers') return TRANSFER_PRIMARY_SCALE + SECONDARY_SLACK_MINUTES;
+  if (preference === 'walk') return 120 * WALK_PRIMARY_SCALE + SECONDARY_SLACK_MINUTES;
+  return SECONDARY_SLACK_MINUTES;
+}
+const TERMINAL_CANDIDATE_CAP = 24;
+// Absolute bound on reconstructed candidates (guards reconstruction cost).
+const TERMINAL_HARD_CAP = 64;
+// Hard ceiling on node expansions so a pathological graph can never blow past
+// the sub-100ms search budget (spec §1 perf). With the end-cost bound below the
+// search normally terminates far earlier.
+const MAX_NODE_POPS = 60000;
+
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const { origin, destination, originStopCode, destStopCode, mode, minWalk, sortBy } = params;
+  const preference = getSearchPreference(sortBy, minWalk);
+  const walkPrimary = preference === 'walk' ? WALK_PRIMARY_SCALE : 0;
+  const slack = diversitySlack(preference);
 
   // 1. Identify starting nodes
   const startNodes = findAccessNodes(origin, mode, originStopCode, minWalk);
@@ -727,20 +862,50 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   findAccessNodes(destination, mode, destStopCode, minWalk).forEach((node) => destNodes.set(node.nodeCode, node.distance));
   if (destNodes.size === 0) return [];
 
-  // 3. Multi-criteria Dijkstra
+  // 3. A* over (node, arriving route) states, ordered by cost + an admissible
+  // remaining-cost bound (straight-line distance at the fastest speed the mode
+  // allows — cost can never undercut time, and time can never undercut that).
+  // The egress walk is added the moment a destination node is popped, and the
+  // frontier is monotone in bound, so once the cheapest complete journey is
+  // known everything bounded above it (+ slack for alternatives) is cut off —
+  // this is both the correctness fix (a longer ride that alights closer can
+  // win) and the main speed win (no full-graph drain hunting arrivals).
   const queue = new MinHeap<DijkstraState>();
-  const bestCosts = new Map<string, number>();
-  const stateRegistry = new Map<string, DijkstraState>();
-  const makeKey = (nodeCode: string, routeCode: string, routeId: string) => `${nodeCode}|${routeCode}|${routeId}`;
+  const bestCosts = new Map<number, number>();
+  const stateRegistry = new Map<number, DijkstraState>();
+  const makeKey = (nodeIdx: number, routeIdx: number) => nodeIdx * routeKeySpan + routeIdx;
 
-  const walkWeight = minWalk ? MIN_WALK_COST_WEIGHT : WALK_COST_WEIGHT;
+  // Destination nodes keyed by dense index
+  const destByIdx = new Map<number, number>(); // nodeIdx -> egress walk distance
+  for (const [code, distance] of destNodes) {
+    const idx = stopIndexByCode.get(code);
+    if (idx !== undefined) destByIdx.set(idx, distance);
+  }
+
+  // Admissible remaining-cost bound: straight-line time at the fastest speed the
+  // mode allows; in walk-primary mode every completion additionally walks at
+  // least the smallest egress of any destination candidate.
+  const heuristicSpeed = mode === 'zonal' ? ZONAL_SPEED_M_PER_MINUTE : TRONCAL_SPEED_M_PER_MINUTE;
+  const minEgressPrimary = walkPrimary > 0 ? Math.min(...destByIdx.values()) * walkPrimary : 0;
+  const heuristicCache = new Float64Array(stopList.length).fill(NaN);
+  const remainingBound = (nodeIdx: number): number => {
+    let bound = heuristicCache[nodeIdx];
+    if (Number.isNaN(bound)) {
+      bound = getDistance(stopList[nodeIdx].coordinate, destination) / heuristicSpeed + minEgressPrimary;
+      heuristicCache[nodeIdx] = bound;
+    }
+    return bound;
+  };
 
   // Push starting states
   for (const start of startNodes) {
+    const nodeIdx = stopIndexByCode.get(start.nodeCode);
+    if (nodeIdx === undefined) continue;
     const walkTime = start.distance / WALK_SPEED_M_PER_MINUTE;
-    const cost = walkTime * walkWeight;
+    const cost = walkTime + start.distance * walkPrimary;
     const state: DijkstraState = {
-      nodeCode: start.nodeCode,
+      nodeIdx,
+      routeIdx: startRouteIdx,
       routeCode: 'start',
       routeId: 'start',
       cost,
@@ -750,40 +915,49 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       parentKey: null,
       hasRidden: false,
     };
-    
-    const key = makeKey(start.nodeCode, 'start', 'start');
+
+    const key = makeKey(nodeIdx, startRouteIdx);
     bestCosts.set(key, cost);
     stateRegistry.set(key, state);
-    queue.push(state, cost);
+    queue.push(state, cost + remainingBound(nodeIdx));
   }
 
-  const results: DijkstraState[] = [];
-  // Collect more terminal candidates than we ultimately show. The Dijkstra
-  // cost does NOT include the egress (destination) walk, so the first arrival
-  // is not necessarily the best end-to-end trip — a slightly costlier transit
-  // path that alights closer to the destination can win once the egress walk
-  // is added. We gather several arrivals and re-rank by true total time below.
-  const TERMINAL_CANDIDATE_CAP = 12;
-  // Hard ceiling on node expansions so an unreachable destination (or a huge
-  // graph) can never blow past the sub-100ms search budget (spec §1 perf).
-  const MAX_NODE_POPS = 60000;
+  const results: { state: DijkstraState; egressDistance: number }[] = [];
+  let bestEndCost = Infinity;
   let nodePops = 0;
-  const transferPenalty = TRANSFER_PENALTY_MINUTES;
 
   while (!queue.isEmpty()) {
     if (++nodePops > MAX_NODE_POPS) break;
     const current = queue.pop()!;
-    const currentKey = makeKey(current.nodeCode, current.routeCode, current.routeId);
+    const frontierBound = current.cost + remainingBound(current.nodeIdx);
+    // The frontier is monotone in bound, so past bestEndCost nothing can improve
+    // the optimum — stop there once enough alternatives are gathered, and stop
+    // unconditionally past the diversity band.
+    if (frontierBound > bestEndCost + slack) break;
+    if (results.length >= TERMINAL_CANDIDATE_CAP && frontierBound > bestEndCost) break;
 
+    const currentKey = makeKey(current.nodeIdx, current.routeIdx);
     const bestCost = bestCosts.get(currentKey);
     if (bestCost !== undefined && current.cost > bestCost) continue;
 
-    if (destNodes.has(current.nodeCode)) {
-      results.push(current);
-      if (results.length >= TERMINAL_CANDIDATE_CAP) break;
+    const egressDistance = destByIdx.get(current.nodeIdx);
+    // A journey candidate must contain at least one ride (pure walking is the
+    // explicit fallback plan). An arrival straight off a transfer walk whose
+    // alighting node is itself a destination candidate is dominated by ending
+    // there (straight-line egress obeys the triangle inequality) — skip it.
+    const walkArrivalParent = current.routeIdx === walkingRouteIdx && current.parentKey !== null
+      ? stateRegistry.get(current.parentKey)?.nodeIdx
+      : undefined;
+    const dominatedWalkArrival = walkArrivalParent !== undefined && destByIdx.has(walkArrivalParent);
+    if (egressDistance !== undefined && current.hasRidden && !dominatedWalkArrival) {
+      const endCost = current.cost + egressDistance / WALK_SPEED_M_PER_MINUTE + egressDistance * walkPrimary;
+      if (endCost < bestEndCost) bestEndCost = endCost;
+      results.push({ state: current, egressDistance });
+      if (results.length >= TERMINAL_HARD_CAP) break;
     }
 
-    const edges = graphAdjacency.get(current.nodeCode) || [];
+    const currentStop = stopList[current.nodeIdx];
+    const edges = adjacency[current.nodeIdx];
     for (const edge of edges) {
       if (edge.type === 'troncal' && mode === 'zonal') continue;
       if (edge.type === 'zonal' && mode === 'troncal') continue;
@@ -793,64 +967,62 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       // CRITICAL: Troncal routes can ONLY be boarded/alighted at stations.
       // A paradero (zonal stop) cannot physically serve troncal buses.
       if (edge.type === 'troncal') {
-        const fromNode = uniqueStops.get(current.nodeCode);
-        const toNode = uniqueStops.get(edge.to);
-        if (fromNode && fromNode.kind !== 'station') continue;
-        if (toNode && toNode.kind !== 'station') continue;
+        if (currentStop.kind !== 'station') continue;
+        if (stopList[edge.toIdx].kind !== 'station') continue;
       }
 
       let edgeTime = edge.time;
-      let edgeCost = edge.time;
+      let edgeCost;
       let isTransfer = false;
 
       if (edge.type === 'walking') {
-        const fromStop = uniqueStops.get(current.nodeCode);
-        const toStop = uniqueStops.get(edge.to);
-        const isTunnel = fromStop && toStop && fromStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(fromStop, toStop);
-        
-        if (!isTunnel && (current.routeCode === 'start' || current.routeCode === 'walking')) {
+        const toStop = stopList[edge.toIdx];
+        const isTunnel = currentStop.kind === 'station' && toStop.kind === 'station' && hasTunnelConnection(currentStop, toStop);
+
+        if (!isTunnel && (current.routeIdx === startRouteIdx || current.routeIdx === walkingRouteIdx)) {
           continue;
         }
 
-        if (isTunnel) {
-          edgeCost = edgeTime * 1.5;
-        } else {
-          edgeCost = edgeTime * walkWeight;
-        }
+        edgeCost = edgeTime + edge.distance * walkPrimary;
       } else {
-        if (current.hasRidden && current.routeCode !== edge.routeCode) {
+        // Boarding = first ride, or any change of route VARIANT (routeIdx, so a
+        // same-coded opposite-direction variant is a real transfer, never a
+        // free "continuation" through a U-turn).
+        const isBoarding = !current.hasRidden || current.routeIdx !== edge.routeIdx;
+        if (isBoarding) {
+          edgeTime += BOARD_WAIT_MINUTES[edge.type];
+        }
+        edgeCost = edgeTime;
+        if (isBoarding && current.hasRidden) {
           // Hard cap on transfers — prevent absurd multi-transfer routes
           if (current.transfers >= MAX_TRANSFERS) continue;
-          edgeCost += transferPenalty;
+          if (preference === 'transfers') edgeCost += TRANSFER_PRIMARY_SCALE;
           isTransfer = true;
         }
       }
 
       const nextCost = current.cost + edgeCost;
-      const nextTime = current.time + edgeTime;
-      const nextWalkDistance = current.walkDistance + (edge.type === 'walking' ? edge.distance : 0);
-      const nextTransfers = current.transfers + (isTransfer ? 1 : 0);
+      if (nextCost + remainingBound(edge.toIdx) > bestEndCost + slack) continue;
 
-      const nextRouteCode = edge.type === 'walking' ? 'walking' : edge.routeCode;
-      const nextRouteId = edge.type === 'walking' ? 'walking' : edge.routeId;
-      const nextKey = makeKey(edge.to, nextRouteCode, nextRouteId);
+      const nextKey = makeKey(edge.toIdx, edge.routeIdx);
       const prevBest = bestCosts.get(nextKey);
 
       if (prevBest === undefined || nextCost < prevBest) {
         bestCosts.set(nextKey, nextCost);
         const nextState: DijkstraState = {
-          nodeCode: edge.to,
-          routeCode: nextRouteCode,
-          routeId: nextRouteId,
+          nodeIdx: edge.toIdx,
+          routeIdx: edge.routeIdx,
+          routeCode: edge.type === 'walking' ? 'walking' : edge.routeCode,
+          routeId: edge.type === 'walking' ? 'walking' : edge.routeId,
           cost: nextCost,
-          time: nextTime,
-          walkDistance: nextWalkDistance,
-          transfers: nextTransfers,
+          time: current.time + edgeTime,
+          walkDistance: current.walkDistance + (edge.type === 'walking' ? edge.distance : 0),
+          transfers: current.transfers + (isTransfer ? 1 : 0),
           parentKey: currentKey,
           hasRidden: current.hasRidden || (edge.type !== 'walking'),
         };
         stateRegistry.set(nextKey, nextState);
-        queue.push(nextState, nextCost);
+        queue.push(nextState, nextCost + remainingBound(edge.toIdx));
       }
     }
   }
@@ -858,24 +1030,22 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   // 4. Reconstruct paths and map to JourneyPlan structures
   const plans: JourneyPlan[] = [];
 
-  for (const targetState of results) {
+  for (const { state: targetState, egressDistance } of results) {
     const legs: RawLeg[] = [];
     const virtualStops = new Map<string, RouteStop>();
     let state = targetState;
 
-    const destWalkDist = destNodes.get(state.nodeCode) || 0;
-    if (destWalkDist > 0) {
-      const destStop = uniqueStops.get(state.nodeCode)!;
+    if (egressDistance > 0) {
       legs.push({
-        fromNode: state.nodeCode,
+        fromNode: stopList[state.nodeIdx].codigo,
         toNode: 'END',
         routeCode: 'walking',
         routeId: 'walking',
         type: 'walking',
-        distance: destWalkDist,
-        time: destWalkDist / WALK_SPEED_M_PER_MINUTE,
+        distance: egressDistance,
+        time: egressDistance / WALK_SPEED_M_PER_MINUTE,
       });
-      
+
       virtualStops.set('END', {
         nombre: 'Destino',
         codigo: 'END',
@@ -888,21 +1058,16 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       const parent = stateRegistry.get(state.parentKey);
       if (!parent) break;
 
-      const edges = graphAdjacency.get(parent.nodeCode) || [];
-      let edge = edges.find((e) => {
-        const edgeRouteCode = e.type === 'walking' ? 'walking' : e.routeCode;
-        const edgeRouteId = e.type === 'walking' ? 'walking' : e.routeId;
-        return e.to === state.nodeCode && edgeRouteCode === state.routeCode && edgeRouteId === state.routeId;
-      });
-
+      const edges = adjacency[parent.nodeIdx];
+      let edge = edges.find((e) => e.toIdx === state.nodeIdx && e.routeIdx === state.routeIdx);
       if (!edge && edges.length > 0) {
-        edge = edges.find((e) => e.to === state.nodeCode);
+        edge = edges.find((e) => e.toIdx === state.nodeIdx);
       }
 
       if (edge) {
         legs.unshift({
-          fromNode: parent.nodeCode,
-          toNode: state.nodeCode,
+          fromNode: stopList[parent.nodeIdx].codigo,
+          toNode: stopList[state.nodeIdx].codigo,
           routeCode: edge.routeCode,
           routeId: edge.routeId,
           type: edge.type,
@@ -914,11 +1079,10 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       state = parent;
     }
 
-    const startState = state;
-    const startNodeCode = startState.nodeCode;
+    const startNodeCode = stopList[state.nodeIdx].codigo;
     const startStop = uniqueStops.get(startNodeCode);
     const startWalk = startNodes.find((s) => s.nodeCode === startNodeCode);
-    
+
     if (startStop && startWalk && startWalk.distance > 0) {
       legs.unshift({
         fromNode: 'START',
@@ -938,15 +1102,17 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       });
     }
 
-    const totalTime = legs.reduce((sum, leg) => sum + leg.time, 0);
-    const totalWalkDistance = legs.reduce((sum, leg) => sum + (leg.type === 'walking' ? leg.distance : 0), 0);
-    const transfers = targetState.transfers;
     const journeySteps = buildJourneySteps(legs, virtualStops);
+    // Totals from the built steps: ride steps carry their boarding wait, so the
+    // displayed time is door-to-door (walks + waits + rides), matching what the
+    // async walking enrichment recomputes later.
+    const totalTime = journeySteps.reduce((sum, s) => sum + s.time, 0);
+    const totalWalkDistance = journeySteps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0);
 
     plans.push({
       totalTime: Math.round(totalTime),
       walkDistance: Math.round(totalWalkDistance),
-      transfers,
+      transfers: targetState.transfers,
       steps: journeySteps,
     });
   }
@@ -956,6 +1122,12 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const seenRouteKeys = new Set<string>();
 
   for (const plan of plans) {
+    // Reject plans demanding more total walking than we'd ever suggest as a
+    // walk — they only appear when the mode filter leaves no sane option (e.g.
+    // troncal-only to a neighborhood without stations) and no human would
+    // follow them; "no routes" is the honest answer there.
+    if (plan.walkDistance > WALK_ONLY_FALLBACK_MAX_M) continue;
+
     // Validate: reject plans where troncal rides start/end at non-station nodes
     const hasInvalidTroncalBoarding = plan.steps.some((step) => {
       if (step.type !== 'ride' || step.routeType !== 'troncal') return false;
@@ -969,7 +1141,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       .filter((s) => s.type === 'ride')
       .map((s) => `${s.routeCode}|${s.fromCode}|${s.toCode}`)
       .join(' -> ');
-    
+
     if (!seenRouteKeys.has(routeKey) && plan.steps.length > 0) {
       seenRouteKeys.add(routeKey);
       finalPlans.push(plan);
@@ -978,8 +1150,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   sortJourneyPlans(finalPlans, sortBy);
 
-  // Show at most 3 distinct options (we over-collected terminals for ranking).
-  return finalPlans.slice(0, 3);
+  // Show at most 4 distinct options (we over-collected terminals for ranking).
+  return finalPlans.slice(0, 4);
 }
 
 function createWalkingFallbackPlan(origin: [number, number], destination: [number, number]): JourneyPlan {
@@ -1009,26 +1181,32 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
 
   if (uniqueStops.size === 0) {
     console.warn('[Router] Graph is empty. Initializing router with rawRoutesList.');
-    initRouter(rawRoutesList);
+    initRouter(rawRoutesList, rawCableStations);
   }
 
   console.log(`[Router] Routing request. Mode: ${mode}`);
 
   // 1. Primary search
-  let plans = findRoutesCore(params);
+  const plans = findRoutesCore(params);
 
-  // 2. Fallback to walking-only plan if no transit exists under the selected
-  // filter — but only when the destination is actually walkable. Beyond that a
-  // straight "walk 8 km / 100 min" plan is misleading, so return nothing and
-  // let the UI show the honest "no routes" state.
-  if (plans.length === 0) {
-    const directWalk = getDistance(origin, destination);
-    if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
+  // 2. Walking-only plan: the sole option when no transit exists under the
+  // selected filter, and a competing option whenever plain walking would beat
+  // every transit plan door-to-door (common on sub-km trips once waits are
+  // modeled). Beyond walkable range a straight "walk 8 km / 100 min" plan is
+  // misleading, so an empty result stays empty ("no routes" state).
+  const directWalk = getDistance(origin, destination);
+  if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
+    const walkPlan = createWalkingFallbackPlan(origin, destination);
+    if (plans.length === 0) {
       console.log('[Router] No transit routes found. Falling back to walking-only plan.');
-      plans = [createWalkingFallbackPlan(origin, destination)];
-    } else {
-      console.log('[Router] No transit routes found and destination too far to walk.');
+      plans.push(walkPlan);
+    } else if (walkPlan.totalTime <= Math.min(...plans.map((p) => p.totalTime))) {
+      plans.push(walkPlan);
+      sortJourneyPlans(plans, params.sortBy);
+      plans.splice(4);
     }
+  } else if (plans.length === 0) {
+    console.log('[Router] No transit routes found and destination too far to walk.');
   }
 
   return plans;
@@ -1048,6 +1226,9 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
   if (cached) return cached;
 
   try {
+    // Lazy import keeps this module free of api.ts's Vite-only globals
+    // (import.meta.env), so the router stays importable from Node test harnesses.
+    const { api } = await import('./api');
     const data = await api.getWalkingRoute(from, to);
     const route = data.data;
     if (data.success && route && route.coordinates.length >= 2) {
@@ -1062,18 +1243,14 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
   } catch (error) {
     console.warn('[Router] Failed to fetch walking path from API:', error);
   }
-  
+
   // Fallback to straight line
   const distance = getDistance(from, to);
   return {
     coordinates: [from, to],
     distance,
-    time: distance / 75,
+    time: distance / WALK_SPEED_M_PER_MINUTE,
   };
-}
-
-export function getGraphAdjacency() {
-  return graphAdjacency;
 }
 
 export function isTunnelTransfer(fromCode: string, toCode: string): boolean {

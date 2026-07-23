@@ -992,7 +992,9 @@ function calculateRoute(): void {
   const sortBy = preference;
   lastSortBy = preference;
 
-  window.setTimeout(() => {
+  // Let the loading state paint (one frame), then run the synchronous search —
+  // no fixed artificial delay; the search itself is budgeted sub-100ms (spec §1).
+  requestAnimationFrame(() => window.setTimeout(() => {
     if (requestId !== plannerRequestSeq) {
       btnCalculate.classList.remove('loading');
       return;
@@ -1035,7 +1037,7 @@ function calculateRoute(): void {
     enrichWalkingGeometries(calculatedPlans, requestId).catch(err => {
       console.error('[Planner] Failed walking enrichment:', err);
     });
-  }, 100);
+  }, 0));
 }
 
 function renderResults(plans: JourneyPlan[], preserveSelection = false): void {

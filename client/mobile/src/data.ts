@@ -7,7 +7,7 @@
  */
 
 import { api } from '@shared/services/api';
-import { buildRouteList, dedupeStops, isStationStopCode } from '@shared/data/routeCatalog';
+import { applyZonalStopEnrichment, buildRouteList, buildZonalStopGroups, isStationStopCode } from '@shared/data/routeCatalog';
 import { isAlimentadorRoute, normalizeRouteCodeForMatch } from '@shared/utils/routeColors';
 import { setRouteTypeIndex } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
@@ -318,35 +318,10 @@ export async function loadBackground(): Promise<void> {
     return;
   }
 
-  const stopLookup = new Map<string, any>();
-  for (const s of stops) {
-    const cenefa = s.attributes?.cenefa;
-    if (cenefa) stopLookup.set(cenefa, s);
-  }
-
-  // Enrich zonal routes missing stops (same rule as the website — spec §5.4.2).
+  // Enrich zonal routes missing stops (direction-split + orden-sorted, shared
+  // with the website — spec §5.4.2, §1.1 R2).
   if (mappings.length > 0) {
-    const routeToStops = new Map<string, any[]>();
-    for (const m of mappings) {
-      const routeCode = normalizeRouteCodeForMatch(m.attributes?.ruta);
-      const cenefa = m.attributes?.cenefa;
-      const stop = cenefa ? stopLookup.get(cenefa) : null;
-      if (!routeCode || !stop?.geometry || stop.geometry.x == null || stop.geometry.y == null) continue;
-      if (!routeToStops.has(routeCode)) routeToStops.set(routeCode, []);
-      routeToStops.get(routeCode)!.push({
-        nombre: stop.attributes?.nombre || 'Paradero',
-        codigo: cenefa,
-        coordinate: [stop.geometry.x, stop.geometry.y] as [number, number],
-        direccion: stop.attributes?.direccion_bandera || stop.attributes?.via || '',
-        kind: 'stop',
-      });
-    }
-    for (const route of state.routes as RouteListItem[]) {
-      if (route.type === 'zonal' && (!route.stops || route.stops.length === 0)) {
-        const enriched = routeToStops.get(normalizeRouteCodeForMatch(route.code));
-        if (enriched) route.stops = dedupeStops(enriched);
-      }
-    }
+    applyZonalStopEnrichment(state.routes as RouteListItem[], buildZonalStopGroups(stops, mappings));
   }
 
   // Paraderos themselves come from the catalog at boot (catalogPointRecords) — the
