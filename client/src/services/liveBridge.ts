@@ -69,6 +69,24 @@ if (typeof window !== 'undefined') {
   });
 }
 
+/**
+ * Cached availability ONLY — never waits for a ping. Used on the live-request
+ * hot path: blocking every first request on a 600 ms ping the extension will
+ * only answer if it exists puts that delay in front of every cold start for the
+ * (vast majority) of users who have no extension. The content script announces
+ * `hello` at document_start, so an installed bridge is already known here; when
+ * it isn't, {@link probeLiveBridge} settles it in the background before the user
+ * can select a route.
+ */
+export function isLiveBridgeReady(): boolean {
+  return availability !== null && availability.value && Date.now() - availability.at < AVAILABILITY_TTL_MS;
+}
+
+/** Fire-and-forget availability probe, so {@link isLiveBridgeReady} is warm. */
+export function probeLiveBridge(): void {
+  void isLiveBridgeAvailable().catch(() => {});
+}
+
 export async function isLiveBridgeAvailable(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   if (availability && Date.now() - availability.at < AVAILABILITY_TTL_MS) return availability.value;

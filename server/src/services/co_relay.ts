@@ -16,6 +16,14 @@ import https from 'https';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
+// Reuse the TLS connection to the gateway across calls: arrivals/card/live all
+// hit the same host repeatedly, and a fresh handshake per call is cold-start
+// latency the user feels (spec §5.2.2b).
+const keepAliveAgents = {
+  https: new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
+  http: new http.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
+};
+
 function relayBaseUrl(): string {
   return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL || '').trim();
 }
@@ -78,6 +86,7 @@ export function relayForward(
       path: `${url.pathname}${url.search}`,
       method: 'POST',
       headers,
+      agent: url.protocol === 'http:' ? keepAliveAgents.http : keepAliveAgents.https,
       timeout: timeoutMs,
     }, (res) => {
       const chunks: Buffer[] = [];

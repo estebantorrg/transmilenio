@@ -45,9 +45,11 @@ function toBusArray(payload) {
   return buses.length ? buses : [];
 }
 
-async function fetchLiveOnce(path, body) {
+async function fetchLiveOnce(path, body, parentSignal) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  parentSignal?.addEventListener('abort', onParentAbort, { once: true });
   try {
     const headers = { Appid: APPID };
     if (body != null) headers['Content-Type'] = 'application/json; charset=UTF-8';
@@ -69,13 +71,48 @@ async function fetchLiveOnce(path, body) {
     return toBusArray(json);
   } finally {
     clearTimeout(timer);
+    parentSignal?.removeEventListener('abort', onParentAbort);
   }
 }
 
 /**
+ * Resolves with the first candidate that returns buses. A wrong destination name
+ * answers with an empty list rather than an error, so the winning condition is
+ * "first NON-EMPTY": a valid empty result is only returned once every candidate
+ * has answered, and the rejection only if none did.
+ */
+function firstNonEmpty(tasks) {
+  return new Promise((resolve, reject) => {
+    let pending = tasks.length;
+    let empty = null;
+    let lastError = null;
+
+    for (const task of tasks) {
+      task.then(
+        (buses) => {
+          if (buses.length > 0) return resolve(buses);
+          empty = buses;
+          if (--pending === 0) resolve(empty || []);
+        },
+        (error) => {
+          lastError = error;
+          if (--pending === 0) {
+            if (empty !== null) resolve(empty);
+            else reject(lastError);
+          }
+        }
+      );
+    }
+  });
+}
+
+/**
  * Troncal needs a destination name to match; the catalog often holds several
- * candidate strings. Try each until one returns buses, mirroring the server's
- * candidate loop. Zonal is keyed purely by route code with an empty body.
+ * candidate strings. Fire them ALL in parallel and take the first that returns
+ * buses — trying them one by one paid a round-trip (or a full 9 s timeout) per
+ * miss before reaching the matching name, which dominated the first fix of a
+ * tracking session. Mirrors the server's parallel candidate strategy. Zonal is
+ * keyed purely by route code with an empty body.
  */
 async function fetchLive({ ruta, nombre, routeType, candidates }) {
   const code = String(ruta || '').trim();
@@ -90,19 +127,15 @@ async function fetchLive({ ruta, nombre, routeType, candidates }) {
     .filter(Boolean);
   const tried = names.length ? names : [''];
 
-  let lastEmpty = [];
-  let lastError = null;
-  for (const name of tried) {
-    try {
-      const buses = await fetchLiveOnce('/buses', JSON.stringify({ ruta: code, Nombre: name }));
-      if (buses.length) return buses;
-      lastEmpty = buses;
-    } catch (err) {
-      lastError = err;
-    }
+  // Cancel the still-running candidates as soon as one wins.
+  const controller = new AbortController();
+  try {
+    return await firstNonEmpty(
+      tried.map((name) => fetchLiveOnce('/buses', JSON.stringify({ ruta: code, Nombre: name }), controller.signal))
+    );
+  } finally {
+    controller.abort();
   }
-  if (lastError && !lastEmpty.length) throw lastError;
-  return lastEmpty;
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

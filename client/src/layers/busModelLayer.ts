@@ -151,6 +151,22 @@ function loadModel(url: string, onReady: (obj: THREE.Object3D) => void): void {
   );
 }
 
+/**
+ * Fetch + Draco-decode the LOD model ahead of the first tracked bus. Without
+ * this the download only starts when the layer is added — i.e. AFTER the first
+ * live fix has landed — so the buses appear a model-load later than the data.
+ * Idempotent and safe to call before any map exists.
+ */
+export function preloadBusModels(): void {
+  if (templateLOD || lodLoading) return;
+  lodLoading = true;
+  loadModel(MODEL_URL_LOD, (obj) => {
+    templateLOD = obj;
+    lodLoading = false;
+    for (const [, b] of buses) attachModels(b);
+  });
+}
+
 const customLayer: maplibregl.CustomLayerInterface = {
   id: LAYER_ID,
   type: 'custom',
@@ -173,10 +189,7 @@ const customLayer: maplibregl.CustomLayerInterface = {
     maxAniso = renderer.capabilities.getMaxAnisotropy();
 
     // Load the lightweight LOD immediately; the full model is lazy (see render()).
-    if (!templateLOD && !lodLoading) {
-      lodLoading = true;
-      loadModel(MODEL_URL_LOD, (obj) => { templateLOD = obj; lodLoading = false; for (const [, b] of buses) attachModels(b); });
-    }
+    preloadBusModels();
   },
 
   render(_gl, matrix) {

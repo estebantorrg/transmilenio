@@ -12,6 +12,8 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
+import { prefetchLiveBuses } from '@shared/services/api';
+import { liveNameCandidates } from '../live/liveStatus';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { DemandRecord, StationRecord } from '../state';
 
@@ -361,6 +363,13 @@ export class MapController {
     // Sync station/paradero layers to the current filter state (in case a toggle
     // fired before the style finished loading).
     this.applyBaseLayerVisibility();
+
+    // Warm the live-tracking assets now that the map is up: the three.js chunk
+    // and the Draco-decoded bus model would otherwise both load only after the
+    // user opens a route, delaying the first buses well past their data.
+    loadBuses()
+      .then((buses) => buses.preloadBusModels())
+      .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
   }
 
   setStations(records: StationRecord[]): void {
@@ -497,6 +506,19 @@ export class MapController {
     this.activeRouteId = route.id;
     const color = getRouteAccentColor(route);
 
+    // Start the live request before drawing anything: the sources, the camera
+    // and the lazy three.js import below all run while it is in flight, so the
+    // first poll of `startBusTracking` reuses it instead of starting one then
+    // (spec §5.2 cold start; see `prefetchLiveBuses`).
+    const liveNames = liveNameCandidates(route);
+    prefetchLiveBuses(
+      route.code,
+      liveNames[0] || route.catalogNombre || route.name || route.destination,
+      route.type,
+      liveNames
+    );
+    void loadBuses();
+
     const paths = route.geometry?.paths ?? [];
     const routeSrc = this.map.getSource('tm-route') as maplibregl.GeoJSONSource | undefined;
     routeSrc?.setData({
@@ -530,13 +552,12 @@ export class MapController {
     // Live tracking: lazy-load the shared buses/three layer on first use.
     const buses = await loadBuses();
     if (this.activeRouteId !== route.id) return; // switched away during import
-    const candidates = route.liveNameCandidates ?? [];
     buses.startBusTracking(
       this.map,
       route.code,
-      candidates[0] || route.catalogNombre || route.name || route.destination,
+      liveNames[0] || route.catalogNombre || route.name || route.destination,
       route.type,
-      candidates,
+      liveNames,
       color,
       stops.map((s) => ({ nombre: s.nombre, coordinate: s.coordinate })),
       (count, status, asOf) => onLive?.(count, status, asOf)

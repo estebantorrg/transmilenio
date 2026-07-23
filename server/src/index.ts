@@ -2,7 +2,7 @@ import express, { type ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import apiRoutes from './routes/api.js';
-import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog } from './services/tm_api.js';
+import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -108,6 +108,10 @@ async function start(): Promise<void> {
 
   app.listen(PORT, () => {
     console.log(`\n🚌 Transmilenio API Proxy running on http://localhost:${PORT}\n`);
+
+    // Keep the Colombian egress (serverless Function) and its sockets hot so the
+    // first live poll of a tracking session isn't a cold start (spec §5.2.2b).
+    startLiveWarmup();
 
     // Auto-sync if catalog is stale or missing — OFF by default. A full sync
     // holds the old + new + merged catalogs at once (~700 MB peak) and OOM-kills

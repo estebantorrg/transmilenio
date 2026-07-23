@@ -9,16 +9,17 @@ import { api, type LiveBusResult } from '@shared/services/api';
 import { getLiveNameCandidates } from '@shared/data/routeCatalog';
 import type { RouteListItem } from '@shared/types/transmilenio';
 
-function candidatesFor(route: RouteListItem): string[] {
+/** Destination-name candidates for a route's live query, cached on the route. */
+export function liveNameCandidates(route: RouteListItem): string[] {
   if (!route.liveNameCandidates || route.liveNameCandidates.length === 0) {
     route.liveNameCandidates = getLiveNameCandidates(route);
   }
   return route.liveNameCandidates;
 }
 
-export function pollLiveOnce(route: RouteListItem): Promise<LiveBusResult> {
-  const names = candidatesFor(route);
-  return api.getLiveBuses(route.code, names[0] || route.name, route.type, names);
+export function pollLiveOnce(route: RouteListItem, fresh = false): Promise<LiveBusResult> {
+  const names = liveNameCandidates(route);
+  return api.getLiveBuses(route.code, names[0] || route.name, route.type, names, { fresh });
 }
 
 export class LivePoller {
@@ -36,12 +37,12 @@ export class LivePoller {
     this.timer = window.setInterval(() => this.tick(), this.intervalMs);
   }
 
-  private async tick(): Promise<void> {
+  private async tick(fresh = false): Promise<void> {
     if (this.inFlight) return;
     this.inFlight = true;
     if (this.timer === null) this.onUpdate('loading'); // first call, before interval set
     try {
-      const res = await pollLiveOnce(this.route);
+      const res = await pollLiveOnce(this.route, fresh);
       this.onUpdate(res);
     } finally {
       this.inFlight = false;
@@ -49,7 +50,7 @@ export class LivePoller {
   }
 
   refresh(): void {
-    this.tick();
+    this.tick(true); // user asked for new data — don't answer from the shared window
   }
 
   stop(): void {

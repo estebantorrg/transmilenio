@@ -929,6 +929,41 @@ const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
 const LIVE_DESTINATION_MAX_LENGTH = 160;
 const LIVE_NAME_CANDIDATE_LIMIT = 12;
 
+// Live requests repeat every 15 s per tracking client, so the TCP+TLS handshake
+// is pure cold-start cost on every poll. Keeping the sockets alive removes it
+// (~200-400 ms/poll) and, together with the warm-up below, means the first poll
+// of a tracking session reuses an already-open connection.
+const liveKeepAliveAgent = new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 });
+const relayKeepAliveAgents = {
+  https: new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
+  http: new http.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
+};
+
+// A non-CO egress is rejected by the geofence for EVERY route, so once the live
+// host has answered 401/451 the direct tier is known-dead: trying it anyway adds
+// a full handshake + rejection round-trip to the front of every request (and the
+// whole cascade behind it). Remember the rejection and skip straight to the
+// relay until the memo expires — a host that gains a Colombian egress (or a
+// changed geofence) is picked up on the next expiry.
+const DIRECT_GEOFENCE_MEMO_MS = Number(process.env.TM_DIRECT_GEOFENCE_MEMO_MS || 10 * 60_000);
+let directGeofencedUntil = 0;
+
+function isDirectTierGeofenced(): boolean {
+  return Date.now() < directGeofencedUntil;
+}
+
+function markDirectTierGeofenced(): void {
+  if (DIRECT_GEOFENCE_MEMO_MS <= 0) return;
+  if (!isDirectTierGeofenced()) {
+    console.log(`[TM API] Live host geofenced this egress — skipping the direct tier for ${Math.round(DIRECT_GEOFENCE_MEMO_MS / 1000)}s`);
+  }
+  directGeofencedUntil = Date.now() + DIRECT_GEOFENCE_MEMO_MS;
+}
+
+function clearDirectTierGeofence(): void {
+  directGeofencedUntil = 0;
+}
+
 interface LiveRequestContext {
   routeCode: string;
   destinationName: string;
@@ -1198,7 +1233,8 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signa
   if (secret) headers.Authorization = `Bearer ${secret}`;
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO relay ${url.origin}`);
-  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, undefined, signal);
+  const agent = url.protocol === 'http:' ? relayKeepAliveAgents.http : relayKeepAliveAgents.https;
+  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, agent as https.Agent, signal);
 }
 
 function buildProxyHeaders(context: LiveRequestContext): Record<string, string | number> {
@@ -1349,7 +1385,14 @@ async function fetchLiveBusesDirect(context: LiveRequestContext, signal?: AbortS
   }
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=DIRECT`);
-  return requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, undefined, signal);
+  try {
+    const buses = await requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, liveKeepAliveAgent, signal);
+    clearDirectTierGeofence(); // this egress reaches the host after all
+    return buses;
+  } catch (error) {
+    if (isGeofenceRejection(error)) markDirectTierGeofenced();
+    throw error;
+  }
 }
 
 /** A non-Colombian egress is rejected by the geofence — no candidate will fare
@@ -1393,50 +1436,51 @@ async function runLiveStrategy(
     }
   }
 
-  // Multi-candidate: fire all in parallel, take the first non-empty hit.
+  // Multi-candidate: fire all in parallel and resolve the MOMENT one returns
+  // buses — waiting for every candidate to settle would pin the response to the
+  // slowest one (the live host answers anywhere between 0.3 s and its 9 s
+  // timeout), which lands squarely on the first fix of a tracking session.
+  // A valid empty result and the error paths still need every candidate, since
+  // only a non-empty hit proves the name matched (spec §5.2.4).
   const controller = new AbortController();
   const onParentAbort = () => controller.abort();
   signal?.addEventListener('abort', onParentAbort, { once: true });
 
-  type Outcome = { buses: any[]; candidate: string } | { error: any; candidate: string };
-
-  const settled = await Promise.allSettled(
-    contexts.map(async (ctx): Promise<Outcome> => {
-      try {
-        const buses = await fetcher(ctx, controller.signal);
-        return { buses, candidate: ctx.candidateName };
-      } catch (error: any) {
-        return { error, candidate: ctx.candidateName };
-      }
-    })
-  );
-
-  signal?.removeEventListener('abort', onParentAbort);
-
-  // Evaluate results: prefer the first non-empty bus list; remember any valid
-  // empty result as fallback; collect errors from genuine failures.
+  let pending = contexts.length;
   let emptyResult: any[] | null = null;
   let geofenced = false;
-  for (const result of settled) {
-    if (result.status !== 'fulfilled') continue;
-    const outcome = result.value;
-    if ('buses' in outcome) {
-      if (outcome.buses.length > 0) {
-        console.log(`[TM API] ${label} candidate "${outcome.candidate}" succeeded with ${outcome.buses.length} buses`);
-        controller.abort(); // cancel stragglers
-        return outcome.buses;
-      }
-      emptyResult = outcome.buses;
-    } else {
-      errors.push(`[${label} ${outcome.candidate}] ${outcome.error?.message ?? outcome.error}`);
-      if (shouldAbort?.(outcome.error)) geofenced = true;
-    }
-  }
 
-  controller.abort();
-  // A geofenced rejection means no candidate on this transport will ever work.
-  if (geofenced && emptyResult === null) return null;
-  return emptyResult;
+  try {
+    return await new Promise<any[] | null>((resolve) => {
+      const settle = (value: any[] | null) => {
+        controller.abort(); // cancel the stragglers
+        resolve(value);
+      };
+
+      for (const ctx of contexts) {
+        fetcher(ctx, controller.signal).then(
+          (buses) => {
+            if (buses.length > 0) {
+              console.log(`[TM API] ${label} candidate "${ctx.candidateName}" succeeded with ${buses.length} buses`);
+              settle(buses);
+              return;
+            }
+            emptyResult = buses;
+            if (--pending === 0) settle(emptyResult);
+          },
+          (error: any) => {
+            errors.push(`[${label} ${ctx.candidateName}] ${error?.message ?? error}`);
+            if (shouldAbort?.(error)) geofenced = true;
+            // A geofenced rejection means no candidate on this transport will
+            // ever work, so a fully-failed strategy reports nothing at all.
+            if (--pending === 0) settle(geofenced && emptyResult === null ? null : emptyResult);
+          }
+        );
+      }
+    });
+  } finally {
+    signal?.removeEventListener('abort', onParentAbort);
+  }
 }
 
 /** Which transport actually answered a live-bus request. Lets the route layer
@@ -1473,9 +1517,13 @@ export async function fetchLiveBuses(
   const overallTimer = setTimeout(() => overallController.abort(), LIVE_OVERALL_TIMEOUT_MS);
 
   try {
-    // 1. Direct (works when the backend egress is Colombian).
-    const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, overallController.signal);
-    if (direct) return { buses: direct, source: 'direct' };
+    // 1. Direct (works when the backend egress is Colombian). Skipped entirely
+    // while the geofence memo is hot — the rejection is egress-wide, so paying
+    // the round-trip again would only delay the relay.
+    if (!isDirectTierGeofenced()) {
+      const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, overallController.signal);
+      if (direct) return { buses: direct, source: 'direct' };
+    }
 
     // 2. Colombia relay (for non-Colombian hosts with a relay configured).
     const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, overallController.signal);
@@ -1491,6 +1539,37 @@ export async function fetchLiveBuses(
   } finally {
     clearTimeout(overallTimer);
   }
+}
+
+// ─── Live path warm-up (cold-start removal) ───────────────
+// The CO egress is a serverless OCI Function (§5.2.2a): idle it drops its
+// container, so the FIRST live request of a tracking session pays a container
+// cold start on top of the upstream's own (App Engine also idles down). A cheap
+// periodic probe keeps both hot — and keeps the keep-alive sockets above open —
+// so a user who starts tracking gets the warm latency, not the cold one.
+const LIVE_WARMUP_INTERVAL_MS = Number(process.env.TM_LIVE_WARMUP_MS ?? 240_000);
+const WARMUP_ROUTE = { ruta: '1', nombre: 'Universidades' };
+let warmupTimer: NodeJS.Timeout | null = null;
+
+async function warmLivePath(): Promise<void> {
+  const context = createLiveRequestContext(WARMUP_ROUTE.ruta, WARMUP_ROUTE.nombre, 'troncal');
+  try {
+    if (getConfiguredColombiaRelayUrl()) await fetchLiveBusesViaColombiaRelay(context);
+    else if (!isDirectTierGeofenced()) await fetchLiveBusesDirect(context);
+  } catch (error) {
+    // A failed warm-up is not a user-facing failure — the next real request
+    // still runs the full cascade. Log it once per tick and move on.
+    console.warn('[TM API] live warm-up failed:', (error as any)?.message || error);
+  }
+}
+
+/** Starts the periodic live-path warm-up. Idempotent; `TM_LIVE_WARMUP_MS=0` disables it. */
+export function startLiveWarmup(): void {
+  if (warmupTimer || !(LIVE_WARMUP_INTERVAL_MS > 0)) return;
+  void warmLivePath();
+  warmupTimer = setInterval(() => void warmLivePath(), LIVE_WARMUP_INTERVAL_MS);
+  warmupTimer.unref(); // never hold the process open
+  console.log(`[TM API] Live warm-up every ${Math.round(LIVE_WARMUP_INTERVAL_MS / 1000)}s (TM_LIVE_WARMUP_MS=0 to disable)`);
 }
 
 // ─── Arrivals (llegadas at a paradero, spec §5.8) ─────────
@@ -1555,12 +1634,15 @@ export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
   const timer = setTimeout(() => overall.abort(), LIVE_OVERALL_TIMEOUT_MS);
   try {
     // 1. Direct (works when the backend egress is Colombian: local / CO host).
-    try {
-      const arrivals = await requestLiveJson(url, headers, postData, ARRIVALS_TIMEOUT_MS, undefined, overall.signal, parseArrivalsResponse);
-      return { arrivals, source: 'direct' };
-    } catch (error) {
-      if (!isGeofenceRejection(error)) {
-        console.warn('[TM API] arrivals direct failed:', (error as any)?.message || error);
+    // Skipped while the geofence memo is hot — same egress, same rejection.
+    if (!isDirectTierGeofenced()) {
+      try {
+        const arrivals = await requestLiveJson(url, headers, postData, ARRIVALS_TIMEOUT_MS, liveKeepAliveAgent, overall.signal, parseArrivalsResponse);
+        clearDirectTierGeofence();
+        return { arrivals, source: 'direct' };
+      } catch (error) {
+        if (isGeofenceRejection(error)) markDirectTierGeofenced();
+        else console.warn('[TM API] arrivals direct failed:', (error as any)?.message || error);
       }
     }
 

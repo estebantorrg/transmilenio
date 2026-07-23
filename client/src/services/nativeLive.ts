@@ -134,10 +134,45 @@ async function fetchLiveOnce(http: NativeHttpPlugin, path: string, body: unknown
 }
 
 /**
- * Live buses straight from the device. Troncal tries each destination-name
- * candidate until one returns buses (a wrong name returns empty, not an error —
- * spec §5.2.4); zonal is keyed purely by route code with an empty body. Mirrors
- * the extension worker's loop (`extension/background.js`).
+ * Resolves with the first candidate that returns buses. A wrong destination name
+ * yields an empty list rather than an error (spec §5.2.4), so "first non-empty"
+ * — not "first to answer" — is the winning condition; a valid empty result is
+ * returned only once every candidate has answered, and the rejection only if
+ * none did.
+ */
+function firstNonEmpty(tasks: Promise<unknown[]>[]): Promise<unknown[]> {
+  return new Promise((resolve, reject) => {
+    let pending = tasks.length;
+    let empty: unknown[] | null = null;
+    let lastError: unknown = null;
+
+    for (const task of tasks) {
+      task.then(
+        (buses) => {
+          if (buses.length > 0) return resolve(buses);
+          empty = buses;
+          if (--pending === 0) resolve(empty ?? []);
+        },
+        (error) => {
+          lastError = error;
+          if (--pending === 0) {
+            if (empty !== null) resolve(empty);
+            else reject(lastError);
+          }
+        }
+      );
+    }
+  });
+}
+
+/**
+ * Live buses straight from the device. Troncal fires every destination-name
+ * candidate IN PARALLEL and takes the first that returns buses — the old
+ * sequential loop paid one full round-trip (and, on a dead candidate, one full
+ * 9 s timeout) per candidate before reaching the one that matches, which is the
+ * bulk of the cold start on a phone. Mirrors the server's parallel candidate
+ * strategy (spec §5.2.4) and the extension worker (`extension/background.js`).
+ * Zonal is keyed purely by route code with an empty body.
  */
 export async function fetchLiveBusesViaNative(
   ruta: string,
@@ -160,17 +195,5 @@ export async function fetchLiveBusesViaNative(
     .filter(Boolean);
   const tried = names.length ? names : [''];
 
-  let lastEmpty: unknown[] = [];
-  let lastError: unknown = null;
-  for (const name of tried) {
-    try {
-      const buses = await fetchLiveOnce(http, '/buses', { ruta: code, Nombre: name });
-      if (buses.length) return buses;
-      lastEmpty = buses;
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  if (lastError && !lastEmpty.length) throw lastError;
-  return lastEmpty;
+  return firstNonEmpty(tried.map((name) => fetchLiveOnce(http, '/buses', { ruta: code, Nombre: name })));
 }

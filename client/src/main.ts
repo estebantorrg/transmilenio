@@ -7,7 +7,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
-import { api } from './services/api';
+import { api, prefetchLiveBuses } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
@@ -648,6 +648,21 @@ async function main(): Promise<void> {
   initSidebar({
     onRouteSelect: async (route: RouteListItem) => {
       activeRouteId = route.id;
+
+      // Cold-start removal: the live request is the slowest thing in this
+      // handler (CO egress, spec §5.2), so it starts HERE — before the full
+      // trace fetch, the 3D layer import and the map work below — and runs
+      // alongside them. `startBusTracking`'s first poll then lands on this
+      // same in-flight request instead of beginning one (services/api.ts).
+      route.liveNameCandidates = getLiveNameCandidates(route);
+      prefetchLiveBuses(
+        route.code,
+        route.liveNameCandidates[0] || route.catalogNombre || route.name || route.destination,
+        route.type,
+        route.liveNameCandidates
+      );
+      void getBusesModule();
+
       await stopLiveBusTracking();
 
       // Upgrade the selected route to its FULL official trace + stops. The
@@ -987,6 +1002,14 @@ async function main(): Promise<void> {
           .catch((error) => console.error('[Router] Failed to refresh graph:', error));
 
         console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
+
+        // Warm the live-tracking assets while the app is idle: the bus layer
+        // chunk (three.js) and the Draco-decoded LOD model are otherwise both
+        // downloaded *after* the user selects a route, delaying the first buses
+        // by a chunk + model load on top of the live request itself.
+        getBusesModule()
+          .then((buses) => buses.preloadBusModels())
+          .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
       }
     } catch (bgError) {
       console.error('❌ Error during background load:', bgError);

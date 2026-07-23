@@ -5,7 +5,7 @@ import type {
   TroncalStationFeature,
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
-import { isLiveBridgeAvailable, fetchLiveBusesViaBridge } from './liveBridge';
+import { isLiveBridgeReady, probeLiveBridge, fetchLiveBusesViaBridge } from './liveBridge';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../utils/liveBus';
@@ -200,6 +200,162 @@ async function postLiveRelayDirect(payload: unknown): Promise<any> {
   }
 }
 
+/**
+ * Runs the tiered live-bus cascade once: native app → Live Bridge extension →
+ * direct CO relay → main server relay (spec §5.2.1a). NEVER throws — every
+ * outcome, including total failure, comes back as a typed {@link LiveBusResult}
+ * so the caller can tell a silent upstream from a genuine absence of buses.
+ */
+async function requestLiveBuses(
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal',
+  nombreCandidates: string[]
+): Promise<LiveBusResult> {
+  const payload = { ruta, Nombre: nombre, nombreCandidates, type: routeType };
+
+  // Tier 0: native app (Capacitor) — the device itself calls the live API.
+  // Native HTTP ignores CORS and carries the phone's own (Colombian) IP, so
+  // no relay, proxy, or extension is involved (spec §5.2.1a, mobile twin).
+  if (isNativeLiveAvailable()) {
+    try {
+      return wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
+    } catch (error) {
+      console.warn('[Live] Native direct failed, trying next tier:', error);
+    }
+  }
+
+  // Tier 1: Live Bridge extension — fetches from the user's own Colombian
+  // connection, bypassing the geofence and browser CORS with no relay load.
+  // Availability is read from cache (the extension announces itself at
+  // document_start); probing here would add its 600 ms ping timeout to the
+  // cold start of every user who has no extension.
+  if (isLiveBridgeReady()) {
+    try {
+      return wrapHighConfidence(await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates), 'extension');
+    } catch (error) {
+      console.warn('[Live] Bridge failed, trying direct relay:', error);
+    }
+  } else {
+    probeLiveBridge(); // settle availability in the background for the next poll
+  }
+
+  // Tier 2: Colombia relay called directly (PC + mobile, no install).
+  if (LIVE_RELAY_URL) {
+    try {
+      return wrapHighConfidence(await postLiveRelayDirect(payload), 'co-relay');
+    } catch (error) {
+      console.warn('[Live] Direct relay failed, falling back to server:', error);
+    }
+  }
+
+  // Tier 3: main server relay (spec §4.2). 0 retries — live requests must not
+  // stack up behind the 15s polling window (spec §3.4). The server endpoint
+  // itself never hard-fails and already returns a {status,...} envelope.
+  try {
+    const res = await fetchJson<any>('/buses', LIVE_TRACKING_TIMEOUT_MS, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    }, 0);
+    if (res && typeof res.status === 'string') {
+      return {
+        status: res.status as LiveStatus,
+        confidence: res.confidence === 'high' ? 'high' : 'low',
+        data: Array.isArray(res.data) ? res.data : [],
+        source: res.source ?? 'server',
+        asOf: typeof res.asOf === 'number' ? res.asOf : undefined,
+      };
+    }
+    // Unexpected shape — treat as a reached-but-unverifiable response.
+    return { status: 'unverified', confidence: 'low', data: [], source: 'server' };
+  } catch (error) {
+    // Total cascade failure: report it honestly instead of throwing, so the UI
+    // shows "reintentando" rather than asserting there are no buses.
+    console.warn('[Live] All live tiers failed:', error);
+    return { status: 'unreachable', confidence: 'low', data: [], source: null };
+  }
+}
+
+/**
+ * Live-request de-duplication window.
+ *
+ * Selecting a route kicks off a live fetch immediately ({@link prefetchLiveBuses})
+ * while the route detail, the 3D bus layer and the map work are still loading;
+ * the tracking layer's first poll then lands on the SAME in-flight request
+ * instead of starting a second one. A just-settled result is reused for a short
+ * window for the same reason. Well under the 15 s polling interval (spec §3.4),
+ * so a real poll is never served from here.
+ */
+const LIVE_REUSE_MS = 5_000;
+
+interface PendingLive {
+  key: string;
+  promise: Promise<LiveBusResult>;
+  settledAt: number | null;
+}
+let pendingLive: PendingLive | null = null;
+
+/** Identity of a live request. The name candidates are part of it: a request
+ *  made with a shorter candidate list is NOT the same request (a missing
+ *  candidate can be the one that matches upstream, spec §5.2.4), so a prefetch
+ *  fired before the route detail loaded is only reused when the tracking layer
+ *  ends up asking for exactly the same thing. */
+function liveKey(routeType: 'troncal' | 'zonal', ruta: string, nombre: string, candidates: string[]): string {
+  return `${routeType}:${ruta}|${nombre}|${candidates.join('|')}`;
+}
+
+function startLiveRequest(
+  key: string,
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal',
+  nombreCandidates: string[]
+): Promise<LiveBusResult> {
+  const entry: PendingLive = {
+    key,
+    settledAt: null,
+    promise: requestLiveBuses(ruta, nombre, routeType, nombreCandidates).then((result) => {
+      entry.settledAt = Date.now();
+      return result;
+    }),
+  };
+  pendingLive = entry;
+  return entry.promise;
+}
+
+/** The in-flight (or just-settled) request for this route, if it can be shared.
+ *  `inFlightOnly` drops the settled-result window, so a caller that explicitly
+ *  wants new data never gets an already-delivered one. */
+function reusableLiveRequest(key: string, inFlightOnly = false): Promise<LiveBusResult> | null {
+  const entry = pendingLive;
+  if (!entry || entry.key !== key) return null;
+  if (entry.settledAt === null) return entry.promise; // still in flight
+  if (inFlightOnly) return null;
+  return Date.now() - entry.settledAt < LIVE_REUSE_MS ? entry.promise : null;
+}
+
+/**
+ * Start the live fetch for a route NOW, without waiting for the caller to be
+ * ready to render it. Fire-and-forget: the result is picked up by the next
+ * {@link api.getLiveBuses} for the same route, so the tracking layer's first
+ * poll resolves against a request that has been running the whole time the UI
+ * was loading. Safe to call repeatedly — an in-flight request is not duplicated.
+ */
+export function prefetchLiveBuses(
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal' = 'troncal',
+  nombreCandidates: string[] = []
+): void {
+  if (!ruta) return;
+  const key = liveKey(routeType, ruta, nombre, nombreCandidates);
+  if (reusableLiveRequest(key)) return;
+  void startLiveRequest(key, ruta, nombre, routeType, nombreCandidates);
+}
+
 export const api = {
   // Inside the Android app the data-layer requests hit the official government /
   // public hosts DIRECTLY via native HTTP (spec §5.2.1b) — no web server in the
@@ -269,73 +425,23 @@ export const api = {
    * {@link LiveBusResult} — it NEVER throws (spec §4: "a request never fails
    * again"). When no tier reaches upstream the result is `unreachable`, so the
    * caller distinguishes a silent API from a genuine absence of buses.
+   *
+   * Shares an already-running {@link prefetchLiveBuses} request for the same
+   * route so the first poll of a tracking session doesn't restart work that is
+   * already in flight.
    */
-  getLiveBuses: async (
+  getLiveBuses: (
     ruta: string,
     nombre: string,
     routeType: 'troncal' | 'zonal' = 'troncal',
-    nombreCandidates: string[] = []
+    nombreCandidates: string[] = [],
+    options: { fresh?: boolean } = {}
   ): Promise<LiveBusResult> => {
-    const payload = { ruta, Nombre: nombre, nombreCandidates, type: routeType };
-
-    // Tier 0: native app (Capacitor) — the device itself calls the live API.
-    // Native HTTP ignores CORS and carries the phone's own (Colombian) IP, so
-    // no relay, proxy, or extension is involved (spec §5.2.1a, mobile twin).
-    if (isNativeLiveAvailable()) {
-      try {
-        return wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
-      } catch (error) {
-        console.warn('[Live] Native direct failed, trying next tier:', error);
-      }
-    }
-
-    // Tier 1: Live Bridge extension — fetches from the user's own Colombian
-    // connection, bypassing the geofence and browser CORS with no relay load.
-    if (await isLiveBridgeAvailable()) {
-      try {
-        return wrapHighConfidence(await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates), 'extension');
-      } catch (error) {
-        console.warn('[Live] Bridge failed, trying direct relay:', error);
-      }
-    }
-
-    // Tier 2: Colombia relay called directly (PC + mobile, no install).
-    if (LIVE_RELAY_URL) {
-      try {
-        return wrapHighConfidence(await postLiveRelayDirect(payload), 'co-relay');
-      } catch (error) {
-        console.warn('[Live] Direct relay failed, falling back to server:', error);
-      }
-    }
-
-    // Tier 3: main server relay (spec §4.2). 0 retries — live requests must not
-    // stack up behind the 15s polling window (spec §3.4). The server endpoint
-    // itself never hard-fails and already returns a {status,...} envelope.
-    try {
-      const res = await fetchJson<any>('/buses', LIVE_TRACKING_TIMEOUT_MS, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      }, 0);
-      if (res && typeof res.status === 'string') {
-        return {
-          status: res.status as LiveStatus,
-          confidence: res.confidence === 'high' ? 'high' : 'low',
-          data: Array.isArray(res.data) ? res.data : [],
-          source: res.source ?? 'server',
-          asOf: typeof res.asOf === 'number' ? res.asOf : undefined,
-        };
-      }
-      // Unexpected shape — treat as a reached-but-unverifiable response.
-      return { status: 'unverified', confidence: 'low', data: [], source: 'server' };
-    } catch (error) {
-      // Total cascade failure: report it honestly instead of throwing, so the UI
-      // shows "reintentando" rather than asserting there are no buses.
-      console.warn('[Live] All live tiers failed:', error);
-      return { status: 'unreachable', confidence: 'low', data: [], source: null };
-    }
+    const key = liveKey(routeType, ruta, nombre, nombreCandidates);
+    // `fresh` (manual refresh button) skips a settled result — the user asked
+    // for new data — but still joins a request that is already in flight.
+    const shared = reusableLiveRequest(key, options.fresh === true);
+    return shared ?? startLiveRequest(key, ruta, nombre, routeType, nombreCandidates);
   },
 
   /** Approximate location from the client IP — fallback when native geolocation is blocked. */

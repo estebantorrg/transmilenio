@@ -13,6 +13,10 @@ import { escapeHTML } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
+// Re-exported so callers that lazy-load this module can warm the 3D assets
+// before any route is selected (see `preloadBusModels`).
+export { preloadBusModels } from './busModelLayer';
+
 /** Status reported to the route-detail card. `loading` is the in-flight state;
  *  the rest mirror {@link LiveStatus} from the API layer. */
 export type TrackingStatus = 'loading' | LiveStatus;
@@ -33,7 +37,7 @@ let clickHandler: ((e: maplibregl.MapMouseEvent) => void) | null = null;
 let boundMap: maplibregl.Map | null = null;
 // Bound poll for the active session, so the UI's manual-refresh button can force
 // an immediate fetch without re-plumbing all the route params.
-let pollNow: (() => void) | null = null;
+let pollNow: ((fresh?: boolean) => void) | null = null;
 
 type PopupStop = { nombre: string; coordinate: [number, number] };
 
@@ -199,7 +203,8 @@ export function startBusTracking(
   };
   map.on('click', clickHandler);
 
-  pollNow = () => fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate);
+  pollNow = (fresh = false) =>
+    fetchAndRenderBuses(map, routeCode, destinationName, routeType, nombreCandidates, sessionId, onUpdate, fresh);
 
   // Initial fetch
   onUpdate?.(0, 'loading');
@@ -212,7 +217,7 @@ export function startBusTracking(
 /** Force an immediate live poll for the active route (manual refresh button).
  *  No-op when nothing is being tracked or a request is already in flight. */
 export function refreshLiveBusesNow(): void {
-  pollNow?.();
+  pollNow?.(true); // explicit user intent → never answered from the shared-result window
 }
 
 async function fetchAndRenderBuses(
@@ -222,7 +227,8 @@ async function fetchAndRenderBuses(
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[],
   sessionId: number,
-  onUpdate?: (busCount: number, status: TrackingStatus, asOf?: number) => void
+  onUpdate?: (busCount: number, status: TrackingStatus, asOf?: number) => void,
+  fresh = false
 ): Promise<void> {
   if (fetchInFlight) {
     console.debug(`[Tracking] Skipping poll for ${routeCode}; previous live request still pending`);
@@ -233,7 +239,7 @@ async function fetchAndRenderBuses(
 
   try {
     // getLiveBuses never throws — it always resolves to a typed status envelope.
-    const res = await api.getLiveBuses(routeCode, destinationName, routeType, nombreCandidates);
+    const res = await api.getLiveBuses(routeCode, destinationName, routeType, nombreCandidates, { fresh });
 
     // Check if tracking was stopped while the async request was in flight
     if (trackingInterval === null || sessionId !== trackingSessionId) return;
