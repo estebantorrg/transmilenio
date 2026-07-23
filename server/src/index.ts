@@ -71,6 +71,18 @@ app.use(express.static(clientDist, {
   },
 }));
 
+// Crawler-facing root files (robots.txt, sitemap.xml, Search Console token).
+// They must be reachable at the site root, but they are not client build output,
+// so they live in one dedicated folder (`seo/`) and are served straight from it
+// instead of being duplicated into client/public (spec §5.5.4).
+const seoDir = path.resolve(__dirname, '../../seo');
+app.use(express.static(seoDir, {
+  index: false,
+  setHeaders(res) {
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+  },
+}));
+
 // Root API test path
 app.get('/api', (_req, res) => {
   res.json({

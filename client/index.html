@@ -3,9 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <title>TransMilenio Explorer</title>
+  <title>TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP</title>
   <meta name="description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Indexing. Every in-app deep link is a hash fragment (#/r/<code>, #/plan?…),
+       which crawlers drop, and the SPA fallback answers unknown paths with this
+       same shell — the canonical below collapses all of it onto "/" (spec §5.5.4). -->
+  <link rel="canonical" href="https://transmilenio.onrender.com/" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="TransMilenio Explorer" />
+  <meta property="og:locale" content="es_CO" />
+  <meta property="og:url" content="https://transmilenio.onrender.com/" />
+  <meta property="og:title" content="TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP" />
+  <meta property="og:description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
+  <meta property="og:image" content="https://transmilenio.onrender.com/transmiLogo.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP" />
+  <meta name="twitter:description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
+  <meta name="twitter:image" content="https://transmilenio.onrender.com/transmiLogo.png" />
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "TransMilenio Explorer",
+    "url": "https://transmilenio.onrender.com/",
+    "description": "Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo.",
+    "applicationCategory": "TravelApplication",
+    "operatingSystem": "Web",
+    "inLanguage": "es-CO",
+    "isAccessibleForFree": true,
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "COP" },
+    "about": { "@type": "Place", "name": "Bogotá, Colombia" }
+  }
+  </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />

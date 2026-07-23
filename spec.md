@@ -344,6 +344,14 @@ Parsing (all multi-byte fields **big-endian**; strip the trailing `9000` SW befo
 * **Config Files**: `.env.example` in both client and server directories default to `3002`.
 * **Scripts**: `scripts/dev.ps1` runs Vite on default `5173` and API on `3002`.
 
+#### 5.5.4 SEO & Crawler Surface
+Canonical public origin: **`https://transmilenio.onrender.com`** (same origin allow-listed in `RELAY_CLIENT_ORIGINS`, §5.2.2).
+* **Dedicated folder**: every crawler-facing root file lives in **`seo/`** — `robots.txt`, `sitemap.xml`, and the Google Search Console ownership token `googlebb8cb92194ccf198.html` (Google fetches that exact root path; it must never be renamed or nested). They are **not** client build output, so they are not copied into `client/public`; `server/src/index.ts` mounts the folder with `express.static` (`index:false`, `Cache-Control: public, max-age=3600`) after the `client/dist` mount, which puts them at `/robots.txt`, `/sitemap.xml`, `/googlebb8cb92194ccf198.html` with one source of truth and no build step. Consequence: they are served by the Express server only — `vite dev` (5173) proxies just `/api` and 404s them.
+* **Sitemap is a single URL** (`/`). All in-app deep links are **hash** fragments (`#/r/<code>`, `#/plan?…`, §5.6 planner state), and crawlers discard fragments, so no other URL is indexable. Listing invented paths would only produce soft 404s, since the SPA fallback (`app.get('*')`) answers unknown paths with the shell at `200`.
+* **Canonical tag**: `client/index.html` carries `<link rel="canonical" href="https://transmilenio.onrender.com/">`, so any shell served for an unknown path consolidates onto `/` instead of being indexed as a duplicate. Same file carries `robots`, Open Graph / Twitter cards, and a `WebApplication` JSON-LD block.
+* **`robots.txt` disallows** `/api/` (JSON for the app, and `/api/troncal/master-catalog` is a multi-MB payload — crawling it burns the 512 MB instance, §5.1.3) plus `/models/` and `/draco/` (binary 3D assets, not needed to render the page).
+* **Domain change checklist** (`seo/README.md`): sitemap `<loc>`/`<lastmod>`, `robots.txt` `Sitemap:` line, and the `canonical`/`og:url`/`og:image`/JSON-LD `url` in `client/index.html` — then re-verify in Search Console and resubmit the sitemap.
+
 ---
 
 ### 5.6 Data Models

@@ -1,0 +1,13 @@
+# TransMilenio Explorer — https://transmilenio.onrender.com
+# Independent, non-official project. Not affiliated with TransMilenio S.A.
+
+User-agent: *
+Allow: /
+# API surface is JSON for the app, never a landing page. /api/troncal/master-catalog
+# alone is a multi-MB payload on a 512 MB instance — crawling it is pure waste.
+Disallow: /api/
+# Binary 3D assets: nothing to index, and not needed to render the page.
+Disallow: /models/
+Disallow: /draco/
+
+Sitemap: https://transmilenio.onrender.com/sitemap.xml
