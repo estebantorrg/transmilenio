@@ -109,7 +109,11 @@ const ARCGIS_LAYERS = {
     returnGeometry: false,
   },
   zonalStops: { folder: 'Zonal', service: 'consulta_paraderos_zonales' },
-  zonalStopRoutes: { folder: 'Zonal', service: 'consulta_paraderos_rutas', outFields: 'cenefa,ruta', returnGeometry: false },
+  // `orden` (e.g. "CBO012"/"NOR045") carries the riding sequence per direction.
+  // `buildZonalStopGroups` splits on its prefix and sorts on its number; without
+  // the field every stop of a route collapses into one group in objectid order
+  // and the planner graph chains them arbitrarily (spec §5.4.2a).
+  zonalStopRoutes: { folder: 'Zonal', service: 'consulta_paraderos_rutas', outFields: 'cenefa,ruta,orden', returnGeometry: false },
   // TransMiCable (spec §5.3) — same service, two layers (mirrors server arcgis.ts).
   cableStations: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 11 },
   cableTraces: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 14 },

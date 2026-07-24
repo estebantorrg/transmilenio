@@ -380,6 +380,11 @@ export const api = {
       ? officialApi.getTroncalRoutes()
       : fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
+  // Website-only, hence no `isNativeLiveAvailable()` branch: the app classifies
+  // estaciones vs paraderos from the APK-bundled catalog by code (spec §5.4.1a)
+  // and never asks for this layer. If a native surface ever needs it, add an
+  // `officialApi.getTroncalStations` mirror — routing the app at our server here
+  // would silently break the "no server of ours in the path" rule (spec §5.2.1b).
   getTroncalStations: () =>
     fetchJson<ApiResponse<TroncalStationFeature>>('/troncal/stations', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
