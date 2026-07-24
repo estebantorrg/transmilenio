@@ -73,7 +73,8 @@ x-relay-secret: <secret>
 
 ### 3.4 Rate Limiting & Flow Control
 * Client enforces 15-second polling window on live bus tracking.
-* Network retries rate-limited via exponential backoff (2s, 4s, 8s, 16s) up to 4 retries for standard endpoints, 0 retries for live bus requests.
+* Network retries rate-limited via exponential backoff (2s, 4s, 8s, 16s) up to 4 retries for standard endpoints, **1 retry for ArcGIS-backed map layers** (they are fetched in parallel at boot and must not stall first paint — deeper recovery is §4.2's background pass), 0 retries for live bus requests.
+* **Retryable = every `5xx` + every transport failure** (`isRetryable`, `client/src/services/api.ts`). Singling out `502/503/504` made a plain `500` terminal, so the ladder never ran for the failure it exists for; `4xx` stays non-retryable.
 
 ---
 
@@ -82,11 +83,15 @@ x-relay-secret: <secret>
 ### 4.1 Express API
 * **No Silent Failures**: Unhandled exceptions are caught and logged server-side; clients never receive stack traces.
 * **Structured Responses**: Routing/unknown-endpoint errors return `{ status: "error", message: string }`; data endpoints return `{ success: false, error: string }`.
-* **Resilient Upstream Handling**: If ArcGIS/TransMi APIs timeout or error, API returns a structured HTTP fallback status — no crashes, no leaked stack traces.
+* **Resilient Upstream Handling**: If ArcGIS/TransMi APIs timeout or error, API returns a structured HTTP fallback status — no crashes, no leaked stack traces. The ArcGIS-backed feature endpoints answer **`503` + `Retry-After`**, never `500`: the layer is momentarily unreachable, not broken, and the distinction is what keeps the client's backoff ladder alive (§3.4). All eight share one handler (`featureEndpoint`, `routes/api.ts`).
 
 ### 4.2 Vite Client (Graceful Degradation)
 * **Outage Fallback**: Master catalog is critical. If loading fails, blocking UI overlay shown.
-* **ArcGIS Failure**: If ArcGIS troncal routes/corridors fail, map still renders routes using coordinates from catalog traces. If the ArcGIS station layer fails or returns empty, the station layer is rebuilt from the (required) master catalog (`catalogStationsToFeatures`, `stations.ts`) so stations never silently vanish; ArcGIS-only metadata (wifi, biciestación) is simply absent in that mode.
+* **ArcGIS Failure — no layer is ever lost for a session.** Every ArcGIS-backed layer is fetched once, in parallel, at page open. A transient upstream failure there used to be permanent: the layer rendered empty and nothing retried, so a random default-on layer (trunk trazado, station pins) was simply missing until the user reloaded. Three mechanisms make that impossible:
+  1. **Substitute immediately from the catalog.** Stations rebuild from the (required) master catalog (`catalogStationsToFeatures`, `stations.ts`); trunk corridors rebuild from the official `trazado` of the routes that ride them, merged per trunk letter (`catalogCorridorsToFeatures`, `routes.ts`) — the ArcGIS centreline is survey geometry with no catalog twin, so the routes' own traces are the substitute. Troncal route lines already come from catalog `trazado` (ArcGIS only enriches them), so `/troncal/routes` failing is invisible. ArcGIS-only metadata (wifi, biciestación) is simply absent in that mode. TransMiCable has no catalog twin at all and can only be recovered.
+  2. **Recover in the background** (`recoverLayer`, `main.ts`). Whatever opened degraded is retried after first paint on a widening schedule (4s, 12s, 30s, 60s) and applied in place through the layers' own update paths (`updateStationsLayer`, `updateTroncalCorridors`, `updateCableLayers`, `updateStopsLayer`). Every `add*Layer` is idempotent so a recovered payload re-enters the same pipeline instead of throwing on a live source.
+  3. **Never lose the pins to a missing icon.** A symbol layer whose `icon-image` is unregistered renders *nothing*. `map.ts` registers the three pin icons up front **and** answers `styleimagemissing`, so a pin cannot be lost to ordering or a style reload.
+  * Covered by `tests/arcgis-layers.spec.ts` (healthy boot renders every default layer; a simulated ArcGIS outage still draws corridors + stations and then recovers them).
 * **Live Outage**: If live tracking fails, route detail panel continues displaying static timeline stops. If a recent fix is cached (§5.2.5), the server serves it tagged `stale`/`asOf` and the client shows the last positions with a "datos de HH:MM" indicator rather than blanking the map.
 
 ### 4.3 Database & Catalog Writes
@@ -233,6 +238,9 @@ Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (th
 * **Base URL**: `https://gis.transmilenio.gov.co/arcgis/rest/services`
 * **Query Params**: `where=1=1`, `outFields=*`, `outSR=4326`, `f=json`, `returnGeometry=true`.
 * Uses cursor pagination based on `exceededTransferLimit === true`.
+* **Per-page retries** (`arcgis.ts`): a failed page is retried up to 3 times (600 ms, 1200 ms) before the query gives up, so one blip on one page of a multi-page layer cannot cost the whole layer. Failures ArcGIS attributes to the *caller* — HTTP `4xx`, or its `200`-with-`error.code` envelope in the 400s — are not retried. Exhaustion raises `ArcGISUnavailableError` → `503` (§4.1).
+* **Server cache** (10-min TTL, `routes/api.ts`): concurrent first-hits share one in-flight query; on failure the last good payload keeps being served and the next upstream attempt is paced 30 s apart, so a down ArcGIS never puts the full retry budget in front of every request.
+* **Boot prewarm**: the two default-on layers (`consulta_estaciones_troncales`, `consulta_trazados_troncales`, ~190 KB combined) are cached right after `listen` (`prewarmArcgisLayers`). The first visitor after a cold start would otherwise trigger five concurrent ArcGIS queries on a 0.1-CPU instance — the burst that made a random layer time out. Deliberately excludes the heavy layers so boot memory is untouched (§5.1.3).
 
 #### 5.3.2 Queried Layers
 * **Troncal**: `Troncal/consulta_rutas_troncales`, `consulta_estaciones_troncales`, `consulta_esquemas_estaciones`, `consulta_trazados_troncales`.
@@ -463,7 +471,7 @@ Full backend inventory decoded from the official app **v2.9.6** (`com.nexura.tra
 * **Test Suites**:
   * Unit tests: code normalization, coordinate simplification, resolver logic.
   * Integration tests: API contracts.
-  * Smoke tests: Playwright-based testing for boot flow and search actions.
+  * Smoke tests: Playwright-based testing for boot flow and search actions. Shipped so far: `tests/visual.spec.ts` (boot snapshot) and `tests/arcgis-layers.spec.ts` (§4.2 layer substitution + recovery).
 * **Journey Planning**: Journey planning (origin/destination route calculation) explicitly within project scope.
 
 ### 6.2 Architectural Rules

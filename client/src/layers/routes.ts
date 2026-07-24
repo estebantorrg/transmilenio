@@ -83,31 +83,87 @@ function routeItemsToGeoJSON(
 function corridorsToGeoJSON(features: TroncalCorridorFeature[]): GeoJSON.FeatureCollection {
   return {
     type: 'FeatureCollection',
-    features: features.map((f) => {
-      const letter = getTroncalLetter(f.attributes.letra_trazado_troncal);
-      return {
-        type: 'Feature' as const,
-        properties: {
-          id: f.attributes.objectid,
-          letter,
-          color: letter ? getTroncalColor(letter) : DEFAULT_TRONCAL_COLOR,
-          troncal: f.attributes.troncal,
-          start: f.attributes.inicio_trazado,
-          end: f.attributes.fin_trazado,
-        },
-        geometry: {
-          type: 'MultiLineString' as const,
-          coordinates: f.geometry.paths,
-        },
-      };
-    }),
+    features: features
+      .filter((f) => Array.isArray(f.geometry?.paths) && f.geometry.paths.length > 0)
+      .map((f) => {
+        const letter = getTroncalLetter(f.attributes.letra_trazado_troncal);
+        return {
+          type: 'Feature' as const,
+          properties: {
+            id: f.attributes.objectid,
+            letter,
+            color: letter ? getTroncalColor(letter) : DEFAULT_TRONCAL_COLOR,
+            troncal: f.attributes.troncal,
+            start: f.attributes.inicio_trazado,
+            end: f.attributes.fin_trazado,
+          },
+          geometry: {
+            type: 'MultiLineString' as const,
+            coordinates: f.geometry.paths,
+          },
+        };
+      }),
   };
+}
+
+/**
+ * Catalog fallback for the trunk-corridor layer (spec §4.2: "if ArcGIS troncal
+ * routes/corridors fail, the map still renders routes using coordinates from
+ * catalog traces"). ArcGIS is the only source of the surveyed corridor
+ * centrelines, but the corridors are also the ground every troncal route rides,
+ * so the official `trazado` of the routes — already in the required master
+ * catalog — reconstructs the trunk network.
+ *
+ * Traces are merged per trunk letter, which is what the layer keys its colour
+ * and label on, so the result is one corridor feature per letter exactly like
+ * the ArcGIS payload. It is an approximation of the centreline (route branches
+ * into portals show up as branches), not a replacement — the moment the ArcGIS
+ * layer answers again, the recovery pass replaces it.
+ */
+export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): TroncalCorridorFeature[] {
+  const pathsByLetter = new Map<string, number[][][]>();
+
+  for (const route of troncalRoutes) {
+    const paths = route.geometry?.paths;
+    if (!paths?.length) continue;
+    const letter = getTroncalLetter(route.code);
+    // `RF` is a service family (rutas fáciles), not a corridor — those routes
+    // ride the lettered trunks that are already drawn, and their black line
+    // would only bury them.
+    if (!letter || letter === 'RF' || !(letter in TRONCAL_COLORS)) continue;
+
+    const merged = pathsByLetter.get(letter);
+    if (merged) merged.push(...paths);
+    else pathsByLetter.set(letter, [...paths]);
+  }
+
+  let objectid = 1;
+  return Array.from(pathsByLetter, ([letter, paths]) => ({
+    attributes: {
+      objectid: objectid++,
+      id_trazado: `catalog-${letter}`,
+      inicio_trazado: '',
+      fin_trazado: '',
+      tipo_trazado: 'catalog',
+      letra_trazado_troncal: letter,
+      troncal: `Troncal ${letter}`,
+      fase_trazado_troncal: '',
+    },
+    geometry: { paths },
+  }));
 }
 
 export function addTroncalCorridorsLayer(
   map: maplibregl.Map,
   corridors: TroncalCorridorFeature[]
 ): void {
+  // Idempotent: the recovery pass (main.ts) re-runs the layer once a degraded
+  // ArcGIS fetch finally succeeds, and re-adding a live source throws.
+  if (map.getSource('troncal-corridors')) {
+    updateTroncalCorridors(map, corridors);
+    return;
+  }
+
   const geojson = corridorsToGeoJSON(corridors);
   map.addSource('troncal-corridors', { type: 'geojson', data: geojson });
 
@@ -160,11 +216,24 @@ export function addTroncalCorridorsLayer(
   });
 }
 
+export function updateTroncalCorridors(
+  map: maplibregl.Map,
+  corridors: TroncalCorridorFeature[]
+): void {
+  const source = map.getSource('troncal-corridors') as maplibregl.GeoJSONSource | undefined;
+  source?.setData(corridorsToGeoJSON(corridors));
+}
+
 export function addTroncalRoutesLayer(
   map: maplibregl.Map,
   routes: RouteListItem[]
 ): void {
   const geojson = routeItemsToGeoJSON(routes);
+  const source = map.getSource('troncal-routes') as maplibregl.GeoJSONSource | undefined;
+  if (source) {
+    source.setData(geojson);
+    return;
+  }
   map.addSource('troncal-routes', { type: 'geojson', data: geojson });
 }
 

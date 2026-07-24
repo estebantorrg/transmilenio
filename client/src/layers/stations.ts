@@ -275,10 +275,13 @@ export function getStationDisplayPoints(): StationDisplayPoint[] {
   return stationDisplayPoints;
 }
 
-export function addStationsLayer(
-  map: maplibregl.Map,
-  stations: TroncalStationFeature[]
-): void {
+/**
+ * Resolves the station set against the catalog and turns it into the layer's
+ * GeoJSON, refreshing the resolved-station index, the audit and the display
+ * points. Shared by the initial render and by {@link updateStationsLayer}, so a
+ * recovered ArcGIS payload lands on exactly the same pipeline (spec §1.1 R2).
+ */
+function prepareStations(stations: TroncalStationFeature[]): GeoJSON.FeatureCollection {
   globalStations = stations;
   const visibleStations = stations.filter(isVisibleTroncalStation);
   const resolution = resolveStationCatalog(visibleStations, _catalog);
@@ -327,6 +330,37 @@ export function addStationsLayer(
       direccion: String((f.properties as any)?.location ?? ''),
     }))
     .filter((p) => p.name && Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+
+  return geojson;
+}
+
+/**
+ * Re-renders the station layer from a new station set — used when the recovery
+ * pass finally gets the ArcGIS payload that failed at boot, so the catalog
+ * fallback is upgraded in place (ArcGIS-only metadata included) instead of the
+ * user having to reload. No-op before the layer exists.
+ */
+export function updateStationsLayer(
+  map: maplibregl.Map,
+  stations: TroncalStationFeature[]
+): void {
+  const source = map.getSource('stations') as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+  source.setData(prepareStations(stations));
+}
+
+export function addStationsLayer(
+  map: maplibregl.Map,
+  stations: TroncalStationFeature[]
+): void {
+  // Idempotent: the recovery pass re-runs this once a degraded ArcGIS fetch
+  // succeeds, and re-adding a live source throws.
+  if (map.getSource('stations')) {
+    updateStationsLayer(map, stations);
+    return;
+  }
+
+  const geojson = prepareStations(stations);
 
   map.addSource('stations', { type: 'geojson', data: geojson });
 

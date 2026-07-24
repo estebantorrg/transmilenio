@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, RequestHandler } from 'express';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
@@ -18,6 +18,11 @@ const router = Router();
 const cache = new Map<string, { data: any; timestamp: number }>();
 const inFlightCache = new Map<string, Promise<any>>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+// While upstream is down we keep serving the last good payload. Re-attempting on
+// every single request would put the full ArcGIS retry budget in front of each
+// one; instead the stale entry buys this much quiet before the next attempt.
+const STALE_REFRESH_COOLDOWN = 30 * 1000;
+const UPSTREAM_RETRY_AFTER_S = 5;
 
 /**
  * Last-known live-bus positions per route. When every upstream path (direct,
@@ -71,6 +76,8 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
     })
     .catch((error) => {
       if (cached) {
+        // Keep the last good payload alive and pace the next attempt.
+        cached.timestamp = Date.now() - CACHE_TTL + STALE_REFRESH_COOLDOWN;
         console.warn(`[Cache] STALE: ${key} after ArcGIS failure`, error);
         return cached.data;
       }
@@ -84,40 +91,63 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
   return request;
 }
 
+// ─── ArcGIS-backed feature endpoints ──────────────────────
+// One handler for every layer endpoint: identical shape, only the cache key,
+// upstream query and max-age differ (spec §1.1 R2 — no duplicated logic).
+//
+// An upstream failure answers **503 + Retry-After**, not 500: the layer is
+// momentarily unreachable, not broken. The distinction is load-bearing — a 500
+// is terminal to the client's backoff ladder (spec §3.4), which is exactly how a
+// single flaky ArcGIS response used to leave a default-on layer (troncal
+// trazado, station pins) empty for the whole session.
+
+function featureEndpoint(
+  key: string,
+  fetcher: () => Promise<any[]>,
+  label: string,
+  maxAgeSeconds: number
+): RequestHandler {
+  return async (_req: Request, res: Response) => {
+    try {
+      const features = await getCachedOrFetch(key, fetcher);
+      res.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}`);
+      res.json({ success: true, count: features.length, features });
+    } catch (error) {
+      console.error(`Error fetching ${label}:`, error);
+      res.setHeader('Retry-After', String(UPSTREAM_RETRY_AFTER_S));
+      res.status(503).json({ success: false, error: `${label} temporarily unavailable upstream` });
+    }
+  };
+}
+
+/**
+ * Warms the caches of the layers the map turns on by default, so the first
+ * visitor after a cold start (Render spins the instance down) is served from
+ * memory instead of racing five concurrent ArcGIS queries on a shared CPU —
+ * the burst that made a random default-on layer time out and vanish.
+ *
+ * Best-effort and non-blocking: a failure just leaves the cache cold, and the
+ * request path (retries + stale reuse) still covers it. Deliberately limited to
+ * the two small payloads (~190 KB combined) — the heavy ones stay lazy so boot
+ * memory is untouched (spec §5.1.3).
+ */
+export function prewarmArcgisLayers(): void {
+  const warm: Array<[string, () => Promise<any[]>]> = [
+    ['troncal-stations', queries.troncalStations],
+    ['troncal-corridors', queries.troncalCorridors],
+  ];
+  for (const [key, fetcher] of warm) {
+    getCachedOrFetch(key, fetcher)
+      .then((features: any[]) => console.log(`[Prewarm] ${key}: ${features.length} features cached`))
+      .catch((error) => console.warn(`[Prewarm] ${key} failed (will load on demand):`, error?.message || error));
+  }
+}
+
 // ─── Troncal Endpoints ────────────────────────────────────
 
-router.get('/troncal/routes', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('troncal-routes', queries.troncalRoutes);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching troncal routes:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch troncal routes' });
-  }
-});
-
-router.get('/troncal/stations', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('troncal-stations', queries.troncalStations);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching troncal stations:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch troncal stations' });
-  }
-});
-
-router.get('/troncal/corridors', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('troncal-corridors', queries.troncalCorridors);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching troncal corridors:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch troncal corridors' });
-  }
-});
+router.get('/troncal/routes', featureEndpoint('troncal-routes', queries.troncalRoutes, 'troncal routes', 600));
+router.get('/troncal/stations', featureEndpoint('troncal-stations', queries.troncalStations, 'troncal stations', 600));
+router.get('/troncal/corridors', featureEndpoint('troncal-corridors', queries.troncalCorridors, 'troncal corridors', 600));
 
 // ─── Master Catalog (from TransMi App API) ────────────────
 
@@ -207,38 +237,10 @@ router.post('/troncal/sync', async (_req: Request, res: Response) => {
 
 // ─── Zonal Endpoints ──────────────────────────────────────
 
-router.get('/zonal/routes', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('zonal-routes', queries.zonalRoutes);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching zonal routes:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch zonal routes' });
-  }
-});
-
-router.get('/zonal/stops', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('zonal-stops', queries.zonalStops);
-    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache for large stops payload
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching zonal stops:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch zonal stops' });
-  }
-});
-
-router.get('/zonal/stop-routes', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('zonal-stop-routes', queries.zonalStopRoutes);
-    res.setHeader('Cache-Control', 'public, max-age=1800'); // 30 minutes cache for stop-route mappings
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching zonal stop routes:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch zonal stop routes' });
-  }
-});
+router.get('/zonal/routes', featureEndpoint('zonal-routes', queries.zonalRoutes, 'zonal routes', 600));
+// 30-minute cache for the two large zonal payloads (stops + stop-route mappings).
+router.get('/zonal/stops', featureEndpoint('zonal-stops', queries.zonalStops, 'zonal stops', 1800));
+router.get('/zonal/stop-routes', featureEndpoint('zonal-stop-routes', queries.zonalStopRoutes, 'zonal stop routes', 1800));
 
 // ─── Recharge Points (tullave POIs) ───────────────────────
 // Static POI catalog committed from a Colombian egress (spec §5.8, see
@@ -312,27 +314,8 @@ router.get('/transmibici', async (_req: Request, res: Response) => {
 
 // ─── Cable Endpoints ──────────────────────────────────────
 
-router.get('/cable/stations', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('cable-stations', queries.cableStations);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching cable stations:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch cable stations' });
-  }
-});
-
-router.get('/cable/trazado', async (_req: Request, res: Response) => {
-  try {
-    const features = await getCachedOrFetch('cable-traces', queries.cableTraces);
-    res.setHeader('Cache-Control', 'public, max-age=600');
-    res.json({ success: true, count: features.length, features });
-  } catch (error) {
-    console.error('Error fetching cable traces:', error);
-    res.status(500).json({ success: false, error: 'Failed to fetch cable traces' });
-  }
-});
+router.get('/cable/stations', featureEndpoint('cable-stations', queries.cableStations, 'cable stations', 600));
+router.get('/cable/trazado', featureEndpoint('cable-traces', queries.cableTraces, 'cable traces', 600));
 
 router.post('/buses', async (req: Request, res: Response) => {
   const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);

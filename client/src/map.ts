@@ -93,24 +93,34 @@ function createMarkerIcon(color: string): HTMLCanvasElement {
   return canvas;
 }
 
+/** Pin colors, keyed by the `icon-image` name the symbol layers reference. */
+const PIN_ICONS: Record<string, string> = {
+  'stop-red': '#EF4444',
+  'stop-blue': '#3B82F6',
+  'stop-orange': '#F97316',
+};
+
+function addPinIcon(map: maplibregl.Map, name: string): void {
+  const color = PIN_ICONS[name];
+  if (!color || map.hasImage(name)) return;
+  const imageData = ctxToImageData(createMarkerIcon(color));
+  if (imageData) map.addImage(name, imageData);
+}
+
 /**
  * Loads custom marker images into the map style.
+ *
+ * A symbol layer whose `icon-image` is unknown renders NOTHING — the station and
+ * paradero pins would silently disappear even with a perfectly loaded source.
+ * Registering the icons up front is the normal path; the `styleimagemissing`
+ * handler makes it unconditional, so a pin can never be lost to ordering (a
+ * layer added before its icon, a style reload dropping the sprite).
  */
 export async function initMapImages(map: maplibregl.Map): Promise<void> {
-  const iconDefinitions = [
-    { name: 'stop-red', color: '#EF4444' },
-    { name: 'stop-blue', color: '#3B82F6' },
-    { name: 'stop-orange', color: '#F97316' },
-  ];
+  map.on('styleimagemissing', (e) => addPinIcon(map, e.id));
 
-  for (const def of iconDefinitions) {
-    if (!map.hasImage(def.name)) {
-      const canvas = createMarkerIcon(def.color);
-      const imageData = ctxToImageData(canvas);
-      if (imageData) {
-        map.addImage(def.name, imageData);
-      }
-    }
+  for (const name of Object.keys(PIN_ICONS)) {
+    addPinIcon(map, name);
   }
 
   console.log('✅ Custom marker icons generated and loaded.');

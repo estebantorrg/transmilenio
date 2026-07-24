@@ -49,6 +49,12 @@ const MASTER_CATALOG_TIMEOUT_MS = 300_000; // 5m for the heavy catalog
 const MAX_RETRIES = 4;
 const INITIAL_RETRY_DELAY_MS = 2_000;  // 2s, then 4s, 8s, 16s
 
+// ArcGIS-backed map layers get ONE quick retry here, not the full ladder: they
+// are fetched in parallel at boot and the app must still open fast (spec §1
+// priority 2). Deeper recovery is the background pass in `main.ts`, which keeps
+// re-trying a degraded layer after first paint instead of stalling it.
+const LAYER_RETRIES = 1;
+
 export class ApiError extends Error {
   constructor(
     public readonly endpoint: string,
@@ -66,8 +72,12 @@ function isRetryable(error: unknown): boolean {
     // No status means the request never got an HTTP response (fetch failed,
     // timeout, connection reset) — transient by nature, retry it.
     if (status === undefined) return true;
-    // 502, 503, 504 are all server-side transient errors (cold start, overload, timeout)
-    return status === 502 || status === 503 || status === 504;
+    // EVERY 5xx is a server-side failure the client can only wait out: cold
+    // start, overload, an upstream (ArcGIS/live) that timed out. Singling out
+    // 502/503/504 made a plain 500 terminal, so one flaky ArcGIS response cost
+    // the whole layer for the session — the exact case the ladder exists for
+    // (spec §3.4). 4xx stays non-retryable: repeating a bad request is futile.
+    return status >= 500;
   }
   // Network errors (fetch failed, aborted, etc.) are also retryable
   return true;
@@ -368,40 +378,40 @@ export const api = {
   getTroncalRoutes: () =>
     isNativeLiveAvailable()
       ? officialApi.getTroncalRoutes()
-      : fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes'),
+      : fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getTroncalStations: () =>
-    fetchJson<ApiResponse<TroncalStationFeature>>('/troncal/stations'),
+    fetchJson<ApiResponse<TroncalStationFeature>>('/troncal/stations', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getTroncalCorridors: () =>
     isNativeLiveAvailable()
       ? officialApi.getTroncalCorridors()
-      : fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors'),
+      : fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getZonalRoutes: () =>
     isNativeLiveAvailable()
       ? officialApi.getZonalRoutes()
-      : fetchJson<ApiResponse<any>>('/zonal/routes'),
+      : fetchJson<ApiResponse<any>>('/zonal/routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getZonalStops: () =>
     isNativeLiveAvailable()
       ? officialApi.getZonalStops()
-      : fetchJson<ApiResponse<any>>('/zonal/stops'),
+      : fetchJson<ApiResponse<any>>('/zonal/stops', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getZonalStopRoutes: () =>
     isNativeLiveAvailable()
       ? officialApi.getZonalStopRoutes()
-      : fetchJson<ApiResponse<any>>('/zonal/stop-routes'),
+      : fetchJson<ApiResponse<any>>('/zonal/stop-routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getCableStations: () =>
     isNativeLiveAvailable()
       ? officialApi.getCableStations()
-      : fetchJson<ApiResponse<any>>('/cable/stations'),
+      : fetchJson<ApiResponse<any>>('/cable/stations', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getCableTrazado: () =>
     isNativeLiveAvailable()
       ? officialApi.getCableTrazado()
-      : fetchJson<ApiResponse<any>>('/cable/trazado'),
+      : fetchJson<ApiResponse<any>>('/cable/trazado', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   getMasterCatalog: () =>
     fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),

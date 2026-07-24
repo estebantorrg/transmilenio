@@ -17,6 +17,7 @@ import {
   addTroncalCorridorsLayer,
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
+  catalogCorridorsToFeatures,
   getZonalRouteColor,
   toggleTroncalRoutes,
   toggleZonalRoutes,
@@ -96,6 +97,52 @@ function optionalFeatures<T>(
     features: [],
     error: getErrorMessage(result.reason),
   };
+}
+
+// ─── ArcGIS Layer Recovery ────────────────────────────────
+// The map layers fed by ArcGIS are fetched once, in parallel, at page open. A
+// single transient upstream failure there used to be permanent for the session:
+// the layer rendered empty (or from the catalog fallback) and nothing ever tried
+// again, so a reload was the only cure — the "sometimes the trazado, sometimes
+// the station pins are missing" symptom. Whatever degraded at boot is retried
+// here on a widening schedule until it is whole, and applied in place through
+// the layers' own update paths (spec §4.2, §1 priority 3 Stability).
+
+const RECOVERY_DELAYS_MS = [4_000, 12_000, 30_000, 60_000];
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** ArcGIS cable stations → the shape the journey router indexes them by. */
+function toCableRouterStations(cableStations: any[]): import('./services/router').CableStationInput[] {
+  return cableStations
+    .map((s: any) => ({
+      codigo: String(s.attributes?.cod_nodo ?? ''),
+      nombre: s.attributes?.nom_est || 'TransMiCable',
+      coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)] as [number, number],
+      orden: Number(s.attributes?.num_est) || 0,
+    }))
+    .filter((s) => s.codigo && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]));
+}
+
+/** Retries `attempt` until it reports the layer whole (`true`) or the schedule
+ *  runs out. Fire-and-forget: never blocks or rejects into the boot path. */
+function recoverLayer(label: string, attempt: () => Promise<boolean>): void {
+  void (async () => {
+    for (const delay of RECOVERY_DELAYS_MS) {
+      await sleep(delay);
+      try {
+        if (await attempt()) {
+          console.info(`[Recovery] ${label} restored from upstream.`);
+          return;
+        }
+      } catch (error) {
+        console.warn(`[Recovery] ${label} retry failed:`, error);
+      }
+    }
+    console.warn(`[Recovery] ${label} still unavailable after ${RECOVERY_DELAYS_MS.length} attempts.`);
+  })();
 }
 
 type BusesModule = typeof import('./layers/buses');
@@ -498,6 +545,9 @@ async function main(): Promise<void> {
   // Routes whose geometry has already been upgraded from the light (160-pt,
   // spec §5.1.4) overview trace to the full-resolution official `trazado`.
   const fullTraceLoaded = new Set<string>();
+  // ArcGIS-backed layers that opened degraded (upstream failed or answered
+  // empty) and are therefore handed to the recovery pass below.
+  const degradedLayers = new Set<'corridors' | 'stations' | 'cable' | 'stops'>();
 
   try {
     // 1. Fetch data in parallel. The cached master catalog is required; live
@@ -543,7 +593,14 @@ async function main(): Promise<void> {
     let stations = stationsRes.features.filter(isVisibleTroncalStation);
     if (stations.length === 0) {
       stations = catalogStationsToFeatures(catalog).filter(isVisibleTroncalStation);
+      degradedLayers.add('stations');
       console.warn(`⚠️ ArcGIS stations unavailable — rebuilt ${stations.length} stations from master catalog`);
+    }
+
+    if (cableStations.length === 0 || cableTraces.length === 0) {
+      // TransMiCable exists only in ArcGIS — there is no catalog equivalent, so
+      // this layer can only be recovered, not substituted.
+      degradedLayers.add('cable');
     }
 
     console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
@@ -564,9 +621,17 @@ async function main(): Promise<void> {
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
 
-    // 3. Add route/corridor layers
+    // 3. Add route/corridor layers. The trunk corridors are ArcGIS-only survey
+    // geometry, so when that fetch degrades they are reconstructed from the
+    // official catalog traces of the routes that ride them (spec §4.2).
     updateProgress(85, 'Dibujando troncales...');
-    addTroncalCorridorsLayer(map, corridorsRes.features);
+    let corridorFeatures = corridorsRes.features;
+    if (corridorFeatures.length === 0) {
+      corridorFeatures = catalogCorridorsToFeatures(troncalListItems);
+      degradedLayers.add('corridors');
+      console.warn(`⚠️ ArcGIS corridors unavailable — rebuilt ${corridorFeatures.length} trunk corridors from catalog traces`);
+    }
+    addTroncalCorridorsLayer(map, corridorFeatures);
 
     updateProgress(90, 'Dibujando rutas...');
     addTroncalRoutesLayer(map, troncalListItems);
@@ -598,14 +663,7 @@ async function main(): Promise<void> {
     cableTracesCount = cableTraces.length;
 
     // Build the cable-station list the router uses for the TransMiCable line.
-    cableRouterStations = cableStations
-      .map((s: any) => ({
-        codigo: String(s.attributes?.cod_nodo ?? ''),
-        nombre: s.attributes?.nom_est || 'TransMiCable',
-        coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)] as [number, number],
-        orden: Number(s.attributes?.num_est) || 0,
-      }))
-      .filter((s) => s.codigo && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]));
+    cableRouterStations = toCableRouterStations(cableStations);
 
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
@@ -892,15 +950,21 @@ async function main(): Promise<void> {
   // Android hardware-back close chain (native shell only; no-op on the web).
   initNativeBack();
 
+  // One place builds the counts payload — boot, background enrichment and the
+  // recovery pass all push the same shape (spec §1.1 R2).
+  const refreshLayerCounts = (): void => {
+    updateCounts({
+      troncal: routeCounts.troncal,
+      zonal: routeCounts.zonal,
+      stations: stationCount,
+      stops: stopsCount,
+      cable: cableTracesCount,
+      cableStations: cableStationsCount,
+    });
+  };
+
   setRoutes(routeList);
-  updateCounts({
-    troncal: routeCounts.troncal,
-    zonal: routeCounts.zonal,
-    stations: stationCount,
-    stops: stopsCount,
-    cable: cableTracesCount,
-    cableStations: cableStationsCount,
-  });
+  refreshLayerCounts();
 
   // 4. Done with initial render!
   console.log('🎉 TransMilenio Explorer initial render ready!');
@@ -911,6 +975,48 @@ async function main(): Promise<void> {
       .then(({ initPlanner }) => initPlanner(map, routeList, cableRouterStations))
       .catch((error) => console.error('[Planner] Failed to load planner module:', error));
   }, 400);
+
+  // Applies a zonal stops + stop-route-mapping payload to the map, the route
+  // stop lists, the Cerca universe and the routing graph. Shared by the initial
+  // background load and by the recovery pass, so a late-arriving payload lands
+  // through exactly the same pipeline (spec §1.1 R2). Reports whether the
+  // payload was usable.
+  const applyZonalStops = (zonalStops: any[], zonalStopRoutes: any[]): boolean => {
+    if (zonalStops.length === 0 || zonalStopRoutes.length === 0) return false;
+
+    // Enrich stop lists only (direction-split + orden-sorted, shared with
+    // buildRouteList and the mobile app — spec §1.1 R2). Route lines must
+    // come from official trazado data.
+    applyZonalStopEnrichment(routeList, buildZonalStopGroups(zonalStops, zonalStopRoutes));
+
+    // Update zonal routes map source with newly loaded geometries
+    updateZonalRoutes(map, routeList.filter(r => r.type === 'zonal'));
+
+    // Build complete stopRoutesMap and update the stops layer
+    updateStopsLayer(map, zonalStops, buildStopRoutesMap(zonalStopRoutes, catalog));
+
+    stopsCount = zonalStops.length;
+
+    // Append zonal paraderos to the Cerca point universe.
+    nearbyStopPoints = zonalStops
+      .map((s: any): NearbyPoint => ({
+        codigo: String(s.attributes?.cenefa ?? ''),
+        name: s.attributes?.nombre || 'Paradero',
+        coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
+        direccion: s.attributes?.direccion_bandera || s.attributes?.via || '',
+        kind: 'stop',
+      }))
+      .filter((p: NearbyPoint) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
+    pushNearbyPoints();
+    refreshLayerCounts();
+
+    // Rebuild the routing graph with the fully enriched zonal stops.
+    getRouterModule()
+      .then(({ initRouter }) => initRouter(routeList, cableRouterStations))
+      .catch((error) => console.error('[Router] Failed to refresh graph:', error));
+
+    return true;
+  };
 
   // 5. Background Loading: fetch Zonal Stops, stop-route mappings, and the
   //    zonal-routes feed (SITP zones) asynchronously.
@@ -932,61 +1038,96 @@ async function main(): Promise<void> {
       console.log(`✅ Background load: Zonal stops: ${zonalStopsRes.features.length}`);
       console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
 
-      if (zonalStopsRes.features.length > 0 && zonalStopRoutesRes.features.length > 0) {
-        // Enrich stop lists only (direction-split + orden-sorted, shared with
-        // buildRouteList and the mobile app — spec §1.1 R2). Route lines must
-        // come from official trazado data.
-        applyZonalStopEnrichment(
-          routeList,
-          buildZonalStopGroups(zonalStopsRes.features, zonalStopRoutesRes.features)
-        );
+      if (applyZonalStops(zonalStopsRes.features, zonalStopRoutesRes.features)) {
+        console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
+      } else {
+        degradedLayers.add('stops');
+        console.warn('⚠️ Zonal paraderos unavailable — scheduling recovery');
+      }
 
-        // Update zonal routes map source with newly loaded geometries
-        updateZonalRoutes(map, routeList.filter(r => r.type === 'zonal'));
-
-        // Build complete stopRoutesMap and update the stops layer
-        const stopRoutesMap = buildStopRoutesMap(zonalStopRoutesRes.features, catalog);
-        updateStopsLayer(map, zonalStopsRes.features, stopRoutesMap);
-
-        stopsCount = zonalStopsRes.features.length;
-
-        // Append zonal paraderos to the Cerca point universe.
-        nearbyStopPoints = zonalStopsRes.features
-          .map((s: any): NearbyPoint => ({
-            codigo: String(s.attributes?.cenefa ?? ''),
-            name: s.attributes?.nombre || 'Paradero',
-            coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
-            direccion: s.attributes?.direccion_bandera || s.attributes?.via || '',
-            kind: 'stop',
-          }))
-          .filter((p: NearbyPoint) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
-        pushNearbyPoints();
-        updateCounts({
-          troncal: routeCounts.troncal,
-          zonal: routeCounts.zonal,
-          stations: stationCount,
-          stops: stopsCount,
-          cable: cableTracesCount,
-          cableStations: cableStationsCount,
+      if (zonalRoutesRes.features.length === 0) {
+        recoverLayer('SITP zones', async () => {
+          const res = await api.getZonalRoutes();
+          if (!res.features?.length) return false;
+          buildZonalAreas(res.features, routeList);
+          setAvailableZones(getZones());
+          return true;
         });
+      }
 
-        // Rebuild the routing graph with the fully enriched zonal stops.
+      // Warm the live-tracking assets while the app is idle: the bus layer
+      // chunk (three.js) and the Draco-decoded LOD model are otherwise both
+      // downloaded *after* the user selects a route, delaying the first buses
+      // by a chunk + model load on top of the live request itself.
+      getBusesModule()
+        .then((buses) => buses.preloadBusModels())
+        .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
+    } catch (bgError) {
+      console.error('❌ Error during background load:', bgError);
+    }
+
+    // 6. Recovery: upgrade every layer that opened degraded. Scheduled after the
+    //    background load so the retries don't compete with it for the server's
+    //    (single, shared-CPU) request budget.
+    if (degradedLayers.has('corridors')) {
+      recoverLayer('Troncal corridors', async () => {
+        const res = await api.getTroncalCorridors();
+        if (!res.features?.length) return false;
+        addTroncalCorridorsLayer(map, res.features);
+        bringTroncalLayersToFront(map);
+        return true;
+      });
+    }
+
+    if (degradedLayers.has('stations')) {
+      recoverLayer('Troncal stations', async () => {
+        const res = await api.getTroncalStations();
+        const stations = res.features?.filter(isVisibleTroncalStation) ?? [];
+        if (stations.length === 0) return false;
+        addStationsLayer(map, stations);
+        stationCount = stations.length;
+        nearbyStationPoints = getStationDisplayPoints().map((p): NearbyPoint => ({
+          codigo: p.codigo,
+          name: p.name,
+          coordinate: p.coordinate,
+          direccion: p.direccion,
+          kind: 'station',
+        }));
+        pushNearbyPoints();
+        refreshLayerCounts();
+        bringStationsLayerToFront(map);
+        return true;
+      });
+    }
+
+    if (degradedLayers.has('cable')) {
+      recoverLayer('TransMiCable', async () => {
+        const [stationsRes, tracesRes] = await Promise.all([api.getCableStations(), api.getCableTrazado()]);
+        const stations = stationsRes.features ?? [];
+        const traces = tracesRes.features ?? [];
+        if (stations.length === 0 || traces.length === 0) return false;
+        addCableLayers(map, stations, traces);
+        cableStationsCount = stations.length;
+        cableTracesCount = traces.length;
+        refreshLayerCounts();
+        bringCableLayersToFront(map);
+        // The router indexed an empty cable line at boot — rebuild it so the
+        // planner can route over TransMiCable again.
+        cableRouterStations = toCableRouterStations(stations);
         getRouterModule()
           .then(({ initRouter }) => initRouter(routeList, cableRouterStations))
           .catch((error) => console.error('[Router] Failed to refresh graph:', error));
+        return true;
+      });
+    }
 
-        console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
-
-        // Warm the live-tracking assets while the app is idle: the bus layer
-        // chunk (three.js) and the Draco-decoded LOD model are otherwise both
-        // downloaded *after* the user selects a route, delaying the first buses
-        // by a chunk + model load on top of the live request itself.
-        getBusesModule()
-          .then((buses) => buses.preloadBusModels())
-          .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
-      }
-    } catch (bgError) {
-      console.error('❌ Error during background load:', bgError);
+    if (degradedLayers.has('stops')) {
+      recoverLayer('Zonal paraderos', async () => {
+        const [stopsRes, stopRoutesRes] = await Promise.all([api.getZonalStops(), api.getZonalStopRoutes()]);
+        if (!applyZonalStops(stopsRes.features ?? [], stopRoutesRes.features ?? [])) return false;
+        bringStopsLayerToFront(map);
+        return true;
+      });
     }
   });
 }

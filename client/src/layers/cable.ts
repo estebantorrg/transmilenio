@@ -9,14 +9,10 @@ const CABLE_LAYERS = [
   'cable-stations-labels',
 ];
 
-export function addCableLayers(
-  map: maplibregl.Map,
-  stations: any[],
-  traces: any[]
-): void {
-  // 1. Add Traces Source & Layer
-  const traceFeatures = traces.map((t) => {
-    return {
+function tracesToGeoJSON(traces: any[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: traces.map((t) => ({
       type: 'Feature',
       properties: {
         id: t.attributes?.objectid,
@@ -28,15 +24,50 @@ export function addCableLayers(
         type: 'LineString',
         coordinates: t.geometry?.paths?.[0] || [],
       },
-    };
-  });
-
-  const tracesGeojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: traceFeatures as any,
+    })) as any,
   };
+}
 
-  map.addSource('cable-traces', { type: 'geojson', data: tracesGeojson });
+function cableStationsToGeoJSON(stations: any[]): GeoJSON.FeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: stations.map((s) => ({
+      type: 'Feature',
+      properties: {
+        id: s.attributes?.objectid,
+        name: s.attributes?.nom_est || 'Estación TransMiCable',
+        code: s.attributes?.cod_nodo || '',
+        number: s.attributes?.num_est,
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [s.geometry?.x, s.geometry?.y],
+      },
+    })) as any,
+  };
+}
+
+/** Re-renders both cable sources — used by the recovery pass when the ArcGIS
+ *  payload that failed at boot finally arrives. No-op before the layers exist. */
+export function updateCableLayers(map: maplibregl.Map, stations: any[], traces: any[]): void {
+  (map.getSource('cable-traces') as maplibregl.GeoJSONSource | undefined)?.setData(tracesToGeoJSON(traces));
+  (map.getSource('cable-stations') as maplibregl.GeoJSONSource | undefined)?.setData(cableStationsToGeoJSON(stations));
+}
+
+export function addCableLayers(
+  map: maplibregl.Map,
+  stations: any[],
+  traces: any[]
+): void {
+  // Idempotent: the recovery pass re-runs this once a degraded ArcGIS fetch
+  // succeeds, and re-adding a live source throws.
+  if (map.getSource('cable-traces')) {
+    updateCableLayers(map, stations, traces);
+    return;
+  }
+
+  // 1. Add Traces Source & Layer
+  map.addSource('cable-traces', { type: 'geojson', data: tracesToGeoJSON(traces) });
 
   map.addLayer({
     id: 'cable-traces-line',
@@ -55,28 +86,7 @@ export function addCableLayers(
   });
 
   // 2. Add Stations Source & Layer
-  const stationFeatures = stations.map((s) => {
-    return {
-      type: 'Feature',
-      properties: {
-        id: s.attributes?.objectid,
-        name: s.attributes?.nom_est || 'Estación TransMiCable',
-        code: s.attributes?.cod_nodo || '',
-        number: s.attributes?.num_est,
-      },
-      geometry: {
-        type: 'Point',
-        coordinates: [s.geometry?.x, s.geometry?.y],
-      },
-    };
-  });
-
-  const stationsGeojson: GeoJSON.FeatureCollection = {
-    type: 'FeatureCollection',
-    features: stationFeatures as any,
-  };
-
-  map.addSource('cable-stations', { type: 'geojson', data: stationsGeojson });
+  map.addSource('cable-stations', { type: 'geojson', data: cableStationsToGeoJSON(stations) });
 
   map.addLayer({
     id: 'cable-stations-circle',
