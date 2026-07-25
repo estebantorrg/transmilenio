@@ -291,6 +291,13 @@
         </div>
         <div id="depart-hint" class="depart-hint" role="status" aria-live="polite"></div>
         <div class="planner-option-row">
+          <label id="sched-label">Horarios</label>
+          <div class="depart-switch" role="group" aria-labelledby="sched-label">
+            <button id="sched-mode-all" class="depart-switch-btn active" type="button" aria-pressed="true" title="Muestra todas las conexiones, con el horario de cada servicio">Todas las rutas</button>
+            <button id="sched-mode-strict" class="depart-switch-btn" type="button" aria-pressed="false" title="Solo rutas que estén operando a esa hora">Solo en servicio</button>
+          </div>
+        </div>
+        <div class="planner-option-row">
           <label>Transporte</label>
           <div class="custom-dropdown" id="dropdown-transport">
             <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false">

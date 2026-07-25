@@ -17,6 +17,7 @@ import {
   isOpenAt,
   parseServiceSpans,
   serviceIntervals,
+  serviceMinutesOnPlanDay,
   serviceStatus,
   type PlanTime,
 } from '../client/src/services/schedule';
@@ -106,6 +107,15 @@ test.describe('service windows', () => {
     expect(serviceStatus(spans([['D-F', '6:00 AM', '8:00 PM']]), holiday).state).toBe('open');
   });
 
+  test('daily coverage counts the whole plan day, including the post-midnight spill', () => {
+    const clock = createServiceClock(FRIDAY);
+    expect(serviceMinutesOnPlanDay(serviceIntervals(troncal, clock))).toBe(1110); // 4:30–23:00
+    // A window closing at 12:30 AM covers 4:00–24:00 today plus 0:00–0:30 from
+    // the previous day's run — 1230 min of the plan day, not 1200.
+    const late = spans([['L-D', '4:00 AM', '12:30 AM']]);
+    expect(serviceMinutesOnPlanDay(serviceIntervals(late, clock))).toBe(1230);
+  });
+
   test('the detail table groups windows by day type', () => {
     expect(describeServiceSpans(troncal)).toEqual([
       { days: 'Lun a sáb', hours: '4:30 a.m. – 11:00 p.m.' },
@@ -115,7 +125,7 @@ test.describe('service windows', () => {
   });
 });
 
-test.describe('schedule-constrained routing', () => {
+test.describe('schedule-aware routing', () => {
   const line = (id: string, serviceSpans: RouteListItem['serviceSpans']): RouteListItem => ({
     id,
     code: id.toUpperCase(),
@@ -165,16 +175,66 @@ test.describe('schedule-constrained routing', () => {
   });
 
   test('when nothing runs, options come back tagged instead of empty', () => {
-    const plans = findRoutes({ ...search, departAt: { ...FRIDAY, minute: 120 } });
-    expect(plans.length).toBeGreaterThan(0);
-    expect(plans[0].outsideService).toBe(true);
-    expect(plans[0].steps.some((step) => step.outsideService)).toBe(true);
+    const closed = { ...search, departAt: { ...FRIDAY, minute: 120 } };
+    for (const params of [closed, { ...closed, enforceSchedules: true }]) {
+      // Unfiltered by default; enforced searches fall back to the same tagged
+      // options rather than a dead end (§5.6.2).
+      const plans = findRoutes(params);
+      expect(plans.length).toBeGreaterThan(0);
+      expect(plans[0].outsideService).toBe(true);
+      expect(plans[0].steps.some((step) => step.outsideService)).toBe(true);
+    }
   });
 
   test('an unknown schedule never hides a route', () => {
     initRouter([line('unknown', undefined)]);
-    const plans = findRoutes({ ...search, departAt: { ...FRIDAY, minute: 120 } });
+    const plans = findRoutes({ ...search, departAt: { ...FRIDAY, minute: 120 }, enforceSchedules: true });
     expect(plans.length).toBeGreaterThan(0);
     expect(plans[0].outsideService).toBeUndefined();
+  });
+
+  test('the schedule filter is optional: closed routes are offered unless asked to hide them', () => {
+    // Both connect origin → destination; at noon only the day route runs.
+    initRouter([
+      line('day', spans([['L-D', '5:00 AM', '11:00 PM']])),
+      line('night', spans([['L-D', '10:00 PM', '11:30 PM']])),
+    ]);
+
+    const codesOf = (params: Parameters<typeof findRoutes>[0]) =>
+      findRoutes(params).map((plan) => plan.steps.find((step) => step.type === 'ride')?.routeCode);
+
+    // Default: the closed option still exists, labelled, and ranks behind.
+    const open = codesOf({ ...search, departAt: FRIDAY });
+    expect(open).toContain('DAY');
+    expect(open).toContain('NIGHT');
+    const nightPlan = findRoutes({ ...search, departAt: FRIDAY }).find(
+      (plan) => plan.steps.some((step) => step.routeCode === 'NIGHT')
+    )!;
+    expect(nightPlan.outsideService).toBe(true);
+    expect(open[0]).toBe('DAY');
+
+    // Enforced: it is gone.
+    const strict = new Set(codesOf({ ...search, departAt: FRIDAY, enforceSchedules: true }));
+    expect([...strict]).toEqual(['DAY']);
+  });
+
+  test('a service that runs all day outranks an equally fast peak-only one', () => {
+    initRouter([
+      line('allday', spans([['L-D', '4:30 AM', '11:00 PM']])),
+      line('peak', spans([['L-D', '11:00 AM', '1:00 PM']])),
+    ]);
+
+    const plans = findRoutes({ ...search, departAt: FRIDAY });
+    expect(plans.length).toBeGreaterThanOrEqual(2);
+    expect(plans[0].steps.find((step) => step.type === 'ride')?.routeCode).toBe('ALLDAY');
+
+    const peak = plans.find((plan) => plan.steps.some((step) => step.routeCode === 'PEAK'))!;
+    expect(peak.shortService).toBe(true);
+    expect(peak.servicePenalty).toBeGreaterThan(0);
+    expect(plans[0].shortService).toBeUndefined();
+    expect(plans[0].servicePenalty).toBeUndefined();
+    // Both are open right now and take the same time — the preference is a
+    // ranking term, never an inflated duration.
+    expect(peak.totalTime).toBe(plans[0].totalTime);
   });
 });

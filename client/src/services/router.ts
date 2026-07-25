@@ -1,10 +1,11 @@
 import {
+  MINUTES_PER_DAY,
   bogotaNow,
   boardingWaitAt,
   closingAfter,
   createServiceClock,
-  isOpenAt,
   serviceIntervals,
+  serviceMinutesOnPlanDay,
   type PlanTime,
   type ServiceClock,
   type ServiceSpan,
@@ -64,8 +65,10 @@ export interface JourneyStep {
   serviceWait?: number;
   /** Ride steps: last service of the window in effect. */
   serviceEndMinute?: number;
-  /** Ride steps: the route does not operate at `boardMinute` (ignore-schedule plans). */
+  /** Ride steps: the route does not operate at `boardMinute`. */
   outsideService?: boolean;
+  /** Ride steps: minutes of the plan day this route operates (ranking input). */
+  serviceDayMinutes?: number;
 }
 
 export interface JourneyPlan {
@@ -82,6 +85,14 @@ export interface JourneyPlan {
   outsideService?: boolean;
   /** True when a boarding lands close to that route's last service. */
   lastServiceRisk?: boolean;
+  /**
+   * Ranking penalty (minutes) for riding services with short daily operation —
+   * the exact term the search charged. Added to the time criterion when ranking,
+   * never to `totalTime`: it changes which itinerary wins, not how long it takes.
+   */
+  servicePenalty?: number;
+  /** True when some ride runs only a short part of the day (`SHORT_SERVICE_DAY_MINUTES`). */
+  shortService?: boolean;
 }
 
 export interface RouteSearchParams {
@@ -94,8 +105,13 @@ export interface RouteSearchParams {
   sortBy?: 'transfers' | 'time' | 'walk';
   /** Departure moment in Bogotá wall-clock. Defaults to now. */
   departAt?: PlanTime;
-  /** Plan as if every route ran all day (the explicit out-of-service fallback). */
-  ignoreSchedules?: boolean;
+  /**
+   * Drop boardings whose route is not running at that moment. **Off by default**
+   * (§5.6.2): schedules inform the itinerary — clock times, waits, out-of-service
+   * tags, and the ranking preference for long-running services — but they do not
+   * hide connections unless the rider explicitly asks for "only in service".
+   */
+  enforceSchedules?: boolean;
 }
 
 // Global router state. The search runs on dense numeric indexes (node idx ×
@@ -146,15 +162,41 @@ const BOARD_WAIT_MINUTES: Record<'troncal' | 'zonal' | 'cable', number> = {
 };
 
 // ─── Service schedules (§5.6.2) ─────────────────────────────────────────────
-// Not every route runs at every hour, so boarding is only offered while the
-// route's own window is open at the moment the traveller would reach the stop.
+// Not every route runs at every hour. Schedules always shape the itinerary —
+// clock times, opening waits, out-of-service tags and the ranking below — but by
+// default they do NOT delete connections: `enforceSchedules` is opt-in, because
+// a rider planning ahead (or reading a published timetable we parsed wrong) is
+// better served by a labelled option than by an empty panel.
 // Arriving a few minutes before the first bus is normal, so a short wait for the
 // window to open is allowed and charged as real waiting time; anything longer is
-// not a trip a human would make, and the edge is dropped instead.
+// not a trip a human would make — the boarding is then tagged out of service,
+// and dropped outright only when the rider asked for enforcement.
 const SCHEDULE_OPENING_WAIT_MAX_MINUTES = 30;
 // A boarding this close to the route's last service is flagged for the UI: the
 // itinerary is valid but the rider should know they are on the final buses.
 const LAST_SERVICE_WARNING_MINUTES = 20;
+
+// Service coverage — the counterweight to optional enforcement. Two routes that
+// are both open right now are not equally useful: one running 4:30 a.m.–11 p.m.
+// still exists if the rider is slow, misses a bus, or comes back later, while a
+// 3 h peak-only shuttle is a trap. So every boarding pays a bounded penalty in
+// COST (never in the reported time) for how little of the day its route runs.
+// Bounded and secondary by construction: the maximum a full 4-boarding itinerary
+// can accrue is 32 min of cost, far below the transfer/walk primary scales, so
+// the lexicographic optima of §5.6.1 are preserved — it only decides which of
+// two otherwise comparable itineraries is offered first.
+const FULL_SERVICE_DAY_MINUTES = 1080; // 18 h — "runs all day", no penalty
+const SERVICE_COVERAGE_PENALTY_MINUTES = 8; // max penalty for a boarding
+// At or below this the UI calls the service limited, so the rider can see WHY a
+// slightly slower itinerary was ranked first. Exported so both front-ends label
+// the same rides the search penalised (spec §1.1 R2 — one source of truth).
+export const SHORT_SERVICE_DAY_MINUTES = 600; // 10 h
+
+/** Ranking penalty for a route that operates `minutes` of the plan day. */
+function coveragePenalty(minutes: number): number {
+  if (minutes >= FULL_SERVICE_DAY_MINUTES) return 0;
+  return SERVICE_COVERAGE_PENALTY_MINUTES * (1 - Math.max(minutes, 0) / FULL_SERVICE_DAY_MINUTES);
+}
 
 const WALK_SPEED_M_PER_MINUTE = 75;
 const WALK_TRANSFER_THRESHOLD_M = 500;
@@ -181,6 +223,11 @@ const WALK_ONLY_FALLBACK_MAX_M = 2500;
  *     waits included, no artificial penalties). The optimum is the fastest trip.
  *   - 'walk': cost = walked meters·10³ + door-to-door minutes. The optimum walks
  *     the fewest meters (access + transfers + egress); time breaks ties.
+ *
+ * Every criterion additionally charges each boarding the bounded service-coverage
+ * penalty (§5.6.2): a route that runs a short part of the day is a worse answer
+ * than one that runs all day. It is part of the cost, not of the reported time,
+ * and is small enough to stay strictly inside the secondary term.
  *
  * Dijkstra/A* stays exact on these scalarizations (non-negative edges, optimal
  * substructure), so the top result is provably optimal for its criterion within
@@ -614,7 +661,20 @@ interface ScheduleContext {
    * what keeps the added check off the sub-100 ms search budget (spec §1).
    */
   openThroughHorizon: Uint8Array;
-  /** `false` = annotate the itinerary but never filter (out-of-service fallback). */
+  /**
+   * routeIdx → minutes of the plan day the route operates (`NaN` = not resolved
+   * yet). Drives the long-service ranking preference; an unknown schedule counts
+   * as a full day, so a parse gap can never demote a route (spec §1 certainty).
+   */
+  coverage: Float64Array;
+  /** routeIdx → `coveragePenalty(coverage)`, precomputed so the hot loop reads it. */
+  coveragePenalties: Float64Array;
+  /**
+   * `true` = a boarding outside its window does not exist (the rider asked for
+   * "only routes in service"). `false` (the default) = the boarding is still
+   * offered, annotated and tagged. Filtering only; annotations are identical in
+   * both modes, so a card can never show numbers the search did not charge.
+   */
   enforce: boolean;
 }
 
@@ -631,6 +691,8 @@ function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleCo
     clock: createServiceClock(departAt),
     intervals: new Array(routeKeySpan),
     openThroughHorizon: new Uint8Array(routeKeySpan),
+    coverage: new Float64Array(routeKeySpan).fill(NaN),
+    coveragePenalties: new Float64Array(routeKeySpan).fill(NaN),
     enforce,
   };
 }
@@ -666,6 +728,29 @@ function scheduleWait(schedule: ScheduleContext, routeIdx: number, atTime: numbe
   return boardingWaitAt(intervals, schedule.clock.departMinute + atTime, SCHEDULE_OPENING_WAIT_MAX_MINUTES);
 }
 
+/**
+ * Minutes of the plan day `routeIdx` operates — resolved once per route and
+ * memoised, so the ranking term costs one array read per boarding.
+ */
+function serviceCoverage(schedule: ScheduleContext, routeIdx: number): number {
+  const cached = schedule.coverage[routeIdx];
+  if (!Number.isNaN(cached)) return cached;
+  const intervals = intervalsFor(schedule, routeIdx);
+  // Unknown schedule = always operating, so it covers the whole day (penalty 0).
+  const minutes = intervals ? serviceMinutesOnPlanDay(intervals) : MINUTES_PER_DAY;
+  schedule.coverage[routeIdx] = minutes;
+  schedule.coveragePenalties[routeIdx] = coveragePenalty(minutes);
+  return minutes;
+}
+
+/** The boarding penalty of `routeIdx` — one array read once the route is known. */
+function boardingPenalty(schedule: ScheduleContext, routeIdx: number): number {
+  const cached = schedule.coveragePenalties[routeIdx];
+  if (!Number.isNaN(cached)) return cached;
+  serviceCoverage(schedule, routeIdx);
+  return schedule.coveragePenalties[routeIdx];
+}
+
 /** Public schedule of a route variant, for the UIs' service labels. */
 export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
   if (!routeId) return undefined;
@@ -688,6 +773,7 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
   step.serviceWait = undefined;
   step.serviceEndMinute = undefined;
   step.outsideService = undefined;
+  step.serviceDayMinutes = routeIdx === undefined ? undefined : serviceCoverage(schedule, routeIdx);
 
   // Unknown schedule (the gondola, or hours we could not parse) → always boardable.
   if (!intervals) {
@@ -695,19 +781,23 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
     return 0;
   }
 
-  const wait = schedule.enforce ? boardingWaitAt(intervals, cursor, SCHEDULE_OPENING_WAIT_MAX_MINUTES) ?? 0 : 0;
+  // Identical in both modes: enforcement decides whether the boarding is offered
+  // at all, never what the rider is told about it.
+  const wait = boardingWaitAt(intervals, cursor, SCHEDULE_OPENING_WAIT_MAX_MINUTES);
+  if (wait === null) {
+    // Not running when the rider gets there, and not opening soon enough to wait
+    // it out — surfaced to the rider, never hidden.
+    step.boardMinute = cursor + BOARD_WAIT_MINUTES[type];
+    step.outsideService = true;
+    return 0;
+  }
+
   const readyMinute = cursor + wait;
   step.boardMinute = readyMinute + BOARD_WAIT_MINUTES[type];
   if (wait > 0) step.serviceWait = wait;
 
-  if (isOpenAt(intervals, readyMinute)) {
-    const closes = closingAfter(intervals, readyMinute);
-    if (closes !== null) step.serviceEndMinute = closes;
-  } else {
-    // Reached in fallback (non-enforcing) mode, or when refined walking times
-    // pushed a boarding past its window — surfaced to the rider, never hidden.
-    step.outsideService = true;
-  }
+  const closes = closingAfter(intervals, readyMinute);
+  if (closes !== null) step.serviceEndMinute = closes;
   return wait;
 }
 
@@ -1001,14 +1091,18 @@ function findAccessNodes(
  */
 export function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
   const sortCriteria = sortBy || 'transfers';
+  // Ranked minutes = the search's own time criterion: door-to-door time plus the
+  // long-service preference the search charged in cost (§5.6.2). Ranking on the
+  // raw total here would silently undo that preference on every re-rank.
+  const ranked = (plan: JourneyPlan): number => plan.totalTime + (plan.servicePenalty ?? 0);
   plans.sort((a, b) => {
     if (sortCriteria === 'transfers') {
-      return a.transfers - b.transfers || a.totalTime - b.totalTime || a.walkDistance - b.walkDistance;
+      return a.transfers - b.transfers || ranked(a) - ranked(b) || a.walkDistance - b.walkDistance;
     } else if (sortCriteria === 'time') {
-      return a.totalTime - b.totalTime || a.transfers - b.transfers || a.walkDistance - b.walkDistance;
+      return ranked(a) - ranked(b) || a.transfers - b.transfers || a.walkDistance - b.walkDistance;
     }
     // 'walk'
-    return a.walkDistance - b.walkDistance || a.totalTime - b.totalTime || a.transfers - b.transfers;
+    return a.walkDistance - b.walkDistance || ranked(a) - ranked(b) || a.transfers - b.transfers;
   });
 }
 
@@ -1033,10 +1127,10 @@ const MAX_NODE_POPS = 60000;
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const { origin, destination, originStopCode, destStopCode, mode, minWalk, sortBy } = params;
   const preference = getSearchPreference(sortBy, minWalk);
-  // Departure clock: boarding is only offered while a route's own window is open
-  // at the moment the traveller reaches that stop (§5.6.2). In `ignoreSchedules`
-  // mode the same context still annotates the itinerary — it just stops filtering.
-  const schedule = createScheduleContext(params.departAt ?? bogotaNow(), params.ignoreSchedules !== true);
+  // Departure clock: every boarding is timed against the route's own window
+  // (§5.6.2) — it is always annotated and always ranked by how much of the day
+  // the route runs; `enforceSchedules` additionally drops the ones not running.
+  const schedule = createScheduleContext(params.departAt ?? bogotaNow(), params.enforceSchedules === true);
   const walkPrimary = preference === 'walk' ? WALK_PRIMARY_SCALE : 0;
   const slack = diversitySlack(preference);
 
@@ -1176,17 +1270,22 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         // same-coded opposite-direction variant is a real transfer, never a
         // free "continuation" through a U-turn).
         const isBoarding = !current.hasRidden || current.routeIdx !== edge.routeIdx;
+        let penalty = 0;
         if (isBoarding) {
-          if (schedule.enforce) {
-            // Not running when the rider gets there → this boarding does not
-            // exist. A short wait for the first bus is allowed and paid for.
-            const wait = scheduleWait(schedule, edge.routeIdx, current.time);
-            if (wait === null) continue;
+          // A short wait for the first bus is allowed and paid for. A boarding
+          // the route cannot serve at all only *disappears* when the rider asked
+          // for enforcement; otherwise it stays, tagged, and pays the full
+          // coverage penalty below (a route closed all day covers 0 minutes).
+          const wait = scheduleWait(schedule, edge.routeIdx, current.time);
+          if (wait === null) {
+            if (schedule.enforce) continue;
+          } else {
             edgeTime += wait;
           }
           edgeTime += BOARD_WAIT_MINUTES[edge.type];
+          penalty = boardingPenalty(schedule, edge.routeIdx);
         }
-        edgeCost = edgeTime;
+        edgeCost = edgeTime + penalty;
         if (isBoarding && current.hasRidden) {
           // Hard cap on transfers — prevent absurd multi-transfer routes
           if (current.transfers >= MAX_TRANSFERS) continue;
@@ -1362,10 +1461,16 @@ function summarizeSchedule(plan: JourneyPlan, clock: ServiceClock): void {
   let serviceWait = 0;
   let outsideService = false;
   let lastServiceRisk = false;
+  let servicePenalty = 0;
+  let shortService = false;
 
   for (const step of plan.steps) {
     if (step.serviceWait) serviceWait += step.serviceWait;
     if (step.outsideService) outsideService = true;
+    if (step.type === 'ride' && step.serviceDayMinutes !== undefined) {
+      servicePenalty += coveragePenalty(step.serviceDayMinutes);
+      if (step.serviceDayMinutes <= SHORT_SERVICE_DAY_MINUTES) shortService = true;
+    }
     if (
       step.serviceEndMinute !== undefined &&
       step.boardMinute !== undefined &&
@@ -1380,6 +1485,8 @@ function summarizeSchedule(plan: JourneyPlan, clock: ServiceClock): void {
   plan.serviceWait = serviceWait > 0 ? Math.round(serviceWait) : undefined;
   plan.outsideService = outsideService || undefined;
   plan.lastServiceRisk = lastServiceRisk || undefined;
+  plan.servicePenalty = servicePenalty > 0 ? servicePenalty : undefined;
+  plan.shortService = shortService || undefined;
 }
 
 function createWalkingFallbackPlan(
@@ -1426,15 +1533,17 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
 
   console.log(`[Router] Routing request. Mode: ${mode}`);
 
-  // 1. Primary search — schedule-constrained unless the caller opted out.
+  // 1. Primary search — schedule-filtered only if the caller asked for it.
   let plans = findRoutesCore(search);
 
   // 1b. Nothing operates at that hour: a dead end is the worst possible answer,
-  // so re-plan with the windows ignored. Those itineraries come back tagged
-  // (`plan.outsideService`, per-step windows) so the UI can show WHAT exists and
-  // WHEN it starts instead of "sin rutas" (spec §4.2 graceful degradation).
-  if (plans.length === 0 && search.ignoreSchedules !== true) {
-    const relaxed = findRoutesCore({ ...search, ignoreSchedules: true });
+  // so an enforced search that found nothing re-plans without the filter. Those
+  // itineraries come back tagged (`plan.outsideService`, per-step windows) so the
+  // UI can show WHAT exists and WHEN it starts instead of "sin rutas" (spec §4.2
+  // graceful degradation). The default search never needs this — it never
+  // filtered in the first place.
+  if (plans.length === 0 && search.enforceSchedules === true) {
+    const relaxed = findRoutesCore({ ...search, enforceSchedules: false });
     if (relaxed.length > 0) {
       console.log('[Router] No routes in service at that time. Returning out-of-service options.');
       plans = relaxed;
@@ -1568,14 +1677,13 @@ export async function enrichWalkingGeometries(
   // Real walking times shift every downstream boarding, so the schedule
   // annotations are recomputed here (not just the totals) — otherwise a card
   // could show a clock time the route's own window no longer covers (§5.6.2).
-  const enforcing = departAt ? createScheduleContext(departAt, true) : null;
-  // A plan already tagged out-of-service was planned with the windows relaxed;
-  // re-annotating it in enforcing mode would invent waits it never had.
-  const relaxed = departAt ? createScheduleContext(departAt, false) : null;
+  // One context serves every plan: annotations do not depend on enforcement, so
+  // an out-of-service itinerary is re-annotated exactly as it was built.
+  const schedule = departAt ? createScheduleContext(departAt, false) : null;
   for (const plan of plans) {
     plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
-    if (enforcing && relaxed && plan.departMinute !== undefined) {
-      reannotatePlanSchedule(plan, plan.outsideService ? relaxed : enforcing);
+    if (schedule && plan.departMinute !== undefined) {
+      reannotatePlanSchedule(plan, schedule);
     } else {
       plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
     }

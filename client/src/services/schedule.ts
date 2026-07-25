@@ -420,6 +420,25 @@ export function serviceIntervals(spans: ServiceSpan[], clock: ServiceClock): num
   return flat;
 }
 
+/**
+ * Minutes of the plan day (00:00–24:00) this service actually covers.
+ *
+ * The intervals span three days, so clipping to the plan day is what turns them
+ * into "how long does this route run today" — a route open 4:30 a.m.–11:00 p.m.
+ * scores 1110, a 3 h peak-only shuttle scores 180. The planner ranks boardings
+ * by this (§5.6.2): a long-running service is the more useful answer even when
+ * both are open at the moment of the query.
+ */
+export function serviceMinutesOnPlanDay(intervals: number[]): number {
+  let total = 0;
+  for (let i = 0; i < intervals.length; i += 2) {
+    const start = Math.max(intervals[i], 0);
+    const end = Math.min(intervals[i + 1], MINUTES_PER_DAY);
+    if (end > start) total += end - start;
+  }
+  return total;
+}
+
 /** Is the service running at `minute` (plan-day minutes)? */
 export function isOpenAt(intervals: number[], minute: number): boolean {
   for (let i = 0; i < intervals.length; i += 2) {
@@ -471,6 +490,15 @@ export function formatClockMinute(minute: number): string {
   const mins = normalized % 60;
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
   return `${hour12}:${String(mins).padStart(2, '0')} ${hour24 < 12 ? 'a.m.' : 'p.m.'}`;
+}
+
+/** A daily operating length: "18 h" / "6 h 30 min" / "45 min". */
+export function formatServiceDuration(minutes: number): string {
+  const total = Math.max(0, Math.round(minutes));
+  const hours = Math.floor(total / 60);
+  const mins = total % 60;
+  if (hours === 0) return `${mins} min`;
+  return mins === 0 ? `${hours} h` : `${hours} h ${mins} min`;
 }
 
 /** " (mañana)" / " (ayer)" when a minute falls outside the plan day. */

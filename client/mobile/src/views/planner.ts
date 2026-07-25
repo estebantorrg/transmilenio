@@ -1,6 +1,6 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
-import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, getRouteServiceSpans, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, getRouteServiceSpans, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
 import {
   bogotaNow,
   dayOffsetSuffix,
@@ -8,6 +8,7 @@ import {
   festivoName,
   formatClockMinute,
   formatPlanDay,
+  formatServiceDuration,
   dayOfWeek,
   planTimeFromInputs,
   planTimeToInputs,
@@ -245,11 +246,25 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
   timeInput.addEventListener('change', refreshDepartHint);
   refreshDepartHint();
 
+  // Schedule filter (§5.6.2). Off by default: horarios always time and rank the
+  // itinerary (long-running services win ties), but they only hide connections
+  // when the rider asks for "solo en servicio".
+  let enforceSchedules = false;
+  const schedChips = chipGroup(
+    [
+      { id: 'all', label: 'Todas' },
+      { id: 'strict', label: 'Solo en servicio' },
+    ],
+    'all',
+    (id) => (enforceSchedules = id === 'strict')
+  );
+
   sheet.body.append(
     h('div', { class: 'pl-options' }, [
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Salida' }), departChips]),
       departFields,
       departHint,
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Horarios' }), schedChips]),
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips]),
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips]),
     ])
@@ -286,6 +301,7 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
           minWalk: sortBy === 'walk',
           sortBy,
           departAt,
+          enforceSchedules,
         };
         const seq = ++searchSeq;
         const plans = findRoutes(params);
@@ -376,6 +392,8 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
       if (plan.outsideService) clock.append(h('span', { class: 'plan-chip danger', text: 'Fuera de servicio' }));
       else if (plan.serviceWait) clock.append(h('span', { class: 'plan-chip warn', text: `Espera ${plan.serviceWait} min` }));
       if (!plan.outsideService && plan.lastServiceRisk) clock.append(h('span', { class: 'plan-chip warn', text: 'Último servicio' }));
+      // Why a slightly slower itinerary can outrank this one (§5.6.2).
+      if (!plan.outsideService && plan.shortService) clock.append(h('span', { class: 'plan-chip', text: 'Servicio limitado' }));
       card.append(clock);
     }
     const legs = h('div', { class: 'plan-legs' });
@@ -413,7 +431,7 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
         const spans = getRouteServiceSpans(step.routeId);
         const windows = spans ? describeServiceSpans(spans).map((row) => `${row.days} ${row.hours}`).join(' · ') : '';
         detail.append(h('div', { class: 'plan-service danger', text: `No opera a esta hora${windows ? ` · ${windows}` : ''}` }));
-      } else if (step.serviceEndMinute !== undefined || step.serviceWait) {
+      } else {
         const parts: string[] = [];
         if (step.serviceWait && step.startMinute !== undefined) {
           parts.push(`Inicio de servicio ${formatClockMinute(step.startMinute + step.serviceWait)}`);
@@ -421,7 +439,11 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
         if (step.serviceEndMinute !== undefined) {
           parts.push(`Último servicio ${formatClockMinute(step.serviceEndMinute)}${dayOffsetSuffix(step.serviceEndMinute)}`);
         }
-        detail.append(h('div', { class: 'plan-service', text: parts.join(' · ') }));
+        // Shown only when short — the reason this ride costs ranking points.
+        if (step.serviceDayMinutes !== undefined && step.serviceDayMinutes <= SHORT_SERVICE_DAY_MINUTES) {
+          parts.push(`Opera ${formatServiceDuration(step.serviceDayMinutes)} ese día`);
+        }
+        if (parts.length > 0) detail.append(h('div', { class: 'plan-service', text: parts.join(' · ') }));
       }
     }
     card.append(detail);

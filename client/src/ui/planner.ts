@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
 import {
   bogotaNow,
   createServiceClock,
@@ -8,6 +8,7 @@ import {
   festivoName,
   formatClockMinute,
   formatPlanDay,
+  formatServiceDuration,
   isOpenAt,
   nextOpeningAt,
   planTimeAddMinutes,
@@ -43,6 +44,10 @@ let lastSortBy: 'transfers' | 'time' | 'walk' = 'transfers';
 // async walking pass re-times the same trip instead of drifting to "now".
 let departMode: 'now' | 'custom' = 'now';
 let lastDepartAt: PlanTime | null = null;
+// Schedule filter (§5.6.2). Off by default: horarios always shape the itinerary
+// (clock times, waits, tags, the long-service ranking), but they only DELETE
+// connections when the rider explicitly asks for "solo en servicio".
+let enforceSchedules = false;
 let plannerRequestSeq = 0;
 let originAutocompleteSeq = 0;
 let destAutocompleteSeq = 0;
@@ -377,6 +382,32 @@ function initDepartControls(): void {
   updateDepartHint();
 }
 
+// ─── Schedule filter (§5.6.2) ─────────────────────────────
+// "Todas las rutas" (default) plans with the horarios as information: clock
+// times, opening waits, out-of-service tags, and a ranking that prefers services
+// running most of the day. "Solo en servicio" turns them into a hard filter for
+// riders leaving right now who do not want to read a timetable.
+
+function setScheduleMode(enforce: boolean): void {
+  enforceSchedules = enforce;
+  for (const [id, active] of [['sched-mode-all', !enforce], ['sched-mode-strict', enforce]] as const) {
+    const button = document.getElementById(id);
+    button?.classList.toggle('active', active);
+    button?.setAttribute('aria-pressed', String(active));
+  }
+}
+
+function initScheduleControls(): void {
+  const pick = (enforce: boolean) => () => {
+    if (enforceSchedules === enforce) return;
+    setScheduleMode(enforce);
+    invalidatePlannerResults();
+    syncPlannerHash();
+  };
+  document.getElementById('sched-mode-all')?.addEventListener('click', pick(false));
+  document.getElementById('sched-mode-strict')?.addEventListener('click', pick(true));
+}
+
 // ─── Deep linking (#/plan?o=…&d=…) ────────────────────────
 // A planned trip is mirrored into the URL hash so a journey is shareable and
 // restorable. Writes use replaceState (no history spam, fires no event); the
@@ -420,6 +451,8 @@ function serializePlannerState(): string | null {
     const { date, time } = getDepartInputs();
     if (date?.value && time?.value) sp.set('t', `${date.value}T${time.value}`);
   }
+  // Only the non-default (filtering) mode travels in the link.
+  if (enforceSchedules) sp.set('s', '1');
   return sp.toString();
 }
 
@@ -464,6 +497,7 @@ function restorePlannerFromHash(): void {
   const departParam = sp.get('t');
   const departPlan = departParam ? planTimeFromInputs(departParam.slice(0, 10), departParam.slice(11, 16)) : null;
   setDepartMode(departPlan ? 'custom' : 'now', departPlan ?? undefined);
+  setScheduleMode(sp.get('s') === '1');
 
   const origin = parseLatLng(sp.get('o'));
   const dest = parseLatLng(sp.get('d'));
@@ -497,8 +531,9 @@ export function initPlanner(
   // Setup custom dropdown selects
   initCustomDropdowns();
 
-  // Setup the departure-time control (schedule constraints, §5.6.2)
+  // Setup the departure-time control and the schedule filter (§5.6.2)
   initDepartControls();
+  initScheduleControls();
 
   // Restore a shared journey link and keep planner state in sync with the URL.
   window.addEventListener('hashchange', () => {
@@ -1163,6 +1198,7 @@ function calculateRoute(): void {
         minWalk,
         sortBy,
         departAt,
+        enforceSchedules,
       });
     } catch (err) {
       if (requestId !== plannerRequestSeq) return;
@@ -1206,6 +1242,10 @@ function renderPlanClockRow(plan: JourneyPlan): string {
   }
   if (!plan.outsideService && plan.lastServiceRisk) {
     chips.push('<span class="journey-chip warn">Último servicio</span>');
+  }
+  // Why a slightly slower itinerary may be ranked above this one (§5.6.2).
+  if (!plan.outsideService && plan.shortService) {
+    chips.push('<span class="journey-chip">Servicio limitado</span>');
   }
 
   return `
@@ -1305,6 +1345,11 @@ function renderStepServiceLine(step: JourneyStep): string {
   }
   if (step.serviceEndMinute !== undefined) {
     parts.push(`Último servicio ${formatClockMinute(step.serviceEndMinute)}${dayOffsetSuffix(step.serviceEndMinute)}`);
+  }
+  // Daily operation, shown only when it is short — the reason this ride costs the
+  // itinerary ranking points (§5.6.2).
+  if (step.serviceDayMinutes !== undefined && step.serviceDayMinutes <= SHORT_SERVICE_DAY_MINUTES) {
+    parts.push(`Opera ${formatServiceDuration(step.serviceDayMinutes)} ese día`);
   }
   if (parts.length === 0) return '';
 
