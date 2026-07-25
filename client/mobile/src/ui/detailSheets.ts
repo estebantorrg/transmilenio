@@ -4,6 +4,7 @@ import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/util
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { api, type LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
+import { bogotaNow, describeServiceSpans, serviceStatus } from '@shared/services/schedule';
 import { h, escapeHTML, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
 import { isFavorite, toggleFavorite, pushRecent } from '../lib/storage';
@@ -157,14 +158,37 @@ export function openRouteSheet(route: RouteListItem): void {
   actions.append(mapBtn);
   sheet.body.append(actions);
 
-  // ── Schedule ──
-  if (route.schedule) {
-    sheet.body.append(
-      h('div', { class: 'rd-section' }, [
-        h('div', { class: 'rd-section-title', text: 'Horarios' }),
-        h('div', { class: 'rd-schedule', text: route.schedule }),
-      ])
+  // ── Schedule (parsed windows + "is it running now", spec §5.6.2) ──
+  if (route.schedule || route.serviceSpans) {
+    const status = serviceStatus(route.serviceSpans, bogotaNow());
+    const rows = route.serviceSpans ? describeServiceSpans(route.serviceSpans) : [];
+    const section = h('div', { class: 'rd-section' }, [h('div', { class: 'rd-section-title', text: 'Horarios' })]);
+
+    if (status.state !== 'unknown') {
+      section.append(
+        h('div', { class: `rd-service ${status.state}` }, [
+          h('span', { class: 'rd-service-dot' }),
+          h('span', { class: 'rd-service-label', text: status.label }),
+          status.detail ? h('span', { class: 'rd-service-detail', text: status.detail }) : h('span'),
+        ])
+      );
+    }
+
+    section.append(
+      rows.length > 0
+        ? h(
+            'div',
+            { class: 'rd-schedule' },
+            rows.map((row) =>
+              h('div', { class: 'rd-schedule-row' }, [
+                h('span', { class: 'rd-schedule-days', text: row.days }),
+                h('span', { class: 'rd-schedule-hours', text: row.hours }),
+              ])
+            )
+          )
+        : h('div', { class: 'rd-schedule', text: route.schedule ?? '' })
     );
+    sheet.body.append(section);
   }
 
   // ── Stops timeline ──

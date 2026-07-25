@@ -10,6 +10,7 @@
  */
 
 import { getRouteColor, getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
+import { mergeServiceSpans, parseServiceSpans } from '../services/schedule';
 import type { RouteListItem, TroncalRouteFeature } from '../types/transmilenio';
 import type { CatalogRoute, MasterCatalog } from '../types/catalog';
 
@@ -121,6 +122,12 @@ export function routeHasDualStops(stops: any[] | undefined): boolean {
   return hasStation && hasStop;
 }
 
+/** Raw `convención hora_inicio-hora_fin` text, kept as the display fallback for
+ *  rows the schedule parser cannot read (spec §5.6.2). */
+function formatScheduleText(route: { horarios?: CatalogRoute['horarios'] }): string | undefined {
+  return route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / ');
+}
+
 export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
@@ -165,6 +172,15 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
           existing.origin = origin;
           existing.destination = destination;
           existing.busType = route.tipoServicio;
+          // The presented route is now the regular variant, so its hours must be
+          // the regular ones too — keeping the Ciclovía window would advertise a
+          // weekday service as Sundays-only (spec §5.6.2).
+          existing.schedule = formatScheduleText(route);
+          existing.serviceSpans = parseServiceSpans(route.horarios);
+        } else if (isExistingCiclovia === isNewCiclovia) {
+          // Same class of variant merged into one presented route: the route
+          // operates whenever either variant does.
+          existing.serviceSpans = mergeServiceSpans(existing.serviceSpans, parseServiceSpans(route.horarios));
         }
 
         const traceGeometry = traceToGeometry(route.trazado);
@@ -190,7 +206,8 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         subType,
         source: 'catalog',
         busType: route.tipoServicio,
-        schedule: route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / '),
+        schedule: formatScheduleText(route),
+        serviceSpans: parseServiceSpans(route.horarios),
         color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color),
         catalogNombre: route.nombre || '',
         geometry,

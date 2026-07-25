@@ -1,6 +1,24 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, type JourneyPlan, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
+import {
+  bogotaNow,
+  createServiceClock,
+  dayOffsetSuffix,
+  festivoName,
+  formatClockMinute,
+  formatPlanDay,
+  isOpenAt,
+  nextOpeningAt,
+  planTimeAddMinutes,
+  planTimeFromInputs,
+  planTimeToInputs,
+  serviceIntervals,
+  describeServiceSpans,
+  dayOfWeek,
+  type PlanTime,
+  type ServiceClock,
+} from '../services/schedule';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
@@ -21,6 +39,10 @@ let mapPickMode: 'origin' | 'destination' | null = null;
 let activePlanIndex: number | null = null;
 let calculatedPlans: JourneyPlan[] = [];
 let lastSortBy: 'transfers' | 'time' | 'walk' = 'transfers';
+// Departure moment of the itineraries currently on screen (§5.6.2) — kept so the
+// async walking pass re-times the same trip instead of drifting to "now".
+let departMode: 'now' | 'custom' = 'now';
+let lastDepartAt: PlanTime | null = null;
 let plannerRequestSeq = 0;
 let originAutocompleteSeq = 0;
 let destAutocompleteSeq = 0;
@@ -244,6 +266,117 @@ function updateMapPickHint(mode: PlannerEndpoint | null): void {
   hint.classList.remove('hidden');
 }
 
+// ─── Departure time (§5.6.2) ──────────────────────────────
+// Not every route runs at every hour, so the trip's departure moment is part of
+// the query. "Ahora" is the default and needs no input; "Otra hora" exposes a
+// native date + time pair (keyboard-accessible, native pickers on mobile) and
+// the hint line always spells out the resolved day so the rider can see WHICH
+// service applies — weekday, Saturday, or Sunday/holiday.
+
+function getDepartInputs(): { date: HTMLInputElement | null; time: HTMLInputElement | null } {
+  return {
+    date: document.getElementById('plan-depart-date') as HTMLInputElement | null,
+    time: document.getElementById('plan-depart-time') as HTMLInputElement | null,
+  };
+}
+
+/** The departure moment the planner should search for, in Bogotá wall clock. */
+function getDepartTime(): PlanTime {
+  if (departMode === 'custom') {
+    const { date, time } = getDepartInputs();
+    const parsed = planTimeFromInputs(date?.value ?? '', time?.value ?? '');
+    if (parsed) return parsed;
+  }
+  return bogotaNow();
+}
+
+/** "día hábil" / "sábado" / "domingo o festivo" — which schedule column applies. */
+function serviceDayLabel(plan: PlanTime): string {
+  const holiday = festivoName(plan.year, plan.month, plan.day);
+  if (holiday) return `servicio de festivo · ${holiday}`;
+  const dow = dayOfWeek(plan.year, plan.month, plan.day);
+  if (dow === 0) return 'servicio de domingo';
+  if (dow === 6) return 'servicio de sábado';
+  return 'servicio de día hábil';
+}
+
+function updateDepartHint(): void {
+  const hint = document.getElementById('depart-hint');
+  if (!hint) return;
+
+  if (departMode === 'now') {
+    const now = bogotaNow();
+    hint.textContent = `Ahora · ${formatPlanDay(now, false)}, ${formatClockMinute(now.minute)} (hora de Bogotá) · ${serviceDayLabel(now)}`;
+    return;
+  }
+
+  const { date, time } = getDepartInputs();
+  const parsed = planTimeFromInputs(date?.value ?? '', time?.value ?? '');
+  hint.textContent = parsed
+    ? `${formatPlanDay(parsed, false)}, ${formatClockMinute(parsed.minute)} · ${serviceDayLabel(parsed)}`
+    : 'Elige la fecha y la hora de salida.';
+}
+
+function setDepartMode(mode: 'now' | 'custom', prefill?: PlanTime): void {
+  departMode = mode;
+  const fields = document.getElementById('depart-fields');
+  const { date, time } = getDepartInputs();
+
+  for (const [id, active] of [['depart-mode-now', mode === 'now'], ['depart-mode-custom', mode === 'custom']] as const) {
+    const button = document.getElementById(id);
+    button?.classList.toggle('active', active);
+    button?.setAttribute('aria-pressed', String(active));
+  }
+  fields?.classList.toggle('hidden', mode !== 'custom');
+
+  if (mode === 'custom') {
+    // Seed from the requested moment (or now) so the fields are never empty.
+    const seed = prefill ?? planTimeFromInputs(date?.value ?? '', time?.value ?? '') ?? bogotaNow();
+    const inputs = planTimeToInputs(seed);
+    if (date) date.value = inputs.date;
+    if (time) time.value = inputs.time;
+  }
+
+  updateDepartHint();
+}
+
+/** Moves the planner to a concrete departure moment and re-runs the search. */
+function planAtDepartTime(plan: PlanTime): void {
+  setDepartMode('custom', plan);
+  syncPlannerHash();
+  calculateRoute();
+}
+
+function initDepartControls(): void {
+  const { date, time } = getDepartInputs();
+  const today = planTimeToInputs(bogotaNow()).date;
+  date?.setAttribute('min', today);
+
+  document.getElementById('depart-mode-now')?.addEventListener('click', () => {
+    if (departMode === 'now') return;
+    setDepartMode('now');
+    invalidatePlannerResults();
+    syncPlannerHash();
+  });
+
+  document.getElementById('depart-mode-custom')?.addEventListener('click', () => {
+    if (departMode === 'custom') return;
+    setDepartMode('custom');
+    invalidatePlannerResults();
+    syncPlannerHash();
+  });
+
+  for (const input of [date, time]) {
+    input?.addEventListener('change', () => {
+      updateDepartHint();
+      invalidatePlannerResults();
+      syncPlannerHash();
+    });
+  }
+
+  updateDepartHint();
+}
+
 // ─── Deep linking (#/plan?o=…&d=…) ────────────────────────
 // A planned trip is mirrored into the URL hash so a journey is shareable and
 // restorable. Writes use replaceState (no history spam, fires no event); the
@@ -281,6 +414,12 @@ function serializePlannerState(): string | null {
   const pref = (document.getElementById('plan-preference') as HTMLInputElement | null)?.value;
   if (mode && mode !== 'mix') sp.set('m', mode);
   if (pref && pref !== 'transfers') sp.set('p', pref);
+  // A shared trip planned for a specific moment must reopen at that moment;
+  // "Ahora" stays out of the URL so a shared link is always current.
+  if (departMode === 'custom') {
+    const { date, time } = getDepartInputs();
+    if (date?.value && time?.value) sp.set('t', `${date.value}T${time.value}`);
+  }
   return sp.toString();
 }
 
@@ -322,6 +461,10 @@ function restorePlannerFromHash(): void {
   setDropdownValue('dropdown-transport', 'plan-transport-mode', sp.get('m') || 'mix');
   setDropdownValue('dropdown-preference', 'plan-preference', sp.get('p') || 'transfers');
 
+  const departParam = sp.get('t');
+  const departPlan = departParam ? planTimeFromInputs(departParam.slice(0, 10), departParam.slice(11, 16)) : null;
+  setDepartMode(departPlan ? 'custom' : 'now', departPlan ?? undefined);
+
   const origin = parseLatLng(sp.get('o'));
   const dest = parseLatLng(sp.get('d'));
   if (origin) setEndpointSelection('origin', sp.get('ol') || pointLabel(origin), origin, sp.get('oc') || undefined);
@@ -353,6 +496,9 @@ export function initPlanner(
 
   // Setup custom dropdown selects
   initCustomDropdowns();
+
+  // Setup the departure-time control (schedule constraints, §5.6.2)
+  initDepartControls();
 
   // Restore a shared journey link and keep planner state in sync with the URL.
   window.addEventListener('hashchange', () => {
@@ -991,6 +1137,11 @@ function calculateRoute(): void {
   const minWalk = preference === 'walk';
   const sortBy = preference;
   lastSortBy = preference;
+  // Resolved once per search: "Ahora" must not drift between the search, the
+  // rendered clock times and the async walking re-timing.
+  const departAt = getDepartTime();
+  lastDepartAt = departAt;
+  updateDepartHint();
 
   // Let the loading state paint (one frame), then run the synchronous search —
   // no fixed artificial delay; the search itself is budgeted sub-100ms (spec §1).
@@ -1011,6 +1162,7 @@ function calculateRoute(): void {
         mode,
         minWalk,
         sortBy,
+        departAt,
       });
     } catch (err) {
       if (requestId !== plannerRequestSeq) return;
@@ -1040,9 +1192,130 @@ function calculateRoute(): void {
   }, 0));
 }
 
+// ─── Schedule presentation (§5.6.2) ───────────────────────
+
+/** "2:05 p.m. → 2:38 p.m." plus the plan's schedule chips. */
+function renderPlanClockRow(plan: JourneyPlan): string {
+  if (plan.departMinute === undefined || plan.arriveMinute === undefined) return '';
+
+  const chips: string[] = [];
+  if (plan.outsideService) {
+    chips.push('<span class="journey-chip danger">Fuera de servicio</span>');
+  } else if (plan.serviceWait) {
+    chips.push(`<span class="journey-chip warn">Espera ${plan.serviceWait} min por apertura</span>`);
+  }
+  if (!plan.outsideService && plan.lastServiceRisk) {
+    chips.push('<span class="journey-chip warn">Último servicio</span>');
+  }
+
+  return `
+    <div class="journey-clock">
+      <span class="journey-clock-range">
+        ${escapeHTML(formatClockMinute(plan.departMinute))}
+        <span class="journey-clock-arrow">→</span>
+        ${escapeHTML(formatClockMinute(plan.arriveMinute) + dayOffsetSuffix(plan.arriveMinute))}
+      </span>
+      ${chips.join('')}
+    </div>
+  `;
+}
+
+/**
+ * Earliest departure that would put every ride of some plan inside its own
+ * window — the concrete "come back at" answer offered when nothing runs yet.
+ */
+function suggestServiceDeparture(plans: JourneyPlan[], clock: ServiceClock): number | null {
+  let best: number | null = null;
+
+  for (const plan of plans) {
+    let shift = 0;
+    let feasible = true;
+
+    for (const step of plan.steps) {
+      if (step.type !== 'ride') continue;
+      const spans = getRouteServiceSpans(step.routeId);
+      if (!spans) continue;
+      const intervals = serviceIntervals(spans, clock);
+      // Reference the moment the rider REACHES the stop, not the modelled bus
+      // arrival — shifting by the latter would land them a headway too early
+      // and reintroduce the very wait the suggestion is meant to remove.
+      const arriveAt = (step.startMinute ?? clock.departMinute) + shift;
+      if (isOpenAt(intervals, arriveAt)) continue;
+      const opens = nextOpeningAt(intervals, arriveAt);
+      if (opens === null) {
+        feasible = false;
+        break;
+      }
+      shift += opens - arriveAt;
+    }
+
+    if (!feasible || shift <= 0) continue;
+    const candidate = clock.departMinute + shift;
+    if (best === null || candidate < best) best = candidate;
+  }
+
+  return best;
+}
+
+/**
+ * True only when EVERY itinerary that involves a bus is out of service. A single
+ * closed option among working ones is a per-card matter, not a headline — the
+ * banner claims nothing operates, so it must only appear when nothing does.
+ * (A walking-only fallback plan carries no rides and never counts either way.)
+ */
+function allTransitOptionsClosed(plans: JourneyPlan[]): boolean {
+  const withRides = plans.filter((plan) => plan.steps.some((step) => step.type === 'ride'));
+  return withRides.length > 0 && withRides.every((plan) => plan.outsideService);
+}
+
+/** Banner shown when the itineraries on screen are not running at that hour. */
+function renderOutOfServiceNotice(plans: JourneyPlan[]): string {
+  if (!allTransitOptionsClosed(plans)) return '';
+  const suggestion = lastDepartAt ? suggestServiceDeparture(plans, createServiceClock(lastDepartAt)) : null;
+
+  return `
+    <div class="planner-notice" role="status">
+      <div class="planner-notice-title">Ninguna ruta opera a esa hora</div>
+      <div class="planner-notice-text">
+        Estas son las conexiones que existen entre los dos puntos, con el horario de cada servicio.
+        Revisa la hora de apertura antes de salir.
+      </div>
+      ${suggestion !== null
+        ? `<button type="button" class="planner-notice-action" data-suggest-minute="${suggestion}">
+             Ver opciones desde ${escapeHTML(formatClockMinute(suggestion) + dayOffsetSuffix(suggestion))}
+           </button>`
+        : ''}
+    </div>
+  `;
+}
+
+/** Service line under a ride step: the window in effect, or why it is unusable. */
+function renderStepServiceLine(step: JourneyStep): string {
+  const spans = getRouteServiceSpans(step.routeId);
+
+  if (step.outsideService) {
+    const windows = spans ? describeServiceSpans(spans).map((row) => `${row.days} ${row.hours}`).join(' · ') : '';
+    return `<div class="journey-step-service danger">No opera a esta hora${windows ? ` · ${escapeHTML(windows)}` : ''}</div>`;
+  }
+
+  const parts: string[] = [];
+  if (step.serviceWait && step.startMinute !== undefined) {
+    const opensAt = step.startMinute + step.serviceWait;
+    parts.push(`Inicio de servicio ${formatClockMinute(opensAt)}${dayOffsetSuffix(opensAt)} · esperas ${Math.round(step.serviceWait)} min`);
+  }
+  if (step.serviceEndMinute !== undefined) {
+    parts.push(`Último servicio ${formatClockMinute(step.serviceEndMinute)}${dayOffsetSuffix(step.serviceEndMinute)}`);
+  }
+  if (parts.length === 0) return '';
+
+  const isTight =
+    step.serviceEndMinute !== undefined && step.boardMinute !== undefined && step.serviceEndMinute - step.boardMinute <= 20;
+  return `<div class="journey-step-service${isTight ? ' warn' : ''}">${escapeHTML(parts.join(' · '))}</div>`;
+}
+
 function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
   const container = document.getElementById('planner-results')!;
-  
+
   if (plans.length === 0) {
     container.innerHTML = `
       <div class="planner-empty-state">
@@ -1076,7 +1349,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
         .join('<span class="journey-badges-arrow">➔</span>');
 
       return `
-        <div class="journey-option-card" data-index="${index}">
+        <div class="journey-option-card${plan.outsideService ? ' out-of-service' : ''}" data-index="${index}">
           <div class="journey-summary">
             <div class="journey-duration">
               ${plan.totalTime} <span>min</span>
@@ -1086,12 +1359,22 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
               <div class="journey-meta-item">🔄 ${plan.transfers} ${plan.transfers === 1 ? 'transbordo' : 'transbordos'}</div>
             </div>
           </div>
+          ${renderPlanClockRow(plan)}
           <div class="journey-badges">${badgesHtml}</div>
           <div class="journey-steps-list hidden" data-plan-index="${index}"></div>
         </div>
       `;
     })
     .join('');
+
+  container.innerHTML = renderOutOfServiceNotice(plans) + container.innerHTML;
+
+  container.querySelector<HTMLButtonElement>('.planner-notice-action')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const minute = Number((event.currentTarget as HTMLElement).dataset.suggestMinute);
+    if (!Number.isFinite(minute) || !lastDepartAt) return;
+    planAtDepartTime(planTimeAddMinutes(lastDepartAt, minute - lastDepartAt.minute));
+  });
 
   // Attach card clicks to show on map and expand timeline details
   const cards = container.querySelectorAll('.journey-option-card');
@@ -1142,7 +1425,7 @@ async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number):
   // guard + selection preservation + re-render.
   const selectedPlan = activePlanIndex !== null ? plans[activePlanIndex] : null;
   try {
-    await enrichPlansWalking(plans, lastSortBy);
+    await enrichPlansWalking(plans, lastSortBy, lastDepartAt ?? undefined);
     if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
     activePlanIndex = selectedPlan ? Math.max(0, plans.indexOf(selectedPlan)) : 0;
     renderResults(plans, true);
@@ -1219,6 +1502,14 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
       const isLast = i === plan.steps.length - 1;
       const stepDotClass = isFirst ? 'start' : isLast ? 'end' : 'transfer';
 
+      // Clock label of the step: when the rider starts walking, or when the bus
+      // is expected at the platform. Only present on schedule-aware searches.
+      const clockMinute = step.type === 'ride' ? step.boardMinute : step.startMinute;
+      const clockHtml =
+        clockMinute === undefined
+          ? ''
+          : `<span class="journey-step-clock">${escapeHTML(formatClockMinute(clockMinute))}</span>`;
+
       if (step.type === 'walk') {
         const isTunnel = isTunnelTransfer(step.fromCode, step.toCode);
         const title = isTunnel
@@ -1231,7 +1522,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
               ${!isLast ? '<div class="journey-step-line walk"></div>' : ''}
             </div>
             <div class="journey-step-content">
-              <div class="journey-step-title">${title}</div>
+              <div class="journey-step-title">${clockHtml}${title}</div>
               <div class="journey-step-desc">Aprox. <strong>${Math.round(step.distance)} m</strong> (${Math.max(1, Math.round(step.time))} min)</div>
             </div>
           </div>
@@ -1266,12 +1557,13 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
             </div>
             <div class="journey-step-content">
               <div class="journey-step-title">
-                ${boardVerb} <span style="${accentStyle}">${escapeHTML(step.routeCode)}</span>
+                ${clockHtml}${boardVerb} <span style="${accentStyle}">${escapeHTML(step.routeCode)}</span>
               </div>
               <div class="journey-step-desc">
                 En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong> (Dirección ${escapeHTML(step.toName)})<br/>
                 Viajar <strong>${step.stopCount} ${rideStopsNoun(step.routeType, step.stopCount ?? 0)}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
+              ${renderStepServiceLine(step)}
               ${stopsToggleHtml}
             </div>
           </div>

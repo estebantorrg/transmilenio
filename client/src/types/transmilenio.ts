@@ -1,5 +1,7 @@
 /** Type definitions for Transmilenio ArcGIS API responses */
 
+import type { ServiceSpan } from '../services/schedule';
+
 // ─── Troncal ──────────────────────────────────────────────
 
 export interface TroncalRoute {
@@ -104,7 +106,10 @@ export interface RouteListItem {
   subType?: string;
   source?: 'arcgis' | 'catalog';
   busType?: string;
+  /** Raw catalog schedule text, kept for display fallback. */
   schedule?: string;
+  /** Parsed operating windows (§5.6.2). Absent = unknown → always operating. */
+  serviceSpans?: ServiceSpan[];
   operator?: string;
   length?: number;
   color?: string;

@@ -1,6 +1,18 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
-import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, getRouteServiceSpans, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import {
+  bogotaNow,
+  dayOffsetSuffix,
+  describeServiceSpans,
+  festivoName,
+  formatClockMinute,
+  formatPlanDay,
+  dayOfWeek,
+  planTimeFromInputs,
+  planTimeToInputs,
+  type PlanTime,
+} from '@shared/services/schedule';
 import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
@@ -179,8 +191,65 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     'transfers',
     (id) => (sortBy = id as typeof sortBy)
   );
+
+  // Departure moment — routes do not all run at all hours (spec §5.6.2), so the
+  // planner asks WHEN. "Ahora" needs no input; "Otra hora" reveals the native
+  // date/time pair and the hint spells out which service applies that day.
+  let departMode: 'now' | 'custom' = 'now';
+  const dateInput = h('input', { class: 'pl-depart-input', type: 'date', 'aria-label': 'Fecha de salida' }) as HTMLInputElement;
+  const timeInput = h('input', { class: 'pl-depart-input', type: 'time', 'aria-label': 'Hora de salida' }) as HTMLInputElement;
+  const departFields = h('div', { class: 'pl-depart-fields hidden' }, [dateInput, timeInput]);
+  const departHint = h('div', { class: 'pl-depart-hint' });
+
+  const readDepart = (): PlanTime => {
+    if (departMode === 'custom') {
+      const parsed = planTimeFromInputs(dateInput.value, timeInput.value);
+      if (parsed) return parsed;
+    }
+    return bogotaNow();
+  };
+
+  const serviceDayLabel = (plan: PlanTime): string => {
+    const holiday = festivoName(plan.year, plan.month, plan.day);
+    if (holiday) return `servicio de festivo · ${holiday}`;
+    const dow = dayOfWeek(plan.year, plan.month, plan.day);
+    if (dow === 0) return 'servicio de domingo';
+    if (dow === 6) return 'servicio de sábado';
+    return 'servicio de día hábil';
+  };
+
+  const refreshDepartHint = () => {
+    const plan = readDepart();
+    const prefix = departMode === 'now' ? 'Ahora · ' : '';
+    departHint.textContent = `${prefix}${formatPlanDay(plan, false)}, ${formatClockMinute(plan.minute)} · ${serviceDayLabel(plan)}`;
+  };
+
+  const departChips = chipGroup(
+    [
+      { id: 'now', label: 'Ahora' },
+      { id: 'custom', label: 'Otra hora' },
+    ],
+    'now',
+    (id) => {
+      departMode = id as 'now' | 'custom';
+      departFields.classList.toggle('hidden', departMode !== 'custom');
+      if (departMode === 'custom' && !dateInput.value) {
+        const seed = planTimeToInputs(bogotaNow());
+        dateInput.value = seed.date;
+        timeInput.value = seed.time;
+      }
+      refreshDepartHint();
+    }
+  );
+  dateInput.addEventListener('change', refreshDepartHint);
+  timeInput.addEventListener('change', refreshDepartHint);
+  refreshDepartHint();
+
   sheet.body.append(
     h('div', { class: 'pl-options' }, [
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Salida' }), departChips]),
+      departFields,
+      departHint,
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips]),
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips]),
     ])
@@ -204,6 +273,10 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     window.setTimeout(() => {
       try {
         ensureRouter();
+        // Resolved once so the search, the clock times shown and the async walk
+        // re-timing all describe the same trip.
+        const departAt = readDepart();
+        refreshDepartHint();
         const params: RouteSearchParams = {
           origin: origin!.coord,
           destination: destination!.coord,
@@ -212,6 +285,7 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
           mode,
           minWalk: sortBy === 'walk',
           sortBy,
+          departAt,
         };
         const seq = ++searchSeq;
         const plans = findRoutes(params);
@@ -219,7 +293,7 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
         renderPlans(results, plans.slice(0, 4));
         // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
         // re-render if this is still the latest search (spec §1.1 R2 shared fn).
-        void enrichWalkingGeometries(plans, sortBy)
+        void enrichWalkingGeometries(plans, sortBy, departAt)
           .then(() => {
             if (seq === searchSeq) renderPlans(results, plans.slice(0, 4));
           })
@@ -267,8 +341,23 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
     );
     return;
   }
+
+  // Nothing running at that hour: the itineraries are still shown, labelled,
+  // with each service's own window (spec §4.2 — never a dead end). Only when
+  // EVERY bus option is closed — one closed option among working ones is a
+  // per-card matter, not a headline.
+  const withRides = plans.filter((plan) => plan.steps.some((step) => step.type === 'ride'));
+  if (withRides.length > 0 && withRides.every((plan) => plan.outsideService)) {
+    host.append(
+      h('div', { class: 'pl-notice' }, [
+        h('div', { class: 'pl-notice-title', text: 'Ninguna ruta opera a esa hora' }),
+        h('div', { class: 'pl-notice-text', text: 'Estas son las conexiones que existen, con el horario de cada servicio.' }),
+      ])
+    );
+  }
+
   plans.forEach((plan, idx) => {
-    const card = h('div', { class: 'plan-card' });
+    const card = h('div', { class: `plan-card${plan.outsideService ? ' out-of-service' : ''}` });
     card.append(
       h('div', { class: 'plan-head' }, [
         h('div', { class: 'plan-time' }, [h('b', { text: `${plan.totalTime}` }), h('span', { text: ' min' })]),
@@ -276,6 +365,19 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
         idx === 0 ? h('span', { class: 'plan-best', text: 'Mejor' }) : h('span'),
       ])
     );
+
+    if (plan.departMinute !== undefined && plan.arriveMinute !== undefined) {
+      const clock = h('div', { class: 'plan-clock' }, [
+        h('span', {
+          class: 'plan-clock-range',
+          text: `${formatClockMinute(plan.departMinute)} → ${formatClockMinute(plan.arriveMinute)}${dayOffsetSuffix(plan.arriveMinute)}`,
+        }),
+      ]);
+      if (plan.outsideService) clock.append(h('span', { class: 'plan-chip danger', text: 'Fuera de servicio' }));
+      else if (plan.serviceWait) clock.append(h('span', { class: 'plan-chip warn', text: `Espera ${plan.serviceWait} min` }));
+      if (!plan.outsideService && plan.lastServiceRisk) clock.append(h('span', { class: 'plan-chip warn', text: 'Último servicio' }));
+      card.append(clock);
+    }
     const legs = h('div', { class: 'plan-legs' });
     for (const step of plan.steps) {
       if (step.type === 'walk') {
@@ -298,11 +400,29 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
     // Step detail list.
     const detail = h('div', { class: 'plan-detail' });
     for (const step of plan.steps) {
+      const clockMinute = step.type === 'ride' ? step.boardMinute : step.startMinute;
+      const clock = clockMinute === undefined ? '' : `${formatClockMinute(clockMinute)} · `;
       const line =
         step.type === 'walk'
-          ? `Camina ${formatDistance(step.distance)} hasta ${step.toName}`
-          : `Toma ${step.routeCode} hasta ${step.toName}${step.stopCount ? ` · ${step.stopCount} paradas` : ''}`;
+          ? `${clock}Camina ${formatDistance(step.distance)} hasta ${step.toName}`
+          : `${clock}Toma ${step.routeCode} hasta ${step.toName}${step.stopCount ? ` · ${step.stopCount} paradas` : ''}`;
       detail.append(h('div', { class: 'plan-step', text: line }));
+
+      if (step.type !== 'ride') continue;
+      if (step.outsideService) {
+        const spans = getRouteServiceSpans(step.routeId);
+        const windows = spans ? describeServiceSpans(spans).map((row) => `${row.days} ${row.hours}`).join(' · ') : '';
+        detail.append(h('div', { class: 'plan-service danger', text: `No opera a esta hora${windows ? ` · ${windows}` : ''}` }));
+      } else if (step.serviceEndMinute !== undefined || step.serviceWait) {
+        const parts: string[] = [];
+        if (step.serviceWait && step.startMinute !== undefined) {
+          parts.push(`Inicio de servicio ${formatClockMinute(step.startMinute + step.serviceWait)}`);
+        }
+        if (step.serviceEndMinute !== undefined) {
+          parts.push(`Último servicio ${formatClockMinute(step.serviceEndMinute)}${dayOffsetSuffix(step.serviceEndMinute)}`);
+        }
+        detail.append(h('div', { class: 'plan-service', text: parts.join(' · ') }));
+      }
     }
     card.append(detail);
     host.append(card);

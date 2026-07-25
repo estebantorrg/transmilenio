@@ -1,3 +1,14 @@
+import {
+  bogotaNow,
+  boardingWaitAt,
+  closingAfter,
+  createServiceClock,
+  isOpenAt,
+  serviceIntervals,
+  type PlanTime,
+  type ServiceClock,
+  type ServiceSpan,
+} from './schedule';
 import type { RouteListItem } from '../types/transmilenio';
 
 export interface GraphEdge {
@@ -35,6 +46,7 @@ export interface JourneyStep {
   toName: string;
   toCode: string;
   routeCode?: string;
+  routeId?: string; // ride steps: the route VARIANT ridden (schedule lookups)
   routeType?: 'troncal' | 'zonal' | 'cable';
   distance: number; // in meters
   time: number; // in minutes (ride steps include the expected boarding wait)
@@ -42,6 +54,18 @@ export interface JourneyStep {
   stops?: string[]; // Intermediate stop names (excluding boarding/alighting)
   path?: [number, number][]; // Coordinates for this leg
   isTunnel?: boolean;
+  // ── Schedule annotations (§5.6.2). Present only on schedule-aware searches;
+  // minutes are counted from the plan day's midnight in Bogotá, so a value
+  // above 1440 means the step happens after midnight.
+  startMinute?: number;
+  /** Ride steps: when the bus is expected to be boarded (service + headway wait). */
+  boardMinute?: number;
+  /** Ride steps: minutes spent waiting for the service window to open. */
+  serviceWait?: number;
+  /** Ride steps: last service of the window in effect. */
+  serviceEndMinute?: number;
+  /** Ride steps: the route does not operate at `boardMinute` (ignore-schedule plans). */
+  outsideService?: boolean;
 }
 
 export interface JourneyPlan {
@@ -49,6 +73,15 @@ export interface JourneyPlan {
   walkDistance: number; // in meters
   transfers: number;
   steps: JourneyStep[];
+  // ── Schedule summary (§5.6.2), present on schedule-aware searches.
+  departMinute?: number;
+  arriveMinute?: number;
+  /** Total minutes waited for a service to open (already inside `totalTime`). */
+  serviceWait?: number;
+  /** True when the plan rides routes that are NOT running at the chosen time. */
+  outsideService?: boolean;
+  /** True when a boarding lands close to that route's last service. */
+  lastServiceRisk?: boolean;
 }
 
 export interface RouteSearchParams {
@@ -59,6 +92,10 @@ export interface RouteSearchParams {
   mode: 'mix' | 'troncal' | 'zonal';
   minWalk: boolean;
   sortBy?: 'transfers' | 'time' | 'walk';
+  /** Departure moment in Bogotá wall-clock. Defaults to now. */
+  departAt?: PlanTime;
+  /** Plan as if every route ran all day (the explicit out-of-service fallback). */
+  ignoreSchedules?: boolean;
 }
 
 // Global router state. The search runs on dense numeric indexes (node idx ×
@@ -74,6 +111,8 @@ let routesById = new Map<string, RouteListItem>();
 let routeIndexById = new Map<string, number>();
 let rawRoutesList: RouteListItem[] = [];
 let rawCableStations: CableStationInput[] = [];
+// Operating windows per dense route index (undefined = unknown → always runs).
+let routeSpansByIdx: Array<ServiceSpan[] | undefined> = [];
 
 // TransMiCable: a single line of gondola stations. It connects to the rest of
 // the network ONLY at Tunal ↔ Portal Tunal (the portal complex). Every other
@@ -105,6 +144,17 @@ const BOARD_WAIT_MINUTES: Record<'troncal' | 'zonal' | 'cable', number> = {
   zonal: 6,
   cable: 1,
 };
+
+// ─── Service schedules (§5.6.2) ─────────────────────────────────────────────
+// Not every route runs at every hour, so boarding is only offered while the
+// route's own window is open at the moment the traveller would reach the stop.
+// Arriving a few minutes before the first bus is normal, so a short wait for the
+// window to open is allowed and charged as real waiting time; anything longer is
+// not a trip a human would make, and the edge is dropped instead.
+const SCHEDULE_OPENING_WAIT_MAX_MINUTES = 30;
+// A boarding this close to the route's last service is flagged for the UI: the
+// itinerary is valid but the rider should know they are on the final buses.
+const LAST_SERVICE_WARNING_MINUTES = 20;
 
 const WALK_SPEED_M_PER_MINUTE = 75;
 const WALK_TRANSFER_THRESHOLD_M = 500;
@@ -257,6 +307,10 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   uniqueStops.clear();
   routesById = new Map(routes.map((route) => [route.id, route]));
   routeIndexById = new Map(routes.map((route, index) => [route.id, index]));
+  // Cable / walking / start indexes stay `undefined` — the gondola publishes no
+  // catalog schedule, so it is treated as unknown (always available) rather than
+  // guessed at (spec §1 certainty).
+  routeSpansByIdx = routes.map((route) => route.serviceSpans);
   const cableRouteIdx = routes.length;
   routeIndexById.set(CABLE_ROUTE_ID, cableRouteIdx);
   walkingRouteIdx = routes.length + 1;
@@ -545,6 +599,119 @@ function getStop(code: string, virtualStops?: Map<string, RouteStop>): RouteStop
 }
 
 /**
+ * Per-search schedule state: the calendar context plus each route's concrete
+ * operating intervals, resolved lazily the first time the search touches that
+ * route (a full pass over ~1000 routes would cost more than the search itself).
+ */
+interface ScheduleContext {
+  clock: ServiceClock;
+  /** routeIdx → intervals, or `null` for "unknown schedule / always open". */
+  intervals: Array<number[] | null | undefined>;
+  /**
+   * routeIdx → 1 when the route is already running at departure AND stays open
+   * for the whole planning horizon. The search then needs no interval scan at
+   * all for that route, which is the common case in the middle of the day and
+   * what keeps the added check off the sub-100 ms search budget (spec §1).
+   */
+  openThroughHorizon: Uint8Array;
+  /** `false` = annotate the itinerary but never filter (out-of-service fallback). */
+  enforce: boolean;
+}
+
+// Horizon of that fast path (2 h 30 — comfortably longer than a Bogotá
+// cross-city itinerary). A boarding further than this into the trip is always
+// re-checked exactly, so the shortcut can never wave a rider onto a bus after
+// its last service. Measured on the committed catalog: with it, enforcing
+// schedules costs single-digit-to-~15 ms over an unconstrained search; without
+// it, the same searches paid 20–30 ms of pure interval scanning.
+const SCHEDULE_FAST_PATH_HORIZON_MINUTES = 150;
+
+function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleContext {
+  return {
+    clock: createServiceClock(departAt),
+    intervals: new Array(routeKeySpan),
+    openThroughHorizon: new Uint8Array(routeKeySpan),
+    enforce,
+  };
+}
+
+function intervalsFor(schedule: ScheduleContext, routeIdx: number): number[] | null {
+  const cached = schedule.intervals[routeIdx];
+  if (cached !== undefined) return cached;
+
+  const spans = routeSpansByIdx[routeIdx];
+  const resolved = spans && spans.length > 0 ? serviceIntervals(spans, schedule.clock) : null;
+  schedule.intervals[routeIdx] = resolved;
+
+  const depart = schedule.clock.departMinute;
+  const closes = resolved ? closingAfter(resolved, depart) : null;
+  if (!resolved || (closes !== null && closes >= depart + SCHEDULE_FAST_PATH_HORIZON_MINUTES)) {
+    schedule.openThroughHorizon[routeIdx] = 1;
+  }
+  return resolved;
+}
+
+/**
+ * Minutes to wait at the stop before `routeIdx` can be boarded `atTime` minutes
+ * into the trip, or `null` when that route simply is not running then.
+ */
+function scheduleWait(schedule: ScheduleContext, routeIdx: number, atTime: number): number | null {
+  const withinHorizon = atTime <= SCHEDULE_FAST_PATH_HORIZON_MINUTES;
+  // Hot path: a route already known to run through the horizon needs no scan.
+  if (withinHorizon && schedule.openThroughHorizon[routeIdx] === 1) return 0;
+  const intervals = intervalsFor(schedule, routeIdx);
+  if (!intervals) return 0;
+  // The line above may have just classified it — take the shortcut then too.
+  if (withinHorizon && schedule.openThroughHorizon[routeIdx] === 1) return 0;
+  return boardingWaitAt(intervals, schedule.clock.departMinute + atTime, SCHEDULE_OPENING_WAIT_MAX_MINUTES);
+}
+
+/** Public schedule of a route variant, for the UIs' service labels. */
+export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
+  if (!routeId) return undefined;
+  return routesById.get(routeId)?.serviceSpans;
+}
+
+/**
+ * Writes the service annotations of one boarding onto a ride step (start/board
+ * clock, wait for the window to open, last service of that window, or the
+ * out-of-service flag) and returns the wait that belongs inside the step time.
+ * Shared by the initial build and the post-enrichment refresh so the numbers on
+ * screen can never disagree with the numbers the search charged.
+ */
+function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: ScheduleContext): number {
+  const type = step.routeType ?? 'zonal';
+  const routeIdx = step.routeId === undefined ? undefined : routeIndexById.get(step.routeId);
+  const intervals = routeIdx === undefined ? null : intervalsFor(schedule, routeIdx);
+
+  step.startMinute = cursor;
+  step.serviceWait = undefined;
+  step.serviceEndMinute = undefined;
+  step.outsideService = undefined;
+
+  // Unknown schedule (the gondola, or hours we could not parse) → always boardable.
+  if (!intervals) {
+    step.boardMinute = cursor + BOARD_WAIT_MINUTES[type];
+    return 0;
+  }
+
+  const wait = schedule.enforce ? boardingWaitAt(intervals, cursor, SCHEDULE_OPENING_WAIT_MAX_MINUTES) ?? 0 : 0;
+  const readyMinute = cursor + wait;
+  step.boardMinute = readyMinute + BOARD_WAIT_MINUTES[type];
+  if (wait > 0) step.serviceWait = wait;
+
+  if (isOpenAt(intervals, readyMinute)) {
+    const closes = closingAfter(intervals, readyMinute);
+    if (closes !== null) step.serviceEndMinute = closes;
+  } else {
+    // Reached in fallback (non-enforcing) mode, or when refined walking times
+    // pushed a boarding past its window — surfaced to the rider, never hidden.
+    step.outsideService = true;
+  }
+  return wait;
+}
+
+/**
  * Slice coordinates of a route variant between two stops. `fallback` is the
  * stop-to-stop chain of the ride (boarding, intermediates, alighting) — used
  * whenever the variant has no usable geometry or the slice snaps wrong.
@@ -632,17 +799,26 @@ function sliceRouteGeometry(
  * route can never fuse into one impossible U-turn ride. Ride step times include
  * the expected boarding wait; geometry is sliced once per committed step.
  */
-function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>): JourneyStep[] {
+function buildJourneySteps(
+  legs: RawLeg[],
+  virtualStops?: Map<string, RouteStop>,
+  schedule?: ScheduleContext
+): JourneyStep[] {
   const steps: JourneyStep[] = [];
   if (legs.length === 0) return steps;
 
   let currentStep: JourneyStep | null = null;
   let currentRouteId: string | null = null;
   let currentChain: [number, number][] = [];
+  // Wall-clock cursor: the moment the step being built starts. Advanced only on
+  // commit, so a ride's boarding annotations use the same cumulative time the
+  // search charged for that path.
+  let cursor = schedule ? schedule.clock.departMinute : 0;
 
   const commitCurrent = (): void => {
     if (!currentStep) return;
     currentStep.path = sliceRouteGeometry(currentRouteId!, currentStep.fromCode, currentStep.toCode, currentChain);
+    cursor += currentStep.time;
     steps.push(currentStep);
     currentStep = null;
     currentRouteId = null;
@@ -687,7 +863,9 @@ function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>
         time,
         path: walkPath,
         isTunnel,
+        ...(schedule ? { startMinute: cursor } : {}),
       });
+      cursor += time;
     } else if (currentStep && currentRouteId === leg.routeId) {
       // Extend existing ride step
       if (currentStep.stops && fromStop.codigo !== currentStep.fromCode) {
@@ -703,19 +881,24 @@ function buildJourneySteps(legs: RawLeg[], virtualStops?: Map<string, RouteStop>
     } else {
       // New ride step (first boarding or a transfer)
       commitCurrent();
-      currentStep = {
+      const rideStep: JourneyStep = {
         type: 'ride',
         fromName: fromStop.nombre,
         fromCode: fromStop.codigo,
         toName: toStop.nombre,
         toCode: toStop.codigo,
         routeCode: leg.routeCode,
+        routeId: leg.routeId,
         routeType: leg.type,
         distance: leg.distance,
         time: leg.time + BOARD_WAIT_MINUTES[leg.type],
         stopCount: 1,
         stops: [], // Will populate if multiple stops are traversed
       };
+      // Waiting for the window to open is real trip time, exactly as the search
+      // charged it, so it belongs inside the step duration.
+      if (schedule) rideStep.time += annotateRideBoarding(rideStep, cursor, schedule);
+      currentStep = rideStep;
       currentRouteId = leg.routeId;
       currentChain = [fromStop.coordinate, toStop.coordinate];
     }
@@ -850,6 +1033,10 @@ const MAX_NODE_POPS = 60000;
 function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const { origin, destination, originStopCode, destStopCode, mode, minWalk, sortBy } = params;
   const preference = getSearchPreference(sortBy, minWalk);
+  // Departure clock: boarding is only offered while a route's own window is open
+  // at the moment the traveller reaches that stop (§5.6.2). In `ignoreSchedules`
+  // mode the same context still annotates the itinerary — it just stops filtering.
+  const schedule = createScheduleContext(params.departAt ?? bogotaNow(), params.ignoreSchedules !== true);
   const walkPrimary = preference === 'walk' ? WALK_PRIMARY_SCALE : 0;
   const slack = diversitySlack(preference);
 
@@ -990,6 +1177,13 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         // free "continuation" through a U-turn).
         const isBoarding = !current.hasRidden || current.routeIdx !== edge.routeIdx;
         if (isBoarding) {
+          if (schedule.enforce) {
+            // Not running when the rider gets there → this boarding does not
+            // exist. A short wait for the first bus is allowed and paid for.
+            const wait = scheduleWait(schedule, edge.routeIdx, current.time);
+            if (wait === null) continue;
+            edgeTime += wait;
+          }
           edgeTime += BOARD_WAIT_MINUTES[edge.type];
         }
         edgeCost = edgeTime;
@@ -1102,19 +1296,21 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       });
     }
 
-    const journeySteps = buildJourneySteps(legs, virtualStops);
+    const journeySteps = buildJourneySteps(legs, virtualStops, schedule);
     // Totals from the built steps: ride steps carry their boarding wait, so the
     // displayed time is door-to-door (walks + waits + rides), matching what the
     // async walking enrichment recomputes later.
     const totalTime = journeySteps.reduce((sum, s) => sum + s.time, 0);
     const totalWalkDistance = journeySteps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0);
 
-    plans.push({
+    const plan: JourneyPlan = {
       totalTime: Math.round(totalTime),
       walkDistance: Math.round(totalWalkDistance),
       transfers: targetState.transfers,
       steps: journeySteps,
-    });
+    };
+    summarizeSchedule(plan, schedule.clock);
+    plans.push(plan);
   }
 
   // Deduplicate, validate, and filter plans
@@ -1154,13 +1350,51 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   return finalPlans.slice(0, 4);
 }
 
-function createWalkingFallbackPlan(origin: [number, number], destination: [number, number]): JourneyPlan {
+/**
+ * Rolls the per-step schedule annotations up onto the plan: clock departure and
+ * arrival, total waiting for service to open, whether any ride is out of service
+ * and whether any boarding lands on that route's last buses.
+ */
+function summarizeSchedule(plan: JourneyPlan, clock: ServiceClock): void {
+  plan.departMinute = clock.departMinute;
+  plan.arriveMinute = clock.departMinute + plan.totalTime;
+
+  let serviceWait = 0;
+  let outsideService = false;
+  let lastServiceRisk = false;
+
+  for (const step of plan.steps) {
+    if (step.serviceWait) serviceWait += step.serviceWait;
+    if (step.outsideService) outsideService = true;
+    if (
+      step.serviceEndMinute !== undefined &&
+      step.boardMinute !== undefined &&
+      step.serviceEndMinute - step.boardMinute <= LAST_SERVICE_WARNING_MINUTES
+    ) {
+      lastServiceRisk = true;
+    }
+  }
+
+  // Assigned unconditionally (not only when set) so a re-annotation after the
+  // walking pass cannot leave a stale warning behind.
+  plan.serviceWait = serviceWait > 0 ? Math.round(serviceWait) : undefined;
+  plan.outsideService = outsideService || undefined;
+  plan.lastServiceRisk = lastServiceRisk || undefined;
+}
+
+function createWalkingFallbackPlan(
+  origin: [number, number],
+  destination: [number, number],
+  departMinute: number
+): JourneyPlan {
   const distance = getDistance(origin, destination);
   const time = distance / WALK_SPEED_M_PER_MINUTE;
   return {
     totalTime: Math.round(time),
     walkDistance: Math.round(distance),
     transfers: 0,
+    departMinute,
+    arriveMinute: departMinute + Math.round(time),
     steps: [
       {
         type: 'walk',
@@ -1171,6 +1405,7 @@ function createWalkingFallbackPlan(origin: [number, number], destination: [numbe
         distance: distance,
         time: time,
         path: [origin, destination],
+        startMinute: departMinute,
       },
     ],
   };
@@ -1184,10 +1419,27 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
     initRouter(rawRoutesList, rawCableStations);
   }
 
+  // Resolve the departure clock once so the search, the walking fallback and the
+  // out-of-service retry all reason about the same moment.
+  const departAt = params.departAt ?? bogotaNow();
+  const search: RouteSearchParams = { ...params, departAt };
+
   console.log(`[Router] Routing request. Mode: ${mode}`);
 
-  // 1. Primary search
-  const plans = findRoutesCore(params);
+  // 1. Primary search — schedule-constrained unless the caller opted out.
+  let plans = findRoutesCore(search);
+
+  // 1b. Nothing operates at that hour: a dead end is the worst possible answer,
+  // so re-plan with the windows ignored. Those itineraries come back tagged
+  // (`plan.outsideService`, per-step windows) so the UI can show WHAT exists and
+  // WHEN it starts instead of "sin rutas" (spec §4.2 graceful degradation).
+  if (plans.length === 0 && search.ignoreSchedules !== true) {
+    const relaxed = findRoutesCore({ ...search, ignoreSchedules: true });
+    if (relaxed.length > 0) {
+      console.log('[Router] No routes in service at that time. Returning out-of-service options.');
+      plans = relaxed;
+    }
+  }
 
   // 2. Walking-only plan: the sole option when no transit exists under the
   // selected filter, and a competing option whenever plain walking would beat
@@ -1196,7 +1448,7 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
   // misleading, so an empty result stays empty ("no routes" state).
   const directWalk = getDistance(origin, destination);
   if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
-    const walkPlan = createWalkingFallbackPlan(origin, destination);
+    const walkPlan = createWalkingFallbackPlan(origin, destination, departAt.minute);
     if (plans.length === 0) {
       console.log('[Router] No transit routes found. Falling back to walking-only plan.');
       plans.push(walkPlan);
@@ -1267,9 +1519,30 @@ export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
  * get identical walking. Tunnel transfers keep their straight geometry.
  * Mutates `plans` in place and returns it.
  */
+/**
+ * Re-runs the schedule annotations over a plan whose step times changed (the
+ * walking-geometry pass), so clock times, waits and window labels stay in sync
+ * with the itinerary actually being shown.
+ */
+function reannotatePlanSchedule(plan: JourneyPlan, schedule: ScheduleContext): void {
+  let cursor = schedule.clock.departMinute;
+  for (const step of plan.steps) {
+    if (step.type === 'walk') {
+      step.startMinute = cursor;
+    } else {
+      const previousWait = step.serviceWait ?? 0;
+      step.time += annotateRideBoarding(step, cursor, schedule) - previousWait;
+    }
+    cursor += step.time;
+  }
+  plan.totalTime = Math.round(cursor - schedule.clock.departMinute);
+  summarizeSchedule(plan, schedule.clock);
+}
+
 export async function enrichWalkingGeometries(
   plans: JourneyPlan[],
-  sortBy?: 'transfers' | 'time' | 'walk'
+  sortBy?: 'transfers' | 'time' | 'walk',
+  departAt?: PlanTime
 ): Promise<JourneyPlan[]> {
   const jobs: Promise<void>[] = [];
   for (const plan of plans) {
@@ -1292,9 +1565,20 @@ export async function enrichWalkingGeometries(
   if (jobs.length === 0) return plans;
   await Promise.all(jobs);
 
+  // Real walking times shift every downstream boarding, so the schedule
+  // annotations are recomputed here (not just the totals) — otherwise a card
+  // could show a clock time the route's own window no longer covers (§5.6.2).
+  const enforcing = departAt ? createScheduleContext(departAt, true) : null;
+  // A plan already tagged out-of-service was planned with the windows relaxed;
+  // re-annotating it in enforcing mode would invent waits it never had.
+  const relaxed = departAt ? createScheduleContext(departAt, false) : null;
   for (const plan of plans) {
     plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
-    plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
+    if (enforcing && relaxed && plan.departMinute !== undefined) {
+      reannotatePlanSchedule(plan, plan.outsideService ? relaxed : enforcing);
+    } else {
+      plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
+    }
   }
   sortJourneyPlans(plans, sortBy);
   return plans;

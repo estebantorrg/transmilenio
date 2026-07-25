@@ -7,6 +7,7 @@ import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
+import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
 import { nearRowHtml, type NearbyPoint } from './cerca';
 
@@ -1249,9 +1250,44 @@ function selectRoute(route: RouteListItem): void {
   });
 }
 
-function formatSchedule(scheduleRaw: string | undefined): string {
+/**
+ * Schedule table for the route detail. Parsed windows (§5.6.2) are the source of
+ * truth — the same data the planner enforces — so the panel can never disagree
+ * with the itineraries. The legacy string parsing below stays only for routes
+ * whose hours could not be parsed at all.
+ */
+function formatSchedule(route: RouteListItem): string {
+  const spans = route.serviceSpans;
+  if (spans && spans.length > 0) {
+    const rows = describeServiceSpans(spans)
+      .map(
+        (row) => `<tr>
+      <td class="schedule-day">${escapeHTML(row.days)}</td>
+      <td class="schedule-time">${escapeHTML(row.hours)}</td>
+    </tr>`
+      )
+      .join('');
+    return `<table class="schedule-table"><tbody>${rows}</tbody></table>`;
+  }
+  return formatScheduleText(route.schedule);
+}
+
+/** "Now" chip: is this route running at this moment, and until/from when. */
+function renderServiceStatus(route: RouteListItem): string {
+  const status = serviceStatus(route.serviceSpans, bogotaNow());
+  if (status.state === 'unknown') return '';
+  return `
+    <div class="detail-service ${status.state}">
+      <span class="detail-service-dot"></span>
+      <span class="detail-service-label">${escapeHTML(status.label)}</span>
+      ${status.detail ? `<span class="detail-service-detail">${escapeHTML(status.detail)}</span>` : ''}
+    </div>
+  `;
+}
+
+function formatScheduleText(scheduleRaw: string | undefined): string {
   if (!scheduleRaw) return '';
-  
+
   // Format string by splitting on "/" or "|"
   const parts = scheduleRaw.split(/[/|]/).map(p => p.trim()).filter(Boolean);
   if (parts.length === 0) return '';
@@ -1335,7 +1371,7 @@ function showRouteDetail(route: RouteListItem): void {
   const isTroncal = route.type === 'troncal';
   const routeKindLabel = route.subType === 'dual' ? 'Ruta Dual' : isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP';
   const badgeColor = safeColor(getRouteAccentColor(route));
-  const scheduleHtml = formatSchedule(route.schedule);
+  const scheduleHtml = formatSchedule(route);
 
   content.innerHTML = `
     <div class="detail-header">
@@ -1381,6 +1417,7 @@ function showRouteDetail(route: RouteListItem): void {
     ${scheduleHtml ? `
     <div class="detail-section">
       <div class="detail-section-title">Horario</div>
+      ${renderServiceStatus(route)}
       ${scheduleHtml}
     </div>` : ''}
   `;

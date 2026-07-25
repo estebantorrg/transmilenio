@@ -123,7 +123,7 @@ x-relay-secret: <secret>
   * Seed set: `["", "A".."Z", "0".."9"]`
 * **Route Detail**:
   `lServicio=Rutas & lTipo=api & lFuncion=infoRuta & idRuta=<id> & nombre=<name> & codigo=<code>`
-  * Extracts: `recorrido.data[]` (ordered stops), `0.color`, `0.horarios`, `0.sistema`, `0.tipoServicio`, `0.trazado` (GeoJSON LineString/MultiLineString).
+  * Extracts: `recorrido.data[]` (ordered stops), `0.color`, `0.horarios` (parsed into service windows, §5.6.2), `0.sistema`, `0.tipoServicio`, `0.trazado` (GeoJSON LineString/MultiLineString).
 
 #### 5.1.3 Catalog Sync Algorithm
 1. Search routes using complete seed set.
@@ -362,7 +362,9 @@ Canonical public origin: **`https://transmilenio.onrender.com`** (same origin al
 
 ---
 
-### 5.6 Data Models
+### 5.6 Data Models & Journey Planner
+
+#### 5.6.1 Data Models
 
 ```typescript
 interface MasterCatalog {
@@ -411,7 +413,8 @@ interface RouteListItem {
   subType?: string;
   source?: "arcgis" | "catalog";
   busType?: string;
-  schedule?: string;
+  schedule?: string;              // raw catalog text (display fallback)
+  serviceSpans?: ServiceSpan[];   // parsed operating windows (§5.6.2)
   operator?: string;
   length?: number;
   color?: string;
@@ -428,6 +431,31 @@ interface RouteListItem {
 }
 ```
 
+#### 5.6.2 Service schedules (not every route runs at every hour)
+
+Journeys are planned **for a moment in time**. Every route carries its own operating windows, and a route that is not running when the traveller would reach the stop is not a route they can take — offering it is worse than offering nothing, because it looks authoritative.
+
+* **Source** (`horarios` from `infoRuta`, §5.1.2 — carried through `getCatalogLight()`, so both clients already have it, no API change): every one of the catalog's 1054 route variants ships `horarios.data` (2333 rows). `convención ∈ {L-V, L-S, S, D, D-F, L-D}`; hours are 12-hour strings, some zero-padded (`04:00 AM`), some lowercase (`2:00 pm`); **168 rows close after midnight** (`12:30 AM`).
+* **Parser** (`parseServiceSpans`, `client/src/services/schedule.ts` — shared by both clients and the router): each row becomes `{ mask, start, end }` in minutes from midnight. A row whose end is **not after** its start closes the next day (`end += 1440`), never a zero-length window. Duplicate rows collapse (182 in the catalog). A route whose hours cannot be read at all yields `undefined` = **unknown schedule = always operating**: a parse gap must never hide a real service (spec §1 certainty, §4.2 degradation).
+* **Day masks**: one bit per weekday plus a dedicated `FESTIVO` bit. On a holiday the weekday bit is deliberately **not** set — Bogotá runs holiday service on a holiday, so an `L-V` window must not apply on a Monday festivo. A route that files no `D-F`/`L-D` row but does run Sundays falls back to its **Sunday** window on holidays (the local convention), so holidays never read as "the whole city is closed".
+* **Festivo calendar** (`isFestivo` / `festivoName`): computed, not tabulated, so it never expires — six fixed dates, the seven Ley 51 de 1983 ("Emiliani") dates observed the following Monday, and five Easter-relative dates (Jueves/Viernes Santo, and Ascensión/Corpus/Sagrado Corazón at Easter +43/+64/+71, already Mondays). Easter via Meeus/Jones/Butcher. Verified against the published 2026 calendar (18 festivos, exact dates).
+* **Clock**: schedules are Bogotá local time, and the device may be anywhere, so the planning moment is resolved in `America/Bogota` (`Intl`, fixed −05:00 fallback) and carried as plain wall-clock fields (`PlanTime`) — never a `Date` a host time zone could shift.
+* **Router** (`services/router.ts`): `RouteSearchParams.departAt` (default **now**) makes the search time-dependent. Windows are evaluated over three days (−1/0/+1) so a 00:20 departure still sees the previous day's `…–12:30 AM` window.
+  * A boarding is offered only if the route is running when the traveller *reaches* that stop. Arriving shortly before the first bus is normal, so a wait of up to **30 min** (`SCHEDULE_OPENING_WAIT_MAX_MINUTES`) is allowed and charged as real time in both the cost and the displayed total; longer means the edge does not exist.
+  * Continuing a ride is never re-checked — only boardings are, since a bus already boarded finishes its run.
+  * **Performance**: a route already running and open through a **150 min** horizon (`SCHEDULE_FAST_PATH_HORIZON_MINUTES`) is marked once per search and skips the interval scan entirely; boardings past that horizon are always checked exactly, so the shortcut cannot wave a rider onto a bus after its last service. Measured on the committed catalog: schedule enforcement costs ~5–15 ms over an unconstrained search (20–30 ms without the shortcut), keeping typical trips inside the §1 sub-100 ms budget.
+  * **Annotations** per ride step: `startMinute`, `boardMinute`, `serviceWait`, `serviceEndMinute`, `outsideService`; per plan: `departMinute`, `arriveMinute`, `serviceWait`, `outsideService`, `lastServiceRisk` (a boarding within **20 min** of that route's last service). `enrichWalkingGeometries(plans, sortBy, departAt)` re-runs them after real OSRM walking times land, so a card can never show a clock time the route's own window no longer covers.
+  * **Never a dead end**: if nothing operates at the chosen time, the search re-runs with the windows relaxed and returns those itineraries **tagged** `outsideService`, each ride carrying its real window, instead of an empty result.
+  * **Known modelling limit**: labels are kept per (node, arriving route) by *cost*, so under the `transfers`/`walk` preferences the window check uses the cost-optimal label's arrival time; a strictly earlier but costlier label is not retained. Exactness there would need full Pareto labels. Under `time` (cost = time) the search stays exact.
+* **UI/UX** — website (`ui/planner.ts`, `index.html`) and app (`client/mobile/src/views/planner.ts`):
+  * A **Salida** control: `Ahora` (default, no input) / `Otra hora` (native date + time), with a hint line that always resolves the moment to a day and to **which service applies** ("lun 27 jul, 4:30 a.m. · servicio de día hábil", or the festivo's name).
+  * Each result card shows the real **clock range** (`4:30 a.m. → 6:22 a.m.`, marked `(mañana)` past midnight) plus chips: `Espera N min por apertura`, `Último servicio`, `Fuera de servicio`.
+  * The expanded timeline shows a clock per step, the window in effect (`Último servicio 10:55 p.m.`), the opening wait, or — for an out-of-service ride — the route's full schedule in red.
+  * When everything is closed, a banner explains why and offers **one concrete recovery**: "Ver opciones desde 4:30 a.m.", computed as the earliest departure that puts every ride of some plan inside its own window (referenced to stop arrival, so it introduces no residual wait). Clicking it re-plans at that moment.
+  * Route detail (both clients) shows an **En servicio / Fuera de servicio** chip with the next boundary, and the schedule table is rendered from the parsed windows — the same data the planner enforces, so the panel can never contradict the itineraries.
+  * Deep link: `#/plan?…&t=YYYY-MM-DDTHH:mm` restores a trip planned for a specific moment; `Ahora` stays out of the URL so a shared link is always current.
+* **Tests**: `tests/schedule.spec.ts` (parser shapes incl. post-midnight, the 2026 festivo calendar, holiday vs weekday service, and the router's wait / last-service / out-of-service / unknown-schedule behaviours).
+
 ---
 
 ### 5.7 Acceptance Criteria
@@ -439,6 +467,7 @@ System aligns with spec when:
 4. **Live Operations**: Live tracking resolves through the cascade (Live Bridge extension → CO relay direct → server `/api/buses` → public CO proxy), showing loading/tracking/empty/error/stale states.
 5. **Card Balance**: Lectura de saldo reproduces the observed `/lectura_tarjeta` request, labels server-only data as such, and never presents missing NFC card-memory movements as verified data.
 6. **Stability Guidelines**: App loads properly even when live relay or ArcGIS endpoints fail.
+7. **Schedule Constraints**: The planner only offers rides whose route is running at the traveller's boarding moment (§5.6.2), shows the trip's real clock times, and — when nothing operates at that hour — returns tagged out-of-service options plus the next departure that works, never an empty result.
 
 ---
 
@@ -448,7 +477,7 @@ Full backend inventory decoded from the official app **v2.9.6** (`com.nexura.tra
 
 **Host 1 — Catalog** `https://api.buscador-rutas.transmilenio.gov.co/` (no auth; `okhttp` UA; `loader.php?lServicio=Rutas&lTipo=api&lFuncion=<fn>`). We **use**: `searchRutaByTipo` (route search, §5.1.2) + `infoRuta` (route detail). **Unused, worth mining** (exact `lFuncion` values from the app): **`getParaderosList`** (full paraderos list — alt to ArcGIS zonal stops), **`searchRutasByEstacionTroncales`** (`&estacion=` → routes serving a troncal station), plus `getRutasDeUnaEstacionZonal` (`&parada=`), `getZonasOperacionales` (`&tipo_ruta=`), `getPortalesEstacionesAlimentadoras`, `getRutasAlimentadoras` (`&estacion_portal=`), `getEstacionesDeUnTroncal` (`&troncal=`), `searchStations` (`&search=`), `searchRoutesbyStop` (`&parada=`), `searchRoutesbyZoneOperational` (`&tipo_ruta=&zona=`). Plus `twitter/hashtags.php` + `twitter/timeline.php` (service alerts).
 
-**Host 2 — Live/Bodega** `https://tmsa-transmiapp-shvpc.uc.r.appspot.com/` (CO-IP geofenced; headers `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` + `uuid` + `version`). We **use**: `POST /buses` (troncal live), `POST /location/ruta` (zonal live), `POST /lectura_tarjeta` (card ledger), **`POST /paradero/buses`** (`getLlegadas`) → real-time arrivals/ETA at a paradero, now served as `POST /api/arrivals` (§5.5.1). Response (`LlegadasItem[]`) per approaching bus: `ruta_extraida` (código), `color_ruta`, `ruta_sae` (id), `destino_limpio` (destino), `distancia`, **`labeltiempo`** (ETA label), `labelparadero`. **`GET /puntos_recarga`** (recharge POIs, `TuLlave` model) is now served as `GET /api/recarga-points` (§5.5.1). Still **unused**: `GET /puntos_personalizacion`; `POST /getServicios`, `POST /consultar_programacion` (schedules — already covered via `infoRuta`'s `horarios`, §5.1.2). Out of scope: `911denuncias`, `guardar_reporte`.
+**Host 2 — Live/Bodega** `https://tmsa-transmiapp-shvpc.uc.r.appspot.com/` (CO-IP geofenced; headers `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` + `uuid` + `version`). We **use**: `POST /buses` (troncal live), `POST /location/ruta` (zonal live), `POST /lectura_tarjeta` (card ledger), **`POST /paradero/buses`** (`getLlegadas`) → real-time arrivals/ETA at a paradero, now served as `POST /api/arrivals` (§5.5.1). Response (`LlegadasItem[]`) per approaching bus: `ruta_extraida` (código), `color_ruta`, `ruta_sae` (id), `destino_limpio` (destino), `distancia`, **`labeltiempo`** (ETA label), `labelparadero`. **`GET /puntos_recarga`** (recharge POIs, `TuLlave` model) is now served as `GET /api/recarga-points` (§5.5.1). Still **unused**: `GET /puntos_personalizacion`; `POST /getServicios`, `POST /consultar_programacion` (schedules — already covered via `infoRuta`'s `horarios`, §5.1.2, parsed and enforced per §5.6.2). Out of scope: `911denuncias`, `guardar_reporte`.
 
 **Host 3 — Journey Planner (OTP)** `https://planeador.transmilenio.gov.co/otp/routers/default/plan2` — a real **OpenTripPlanner** instance (`origen`, `destino`, `transferencias`, `bannedAgencies`, `date`, `time`, `mode`, `lFuncion=consultarCache`). **Unused, and NOT a replacement candidate** — head-to-head tested against our own router (`services/router.ts`) on real troncal↔zonal trips: (1) **mode filtering is a no-op** — Mixto/Solo-TM/Solo-Zonal (`bannedAgencies=1:3` / `1:1,1:4`) returned byte-identical results in every trial, so the official app's own mode toggle doesn't actually work server-side; (2) **it never routes the troncal trunk or trunk↔trunk connections** (e.g. San Façón→Ricaurte→Paloquemao via the Calle 13/NQS connection) — it fragments cross-corridor trips into zonal micro-hops + long terminal walks instead, exactly where "it doesn't handle the tunnels" symptoms come from; raw trip time is roughly comparable (±1–2 min) but the itinerary shape is worse. Its one real strength — accurate street-level pedestrian legs — is already matched by our own OSRM-backed `/api/walking-route` (§5.5.1, §5.6), so there is nothing left to borrow from OTP. Do not integrate it as a routing source; §6.1's original "should replace or cross-check ours" note was wrong and is superseded by this finding.
 
@@ -472,7 +501,7 @@ Full backend inventory decoded from the official app **v2.9.6** (`com.nexura.tra
   * Unit tests: code normalization, coordinate simplification, resolver logic.
   * Integration tests: API contracts.
   * Smoke tests: Playwright-based testing for boot flow and search actions. Shipped so far: `tests/visual.spec.ts` (boot snapshot) and `tests/arcgis-layers.spec.ts` (§4.2 layer substitution + recovery).
-* **Journey Planning**: Journey planning (origin/destination route calculation) explicitly within project scope.
+* **Journey Planning**: Journey planning (origin/destination route calculation) explicitly within project scope. Time-dependent since §5.6.2 — the router plans for a departure moment and honours each route's operating windows.
 
 ### 6.2 Architectural Rules
 * **Live Tracking Consolidation**: Live tracking must consolidate to bypass individual relay server infrastructure. **In progress (§5.2.1a):** the Live Bridge extension moves the live request onto the user's Colombian connection, removing the server from the live path when installed; the relay remains only as fallback.
