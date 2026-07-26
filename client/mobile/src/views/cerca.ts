@@ -34,11 +34,11 @@ export function createCercaView(): View {
   const locateBtn = h('button', { class: 'btn btn-primary locate-cta', type: 'button', html: `${ICONS.locate}<span>Usar mi ubicación</span>` });
   const status = h('div', { class: 'cerca-status' });
 
-  // Kind filter (Estaciones / Paraderos / Ambos).
+  // Kind filter (Todos / Estaciones / Paraderos / Recargas / Bici / Cable).
   let kindFilter: KindFilter = 'all';
   const chipRow = h('div', { class: 'chip-row' });
   const chipEls = new Map<KindFilter, HTMLElement>();
-  for (const [id, label] of [['all', 'Ambos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici'], ['cable', 'Cable']] as const) {
+  for (const [id, label] of [['all', 'Todos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici'], ['cable', 'Cable']] as const) {
     const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
     chip.addEventListener('click', () => {
       kindFilter = id;
