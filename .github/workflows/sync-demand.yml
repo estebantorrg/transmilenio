@@ -1,0 +1,61 @@
+# Daily refresh of the station-demand catalog (spec §5.5.1 /api/station-demand).
+#
+# The Salidas dataset publishes one file per service day in the public
+# `validaciones_tmsa` GCS bucket; `sync:demand` averages the latest 15 weekdays
+# and writes server/src/data/station_demand.json. Production serves that file
+# read-only from the commit (spec §5.1.3 pattern — no sync on the 512 MB box),
+# so "auto-refresh" means: regenerate here, commit if the data window moved,
+# and let the host's normal deploy-on-push pick it up.
+#
+# The push uses the default GITHUB_TOKEN, so it does not retrigger workflows
+# (Chromatic etc.); the APK workflow is tag-only and unaffected.
+name: Sync station demand
+
+on:
+  schedule:
+    - cron: '0 22 * * *' # daily 22:00 UTC = 17:00 Bogotá, after the day's file lands
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-demand
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      # Server workspace only — the sync needs just tsx, not the client stack.
+      - name: Install server dependencies
+        run: npm ci --workspace server
+
+      - name: Regenerate station demand
+        id: sync
+        run: |
+          before=$(node -p "try { require('./server/src/data/station_demand.json').window.to } catch (e) { '' }")
+          npm --prefix server run sync:demand
+          after=$(node -p "require('./server/src/data/station_demand.json').window.to")
+          echo "before=$before after=$after"
+          echo "changed=$([ "$before" = "$after" ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+          echo "window=$after" >> "$GITHUB_OUTPUT"
+
+      # Only the generatedAt timestamp changes when no new Salidas file has been
+      # published (weekends, publication lag) — skip the commit so the repo and
+      # the host deploy only move on real data.
+      - name: Commit refreshed data
+        if: steps.sync.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add server/src/data/station_demand.json
+          git commit -m "chore(data): refresh station demand (to ${{ steps.sync.outputs.window }})"
+          git push
