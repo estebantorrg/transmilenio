@@ -54,6 +54,10 @@ export function initCerca(options: CercaOptions): void {
       render();
     });
   });
+
+  // Draw the initial "Cerca de ti" empty state — the panel markup ships empty
+  // so this stays the single source of that copy (spec §1.1 R2).
+  render();
 }
 
 /** Feed the point universe (stations first, then enriched with zonal stops). */
@@ -63,8 +67,8 @@ export function setNearbyPoints(next: NearbyPoint[]): void {
 }
 
 /**
- * Fix the user location from outside the panel (footer locate, or dragging the
- * map marker) so the ranked list always follows the marker.
+ * Fix the user location from outside the panel (dragging the map marker) so
+ * the ranked list always follows the marker.
  */
 export function setCercaLocation(lng: number, lat: number): void {
   userCoord = [lng, lat];

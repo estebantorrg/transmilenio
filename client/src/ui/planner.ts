@@ -639,7 +639,9 @@ function initTabs(): void {
 
     for (const { tab, panel } of SIDEBAR_TABS) {
       const isActive = tab === activeTab;
-      document.getElementById(tab)?.classList.toggle('active', isActive);
+      const tabEl = document.getElementById(tab);
+      tabEl?.classList.toggle('active', isActive);
+      tabEl?.setAttribute('aria-selected', String(isActive));
       document.getElementById(panel)?.classList.toggle('hidden', !isActive);
     }
 

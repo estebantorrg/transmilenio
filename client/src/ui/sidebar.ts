@@ -405,10 +405,6 @@ type SheetDetent = 'peek' | 'half' | 'full';
 const DETENT_ORDER: SheetDetent[] = ['peek', 'half', 'full'];
 let currentDetent: SheetDetent = 'peek';
 
-function getSheetDetent(): SheetDetent {
-  return currentDetent;
-}
-
 /** Snap the mobile sheet to a detent (clearing any in-drag inline transform). */
 function setSheetDetent(detent: SheetDetent): void {
   const sidebar = document.getElementById('sidebar');
@@ -764,13 +760,16 @@ function initCardBalancePanel(): void {
     input.value = groupCardDigits(input.value.replace(/\D/g, '').slice(0, 20));
   });
 
+  // The panel markup ships empty; this is the single source of the empty copy.
+  renderCardBalanceEmpty();
+
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!input) return;
 
     const numeroTarjeta = input.value.replace(/\D/g, '');
     if (!/^\d{8,20}$/.test(numeroTarjeta)) {
-      renderCardBalanceError('Ingresa un numero de tarjeta valido.');
+      renderCardBalanceError('Ingresa un número de tarjeta válido.');
       return;
     }
 
@@ -849,7 +848,7 @@ function renderCardBalanceLoading(): void {
   result.innerHTML = `
     <div class="card-loading-state">
       <span class="footer-action-spinner visible" aria-hidden="true"></span>
-      <span>Consultando servidor oficial...</span>
+      <span>Consultando servidor oficial…</span>
     </div>
   `;
 }
@@ -924,12 +923,12 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
 
     <div class="card-source-warning">
       <span class="card-source-chip">NFC ausente</span>
-      <span>Este saldo es el que tiene registrado el servidor. El saldo mas reciente y los ultimos movimientos solo aparecen al acercar la tarjeta al celular.</span>
+      <span>Este saldo es el que tiene registrado el servidor. El saldo más reciente y los últimos movimientos solo aparecen al acercar la tarjeta al celular.</span>
     </div>
 
     <div class="detail-section">
       <div class="detail-section-title">Tarjeta</div>
-      <div class="detail-row"><span class="detail-row-label">Numero</span><span class="detail-row-value">${escapeHTML(groupCardDigits(data.numeroTarjeta))}</span></div>
+      <div class="detail-row"><span class="detail-row-label">Número</span><span class="detail-row-value">${escapeHTML(groupCardDigits(data.numeroTarjeta))}</span></div>
     </div>
 
     <div class="detail-section">
@@ -1139,7 +1138,7 @@ function renderRouteList(routes: RouteListItem[]): void {
       const badgeColor = safeColor(getRouteAccentColor(route));
       const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
       const badgeStyle = `background:${badgeColor};border-color:${badgeBorder};`;
-      const endpointText = `${route.origin} -> ${route.destination}`;
+      const endpointText = `${route.origin} → ${route.destination}`;
 
       const isFav = favorites.has(route.id);
 
@@ -1177,7 +1176,7 @@ function renderRouteList(routes: RouteListItem[]): void {
   if (routes.length > 200) {
     container.innerHTML += `
       <div class="route-list-overflow">
-        Mostrando 200 de ${routes.length} rutas. Usa la busqueda para filtrar.
+        Mostrando 200 de ${routes.length} rutas. Usa la búsqueda para filtrar.
       </div>
     `;
   }
@@ -1382,13 +1381,13 @@ function showRouteDetail(route: RouteListItem): void {
           <span>Copiar enlace</span>
         </button>
       </div>
-      <div class="detail-name">${escapeHTML(route.origin)} -> ${escapeHTML(route.destination)}</div>
+      <div class="detail-name">${escapeHTML(route.origin)} → ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${routeKindLabel}</div>
       <div id="live-tracking-status" class="live-tracking-status loading">
         <div class="live-card-main">
           <span class="live-status-dot pulse loading"></span>
           <div class="live-status-textcol">
-            <span class="live-status-text">Conectando con buses en vivo...</span>
+            <span class="live-status-text">Conectando con buses en vivo…</span>
             <span class="live-status-sub"></span>
           </div>
         </div>
@@ -1493,7 +1492,7 @@ export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?
     case 'loading':
       dotEl.classList.add('pulse', 'loading');
       chipEl.classList.add('loading');
-      textEl.textContent = 'Conectando con buses en vivo...';
+      textEl.textContent = 'Conectando con buses en vivo…';
       chipEl.textContent = 'Buscando…';
       break;
 

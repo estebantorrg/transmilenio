@@ -301,51 +301,6 @@ function showBikeParkingPopup(map: maplibregl.Map, point: NearbyPoint): void {
 }
 
 /**
- * Wires the "Estaciones cerca" footer action: locates the user, recenters
- * the map on their position and opens the popup for the closest troncal station.
- */
-function initNearbyStations(map: maplibregl.Map): void {
-  const btn = document.getElementById('nearby-stations') as HTMLButtonElement | null;
-  if (!btn) return;
-
-  const label = btn.querySelector('.footer-action-label');
-  const defaultText = label?.textContent ?? 'Estaciones cerca';
-
-  const restore = (message: string): void => {
-    if (label) {
-      label.textContent = message;
-      window.setTimeout(() => { label.textContent = defaultText; }, 2500);
-    }
-  };
-
-  btn.addEventListener('click', async () => {
-    if (btn.classList.contains('loading')) return;
-    btn.classList.add('loading');
-    try {
-      const result = await resolveUserLocation();
-      const lng = result.longitude;
-      const lat = result.latitude;
-      
-      if (!isWithinBogota(lng, lat)) {
-        throw new Error('Ubicación fuera de los límites de Bogotá');
-      }
-
-      placeUserMarker(map, lng, lat);
-
-      if (result.source === 'ip') {
-        restore('Ubicación aproximada (IP)');
-      }
-    } catch (error) {
-      console.warn('[Nearby] could not resolve location:', error);
-      const isOutOfBounds = error instanceof Error && error.message.includes('límites de Bogotá');
-      restore(isOutOfBounds ? 'Ubicación fuera de Bogotá' : 'No se pudo ubicarte');
-    } finally {
-      btn.classList.remove('loading');
-    }
-  });
-}
-
-/**
  * Resolves the user's location with maximum accuracy. Strategy:
  *
  * 1. Try browser native geolocation (GPS / WiFi / cell). Watch for up to
@@ -887,8 +842,6 @@ async function main(): Promise<void> {
       .then((planner) => planner.planFromPopup(role, name, [lng, lat], code))
       .catch((error) => console.error('[Planner] plan-from-popup failed:', error));
   });
-
-  initNearbyStations(map);
 
   // Cerca tab — nearest stations/paraderos by GPS. Reuses the map's location
   // cascade + user marker so nothing is duplicated (spec §1.1 R2).
