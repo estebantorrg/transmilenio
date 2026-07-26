@@ -610,6 +610,43 @@ body.sidebar-collapsed .sidebar-fab {
   display: none;
 }
 
+/* Overflow affordance for the hidden-scrollbar chip rows: edge fades appear on
+   the side(s) with more content; wheel/drag panning is wired in sidebar.ts. */
+.layer-chips,
+.zone-chips {
+  --fade-l: 0px;
+  --fade-r: 0px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
+}
+
+.layer-chips.can-scroll-left,
+.zone-chips.can-scroll-left {
+  --fade-l: 26px;
+}
+
+.layer-chips.can-scroll-right,
+.zone-chips.can-scroll-right {
+  --fade-r: 26px;
+}
+
+.layer-chips.can-scroll-left,
+.layer-chips.can-scroll-right,
+.zone-chips.can-scroll-left,
+.zone-chips.can-scroll-right {
+  cursor: grab;
+}
+
+.chip-row-dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.chip-row-dragging .layer-chip,
+.chip-row-dragging .zone-chip {
+  pointer-events: none;
+}
+
 .layer-chip {
   flex: 0 0 auto;
   display: inline-flex;
