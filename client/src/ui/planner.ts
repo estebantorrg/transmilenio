@@ -23,6 +23,7 @@ import {
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
+import { BOGOTA_CENTER, isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 
 let mapInstance: maplibregl.Map;
@@ -1034,15 +1035,10 @@ function initInputHandlers(): void {
 }
 
 async function resolveLocation(): Promise<{ longitude: number; latitude: number }> {
-  const minLat = 4.4;
-  const maxLat = 4.85;
-  const minLng = -74.25;
-  const maxLng = -73.95;
-  const bogotaCenter = { longitude: -74.1071, latitude: 4.6486 };
-
-  const isWithinBogota = (lng: number, lat: number) => {
-    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng;
-  };
+  // Bounds + city centre come from `utils/geo` — the single definition every
+  // location gate in the client shares (spec §1.1 R2). They were re-declared
+  // inline here, a fifth copy of the same four numbers.
+  const bogotaCenter = { longitude: BOGOTA_CENTER[0], latitude: BOGOTA_CENTER[1] };
 
   const getPosition = (highAccuracy: boolean): Promise<GeolocationPosition> => {
     return new Promise<GeolocationPosition>((resolve, reject) => {

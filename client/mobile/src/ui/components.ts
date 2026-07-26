@@ -64,11 +64,6 @@ export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => voi
   return card;
 }
 
-export function iconButton(svg: string, label: string, cls = ''): HTMLButtonElement {
-  const btn = h('button', { class: `icon-btn ${cls}`, type: 'button', 'aria-label': label, title: label, html: svg });
-  return btn;
-}
-
 /** Inline SVG icon set (stroke = currentColor). */
 export const ICONS = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/></svg>',

@@ -4,6 +4,7 @@ import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, haversineMeters, walkMinutes } from '../lib/format';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
+import { isWithinBogota } from '@shared/utils/geo';
 import { app } from '../appContext';
 import { openStationSheet } from '../ui/detailSheets';
 import { ICONS } from '../ui/components';
@@ -18,11 +19,6 @@ const KIND_META: Record<StationRecord['kind'], { cls: string; label: string; fal
   transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
   cable: { cls: 'is-cable', label: 'Cable', fallback: 'Estación TransMiCable' },
 };
-
-const BOGOTA_BOUNDS = { minLat: 4.4, maxLat: 4.85, minLng: -74.25, maxLng: -73.95 };
-function inBogota(lng: number, lat: number): boolean {
-  return lat >= BOGOTA_BOUNDS.minLat && lat <= BOGOTA_BOUNDS.maxLat && lng >= BOGOTA_BOUNDS.minLng && lng <= BOGOTA_BOUNDS.maxLng;
-}
 
 export function createCercaView(): View {
   const el = h('section', { class: 'screen screen-cerca' });
@@ -136,7 +132,7 @@ export function createCercaView(): View {
       });
       const lng = pos.coords.longitude;
       const lat = pos.coords.latitude;
-      if (!inBogota(lng, lat)) throw new Error('fuera de Bogotá');
+      if (!isWithinBogota(lng, lat)) throw new Error('fuera de Bogotá');
       userCoord = [lng, lat];
       setSessionExactLocation(lng, lat, 'gps');
       app().setUserLocation(userCoord);
@@ -162,7 +158,7 @@ export function createCercaView(): View {
       // Re-sync from the session fix every time: the Mapa fab and the planner
       // GPS button also store it, so a locate made elsewhere re-ranks this list.
       const cached = getSessionExactLocation();
-      if (!cached || !inBogota(cached.lng, cached.lat)) return;
+      if (!cached || !isWithinBogota(cached.lng, cached.lat)) return;
       if (userCoord && userCoord[0] === cached.lng && userCoord[1] === cached.lat) return;
       userCoord = [cached.lng, cached.lat];
       status.textContent = 'Ubicación de esta sesión';

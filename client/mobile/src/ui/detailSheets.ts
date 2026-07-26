@@ -6,7 +6,7 @@ import { api, type LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '@shared/services/schedule';
 import { h, escapeHTML, haptic, toast } from '../lib/dom';
-import { formatDistance, needsDarkText } from '../lib/format';
+import { needsDarkText } from '../lib/format';
 import { isFavorite, toggleFavorite, pushRecent } from '../lib/storage';
 import { LivePoller } from '../live/liveStatus';
 import { app } from '../appContext';
@@ -350,10 +350,4 @@ export function openStationSheet(station: StationRecord): void {
     section.append(grid);
   }
   sheet.body.append(section);
-}
-
-/** Distance-annotated variant used by "Cerca". */
-export function openStationSheetWithDistance(station: StationRecord, meters: number): void {
-  openStationSheet(station);
-  toast(`${station.name} · ${formatDistance(meters)}`, 'info');
 }

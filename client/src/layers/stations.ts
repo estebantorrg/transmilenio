@@ -176,10 +176,6 @@ export function setCatalog(catalog: MasterCatalog): void {
   _stationAudit = [];
 }
 
-export function getStationAudit(): StationCatalogAudit[] {
-  return _stationAudit;
-}
-
 function publishStationAudit(): void {
   const total = _stationAudit.length;
   const unmatched = _stationAudit.filter((entry) => entry.matchMethod === 'unmatched').length;

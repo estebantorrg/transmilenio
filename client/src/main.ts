@@ -18,7 +18,6 @@ import {
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
   catalogCorridorsToFeatures,
-  getZonalRouteColor,
   toggleTroncalRoutes,
   toggleZonalRoutes,
   highlightRoute,
@@ -29,7 +28,7 @@ import {
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints } from './ui/sidebar';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
-import { getRouteAccentColor } from './utils/routeColors';
+import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { isWithinBogota } from './utils/geo';

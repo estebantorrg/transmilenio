@@ -8,25 +8,17 @@ import {
   DEFAULT_TRONCAL_COLOR,
   DEFAULT_ZONAL_COLOR,
   getRouteColor,
-  getRouteZoneLetters,
   getTroncalColor,
   getTroncalLetter,
-  getZonalRouteColor,
   normalizeRouteCode,
   normalizeRouteCodeForMatch,
   TRONCAL_COLORS,
 } from '../utils/routeColors';
 
-export {
-  getRouteColor,
-  getRouteZoneLetters,
-  getTroncalColor,
-  getTroncalLetter,
-  getZonalRouteColor,
-  normalizeRouteCode,
-  normalizeRouteCodeForMatch,
-  TRONCAL_COLORS,
-};
+// `utils/routeColors` is the single source of the palette (spec §5.4.3); the
+// re-export barrel that used to live here gave five of its symbols a second
+// import path and three of them no consumer at all. Import from the util.
+export { normalizeRouteCode, normalizeRouteCodeForMatch };
 
 let claimedClickEvent: Event | null = null;
 

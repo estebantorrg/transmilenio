@@ -17,6 +17,11 @@
 const LIVE_HOST = 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const APPID = '9a2c3b48f0c24ae9bfba38e94f27c3ea';
 const REQUEST_TIMEOUT_MS = 9000;
+// Candidates are fired in PARALLEL, so the list length is a fan-out multiplier
+// on the user's own connection. Any script on a matched page can post a `fetch`
+// message, so cap it here exactly as the server does (LIVE_NAME_CANDIDATE_LIMIT
+// in server/src/services/tm_api.ts) instead of trusting the page.
+const MAX_CANDIDATES = 12;
 
 function isBusLike(value) {
   if (!value || typeof value !== 'object') return false;
@@ -124,7 +129,8 @@ async function fetchLive({ ruta, nombre, routeType, candidates }) {
 
   const names = (Array.isArray(candidates) && candidates.length ? candidates : [nombre])
     .map((n) => String(n || '').trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, MAX_CANDIDATES);
   const tried = names.length ? names : [''];
 
   // Cancel the still-running candidates as soon as one wins.

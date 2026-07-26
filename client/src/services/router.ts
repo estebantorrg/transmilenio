@@ -1166,6 +1166,12 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   // Admissible remaining-cost bound: straight-line time at the fastest speed the
   // mode allows; in walk-primary mode every completion additionally walks at
   // least the smallest egress of any destination candidate.
+  // Every destination candidate resolved to a code with no dense index — nothing
+  // in the graph can be an arrival, so bail out instead of letting the bound
+  // below become `Infinity` (Math.min of nothing) and silently cutting the very
+  // first frontier expansion, which returned "no routes" with no explanation.
+  if (destByIdx.size === 0) return [];
+
   const heuristicSpeed = mode === 'zonal' ? ZONAL_SPEED_M_PER_MINUTE : TRONCAL_SPEED_M_PER_MINUTE;
   const minEgressPrimary = walkPrimary > 0 ? Math.min(...destByIdx.values()) * walkPrimary : 0;
   const heuristicCache = new Float64Array(stopList.length).fill(NaN);

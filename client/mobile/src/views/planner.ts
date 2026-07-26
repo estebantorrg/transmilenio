@@ -61,17 +61,35 @@ const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
   cable: 'Estación TransMiCable',
 };
 
+/** Kind order when two candidates are equally relevant: a journey endpoint is
+ *  most often an estación, then a paradero; the POIs are landmarks people walk
+ *  to, so they rank last. */
+const PL_KIND_RANK: Record<StationRecord['kind'], number> = {
+  station: 0, cable: 1, stop: 2, recharge: 3, transmibici: 3,
+};
+
+/**
+ * Ranked endpoint suggestions. Taking the first 8 matches in list order used to
+ * hide the obvious answer: `allPoints()` is estaciones, then ~7400 paraderos,
+ * then the POIs, so "Portal Norte" could fill all 8 slots with paraderos whose
+ * *address* contains the words and never offer the estación itself. Rank by how
+ * the query matched (name prefix → name → address) and then by kind.
+ */
 function searchPoints(query: string): StationRecord[] {
   const q = norm(query.trim());
   if (q.length < 2) return [];
-  const out: StationRecord[] = [];
+  const scored: { p: StationRecord; s: number }[] = [];
   for (const p of allPoints()) {
-    if (norm(p.name).includes(q) || norm(p.direccion).includes(q)) {
-      out.push(p);
-      if (out.length >= 8) break;
-    }
+    const name = norm(p.name);
+    let s: number;
+    if (name.startsWith(q)) s = 0;
+    else if (name.includes(q)) s = 1;
+    else if (norm(p.direccion).includes(q)) s = 2;
+    else continue;
+    scored.push({ p, s: s * 10 + PL_KIND_RANK[p.kind] });
   }
-  return out;
+  scored.sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
+  return scored.slice(0, 8).map((x) => x.p);
 }
 
 export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpoint }): void {

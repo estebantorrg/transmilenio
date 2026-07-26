@@ -9,7 +9,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { api, type LiveStatus } from '../services/api';
-import { escapeHTML } from '../utils/html';
+import { escapeHTML, safeColor } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
@@ -427,7 +427,7 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
   return `
     <div class="bus-popup ${sysClass}">
       <div class="bus-popup-top" style="${topStyle}">
-        <span class="bus-popup-badge" style="background:${escapeHTML(currentRouteColor)}">${code}</span>
+        <span class="bus-popup-badge" style="background:${safeColor(currentRouteColor, '#FB2C17')}">${code}</span>
         <div class="bus-popup-titles">
           <div class="bus-popup-id">${escapeHTML(bus.label)}</div>
           <div class="bus-popup-dest">${dest}</div>

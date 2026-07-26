@@ -31,7 +31,11 @@ export const STATION_COLOR = DEFAULT_TRONCAL_COLOR; // troncal estación (red)
 export const PARADERO_COLOR = '#3B82F6';            // zonal paradero (blue)
 export const CABLE_COLOR = '#F97316';               // TransMiCable (orange)
 
-const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPT]{1,2})(?=\d|-|\b)/;
+// Letters that name a corridor/zone, i.e. exactly the keys of TRONCAL_COLORS.
+// `Z` used to be missing here while the palette (and spec §5.4.3) declared
+// `Z: #EAB308`, so Z-coded routes could never reach their own colour and the
+// entry was unreachable config. Keep this class and TRONCAL_COLORS in step.
+const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPTZ]{1,2})(?=\d|-|\b)/;
 const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
 
 function validHexColor(value: string | null | undefined): string | null {
@@ -91,7 +95,7 @@ export function getTroncalLetter(value: string | null | undefined): string | nul
   const routeLetters = getRouteZoneLetters(normalized);
   if (routeLetters.length > 0) return routeLetters[routeLetters.length - 1];
 
-  const letter = normalized.match(/\b(RF|[A-HJ-MPT])\b/);
+  const letter = normalized.match(/\b(RF|[A-HJ-MPTZ])\b/);
   return letter ? letter[1] : null;
 }
 

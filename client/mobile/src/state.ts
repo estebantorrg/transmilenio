@@ -84,8 +84,8 @@ interface AppState {
   /** Cable stations in the router's input shape, for journey planning over the cable line. */
   cableRouterStations: CableStationInput[];
   demand: DemandRecord[];
-  /** SITP numeric zones (1–13) each route touches, keyed by variant-base code (from the ArcGIS zonal-routes feed). */
-  zonalAreas: Map<string, number[]>;
+  // The code → zone index itself lives in `@shared/data/zones` (read via
+  // `getZonalAreas`); only the presentation lists below are mirrored into state.
   /** Sorted list of SITP zone numbers actually present in the network. */
   zones: number[];
   /** Human hint per zone (most common landmark from its routes' endpoints). */
@@ -108,7 +108,6 @@ export const state: AppState = {
   cableTraces: [],
   cableRouterStations: [],
   demand: [],
-  zonalAreas: new Map(),
   zones: [],
   zoneLabels: new Map(),
   counts: { troncal: 0, zonal: 0, stations: 0, stops: 0, cable: 0 },
@@ -121,10 +120,6 @@ export function setRoutes(routes: RouteListItem[]): void {
   state.routes = routes;
   state.routeById = new Map(routes.map((r) => [r.id, r]));
   bus.emit('routes:ready', undefined);
-}
-
-export function getRoute(id: string): RouteListItem | undefined {
-  return state.routeById.get(id);
 }
 
 /** All station + zonal-stop + recharge + bike-parking + cable records combined (for search / nearby). */

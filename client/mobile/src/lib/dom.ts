@@ -34,10 +34,6 @@ export function h<K extends keyof HTMLElementTagNameMap>(
   return el;
 }
 
-export function qs<T extends Element = HTMLElement>(sel: string, root: ParentNode = document): T | null {
-  return root.querySelector<T>(sel);
-}
-
 export function on<T extends HTMLElement>(
   el: T,
   event: string,
