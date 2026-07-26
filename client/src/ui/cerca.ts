@@ -8,17 +8,23 @@
 
 import { escapeHTML } from '../utils/html';
 import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from '../utils/geo';
+import { initChipRowScroll } from './chipRow';
+
+/** The point kinds both lookup surfaces (Cerca + the Explore search) know about.
+ *  One list so a new kind cannot appear in one surface and not the other. */
+export type PointKind = 'station' | 'stop' | 'recharge' | 'transmibici';
+export const POINT_KINDS: PointKind[] = ['station', 'stop', 'recharge', 'transmibici'];
 
 export interface NearbyPoint {
   codigo: string;
   name: string;
   coordinate: [number, number];
   direccion: string;
-  kind: 'station' | 'stop' | 'recharge' | 'transmibici';
+  kind: PointKind;
   hours?: string; // recharge points (weekday hours) / transmibici (capacity)
 }
 
-type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici';
+type KindFilter = 'all' | PointKind;
 type LocationResult = { longitude: number; latitude: number; source: 'gps' | 'ip' };
 
 interface CercaOptions {
@@ -42,6 +48,12 @@ export function initCerca(options: CercaOptions): void {
 
   const locateBtn = document.getElementById('cerca-locate') as HTMLButtonElement | null;
   locateBtn?.addEventListener('click', () => void locate());
+
+  // Five kind chips do not fit a phone's sidebar width, so the row scrolls like
+  // the Explore chip rows (wheel + drag on desktop, swipe on touch) instead of
+  // clipping "Bici" out of reach.
+  const chipRow = document.getElementById('cerca-chips');
+  if (chipRow) initChipRowScroll(chipRow);
 
   document.querySelectorAll<HTMLButtonElement>('.cerca-chip').forEach((chip) => {
     chip.addEventListener('click', () => {
@@ -146,11 +158,20 @@ function render(): void {
   });
 }
 
-const KIND_META: Record<NearbyPoint['kind'], { cls: string; label: string; fallback: string }> = {
-  station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
-  stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
-  recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
-  transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
+const KIND_META: Record<PointKind, { cls: string; label: string; plural: string; fallback: string }> = {
+  station: { cls: 'is-station', label: 'Estación', plural: 'Estaciones', fallback: 'Estación troncal' },
+  stop: { cls: 'is-stop', label: 'Paradero', plural: 'Paraderos', fallback: 'Paradero zonal' },
+  recharge: { cls: 'is-recharge', label: 'Recarga', plural: 'Recargas', fallback: 'Punto de recarga tullave' },
+  transmibici: { cls: 'is-transmibici', label: 'Bici', plural: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
+};
+
+/** Plural kind labels, so the Cerca chips and the Explore search-scope chips
+ *  always name a kind the same way (spec §1.1 R2). */
+export const POINT_KIND_LABELS: Record<PointKind, string> = {
+  station: KIND_META.station.plural,
+  stop: KIND_META.stop.plural,
+  recharge: KIND_META.recharge.plural,
+  transmibici: KIND_META.transmibici.plural,
 };
 
 /** Shared row renderer for a nearby/searchable point. `meters` is optional so

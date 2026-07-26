@@ -611,9 +611,10 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* Overflow affordance for the hidden-scrollbar chip rows: edge fades appear on
-   the side(s) with more content; wheel/drag panning is wired in sidebar.ts. */
+   the side(s) with more content; wheel/drag panning is wired in ui/chipRow.ts. */
 .layer-chips,
-.zone-chips {
+.zone-chips,
+.cerca-chips {
   --fade-l: 0px;
   --fade-r: 0px;
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
@@ -621,19 +622,23 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 .layer-chips.can-scroll-left,
-.zone-chips.can-scroll-left {
+.zone-chips.can-scroll-left,
+.cerca-chips.can-scroll-left {
   --fade-l: 26px;
 }
 
 .layer-chips.can-scroll-right,
-.zone-chips.can-scroll-right {
+.zone-chips.can-scroll-right,
+.cerca-chips.can-scroll-right {
   --fade-r: 26px;
 }
 
 .layer-chips.can-scroll-left,
 .layer-chips.can-scroll-right,
 .zone-chips.can-scroll-left,
-.zone-chips.can-scroll-right {
+.zone-chips.can-scroll-right,
+.cerca-chips.can-scroll-left,
+.cerca-chips.can-scroll-right {
   cursor: grab;
 }
 
@@ -643,7 +648,8 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 .chip-row-dragging .layer-chip,
-.chip-row-dragging .zone-chip {
+.chip-row-dragging .zone-chip,
+.chip-row-dragging .cerca-chip {
   pointer-events: none;
 }
 
@@ -987,6 +993,43 @@ body.sidebar-collapsed .sidebar-fab {
   border-color: var(--border-accent);
   color: var(--tm-red-light);
 }
+/* ─── Search scope chips ───────────────────────────────────
+   "What am I searching?" — shown only while a query is active. Same chip
+   language as the zone/line rows (they share .zone-chip), plus a hit count so
+   the rider can see a category has results before switching to it. */
+.search-scope-chips {
+  padding: 10px 16px 2px;
+}
+.scope-chip[disabled] {
+  opacity: 0.42;
+  cursor: default;
+}
+.scope-chip-count,
+.search-points-count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  min-width: 16px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+.scope-chip.active .scope-chip-count {
+  background: rgba(255, 255, 255, 0.14);
+  color: inherit;
+}
+/* A place scope answers with places, so the route-only controls would be dead
+   chrome — hide them instead of leaving switches that do nothing. */
+.explore-panel.scope-places #filter-chips,
+.explore-panel.scope-places #line-chips,
+.explore-panel.scope-places #zone-chips,
+.explore-panel.scope-places .route-list-views {
+  display: none;
+}
+
 /* Corridor-line chips (Troncal browse): a color swatch keyed to the corridor. */
 .line-chip[data-line]:not([data-line=""])::before {
   content: '';
@@ -1012,10 +1055,24 @@ body.sidebar-collapsed .sidebar-fab {
   width: auto;
   margin: 14px 16px 10px;
 }
+/* Five kind chips ("Todos/Estaciones/Paraderos/Recargas/Bici") are wider than a
+   phone sidebar: they must scroll, not clip "Bici" out of reach. `flex:0 0 auto`
+   overrides the equal-width segment sizing .cerca-chip inherits from
+   .filter-chip, which cannot shrink (white-space:nowrap) and so overflowed. */
 .cerca-chips {
   display: flex;
   gap: 6px;
   padding: 0 16px 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.cerca-chips::-webkit-scrollbar {
+  display: none;
+}
+.cerca-chips .cerca-chip {
+  flex: 0 0 auto;
+  padding: 7px 12px;
 }
 /* .cerca-chip styling shared with .filter-chip (quick filter chips above). */
 .cerca-status {

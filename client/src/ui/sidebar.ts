@@ -9,7 +9,8 @@ import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFac
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
-import { nearRowHtml, type NearbyPoint } from './cerca';
+import { nearRowHtml, POINT_KINDS, POINT_KIND_LABELS, type NearbyPoint, type PointKind } from './cerca';
+import { initChipRowScroll } from './chipRow';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
  *  honest API outcomes. Mirrors `TrackingStatus` in `layers/buses.ts`. */
@@ -55,12 +56,15 @@ let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 let onPointSelect: ((point: NearbyPoint) => void) | null = null;
 
-// Station/paradero universe searched alongside routes (fed by main.ts from the
-// same list the Cerca tab uses, so the two never drift — spec §1.1 R2).
+// The whole point universe the search can reach: troncal estaciones, zonal
+// paraderos, tullave recharge POIs and TransMiBici cicloparqueaderos (fed by
+// main.ts from the same list the Cerca tab uses, so the two never drift —
+// spec §1.1 R2). No kind is filtered out here: the **user** decides which one
+// the query looks in, via the search-scope chips below.
 let searchPoints: NearbyPoint[] = [];
 
 export function setSearchPoints(points: NearbyPoint[]): void {
-  searchPoints = points.filter((p) => p.kind === 'station' || p.kind === 'stop');
+  searchPoints = points;
   if (searchQuery) applyFilters();
 }
 
@@ -71,6 +75,15 @@ let currentZone: number | null = null;
 // Troncal corridor-line narrowing, active only under the Troncal filter (null = all lines).
 let currentLine: string | null = null;
 let searchQuery = '';
+
+// ─── Search scope (what the query looks for) ──────────────
+// A query used to search routes AND places at once and dump both into one list:
+// the rider looking for a recharge point had to scroll past 200 routes, and the
+// rider looking for a route had to scroll past six paraderos. The scope chips
+// make that a choice — `Todo` keeps the mixed view, any other value narrows the
+// results to exactly one thing and drops the route-only controls with it.
+type SearchScope = 'all' | 'routes' | PointKind;
+let searchScope: SearchScope = 'all';
 
 const FAV_KEY = 'tm:favorites';
 const RECENT_KEY = 'tm:recents';
@@ -363,81 +376,6 @@ function syncLineChips(): void {
   if (!row) return;
   const show = currentFilter === 'troncal' && availableLines.length > 0;
   row.classList.toggle('hidden', !show);
-}
-
-/**
- * Desktop affordance for the horizontal chip rows (layer/zone/line chips).
- * The touch swipe has no mouse equivalent — the scrollbar is hidden, wheel
- * scrolls the page and drag does nothing — so: wheel scrolls the row, a mouse
- * drag pans it 1:1 (a real pan suppresses the chip click), and `can-scroll-*`
- * classes drive CSS edge fades that show there is more to reach.
- */
-function initChipRowScroll(row: HTMLElement): void {
-  const syncEdges = (): void => {
-    const max = row.scrollWidth - row.clientWidth;
-    row.classList.toggle('can-scroll-left', row.scrollLeft > 2);
-    row.classList.toggle('can-scroll-right', row.scrollLeft < max - 2);
-  };
-
-  row.addEventListener(
-    'wheel',
-    (e) => {
-      if (row.scrollWidth <= row.clientWidth) return;
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (!delta) return;
-      row.scrollLeft += delta;
-      e.preventDefault();
-    },
-    { passive: false }
-  );
-
-  let pointerId: number | null = null;
-  let startX = 0;
-  let startScroll = 0;
-  let dragged = false;
-
-  row.addEventListener('pointerdown', (e) => {
-    // Touch pans natively via overflow scrolling; this path is mouse-only.
-    if (e.pointerType !== 'mouse' || e.button !== 0) return;
-    pointerId = e.pointerId;
-    startX = e.clientX;
-    startScroll = row.scrollLeft;
-    dragged = false;
-  });
-  row.addEventListener('pointermove', (e) => {
-    if (pointerId !== e.pointerId) return;
-    const dx = e.clientX - startX;
-    if (!dragged && Math.abs(dx) > 4) {
-      dragged = true;
-      row.setPointerCapture(e.pointerId);
-      row.classList.add('chip-row-dragging');
-    }
-    if (dragged) row.scrollLeft = startScroll - dx;
-  });
-  const endDrag = (e: PointerEvent): void => {
-    if (pointerId !== e.pointerId) return;
-    pointerId = null;
-    row.classList.remove('chip-row-dragging');
-  };
-  row.addEventListener('pointerup', endDrag);
-  row.addEventListener('pointercancel', endDrag);
-  // A pan must not also activate the chip the pointer was released over.
-  row.addEventListener(
-    'click',
-    (e) => {
-      if (!dragged) return;
-      dragged = false;
-      e.stopPropagation();
-      e.preventDefault();
-    },
-    true
-  );
-
-  row.addEventListener('scroll', syncEdges, { passive: true });
-  new ResizeObserver(syncEdges).observe(row);
-  // Chip re-renders and count updates change scrollWidth without resizing the row.
-  new MutationObserver(syncEdges).observe(row, { childList: true, subtree: true, characterData: true });
-  syncEdges();
 }
 
 function syncFilterButtons(): void {
@@ -741,6 +679,9 @@ export function initSidebar(options: {
   searchInput.addEventListener('input', () => {
     searchQuery = searchInput.value.trim();
     searchClear.classList.toggle('hidden', !searchQuery);
+    // A cleared box has nothing to scope; anything else keeps the rider's
+    // choice so refining a query does not silently widen it again.
+    if (!searchQuery) searchScope = SCOPE_ALL;
     applyFilters();
   });
 
@@ -759,6 +700,7 @@ export function initSidebar(options: {
   searchClear.addEventListener('click', () => {
     searchInput.value = '';
     searchQuery = '';
+    searchScope = SCOPE_ALL;
     searchClear.classList.add('hidden');
     applyFilters();
     searchInput.focus();
@@ -786,7 +728,7 @@ export function initSidebar(options: {
   initKeyboardShortcuts();
 
   // Horizontal chip rows need mouse wheel/drag panning (hidden scrollbar).
-  for (const id of ['layer-chips', 'line-chips', 'zone-chips']) {
+  for (const id of ['layer-chips', 'line-chips', 'zone-chips', 'search-scope-chips']) {
     const row = document.getElementById(id);
     if (row) initChipRowScroll(row);
   }
@@ -1076,7 +1018,20 @@ function applyFilters(): void {
       .sort((a, b) => searchRank(a, q) - searchRank(b, q));
   }
 
-  renderRouteList(base);
+  // Places are only searched — never browsed — so they are computed once per
+  // query and shared by the scope chips (which need the per-kind counts) and by
+  // the result list (which renders whichever scope is active).
+  const points = searchQuery ? matchingPointsByKind() : emptyPointMatches();
+  // Never a dead end: a scope kept from the previous query can be empty for this
+  // one while other categories have hits ("Rutas" held over into a query that
+  // only matches recharge points). Widening back to `Todo` shows the rider where
+  // the results actually are instead of an empty panel.
+  const counts = scopeCounts(base.length, points);
+  if (searchScope !== SCOPE_ALL && counts[searchScope] === 0 && counts.all > 0) {
+    searchScope = SCOPE_ALL;
+  }
+  renderSearchScopeChips(base.length, points);
+  renderResults(base, points);
 }
 
 // ─── Search matching ──────────────────────────────────────
@@ -1108,8 +1063,9 @@ function searchRank(route: RouteListItem, q: string): number {
   return 2;
 }
 
-// Stations/paraderos matching the active search, shown above the route hits so
-// "busca … estaciones" (the search placeholder) is actually true.
+// Places (estaciones, paraderos, recargas, bici) matching the active search, so
+// "busca … estaciones" (the search placeholder) is actually true and the POI
+// catalogues are reachable by NAME, not only by GPS proximity in Cerca.
 const pointHaystacks = new WeakMap<NearbyPoint, { name: string; extra: string }>();
 function pointHaystack(point: NearbyPoint): { name: string; extra: string } {
   let hay = pointHaystacks.get(point);
@@ -1123,13 +1079,32 @@ function pointHaystack(point: NearbyPoint): { name: string; extra: string } {
   return hay;
 }
 
-const SEARCH_POINT_LIMIT = 6;
+/** Rows of one kind shown in the mixed `Todo` view — a preview, not the set. */
+const SEARCH_POINT_PREVIEW = 6;
+/** Rows shown when a single kind IS the scope: the user asked for these. */
+const SEARCH_POINT_LIMIT = 60;
 
-function matchingSearchPoints(): NearbyPoint[] {
+type PointMatches = Record<PointKind, NearbyPoint[]>;
+
+function emptyPointMatches(): PointMatches {
+  return { station: [], stop: [], recharge: [], transmibici: [] };
+}
+
+/**
+ * Every matching place for the active query, ranked per kind. Splitting by kind
+ * (instead of one blended list) is what lets the scope chips show real counts
+ * and lets a focused scope show its full set rather than the six rows that fit
+ * above the routes.
+ */
+function matchingPointsByKind(): PointMatches {
+  const out = emptyPointMatches();
   const q = normalizeSearchText(searchQuery);
   // Single-char queries would match half the network — noise, not results.
-  if (q.length < 2) return [];
-  const scored: { p: NearbyPoint; s: number }[] = [];
+  if (q.length < 2) return out;
+
+  const scored: Record<PointKind, { p: NearbyPoint; s: number }[]> = {
+    station: [], stop: [], recharge: [], transmibici: [],
+  };
   for (const p of searchPoints) {
     const hay = pointHaystack(p);
     let s: number;
@@ -1137,54 +1112,234 @@ function matchingSearchPoints(): NearbyPoint[] {
     else if (hay.name.includes(q)) s = 1;
     else if (hay.extra.includes(q)) s = 2;
     else continue;
-    // Estaciones outrank paraderos at equal text relevance.
-    if (p.kind === 'stop') s += 0.5;
-    scored.push({ p, s });
+    scored[p.kind]?.push({ p, s });
   }
-  scored.sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
-  // Same-named paraderos (opposite platforms, repeated barrio stops) would fill
-  // every slot with one name. Without a user fix there is no distance to break
-  // the tie, so cap each kind+name at two rows (the address sub-line still
-  // distinguishes those two); the full set remains reachable via Cerca.
-  const perName = new Map<string, number>();
-  const out: NearbyPoint[] = [];
-  for (const { p } of scored) {
-    const key = `${p.kind}|${pointHaystack(p).name}`;
-    const count = perName.get(key) ?? 0;
-    if (count >= 2) continue;
-    perName.set(key, count + 1);
-    out.push(p);
-    if (out.length === SEARCH_POINT_LIMIT) break;
+  for (const kind of POINT_KINDS) {
+    scored[kind].sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
+    out[kind] = scored[kind].map((x) => x.p);
   }
   return out;
 }
 
-function renderRouteList(routes: RouteListItem[]): void {
-  const container = document.getElementById('route-list')!;
-  const countEl = document.getElementById('route-list-count')!;
+/**
+ * Same-named paraderos (opposite platforms, repeated barrio stops) would fill
+ * every preview slot with one name. Without a user fix there is no distance to
+ * break the tie, so the mixed view caps each name at two rows (the address
+ * sub-line still distinguishes those two); a focused scope shows them all.
+ */
+function dedupeByName(points: NearbyPoint[], perNameMax: number): NearbyPoint[] {
+  const seen = new Map<string, number>();
+  const out: NearbyPoint[] = [];
+  for (const p of points) {
+    const key = pointHaystack(p).name;
+    const count = seen.get(key) ?? 0;
+    if (count >= perNameMax) continue;
+    seen.set(key, count + 1);
+    out.push(p);
+  }
+  return out;
+}
 
-  countEl.textContent = `${routes.length}`;
+/** The place rows the mixed `Todo` view shows above the routes: the best hits
+ *  across every kind, so one crowded kind cannot hide the others. */
+function previewPoints(matches: PointMatches): NearbyPoint[] {
+  const perKind = POINT_KINDS.map((kind) => dedupeByName(matches[kind], 2));
+  const out: NearbyPoint[] = [];
+  // Round-robin across kinds: an estación, a paradero, a recarga, a bici, then
+  // the next of each — never six paraderos while a recarga match waits unseen.
+  for (let i = 0; out.length < SEARCH_POINT_PREVIEW; i++) {
+    let added = false;
+    for (const list of perKind) {
+      if (i >= list.length) continue;
+      out.push(list[i]);
+      added = true;
+      if (out.length === SEARCH_POINT_PREVIEW) break;
+    }
+    if (!added) break;
+  }
+  return out;
+}
 
-  // Station/paradero hits render above the routes while searching (never under
-  // the fav/recent views, which are route collections by definition).
+// ─── Search scope chips ───────────────────────────────────
+
+const SCOPE_ALL: SearchScope = 'all';
+
+function scopeLabel(scope: SearchScope): string {
+  if (scope === 'all') return 'Todo';
+  if (scope === 'routes') return 'Rutas';
+  return POINT_KIND_LABELS[scope];
+}
+
+/** How many results each scope would show for the current query. */
+function scopeCounts(routeCount: number, points: PointMatches): Record<SearchScope, number> {
+  const placeTotal = POINT_KINDS.reduce((sum, kind) => sum + points[kind].length, 0);
+  return {
+    all: routeCount + placeTotal,
+    routes: routeCount,
+    station: points.station.length,
+    stop: points.stop.length,
+    recharge: points.recharge.length,
+    transmibici: points.transmibici.length,
+  };
+}
+
+/**
+ * The scope row only exists while a query does: browsing the network needs the
+ * route filters below, not a "what am I searching" question. A scope with no
+ * hits stays visible but disabled, so the rider still learns the category is
+ * searchable (spec §1 priority 6).
+ */
+function renderSearchScopeChips(routeCount: number, points: PointMatches): void {
+  const row = document.getElementById('search-scope-chips');
+  if (!row) return;
+
+  if (!searchQuery) {
+    row.classList.add('hidden');
+    row.innerHTML = '';
+    return;
+  }
+
+  const counts = scopeCounts(routeCount, points);
+  const scopes: SearchScope[] = ['all', 'routes', ...POINT_KINDS];
+  row.innerHTML = scopes
+    .map((scope) => {
+      const active = searchScope === scope;
+      const count = counts[scope];
+      const empty = count === 0 && scope !== 'all';
+      return `<button class="zone-chip scope-chip${active ? ' active' : ''}" type="button" role="tab"
+        aria-selected="${active}"${empty ? ' disabled' : ''} data-scope="${scope}"
+        >${escapeHTML(scopeLabel(scope))}<span class="scope-chip-count">${count}</span></button>`;
+    })
+    .join('');
+  row.classList.remove('hidden');
+
+  row.querySelectorAll<HTMLButtonElement>('.scope-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const next = (chip.dataset.scope as SearchScope) || SCOPE_ALL;
+      if (next === searchScope) return;
+      searchScope = next;
+      applyFilters();
+    });
+  });
+}
+
+/** Route-only controls (type segments, saved views, zone/line rows) make no
+ *  sense while the results are places — hide them instead of leaving dead
+ *  chrome that silently does nothing. */
+function syncScopeChrome(): void {
+  const panel = document.getElementById('explore-panel');
+  panel?.classList.toggle('scope-places', searchScope !== 'all' && searchScope !== 'routes');
+}
+
+/** Heading + count above the list, which is only "Rutas" when routes are what
+ *  the list holds. */
+function syncListHeading(label: string, count: number): void {
+  const heading = document.getElementById('route-list-heading');
+  const countEl = document.getElementById('route-list-count');
+  if (heading) heading.textContent = label;
+  if (countEl) countEl.textContent = `${count}`;
+}
+
+function renderResults(routes: RouteListItem[], points: PointMatches): void {
+  syncScopeChrome();
+
+  // A place scope answers with places only — no route list, no route filters.
+  if (searchScope !== 'all' && searchScope !== 'routes') {
+    renderPointResults(searchScope, points[searchScope]);
+    return;
+  }
+
+  // Place hits render above the routes in the mixed view (never under the
+  // fav/recent views, which are route collections by definition).
   const pointMatches =
-    searchQuery && currentFilter !== 'fav' && currentFilter !== 'recent' ? matchingSearchPoints() : [];
+    searchScope === 'all' && searchQuery && currentFilter !== 'fav' && currentFilter !== 'recent'
+      ? previewPoints(points)
+      : [];
+  const placeTotal = POINT_KINDS.reduce((sum, kind) => sum + points[kind].length, 0);
+  // While the list mixes places and routes, "Rutas · 0" over six visible places
+  // reads as a bug. Name what the list actually holds.
+  const heading = pointMatches.length > 0
+    ? { label: 'Resultados', count: routes.length + placeTotal }
+    : { label: 'Rutas', count: routes.length };
+  renderRouteList(routes, pointMatches, placeTotal, heading);
+}
+
+/** The list when a single place kind is the scope: every hit, no route chrome. */
+function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
+  const container = document.getElementById('route-list')!;
+  const label = POINT_KIND_LABELS[kind];
+  syncListHeading(label, matches.length);
+
+  if (matches.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-title">Sin ${escapeHTML(label.toLowerCase())}</div>
+        <div class="empty-state-text">Ningún resultado para “${escapeHTML(searchQuery)}”. Prueba con otro nombre o dirección.</div>
+      </div>
+    `;
+    return;
+  }
+
+  const visible = matches.slice(0, SEARCH_POINT_LIMIT);
+  container.innerHTML =
+    `<div class="search-points">${visible.map((p) => nearRowHtml(p)).join('')}</div>` +
+    (matches.length > visible.length
+      ? `<div class="route-list-overflow">Mostrando ${visible.length} de ${matches.length}. Afina la búsqueda para ver el resto.</div>`
+      : '');
+
+  wirePointRows(container, visible);
+  wireResultKeyboardColumn(container);
+}
+
+/** Selecting a place row focuses it on the map + opens its popup (main.ts). */
+function wirePointRows(container: HTMLElement, pool: NearbyPoint[]): void {
+  container.querySelectorAll<HTMLButtonElement>('.search-points .near-row').forEach((row) => {
+    row.addEventListener('click', () => {
+      const point = pool.find((p) => p.kind === row.dataset.kind && p.codigo === row.dataset.code);
+      if (point) onPointSelect?.(point);
+    });
+  });
+}
+
+/** One keyboard column across BOTH result kinds: place rows first, then route
+ *  items. ArrowUp from the top result returns to the search box. */
+function wireResultKeyboardColumn(container: HTMLElement): void {
+  const focusables = Array.from(
+    container.querySelectorAll<HTMLElement>('.search-points .near-row, .route-item')
+  );
+  focusables.forEach((el, index) => {
+    el.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        focusables[Math.min(index + 1, focusables.length - 1)]?.focus();
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (index === 0) (document.getElementById('search-input') as HTMLInputElement | null)?.focus();
+        else focusables[index - 1]?.focus();
+      }
+    });
+  });
+}
+
+function renderRouteList(
+  routes: RouteListItem[],
+  pointMatches: NearbyPoint[],
+  placeTotal: number,
+  heading: { label: string; count: number }
+): void {
+  const container = document.getElementById('route-list')!;
+
+  syncListHeading(heading.label, heading.count);
+
   const pointsHtml = pointMatches.length
     ? `
       <div class="search-points">
-        <div class="search-points-title">Estaciones y paraderos</div>
+        <div class="search-points-title">Lugares<span class="search-points-count">${placeTotal}</span></div>
         ${pointMatches.map((p) => nearRowHtml(p)).join('')}
-        ${routes.length > 0 ? '<div class="search-points-title">Rutas</div>' : ''}
+        ${routes.length > 0 ? `<div class="search-points-title">Rutas<span class="search-points-count">${routes.length}</span></div>` : ''}
       </div>`
     : '';
-  const wirePointClicks = (): void => {
-    container.querySelectorAll<HTMLButtonElement>('.search-points .near-row').forEach((row) => {
-      row.addEventListener('click', () => {
-        const point = pointMatches.find((p) => p.kind === row.dataset.kind && p.codigo === row.dataset.code);
-        if (point) onPointSelect?.(point);
-      });
-    });
-  };
+  const wirePointClicks = (): void => wirePointRows(container, pointMatches);
 
   if (routes.length === 0) {
     const empty =
@@ -1200,6 +1355,7 @@ function renderRouteList(routes: RouteListItem[]): void {
       </div>
     `;
     wirePointClicks();
+    wireResultKeyboardColumn(container);
     return;
   }
 
@@ -1253,23 +1409,7 @@ function renderRouteList(routes: RouteListItem[]): void {
     `;
   }
 
-  // One keyboard column across BOTH result kinds: station/paradero rows first,
-  // then route items. ArrowUp from the top result returns to the search box.
-  const focusables = Array.from(
-    container.querySelectorAll<HTMLElement>('.search-points .near-row, .route-item')
-  );
-  focusables.forEach((el, index) => {
-    el.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        focusables[Math.min(index + 1, focusables.length - 1)]?.focus();
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (index === 0) (document.getElementById('search-input') as HTMLInputElement | null)?.focus();
-        else focusables[index - 1]?.focus();
-      }
-    });
-  });
+  wireResultKeyboardColumn(container);
 
   container.querySelectorAll<HTMLElement>('.route-item').forEach((el) => {
     const open = () => {
