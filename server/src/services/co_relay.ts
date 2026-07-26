@@ -13,6 +13,7 @@
 
 import http from 'http';
 import https from 'https';
+import { collectBody } from './upstream_body.js';
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
@@ -89,27 +90,28 @@ export function relayForward(
       agent: url.protocol === 'http:' ? keepAliveAgents.http : keepAliveAgents.https,
       timeout: timeoutMs,
     }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (c: Buffer) => chunks.push(c));
-      res.on('end', () => {
-        cleanup();
-        const text = Buffer.concat(chunks).toString('utf-8');
-        if (res.statusCode !== 200) {
-          reject(new Error(`${source}: relay status ${res.statusCode}`));
-          return;
-        }
-        let parsed: any;
-        try {
-          parsed = JSON.parse(text);
-        } catch {
-          reject(new Error(`${source}: relay JSON parse error (${text.slice(0, 120)})`));
-          return;
-        }
-        resolve({
-          upstreamStatus: Number(parsed?.upstreamStatus ?? 0),
-          payload: parsed?.payload,
-        });
-      });
+      collectBody(res, source).then(
+        (raw) => {
+          cleanup();
+          const text = raw.toString('utf-8');
+          if (res.statusCode !== 200) {
+            reject(new Error(`${source}: relay status ${res.statusCode}`));
+            return;
+          }
+          let parsed: any;
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            reject(new Error(`${source}: relay JSON parse error (${text.slice(0, 120)})`));
+            return;
+          }
+          resolve({
+            upstreamStatus: Number(parsed?.upstreamStatus ?? 0),
+            payload: parsed?.payload,
+          });
+        },
+        (error) => { cleanup(); reject(error); }
+      );
     });
 
     const onAbort = () => req.destroy(new Error(`${source}: aborted`));

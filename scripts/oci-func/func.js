@@ -28,6 +28,7 @@
 
 const fdk = require('@fnproject/fdk');
 const https = require('https');
+const crypto = require('crypto');
 
 const LIVE_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 
@@ -43,6 +44,9 @@ const UPSTREAM_HEADERS = {
   'Accept-Encoding': 'identity',
 };
 const UPSTREAM_TIMEOUT_MS = 10000;
+// The Function runs in a small container; a runaway upstream body must not be
+// buffered whole. Real payloads are a few hundred KB.
+const MAX_UPSTREAM_BODY_BYTES = 8 * 1024 * 1024;
 
 /** Read a request header across fdk ctx shapes, case-insensitively. Never throws. */
 function readHeader(ctx, name) {
@@ -90,14 +94,48 @@ function setJsonContentType(ctx) {
   try { ctx.responseContentType = 'application/json'; } catch (e) { /* ignore */ }
 }
 
-/** Extract a buses array from whatever shape the upstream returns. */
+function isBusLike(value) {
+  if (!value || typeof value !== 'object') return false;
+  const lat = Number(value.latitude != null ? value.latitude : value.lat);
+  const lng = Number(value.longitude != null ? value.longitude : (value.lng != null ? value.lng : value.lon));
+  return Number.isFinite(lat) && Number.isFinite(lng);
+}
+
+/**
+ * Extract a buses array from whatever shape the upstream returns. Must stay
+ * behaviourally identical to the other four unwrappers (server
+ * `normalizeLiveBusesPayload`, client `findBusPayloadArray`, extension
+ * `toBusArray`) — this one was missing the keyed-object fallbacks below, so a
+ * payload every other tier handled came back EMPTY through the co-relay tier.
+ */
 function extractBuses(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
-  for (const key of ['buses', 'data', 'result', 'results', 'vehiculos', 'vehicles']) {
+
+  const keys = ['buses', 'data', 'result', 'results', 'vehiculos', 'vehicles'];
+  for (const key of keys) {
     if (Array.isArray(payload[key])) return payload[key];
   }
-  return [];
+  // A wrapper keyed by bus id rather than an array.
+  for (const key of keys) {
+    const nested = payload[key];
+    if (nested && typeof nested === 'object') {
+      const buses = Object.values(nested).filter(isBusLike);
+      if (buses.length) return buses;
+    }
+  }
+  const buses = Object.values(payload).filter(isBusLike);
+  return buses.length ? buses : [];
+}
+
+/** Constant-time `Authorization: Bearer <secret>` check (matches the self-hosted
+ *  relay's `crypto.timingSafeEqual` comparison — never `===` on a secret). */
+function bearerMatches(header, secret) {
+  const value = String(header || '');
+  if (!value.startsWith('Bearer ')) return false;
+  const a = Buffer.from(value.slice(7).trim());
+  const b = Buffer.from(secret);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
 function isAllowedPath(path) {
@@ -118,7 +156,18 @@ function upstreamRequest(path, method, postData) {
       { hostname: LIVE_HOST, path, method: method || 'POST', headers, timeout: UPSTREAM_TIMEOUT_MS },
       (res) => {
         const chunks = [];
-        res.on('data', (c) => chunks.push(c));
+        let received = 0;
+        res.on('data', (c) => {
+          received += c.length;
+          if (received > MAX_UPSTREAM_BODY_BYTES) {
+            res.destroy();
+            reject(new Error('upstream body too large'));
+            return;
+          }
+          chunks.push(c);
+        });
+        // An aborted response with no `error` listener crashes the invocation.
+        res.on('error', reject);
         res.on('end', () => {
           const text = Buffer.concat(chunks).toString('utf-8');
           let payload = null;
@@ -146,14 +195,18 @@ fdk.handle(async (input, ctx) => {
   setJsonContentType(ctx);
 
   try {
-    // Optional shared-secret gate: enforced only if RELAY_SECRET is configured.
+    // Shared-secret gate. MANDATORY: without it this Function is an open proxy
+    // onto the live host from a Colombian IP for anyone who learns the gateway
+    // URL, so an unset RELAY_SECRET refuses rather than waves everyone through
+    // (spec §5.2.2a: "Absent the secret the Function refuses (403)").
     const secret = process.env.RELAY_SECRET;
-    if (secret) {
-      const auth = String(readHeader(ctx, 'Authorization') || '');
-      if (auth !== `Bearer ${secret}`) {
-        setStatus(ctx, 403);
-        return { error: 'forbidden' };
-      }
+    if (!secret) {
+      setStatus(ctx, 403);
+      return { error: 'relay not configured (RELAY_SECRET unset)' };
+    }
+    if (!bearerMatches(readHeader(ctx, 'Authorization'), secret)) {
+      setStatus(ctx, 403);
+      return { error: 'forbidden' };
     }
 
     const body = parseBody(input);

@@ -21,6 +21,9 @@ const MAX_TEST_CANDIDATES = 500; // bound work per refresh
 const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
 
 const LIVE_TEST_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+// Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
+// only inspected for coordinates, so it never needs to be buffered whole.
+const PROBE_MAX_BODY_CHARS = 512 * 1024;
 
 export class SimpleProxyAgent extends https.Agent {
   public proxyHost: string;
@@ -113,11 +116,13 @@ class ProxyManagerClass {
 
   constructor() {
     this.refreshPromise = this.refresh().catch((err) => console.error('[ProxyManager] Init error:', err));
-    setInterval(() => this.refreshInBackground('scheduled'), REFRESH_INTERVAL_MS);
+    // `unref` so these timers never hold the process open (a CLI script that
+    // imports this module must still be able to exit) — same as the live warm-up.
+    setInterval(() => this.refreshInBackground('scheduled'), REFRESH_INTERVAL_MS).unref();
     setInterval(() => {
       // Keep-warm: re-scrape eagerly whenever the verified pool runs low.
       if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('top-up');
-    }, TOP_UP_INTERVAL_MS);
+    }, TOP_UP_INTERVAL_MS).unref();
   }
 
   public getVerifiedCount(): number {
@@ -322,7 +327,16 @@ class ProxyManagerClass {
         },
         (res) => {
           let body = '';
-          res.on('data', (chunk) => (body += chunk));
+          // The proxy under test is untrusted: cap what we buffer. The probe only
+          // needs to see whether coordinates come back.
+          res.on('data', (chunk) => {
+            if (body.length > PROBE_MAX_BODY_CHARS) {
+              res.destroy();
+              return finish(null);
+            }
+            body += chunk;
+          });
+          res.on('error', () => finish(null));
           res.on('end', () => {
             if (res.statusCode !== 200) return finish(null);
             try {
@@ -345,12 +359,33 @@ class ProxyManagerClass {
     });
   }
 
+  /**
+   * `ip:port` pairs from a scraped list. The lists are third-party text, and each
+   * pair becomes a CONNECT target, so loopback/private/link-local ranges are
+   * dropped: a poisoned or careless list must not make this server probe hosts
+   * inside its own network. Octets are validated too (`999.1.1.1` is not an IP).
+   */
   private parsePairs(text: string): Array<[string, number]> {
     const out: Array<[string, number]> = [];
     const re = /(\d{1,3}(?:\.\d{1,3}){3}):(\d{2,5})/g;
     let m: RegExpExecArray | null;
-    while ((m = re.exec(text)) !== null) out.push([m[1], Number(m[2])]);
+    while ((m = re.exec(text)) !== null) {
+      const port = Number(m[2]);
+      if (this.isRoutableIp(m[1]) && port > 0 && port <= 65535) out.push([m[1], port]);
+    }
     return out;
+  }
+
+  private isRoutableIp(ip: string): boolean {
+    const parts = ip.split('.').map(Number);
+    if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
+    const [a, b] = parts;
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;      // this/private/loopback/multicast
+    if (a === 169 && b === 254) return false;                            // link-local
+    if (a === 172 && b >= 16 && b <= 31) return false;                   // private
+    if (a === 192 && b === 168) return false;                            // private
+    if (a === 100 && b >= 64 && b <= 127) return false;                  // CGNAT
+    return true;
   }
 
   private shuffle<T>(arr: T[]): T[] {

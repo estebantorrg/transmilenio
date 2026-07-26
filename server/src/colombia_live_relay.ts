@@ -2,8 +2,8 @@ import express, { type ErrorRequestHandler, type Request, type Response } from '
 import cors from 'cors';
 import http from 'http';
 import https from 'https';
-import zlib from 'zlib';
 import crypto from 'crypto';
+import { collectBody, decodeBody } from './services/upstream_body.js';
 
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
@@ -40,9 +40,22 @@ const CLIENT_ORIGINS = String(process.env.RELAY_CLIENT_ORIGINS || '')
   .filter(Boolean);
 const DEV_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
 
+/**
+ * "Configured" = the operator told the relay who may call it, via a secret
+ * (server-relay mode) or an origin allow-list (browser-direct mode) — spec §5.2.2.
+ * Until then the relay is treated as a local dev instance.
+ */
+function isConfigured(): boolean {
+  return RELAY_SECRET.length > 0 || CLIENT_ORIGINS.length > 0;
+}
+
 function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return false;
-  return DEV_ORIGIN_RE.test(origin) || CLIENT_ORIGINS.includes(origin);
+  if (CLIENT_ORIGINS.includes(origin)) return true;
+  // `Origin` is trivially forged by a non-browser caller, so a blanket localhost
+  // pass would let ANY caller skip the secret on a public relay. Honour it only
+  // while the relay is unconfigured, i.e. a local dev instance.
+  return !isConfigured() && DEV_ORIGIN_RE.test(origin);
 }
 
 interface LiveRequestContext {
@@ -77,7 +90,13 @@ function isAuthorized(req: Request): boolean {
   // clients, but there is nothing private to protect here.)
   if (isAllowedOrigin(req.headers.origin as string | undefined)) return true;
 
-  if (!RELAY_SECRET) return true;
+  // An unconfigured relay used to answer EVERY caller — a public deployment with
+  // no `TRANSMILENIO_COLOMBIA_RELAY_SECRET` and no `RELAY_CLIENT_ORIGINS` was an
+  // open proxy onto the live host from a Colombian IP. Refuse instead, the way
+  // the OCI Function does (spec §5.2.2a); local dev still passes on its localhost
+  // origin above.
+  if (!RELAY_SECRET) return false;
+
   const auth = String(req.headers.authorization || '');
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   const headerRaw = req.headers['x-relay-secret'];
@@ -219,18 +238,6 @@ function normalizeLiveBusesPayload(payload: any): any[] {
   return buses.length > 0 ? buses : [];
 }
 
-function decodeBody(raw: Buffer, encoding: string | string[] | undefined): Promise<Buffer> {
-  const contentEncoding = Array.isArray(encoding) ? encoding.join(',') : encoding || '';
-  if (!contentEncoding.toLowerCase().includes('gzip')) return Promise.resolve(raw);
-
-  return new Promise((resolve, reject) => {
-    zlib.gunzip(raw, (err, decompressed) => {
-      if (err) reject(err);
-      else resolve(decompressed);
-    });
-  });
-}
-
 async function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined): Promise<any[]> {
   const body = await decodeBody(raw, encoding).catch(() => raw);
   const text = body.toString('utf-8');
@@ -248,7 +255,7 @@ async function parseLiveResponse(raw: Buffer, encoding: string | string[] | unde
   return normalizeLiveBusesPayload(payload);
 }
 
-function requestTransmiLiveJson(context: LiveRequestContext): Promise<any[]> {
+function requestTransmiLiveJson(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
   const postData = context.postData;
   const headers: Record<string, string | number> = {
@@ -267,6 +274,10 @@ function requestTransmiLiveJson(context: LiveRequestContext): Promise<any[]> {
   }
 
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error('Live API request aborted'));
+      return;
+    }
     const requestLib = url.protocol === 'http:' ? http : https;
     const req = requestLib.request({
       hostname: url.hostname,
@@ -276,31 +287,79 @@ function requestTransmiLiveJson(context: LiveRequestContext): Promise<any[]> {
       headers,
       timeout: LIVE_REQUEST_TIMEOUT_MS,
     }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', async () => {
-        const raw = Buffer.concat(chunks);
-        if (res.statusCode !== 200) {
-          reject(new Error(`Live API status: ${res.statusCode}`));
-          return;
-        }
-
-        try {
-          resolve(await parseLiveResponse(raw, res.headers['content-encoding']));
-        } catch (error) {
-          reject(error);
-        }
-      });
+      collectBody(res, 'Live API').then(
+        async (raw) => {
+          cleanup();
+          if (res.statusCode !== 200) {
+            reject(new Error(`Live API status: ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(await parseLiveResponse(raw, res.headers['content-encoding']));
+          } catch (error) {
+            reject(error);
+          }
+        },
+        (error) => { cleanup(); reject(error); }
+      );
     });
 
-    req.on('error', reject);
+    // Let the candidate race cancel the losers the moment one returns buses.
+    const onAbort = () => req.destroy(new Error('Live API request aborted'));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const cleanup = () => signal?.removeEventListener('abort', onAbort);
+
+    req.on('error', (err) => { cleanup(); reject(err); });
     req.on('timeout', () => {
+      cleanup();
       req.destroy();
       reject(new Error('Live API request timed out'));
     });
 
     if (postData) req.write(postData);
     req.end();
+  });
+}
+
+/**
+ * Fires every candidate at once, resolving with the first NON-EMPTY payload and
+ * aborting the stragglers. A valid empty result needs all candidates to settle
+ * (only a non-empty hit proves the name matched, spec §5.2.4); rejects only when
+ * no candidate answered at all.
+ */
+function raceCandidates(contexts: LiveRequestContext[]): Promise<any[]> {
+  if (contexts.length === 1) return requestTransmiLiveJson(contexts[0]);
+
+  const controller = new AbortController();
+  return new Promise<any[]>((resolve, reject) => {
+    let pending = contexts.length;
+    let answeredEmpty: any[] | null = null;
+    let lastError: unknown = null;
+
+    const settle = (fn: () => void) => {
+      controller.abort();
+      fn();
+    };
+
+    for (const context of contexts) {
+      requestTransmiLiveJson(context, controller.signal).then(
+        (result) => {
+          if (result.length > 0) {
+            settle(() => resolve(result));
+            return;
+          }
+          answeredEmpty = result;
+          if (--pending === 0) settle(() => resolve(answeredEmpty ?? []));
+        },
+        (error) => {
+          lastError = error;
+          if (--pending === 0) {
+            if (answeredEmpty !== null) settle(() => resolve(answeredEmpty!));
+            else settle(() => reject(lastError));
+          }
+        }
+      );
+    }
   });
 }
 
@@ -348,25 +407,15 @@ app.post('/buses', async (req: Request, res: Response) => {
 
     const egress = await assertColombianEgress();
 
-    // Try each name candidate; return the first non-empty payload. An empty
-    // result from a candidate that *answered* is a valid "no buses right now";
-    // only surface an error if every candidate threw.
-    let buses: any[] = [];
-    let anyAnswered = false;
-    let lastError: Error | null = null;
-    for (const context of contexts) {
-      try {
-        const result = await requestTransmiLiveJson(context);
-        anyAnswered = true;
-        if (result.length) {
-          buses = result;
-          break;
-        }
-      } catch (error) {
-        lastError = error as Error;
-      }
-    }
-    if (!anyAnswered && lastError) throw lastError;
+    // Race every name candidate IN PARALLEL and settle the moment one returns
+    // buses (spec §5.2.4 / §5.2.2b). The old sequential loop paid a round-trip —
+    // or the full 9 s timeout — per miss before reaching the matching name, up to
+    // 12 candidates deep: exactly the cold start the parallel fan-out removed
+    // everywhere else (main server, native app, extension worker). An empty
+    // result from a candidate that *answered* is a valid "no buses right now",
+    // so it still requires every candidate to settle; an error is only surfaced
+    // if none answered at all.
+    const buses = await raceCandidates(contexts);
 
     res.json({
       success: true,
@@ -385,4 +434,10 @@ app.post('/buses', async (req: Request, res: Response) => {
 
 app.listen(PORT, () => {
   console.log(`Colombia live relay listening on http://localhost:${PORT}`);
+  if (!isConfigured()) {
+    console.warn(
+      '[relay] Unconfigured: no TRANSMILENIO_COLOMBIA_RELAY_SECRET and no RELAY_CLIENT_ORIGINS. ' +
+      'Only localhost origins are served. Set one of them before exposing this relay publicly (spec §5.2.2).'
+    );
+  }
 });
