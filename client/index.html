@@ -137,70 +137,29 @@
       <!-- SITP zone browse (shown only under the Zonal filter) -->
       <div class="zone-chips hidden" id="zone-chips" role="tablist" aria-label="Filtrar rutas zonales por zona SITP"></div>
 
-      <!-- Layer Toggles -->
-      <div class="layer-toggles collapsed" id="layer-toggles">
-        <button class="layer-toggles-title" id="layer-toggles-title" type="button" aria-expanded="false" aria-controls="layer-toggles-body">
-          <span>Capas del mapa</span>
-          <svg class="layer-toggles-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+      <!-- Map layer chips (dot = layer color; hollow = hidden) -->
+      <div class="layer-chips" id="layer-chips" role="group" aria-label="Capas del mapa">
+        <button class="layer-chip active" type="button" data-layer="troncal" aria-pressed="true" title="Rutas troncales">
+          <span class="layer-dot" style="--layer-color:#ff3b30"></span>Troncales<span class="layer-count" id="count-troncal">—</span>
         </button>
-        <div class="layer-toggles-body" id="layer-toggles-body">
-        <label class="toggle-item" id="toggle-troncal" title="Rutas troncales">
-          <input type="checkbox" checked data-layer="troncal" />
-          <span class="toggle-check check-troncal"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Troncales</div>
-          </div>
-          <span class="toggle-count" id="count-troncal">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-zonal" title="Rutas zonales">
-          <input type="checkbox" data-layer="zonal" />
-          <span class="toggle-check check-zonal"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Zonales</div>
-          </div>
-          <span class="toggle-count" id="count-zonal">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-stations" title="Estaciones troncales">
-          <input type="checkbox" checked data-layer="stations" />
-          <span class="toggle-check check-stations"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Estaciones</div>
-          </div>
-          <span class="toggle-count" id="count-stations">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-stops" title="Paraderos zonales">
-          <input type="checkbox" data-layer="stops" />
-          <span class="toggle-check check-stops"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Paraderos</div>
-          </div>
-          <span class="toggle-count" id="count-stops">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-cable" title="Trazado TransMiCable">
-          <input type="checkbox" data-layer="cable" />
-          <span class="toggle-check check-cable"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Cable trazado</div>
-          </div>
-          <span class="toggle-count" id="count-cable">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-cable-stations" title="Estaciones TransMiCable">
-          <input type="checkbox" data-layer="cable-stations" />
-          <span class="toggle-check check-cable-stations"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Cable estaciones</div>
-          </div>
-          <span class="toggle-count" id="count-cable-stations">—</span>
-        </label>
-        <label class="toggle-item" id="toggle-demand" title="Demanda por estación (validaciones/día)">
-          <input type="checkbox" data-layer="demand" />
-          <span class="toggle-check check-demand"></span>
-          <div class="toggle-text">
-            <div class="toggle-label">Demanda</div>
-          </div>
-          <span class="toggle-count" id="count-demand">—</span>
-        </label>
-        </div>
+        <button class="layer-chip" type="button" data-layer="zonal" aria-pressed="false" title="Rutas zonales">
+          <span class="layer-dot" style="--layer-color:#007aff"></span>Zonales<span class="layer-count" id="count-zonal">—</span>
+        </button>
+        <button class="layer-chip active" type="button" data-layer="stations" aria-pressed="true" title="Estaciones troncales">
+          <span class="layer-dot" style="--layer-color:#ffcc00"></span>Estaciones<span class="layer-count" id="count-stations">—</span>
+        </button>
+        <button class="layer-chip" type="button" data-layer="stops" aria-pressed="false" title="Paraderos zonales">
+          <span class="layer-dot" style="--layer-color:#34c759"></span>Paraderos<span class="layer-count" id="count-stops">—</span>
+        </button>
+        <button class="layer-chip" type="button" data-layer="cable" aria-pressed="false" title="Trazado TransMiCable">
+          <span class="layer-dot" style="--layer-color:#f97316"></span>Cable trazado<span class="layer-count" id="count-cable">—</span>
+        </button>
+        <button class="layer-chip" type="button" data-layer="cable-stations" aria-pressed="false" title="Estaciones TransMiCable">
+          <span class="layer-dot" style="--layer-color:#f97316"></span>Cable estaciones<span class="layer-count" id="count-cable-stations">—</span>
+        </button>
+        <button class="layer-chip" type="button" data-layer="demand" aria-pressed="false" title="Demanda por estación (validaciones/día)">
+          <span class="layer-dot" style="--layer-color:#ef4444"></span>Demanda<span class="layer-count" id="count-demand">—</span>
+        </button>
       </div>
 
       <!-- Route List -->
@@ -310,13 +269,10 @@
           <input type="time" id="plan-depart-time" class="depart-input" aria-label="Hora de salida" />
         </div>
         <div id="depart-hint" class="depart-hint" role="status" aria-live="polite"></div>
-        <div class="planner-option-row">
-          <label id="sched-label">Horarios</label>
-          <div class="depart-switch" role="group" aria-labelledby="sched-label">
-            <button id="sched-mode-all" class="depart-switch-btn active" type="button" aria-pressed="true" title="Muestra todas las conexiones, con el horario de cada servicio">Todas las rutas</button>
-            <button id="sched-mode-strict" class="depart-switch-btn" type="button" aria-pressed="false" title="Solo rutas que estén operando a esa hora">Solo en servicio</button>
-          </div>
-        </div>
+        <button id="sched-strict-toggle" class="sched-strict-toggle" type="button" aria-pressed="false" title="Oculta las conexiones que no estén operando a la hora de salida">
+          <span class="sched-strict-dot" aria-hidden="true"></span>
+          Solo rutas en servicio
+        </button>
         <div class="planner-option-row">
           <label id="transport-label">Transporte</label>
           <div class="custom-dropdown" id="dropdown-transport">

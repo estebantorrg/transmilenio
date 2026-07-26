@@ -383,29 +383,25 @@ function initDepartControls(): void {
 }
 
 // ─── Schedule filter (§5.6.2) ─────────────────────────────
-// "Todas las rutas" (default) plans with the horarios as information: clock
-// times, opening waits, out-of-service tags, and a ranking that prefers services
-// running most of the day. "Solo en servicio" turns them into a hard filter for
-// riders leaving right now who do not want to read a timetable.
+// Off (default) plans with the horarios as information: clock times, opening
+// waits, out-of-service tags, and a ranking that prefers services running most
+// of the day. The "Solo rutas en servicio" toggle — folded into the Salida
+// block, since it filters BY the departure moment — turns them into a hard
+// filter for riders leaving right now who do not want to read a timetable.
 
 function setScheduleMode(enforce: boolean): void {
   enforceSchedules = enforce;
-  for (const [id, active] of [['sched-mode-all', !enforce], ['sched-mode-strict', enforce]] as const) {
-    const button = document.getElementById(id);
-    button?.classList.toggle('active', active);
-    button?.setAttribute('aria-pressed', String(active));
-  }
+  const toggle = document.getElementById('sched-strict-toggle');
+  toggle?.classList.toggle('active', enforce);
+  toggle?.setAttribute('aria-pressed', String(enforce));
 }
 
 function initScheduleControls(): void {
-  const pick = (enforce: boolean) => () => {
-    if (enforceSchedules === enforce) return;
-    setScheduleMode(enforce);
+  document.getElementById('sched-strict-toggle')?.addEventListener('click', () => {
+    setScheduleMode(!enforceSchedules);
     invalidatePlannerResults();
     syncPlannerHash();
-  };
-  document.getElementById('sched-mode-all')?.addEventListener('click', pick(false));
-  document.getElementById('sched-mode-strict')?.addEventListener('click', pick(true));
+  });
 }
 
 // ─── Deep linking (#/plan?o=…&d=…) ────────────────────────

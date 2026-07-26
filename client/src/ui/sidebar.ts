@@ -706,26 +706,17 @@ export function initSidebar(options: {
     });
   });
 
-  // Collapsible "Capas" section
-  const layersTitle = document.getElementById('layer-toggles-title');
-  const layersWrap = document.getElementById('layer-toggles');
-  layersTitle?.addEventListener('click', () => {
-    const collapsed = layersWrap?.classList.toggle('collapsed') ?? false;
-    layersTitle.setAttribute('aria-expanded', String(!collapsed));
-  });
-
   initSheetDrag();
   initKeyboardAwareSheet();
   initKeyboardShortcuts();
 
-  document.querySelectorAll('.toggle-item').forEach((item) => {
-    const cb = item.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    if (cb) {
-      cb.addEventListener('change', () => {
-        const layer = cb.dataset.layer!;
-        onLayerToggle?.(layer, cb.checked);
-      });
-    }
+  // Map layer chips — same chip language as the filter rows; active = visible.
+  document.querySelectorAll<HTMLButtonElement>('.layer-chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const active = chip.classList.toggle('active');
+      chip.setAttribute('aria-pressed', String(active));
+      onLayerToggle?.(chip.dataset.layer!, active);
+    });
   });
 
   const detailClose = document.getElementById('route-detail-close')!;
