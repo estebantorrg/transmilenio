@@ -2,14 +2,21 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- `maximum-scale=1, user-scalable=no` blocked pinch zoom outright, which is
+       a hard accessibility failure (WCAG 1.4.4) for anyone who needs to magnify
+       a paradero name or a timeline. MapLibre consumes its own gestures over the
+       canvas, so the map still pans/zooms as itself. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#070b12" />
   <title>TransMi Go</title>
   <meta name="description" content="TransMi Go — la app nativa para moverte en TransMilenio y SITP: rutas en vivo, buses en tiempo real, saldo y planificador." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Fonts ship INSIDE the APK (@font-face in app.css). The app is offline-first
+       (spec §5.2.1b) — a fonts.googleapis.com stylesheet was a hard network
+       dependency in front of first paint that simply never resolved on a phone
+       with no data, leaving the whole UI in a fallback face. -->
+  <link rel="preload" href="/fonts/sora-latin-var.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin />
 </head>
 <body>
   <!-- Boot splash -->
@@ -19,14 +26,22 @@
       <img class="boot-logo" src="/transmiLogo.png" alt="" width="64" height="64" />
     </div>
     <div class="boot-name">TransMi <b>Go</b></div>
-    <div class="boot-status" id="boot-status">Encendiendo motores…</div>
+    <div class="boot-status" id="boot-status" role="status" aria-live="polite">Encendiendo motores…</div>
     <div class="boot-track"><span id="boot-fill" class="boot-fill"></span></div>
+    <!-- A failed boot used to be a dead end: the only way out was force-quitting
+         the app. Shown by main.ts when the catalog can't be read. -->
+    <button id="boot-retry" class="boot-retry hidden" type="button">Reintentar</button>
   </div>
+
+  <!-- Connectivity banner — the app works offline from bundled data (spec
+       §5.2.1b), but live buses, arrivals and saldo do not, so say so once
+       instead of failing each of them with a separate toast. -->
+  <div id="net-banner" class="net-banner hidden" role="status" aria-live="polite"></div>
 
   <!-- App root — screens + bottom tab bar are built in TS -->
   <div id="app" class="app" aria-hidden="true">
     <main id="screens" class="screens"></main>
-    <nav id="tabbar" class="tabbar" aria-label="Navegación principal"></nav>
+    <nav id="tabbar" class="tabbar" role="tablist" aria-label="Navegación principal"></nav>
   </div>
 
   <!-- Sheet host (route detail, station, planner…) -->

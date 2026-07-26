@@ -1,44 +1,60 @@
-/** Cerca tab — nearest stations & stops by GPS, with walk times. */
+/** Cerca tab — nearest stations, stops & POIs by GPS, with walk times. */
 
 import { h, haptic, toast } from '../lib/dom';
-import { formatDistance, haversineMeters, walkMinutes } from '../lib/format';
+import { formatDistance, haversineMeters } from '../lib/format';
+import { POINT_KIND_LABELS, POINT_KINDS, type PointKind } from '@shared/data/pointKinds';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
 import { isWithinBogota } from '@shared/utils/geo';
 import { app } from '../appContext';
-import { openStationSheet } from '../ui/detailSheets';
+import { pointRow } from '../ui/pointRow';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
-type KindFilter = 'all' | 'station' | 'stop' | 'recharge' | 'transmibici' | 'cable';
+type KindFilter = 'all' | PointKind;
 
-const KIND_META: Record<StationRecord['kind'], { cls: string; label: string; fallback: string }> = {
-  station: { cls: 'is-station', label: 'Estación', fallback: 'Estación troncal' },
-  stop: { cls: 'is-stop', label: 'Paradero', fallback: 'Paradero zonal' },
-  recharge: { cls: 'is-recharge', label: 'Recarga', fallback: 'Punto de recarga tullave' },
-  transmibici: { cls: 'is-transmibici', label: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
-  cable: { cls: 'is-cable', label: 'Cable', fallback: 'Estación TransMiCable' },
-};
+/** Ranked rows shown. Beyond this the list stops being "cerca de ti". */
+const MAX_ROWS = 40;
+/**
+ * Nothing further than this is "near" on foot — 3 km is a ~40 min walk. Without
+ * a bound, a rider on the edge of the network (or with a coarse fix) got a list
+ * of things kilometres away presented as their nearby options.
+ */
+const MAX_NEARBY_METERS = 3000;
 
 export function createCercaView(): View {
   const el = h('section', { class: 'screen screen-cerca' });
   const head = h('div', { class: 'screen-head' }, [
     h('h1', { class: 'screen-title', text: 'Cerca de ti' }),
-    h('p', { class: 'screen-sub', text: 'Estaciones y paraderos a tu alrededor' }),
+    h('p', { class: 'screen-sub', text: 'Estaciones, paraderos y puntos a tu alrededor' }),
   ]);
 
   const locateBtn = h('button', { class: 'btn btn-primary locate-cta', type: 'button', html: `${ICONS.locate}<span>Usar mi ubicación</span>` });
-  const status = h('div', { class: 'cerca-status' });
+  const pickBtn = h('button', { class: 'btn btn-ghost locate-pick', type: 'button', html: `${ICONS.map}<span>Elegir en el mapa</span>` });
+  const status = h('div', { class: 'cerca-status', role: 'status', 'aria-live': 'polite' });
 
-  // Kind filter (Todos / Estaciones / Paraderos / Recargas / Bici / Cable).
+  // Kind filter (Todos / Estaciones / Paraderos / Recargas / Bici / Cable) —
+  // built from the shared kind list so it can never drift from the search
+  // scopes or the row badges (spec §5.4.2b).
   let kindFilter: KindFilter = 'all';
-  const chipRow = h('div', { class: 'chip-row' });
+  const chipRow = h('div', { class: 'chip-row', role: 'tablist', 'aria-label': 'Filtrar por tipo de punto' });
   const chipEls = new Map<KindFilter, HTMLElement>();
-  for (const [id, label] of [['all', 'Todos'], ['station', 'Estaciones'], ['stop', 'Paraderos'], ['recharge', 'Recargas'], ['transmibici', 'Bici'], ['cable', 'Cable']] as const) {
-    const chip = h('button', { class: `chip${id === 'all' ? ' active' : ''}`, type: 'button', text: label });
+  const chipSpec: [KindFilter, string][] = [['all', 'Todos'], ...POINT_KINDS.map((k) => [k, POINT_KIND_LABELS[k]] as [KindFilter, string])];
+  for (const [id, label] of chipSpec) {
+    const chip = h('button', {
+      class: `chip${id === 'all' ? ' active' : ''}`,
+      type: 'button',
+      role: 'tab',
+      'aria-selected': String(id === 'all'),
+      text: label,
+    });
     chip.addEventListener('click', () => {
       kindFilter = id;
-      chipEls.forEach((c, k) => c.classList.toggle('active', k === kindFilter));
+      chipEls.forEach((c, k) => {
+        const on = k === kindFilter;
+        c.classList.toggle('active', on);
+        c.setAttribute('aria-selected', String(on));
+      });
       render();
     });
     chipEls.set(id, chip);
@@ -47,7 +63,7 @@ export function createCercaView(): View {
 
   const list = h('div', { class: 'near-list' });
 
-  head.append(locateBtn, chipRow, status);
+  head.append(h('div', { class: 'locate-actions' }, [locateBtn, pickBtn]), chipRow, status);
   el.append(head, list);
 
   let userCoord: [number, number] | null = null;
@@ -56,7 +72,10 @@ export function createCercaView(): View {
     list.replaceChildren(
       h('div', { class: 'empty' }, [
         h('div', { class: 'empty-title', text: 'Sin ubicación' }),
-        h('div', { class: 'empty-text', text: 'Toca “Usar mi ubicación” para ver estaciones y paraderos a tu alrededor.' }),
+        h('div', {
+          class: 'empty-text',
+          text: 'Usa tu ubicación, o marca un punto en el mapa, para ver lo que tienes alrededor.',
+        }),
       ])
     );
   }
@@ -70,55 +89,40 @@ export function createCercaView(): View {
     const ranked = allPoints()
       .filter((p) => kindFilter === 'all' || p.kind === kindFilter)
       .map((p) => ({ p, d: haversineMeters([lng, lat], p.coordinate) }))
-      .filter((x) => Number.isFinite(x.d))
+      .filter((x) => Number.isFinite(x.d) && x.d <= MAX_NEARBY_METERS)
       .sort((a, b) => a.d - b.d)
-      .slice(0, 40);
+      .slice(0, MAX_ROWS);
 
     list.replaceChildren();
     if (ranked.length === 0) {
-      list.append(h('div', { class: 'muted', text: 'Aún cargando paraderos…' }));
+      // Distinguish "still loading the catalogue" from "genuinely nothing of
+      // this kind within walking distance" — they need different reactions.
+      const loading = allPoints().length === 0;
+      list.append(
+        h('div', { class: 'empty' }, [
+          h('div', { class: 'empty-title', text: loading ? 'Cargando la red…' : 'Nada a menos de 3 km' }),
+          h('div', {
+            class: 'empty-text',
+            text: loading
+              ? 'Los paraderos y puntos aparecerán en un momento.'
+              : kindFilter === 'all'
+              ? 'No hay puntos de la red a distancia caminable desde aquí.'
+              : `No hay ${POINT_KIND_LABELS[kindFilter as PointKind].toLowerCase()} a distancia caminable. Prueba con “Todos”.`,
+          }),
+        ])
+      );
       return;
     }
-    for (const { p, d } of ranked) list.append(nearRow(p, d));
+    for (const { p, d } of ranked) list.append(pointRow(p, d));
   }
 
-  function nearRow(point: StationRecord, meters: number): HTMLElement {
-    const meta = KIND_META[point.kind];
-    const row = h('button', { class: 'near-row', type: 'button' });
-    const dot = h('span', { class: `near-dot ${meta.cls}` });
-    const nameRow = h('div', { class: 'near-name-row' }, [
-      h('span', { class: 'near-name', text: point.name }),
-      h('span', { class: `near-kind ${meta.cls}`, text: meta.label }),
-    ]);
-    const sub =
-      point.kind === 'recharge' || point.kind === 'transmibici'
-        ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
-        : point.direccion || meta.fallback;
-    const mid = h('div', { class: 'near-mid' }, [nameRow, h('div', { class: 'near-sub', text: sub })]);
-    const right = h('div', { class: 'near-right' }, [
-      h('div', { class: 'near-dist', text: formatDistance(meters) }),
-      h('div', { class: 'near-walk', text: `${walkMinutes(meters)} min` }),
-    ]);
-    row.append(dot, mid, right);
-    row.addEventListener('click', () => {
-      haptic('light');
-      // Stations/stops open their detail sheet in place (it has its own "Ver en el
-      // mapa" button) — tapping a list row must NOT yank the user to the Map tab.
-      // POIs (recharge/bici/cable) have no sheet, so for those we focus the map + toast.
-      if (point.kind === 'recharge') {
-        app().focusPoint(point);
-        toast(point.hours ? `${point.name} · Lun–Vie ${point.hours}` : point.name, 'info');
-      } else if (point.kind === 'transmibici') {
-        app().focusPoint(point);
-        toast(point.hours ? `${point.name} · ${point.hours}` : point.name, 'info');
-      } else if (point.kind === 'cable') {
-        app().focusPoint(point);
-        toast(`${point.name} · TransMiCable`, 'info');
-      } else {
-        openStationSheet(point);
-      }
-    });
-    return row;
+  /** Adopt a fix from any source and re-rank around it. */
+  function applyFix(coord: [number, number], label: string): void {
+    userCoord = coord;
+    setSessionExactLocation(coord[0], coord[1], 'gps');
+    app().setUserLocation(coord);
+    status.textContent = label;
+    render();
   }
 
   async function locate(): Promise<void> {
@@ -133,21 +137,41 @@ export function createCercaView(): View {
       const lng = pos.coords.longitude;
       const lat = pos.coords.latitude;
       if (!isWithinBogota(lng, lat)) throw new Error('fuera de Bogotá');
-      userCoord = [lng, lat];
-      setSessionExactLocation(lng, lat, 'gps');
-      app().setUserLocation(userCoord);
-      status.textContent = `Ubicación fijada · ±${Math.round(pos.coords.accuracy)} m`;
-      render();
+      applyFix([lng, lat], `Ubicación fijada · ±${Math.round(pos.coords.accuracy)} m`);
     } catch (err) {
-      const msg = err instanceof Error && err.message.includes('Bogotá') ? 'Estás fuera de Bogotá' : 'No se pudo ubicarte';
-      status.textContent = msg;
+      // Say WHICH failure it was and always leave a way forward — the old
+      // handler collapsed permission-denied, no-fix and out-of-city into one
+      // "No se pudo ubicarte" with nothing to do next.
+      const denied = err instanceof GeolocationPositionError && err.code === err.PERMISSION_DENIED;
+      const outside = err instanceof Error && err.message.includes('Bogotá');
+      const msg = outside
+        ? 'Estás fuera de Bogotá'
+        : denied
+        ? 'Permiso de ubicación denegado'
+        : 'No se pudo obtener tu ubicación';
+      status.textContent = `${msg} · marca un punto en el mapa`;
       toast(msg, 'warn');
+      pickBtn.classList.add('nudge');
+      window.setTimeout(() => pickBtn.classList.remove('nudge'), 1400);
     } finally {
       locateBtn.classList.remove('busy');
     }
   }
 
+  async function pickOnMap(): Promise<void> {
+    haptic('light');
+    const coord = await app().pickPointOnMap('Toca tu ubicación en el mapa');
+    if (!coord) return;
+    if (!isWithinBogota(coord[0], coord[1])) {
+      toast('Ese punto está fuera de Bogotá', 'warn');
+      return;
+    }
+    applyFix(coord, 'Ubicación marcada en el mapa');
+    app().navigate('cerca');
+  }
+
   locateBtn.addEventListener('click', locate);
+  pickBtn.addEventListener('click', () => void pickOnMap());
   showLocateHint();
   bus.on('stops:ready', () => userCoord && render());
   bus.on('cable:ready', () => userCoord && render());

@@ -11,7 +11,7 @@ import { api, prefetchLiveBuses } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
-import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront } from './layers/cable';
+import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
 import { addDemandLayer, toggleDemandLayer, bringDemandLayerToFront } from './layers/demandLayer';
 import {
   addTroncalCorridorsLayer,
@@ -66,6 +66,19 @@ function setLoadingStatus(text: string): void {
   if (el) el.textContent = text;
 }
 
+/**
+ * A boot failure is usually transient (cold backend, a dropped request), so
+ * offer the one recovery that exists instead of leaving a frozen overlay the
+ * user has to diagnose as "reload the page".
+ */
+function showBootRetry(): void {
+  const btn = document.getElementById('loading-retry');
+  if (!btn) return;
+  btn.classList.remove('hidden');
+  btn.addEventListener('click', () => window.location.reload(), { once: true });
+  (btn as HTMLButtonElement).focus();
+}
+
 function hideLoading(): void {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
@@ -111,6 +124,19 @@ const RECOVERY_DELAYS_MS = [4_000, 12_000, 30_000, 60_000];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** ArcGIS cable stations → searchable/nearby points (Cerca + Explore search). */
+function toCableNearbyPoints(cableStations: any[]): NearbyPoint[] {
+  return cableStations
+    .map((s: any): NearbyPoint => ({
+      codigo: String(s.attributes?.cod_nodo ?? ''),
+      name: s.attributes?.nom_est || 'Estación TransMiCable',
+      coordinate: [Number(s.geometry?.x), Number(s.geometry?.y)],
+      direccion: '',
+      kind: 'cable',
+    }))
+    .filter((p) => p.codigo && Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
 }
 
 /** ArcGIS cable stations → the shape the journey router indexes them by. */
@@ -215,8 +241,18 @@ let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
 let nearbyBikeParkingPoints: NearbyPoint[] = [];
+// TransMiCable gondola stations. They render on the map and the app already
+// lists them under Cerca, but on the website they were in neither lookup
+// surface — a rider could see Juan Pablo II on the map and not find it by name.
+let nearbyCablePoints: NearbyPoint[] = [];
 function pushNearbyPoints(): void {
-  const union = [...nearbyStationPoints, ...nearbyStopPoints, ...nearbyRechargePoints, ...nearbyBikeParkingPoints];
+  const union = [
+    ...nearbyStationPoints,
+    ...nearbyStopPoints,
+    ...nearbyRechargePoints,
+    ...nearbyBikeParkingPoints,
+    ...nearbyCablePoints,
+  ];
   setNearbyPoints(union);
   // Same universe feeds the Explore search's station/paradero hits (§1.1 R2).
   setSearchPoints(union);
@@ -466,10 +502,28 @@ async function main(): Promise<void> {
   // inside the Android webview via chrome://inspect.
   (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
 
-  // Wait for map to load (handle case where it might already be loaded)
+  // Wait for map to load (handle case where it might already be loaded).
+  //
+  // Boot is gated on this event, and it can legitimately never arrive: MapLibre
+  // renders on requestAnimationFrame, which the browser freezes in a background
+  // tab, so a page opened in a background tab (or restored from one) sat on the
+  // loading overlay forever with no explanation. The wait itself is unchanged —
+  // the style genuinely does finish once the tab is shown — but after a grace
+  // period we say WHY nothing is happening instead of implying a hang.
+  const MAP_LOAD_HINT_MS = 12_000;
   if (!map.loaded()) {
+    let hintTimer: number | undefined = window.setTimeout(() => {
+      setLoadingStatus(
+        document.visibilityState === 'hidden'
+          ? 'Esperando a que la pestaña esté visible para dibujar el mapa…'
+          : 'El mapa está tardando más de lo normal…'
+      );
+      showBootRetry();
+    }, MAP_LOAD_HINT_MS);
     await new Promise<void>((resolve) => {
       map.once('load', async () => {
+        window.clearTimeout(hintTimer);
+        hintTimer = undefined;
         await initMapImages(map);
         resolve();
       });
@@ -616,8 +670,10 @@ async function main(): Promise<void> {
     cableStationsCount = cableStations.length;
     cableTracesCount = cableTraces.length;
 
-    // Build the cable-station list the router uses for the TransMiCable line.
+    // Build the cable-station list the router uses for the TransMiCable line,
+    // and make the same stations findable by name (Cerca + Explore search).
     cableRouterStations = toCableRouterStations(cableStations);
+    nearbyCablePoints = toCableNearbyPoints(cableStations);
 
     bringTroncalLayersToFront(map);
     bringStationsLayerToFront(map);
@@ -630,6 +686,7 @@ async function main(): Promise<void> {
       overlay.classList.add('error-state');
     }
     setLoadingStatus(`Error al cargar datos. ${getErrorMessage(error)}`);
+    showBootRetry();
     return;
   }
 
@@ -650,6 +707,8 @@ async function main(): Promise<void> {
       showRechargePopup(map, point);
     } else if (point.kind === 'transmibici') {
       showBikeParkingPopup(map, point);
+    } else if (point.kind === 'cable') {
+      showCableStationPopup(map, { name: point.name, code: point.codigo, coordinate: point.coordinate });
     } else if (point.kind === 'station') {
       const resolved = showStationPopupByCode(map, point.codigo, point.coordinate);
       if (!resolved) showStopPopupByCode(map, point.codigo, point.name, point.coordinate, point.direccion);
@@ -1064,8 +1123,11 @@ async function main(): Promise<void> {
         refreshLayerCounts();
         bringCableLayersToFront(map);
         // The router indexed an empty cable line at boot — rebuild it so the
-        // planner can route over TransMiCable again.
+        // planner can route over TransMiCable again, and make the recovered
+        // stations searchable too.
         cableRouterStations = toCableRouterStations(stations);
+        nearbyCablePoints = toCableNearbyPoints(stations);
+        pushNearbyPoints();
         getRouterModule()
           .then(({ initRouter }) => initRouter(routeList, cableRouterStations))
           .catch((error) => console.error('[Router] Failed to refresh graph:', error));

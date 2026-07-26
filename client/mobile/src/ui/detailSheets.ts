@@ -1,6 +1,7 @@
 /** Route-detail and station-detail bottom sheets (shared by every tab). */
 
-import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
+import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
+import { POINT_KIND_META } from '@shared/data/pointKinds';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { api, type LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
@@ -45,20 +46,27 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
   return sheet;
 }
 
+/** Canonical public origin (spec §5.5.4) — a shared route has to be openable by
+ *  someone who doesn't have the app. */
+const WEB_ORIGIN = 'https://transmilenio.onrender.com';
+
 /** Share a route via the native share sheet, Web Share, or clipboard fallback. */
 async function shareRoute(route: RouteListItem): Promise<void> {
   const title = `${route.code} · ${route.name}`;
-  const text = `${route.code} · ${route.origin} → ${route.destination} (TransMi Go)`;
+  // The shared message used to be prose with no link: the recipient got a route
+  // code and nothing to tap. `#/r/<code>` is the website's own deep link.
+  const url = `${WEB_ORIGIN}/#/r/${encodeURIComponent(route.code)}`;
+  const text = `${route.code} · ${route.origin} → ${route.destination}\n${url}`;
   const cap = (window as any).Capacitor;
   const sharePlugin = cap?.Plugins?.Share;
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   try {
     if (cap?.isNativePlatform?.() && sharePlugin?.share) {
-      await sharePlugin.share({ title, text, dialogTitle: 'Compartir ruta' });
+      await sharePlugin.share({ title, text, url, dialogTitle: 'Compartir ruta' });
       return;
     }
     if (typeof nav.share === 'function') {
-      await nav.share({ title, text });
+      await nav.share({ title, text, url });
       return;
     }
     if (nav.clipboard?.writeText) {
@@ -274,9 +282,81 @@ async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
   }
 }
 
+/** Seed the planner from a place ("Desde aquí" / "Hasta aquí"). Shared by the
+ *  estación/paradero sheet and the POI sheet — a recharge point or a
+ *  cicloparqueadero is just as valid a trip endpoint as a station. */
+function plannerSeedButtons(sheet: import('./sheet').SheetHandle, point: StationRecord): HTMLElement {
+  const seed = (role: 'origin' | 'destination') => {
+    haptic('medium');
+    const ep = { coord: point.coordinate, code: point.code, name: point.name };
+    sheet.close(true); // synchronous — no sheet-over-sheet cross-animation
+    openPlannerSheet(role === 'origin' ? { origin: ep } : { destination: ep });
+  };
+  const fromBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.plan}<span>Desde aquí</span>` });
+  fromBtn.addEventListener('click', () => seed('origin'));
+  const toBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.near}<span>Hasta aquí</span>` });
+  toBtn.addEventListener('click', () => seed('destination'));
+  return h('div', { class: 'rd-actions rd-actions-2' }, [fromBtn, toBtn]);
+}
+
+const POI_ACCENT: Record<string, string> = {
+  recharge: '#22c55e',
+  transmibici: '#38bdf8',
+  cable: CABLE_COLOR,
+};
+
+/**
+ * Detail sheet for a non-transit place: a tullave recharge point, a TransMiBici
+ * cicloparqueadero or a TransMiCable station. These used to have no sheet at
+ * all — tapping one in Cerca jumped to the Map tab and flashed a toast, which
+ * threw away the address and the opening hours the rider was looking for.
+ */
+export function openPoiSheet(point: StationRecord): void {
+  const meta = POINT_KIND_META[point.kind];
+  const accent = POI_ACCENT[point.kind] ?? PARADERO_COLOR;
+  const sheet = openDetailSheet({ accent, ariaLabel: `${meta.label}: ${point.name}` });
+
+  const icon = h('span', { class: `st-icon ${meta.cls}`, html: point.kind === 'transmibici' ? ICONS.bici : ICONS.route });
+  icon.style.background = accent;
+  sheet.body.append(
+    h('div', { class: 'st-header' }, [
+      icon,
+      h('div', {}, [
+        h('div', { class: 'st-name', text: point.name }),
+        h('div', { class: 'st-kind', text: meta.fallback }),
+      ]),
+    ])
+  );
+
+  if (point.direccion) sheet.body.append(h('div', { class: 'st-addr', text: point.direccion }));
+
+  // `hours` carries the weekday window for a recharge point and the
+  // capacity/occupancy line for a cicloparqueadero (see data.ts).
+  if (point.hours) {
+    const label = point.kind === 'recharge' ? `Lun–Vie ${point.hours}` : point.hours;
+    sheet.body.append(h('div', { class: 'st-meta' }, [h('span', { class: 'st-pill', text: label })]));
+  }
+  if (point.kind === 'cable') {
+    sheet.body.append(
+      h('div', { class: 'st-meta' }, [h('span', { class: 'st-pill', text: 'Cabinas ~cada 20 s' })])
+    );
+  }
+
+  const mapBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.locate}<span>Ver en el mapa</span>` });
+  mapBtn.addEventListener('click', () => {
+    haptic('medium');
+    sheet.close();
+    app().focusPoint(point);
+  });
+  sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]), plannerSeedButtons(sheet, point));
+}
+
 export function openStationSheet(station: StationRecord): void {
   const isStation = station.kind === 'station';
-  const sheet = openDetailSheet({ accent: isStation ? STATION_COLOR : PARADERO_COLOR });
+  const sheet = openDetailSheet({
+    accent: isStation ? STATION_COLOR : PARADERO_COLOR,
+    ariaLabel: `${isStation ? 'Estación' : 'Paradero'}: ${station.name}`,
+  });
 
   const header = h('div', { class: 'st-header' });
   const icon = h('span', { class: `st-icon ${isStation ? 'is-station' : 'is-stop'}`, html: ICONS.route });
@@ -302,18 +382,7 @@ export function openStationSheet(station: StationRecord): void {
     sheet.close();
     app().focusPoint(station);
   });
-  // Seed the planner from this point ("Desde aquí / Hasta aquí" — website parity).
-  const seedPlanner = (role: 'origin' | 'destination') => {
-    haptic('medium');
-    const ep = { coord: station.coordinate, code: station.code, name: station.name };
-    sheet.close(true); // synchronous — no sheet-over-sheet cross-animation
-    openPlannerSheet(role === 'origin' ? { origin: ep } : { destination: ep });
-  };
-  const fromBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.plan}<span>Desde aquí</span>` });
-  fromBtn.addEventListener('click', () => seedPlanner('origin'));
-  const toBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.near}<span>Hasta aquí</span>` });
-  toBtn.addEventListener('click', () => seedPlanner('destination'));
-  sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]), h('div', { class: 'rd-actions rd-actions-2' }, [fromBtn, toBtn]));
+  sheet.body.append(h('div', { class: 'rd-actions' }, [mapBtn]), plannerSeedButtons(sheet, station));
 
   // Real-time arrivals (spec §5.8) — only for zonal paraderos, whose `code` is
   // the cenefa `/paradero/buses` expects. Troncal stations use a different keying,

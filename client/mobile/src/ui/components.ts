@@ -6,6 +6,7 @@ import { isRutaFacilCode } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { LiveBusResult } from '@shared/services/api';
+import { closedWindowNotice } from '@shared/services/liveWindow';
 import { h, escapeHTML } from '../lib/dom';
 import { needsDarkText } from '../lib/format';
 
@@ -41,8 +42,12 @@ const STATUS_META: Record<string, { cls: string; label: (r?: LiveBusResult) => s
 
 export function liveChip(status: TrackingStatus | 'loading', result?: LiveBusResult): HTMLElement {
   const meta = STATUS_META[status] ?? STATUS_META.unreachable;
-  const chip = h('span', { class: `live-chip ${meta.cls}` });
-  chip.append(h('span', { class: 'live-dot' }), document.createTextNode(meta.label(result)));
+  // An empty result outside the upstream's service window is the feed being
+  // closed, not "no buses on this route" — say which (spec §5.2.2a, §1).
+  const closed = status === 'no-buses' || status === 'unverified' ? closedWindowNotice() : null;
+  const chip = h('span', { class: `live-chip ${closed ? 'live-warn' : meta.cls}` });
+  if (closed) chip.title = closed.detail;
+  chip.append(h('span', { class: 'live-dot' }), document.createTextNode(closed ? closed.short : meta.label(result)));
   return chip;
 }
 
@@ -82,4 +87,5 @@ export const ICONS = {
   plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.5 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.5"/></svg>',
   swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 16V4M7 4 3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/></svg>',
   share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.3 10.8 7.4-4.3M8.3 13.2l7.4 4.3"/></svg>',
+  bici: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="17" r="3.4"/><circle cx="18" cy="17" r="3.4"/><path d="M6 17 10 8h5l3 9M9.5 8h5"/></svg>',
 };

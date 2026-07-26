@@ -2,7 +2,10 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- Pinch zoom stays available: `maximum-scale=1, user-scalable=no` is a WCAG
+       1.4.4 failure, and the ctrl+wheel guard below already keeps a trackpad from
+       zooming the shell on desktop. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP</title>
   <meta name="description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -38,9 +41,10 @@
     "about": { "@type": "Place", "name": "Bogotá, Colombia" }
   }
   </script>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <!-- Inter ships from our own origin (@font-face in style.css). Preload it so
+       the swap happens during, not after, the CSS parse — a cross-origin
+       fonts.googleapis.com stylesheet used to block first paint here. -->
+  <link rel="preload" href="/fonts/inter-latin-var.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="./style.css" />
   <script>
     // Absolute safeguard to prevent laptop trackpads & ctrl+scroll from zooming the entire HTML page
@@ -62,9 +66,13 @@
         <div id="loading-bar-fill" class="loading-bar-fill"></div>
       </div>
       <div class="loading-meta">
-        <span id="loading-status" class="loading-subtitle">Iniciando...</span>
+        <span id="loading-status" class="loading-subtitle" role="status" aria-live="polite">Iniciando...</span>
         <span id="loading-percent" class="loading-percent">0%</span>
       </div>
+      <!-- Shown by main.ts when the catalog can't be loaded. Without it the
+           overlay just froze on an error and the only way out was for the user
+           to work out that they should reload the page themselves. -->
+      <button id="loading-retry" class="loading-retry hidden" type="button">Reintentar</button>
     </div>
   </div>
 
@@ -118,7 +126,9 @@
       <!-- Search -->
       <div class="search-container">
         <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        <input type="text" id="search-input" class="search-input" placeholder="Busca rutas, estaciones o destinos" autocomplete="off" />
+        <!-- The scope chips below reach five place catalogues, not just routes
+             and estaciones (spec §5.4.2b) — the placeholder says so. -->
+        <input type="search" id="search-input" class="search-input" placeholder="Rutas, estaciones, paraderos, recargas…" autocomplete="off" enterkeyhint="search" />
         <button id="search-clear" class="search-clear hidden" type="button" aria-label="Limpiar búsqueda">✕</button>
       </div>
 
@@ -198,6 +208,7 @@
         <button class="cerca-chip" type="button" data-kind="stop" role="tab" aria-selected="false">Paraderos</button>
         <button class="cerca-chip" type="button" data-kind="recharge" role="tab" aria-selected="false">Recargas</button>
         <button class="cerca-chip" type="button" data-kind="transmibici" role="tab" aria-selected="false">Bici</button>
+        <button class="cerca-chip" type="button" data-kind="cable" role="tab" aria-selected="false">Cable</button>
       </div>
 
       <div id="cerca-status" class="cerca-status" role="status" aria-live="polite"></div>

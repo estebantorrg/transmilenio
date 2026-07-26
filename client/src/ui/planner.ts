@@ -663,9 +663,36 @@ function initTabs(): void {
     }
   };
 
-  for (const { tab } of SIDEBAR_TABS) {
-    document.getElementById(tab)?.addEventListener('click', () => activate(tab));
+  // ARIA plumbing: the markup declared `role="tab"`/`aria-selected` but never
+  // said which panel each tab controls, and the panels were unlabelled divs —
+  // so a screen reader announced "tab, Cerca" and then read content with no
+  // relationship to it. Wired here (once) instead of hand-maintained in HTML.
+  for (const { tab, panel } of SIDEBAR_TABS) {
+    const tabEl = document.getElementById(tab);
+    const panelEl = document.getElementById(panel);
+    tabEl?.setAttribute('aria-controls', panel);
+    panelEl?.setAttribute('role', 'tabpanel');
+    panelEl?.setAttribute('aria-labelledby', tab);
+    panelEl?.setAttribute('tabindex', '-1');
+    tabEl?.addEventListener('click', () => activate(tab));
   }
+
+  // ← / → between tabs, Home/End to the ends (WAI-ARIA tabs pattern).
+  document.querySelector('.sidebar-tabs')?.addEventListener('keydown', (event) => {
+    const e = event as KeyboardEvent;
+    const ids = SIDEBAR_TABS.map((t) => t.tab);
+    const current = ids.findIndex((id) => document.getElementById(id)?.classList.contains('active'));
+    let next = -1;
+    if (e.key === 'ArrowRight') next = (current + 1) % ids.length;
+    else if (e.key === 'ArrowLeft') next = (current - 1 + ids.length) % ids.length;
+    else if (e.key === 'Home') next = 0;
+    else if (e.key === 'End') next = ids.length - 1;
+    if (next < 0) return;
+    e.preventDefault();
+    const target = document.getElementById(ids[next]) as HTMLButtonElement | null;
+    target?.click();
+    target?.focus();
+  });
 }
 
 function setMapPickMode(mode: 'origin' | 'destination' | null): void {

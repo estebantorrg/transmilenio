@@ -463,9 +463,12 @@ export const api = {
   getGeoIp: () =>
     fetchJson<GeoIpResponse>('/geoip', 8_000, undefined, 1),
 
-  /** Query Bogotá-bounded geocoding API. */
+  /** Query Bogotá-bounded geocoding API. In the app there is no server of ours
+   *  (spec §5.2.1b), so it hits the same public Photon instance directly. */
   geocodeAddress: (q: string) =>
-    fetchJson<any>(`/geocode?q=${encodeURIComponent(q)}`, 8_000, undefined, 1),
+    isNativeLiveAvailable()
+      ? officialApi.geocode(q)
+      : fetchJson<any>(`/geocode?q=${encodeURIComponent(q)}`, 8_000, undefined, 1),
 
   getWalkingRoute: (from: [number, number], to: [number, number]) =>
     isNativeLiveAvailable()

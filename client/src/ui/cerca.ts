@@ -8,12 +8,13 @@
 
 import { escapeHTML } from '../utils/html';
 import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from '../utils/geo';
+import { POINT_KIND_META, POINT_KINDS, type PointKind } from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
 
-/** The point kinds both lookup surfaces (Cerca + the Explore search) know about.
- *  One list so a new kind cannot appear in one surface and not the other. */
-export type PointKind = 'station' | 'stop' | 'recharge' | 'transmibici';
-export const POINT_KINDS: PointKind[] = ['station', 'stop', 'recharge', 'transmibici'];
+// The kind vocabulary itself lives in `data/pointKinds` — shared verbatim with
+// the app, so a kind cannot exist in one client's lookup surfaces and not the
+// other's (spec §5.4.2b, §1.1 R2).
+export { POINT_KINDS, POINT_KIND_LABELS, type PointKind } from '../data/pointKinds';
 
 export interface NearbyPoint {
   codigo: string;
@@ -158,21 +159,7 @@ function render(): void {
   });
 }
 
-const KIND_META: Record<PointKind, { cls: string; label: string; plural: string; fallback: string }> = {
-  station: { cls: 'is-station', label: 'Estación', plural: 'Estaciones', fallback: 'Estación troncal' },
-  stop: { cls: 'is-stop', label: 'Paradero', plural: 'Paraderos', fallback: 'Paradero zonal' },
-  recharge: { cls: 'is-recharge', label: 'Recarga', plural: 'Recargas', fallback: 'Punto de recarga tullave' },
-  transmibici: { cls: 'is-transmibici', label: 'Bici', plural: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
-};
-
-/** Plural kind labels, so the Cerca chips and the Explore search-scope chips
- *  always name a kind the same way (spec §1.1 R2). */
-export const POINT_KIND_LABELS: Record<PointKind, string> = {
-  station: KIND_META.station.plural,
-  stop: KIND_META.stop.plural,
-  recharge: KIND_META.recharge.plural,
-  transmibici: KIND_META.transmibici.plural,
-};
+const KIND_META = POINT_KIND_META;
 
 /** Shared row renderer for a nearby/searchable point. `meters` is optional so
  *  the sidebar's station search (no user fix required) reuses the same row

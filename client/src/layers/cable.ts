@@ -143,22 +143,7 @@ export function addCableLayers(
 
     const p = feature.properties;
     const coords = (feature.geometry as GeoJSON.Point).coordinates as [number, number];
-
-    const html = `
-      <div class="popup-card">
-        <div class="popup-eyebrow">TransMiCable</div>
-        <div class="popup-title">${escapeHTML(p.name)}</div>
-        ${p.code ? `<div class="popup-meta"><span>${escapeHTML(p.code)}</span></div>` : ''}
-        <div class="popup-cable-info">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
-            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>Las cabinas pasan aproximadamente cada 20 segundos, tanto para subir como para bajar.</span>
-        </div>
-      </div>
-    `;
-
-    showPopup(map, coords, html, { offset: 12, maxWidth: '300px' });
+    showCableStationPopup(map, { name: String(p.name ?? ''), code: String(p.code ?? ''), coordinate: coords });
   });
 
   map.on('mouseenter', 'cable-stations-hitbox', () => {
@@ -196,4 +181,29 @@ export function bringCableLayersToFront(map: maplibregl.Map): void {
       map.moveLayer(id);
     }
   });
+}
+
+/**
+ * The TransMiCable station popup. Exported because the map click is no longer
+ * the only way to reach a gondola station — Cerca and the Explore search list
+ * them by name too (spec §5.4.2b), and all three must show the same card.
+ */
+export function showCableStationPopup(
+  map: maplibregl.Map,
+  station: { name: string; code?: string; coordinate: [number, number] }
+): void {
+  const html = `
+    <div class="popup-card">
+      <div class="popup-eyebrow">TransMiCable</div>
+      <div class="popup-title">${escapeHTML(station.name || 'Estación TransMiCable')}</div>
+      ${station.code ? `<div class="popup-meta"><span>${escapeHTML(station.code)}</span></div>` : ''}
+      <div class="popup-cable-info">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Las cabinas pasan aproximadamente cada 20 segundos, tanto para subir como para bajar.</span>
+      </div>
+    </div>
+  `;
+  showPopup(map, station.coordinate, html, { offset: 12, maxWidth: '300px' });
 }

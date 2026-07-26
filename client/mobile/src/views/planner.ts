@@ -15,9 +15,13 @@ import {
   type PlanTime,
 } from '@shared/services/schedule';
 import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
+import { api } from '@shared/services/api';
+import { POINT_KIND_META, rankPointsByKind, POINT_KINDS, dedupePointsByName } from '@shared/data/pointKinds';
+import { isWithinBogota } from '@shared/utils/geo';
 import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
 import { allPoints, bus, state, type StationRecord } from '../state';
+import { app } from '../appContext';
 import { openSheet } from '../ui/sheet';
 import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
@@ -48,48 +52,63 @@ function ensureRouter(): void {
   routerReady = true;
 }
 
-function norm(s: string): string {
-  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
 /** Suggestion sub-label when a point has no address, per kind. */
 const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
-  station: 'Estación',
-  stop: 'Paradero',
-  recharge: 'Punto de recarga',
-  transmibici: 'Cicloparqueadero',
-  cable: 'Estación TransMiCable',
+  station: POINT_KIND_META.station.label,
+  stop: POINT_KIND_META.stop.label,
+  recharge: POINT_KIND_META.recharge.fallback,
+  transmibici: POINT_KIND_META.transmibici.fallback,
+  cable: POINT_KIND_META.cable.fallback,
 };
 
 /** Kind order when two candidates are equally relevant: a journey endpoint is
  *  most often an estación, then a paradero; the POIs are landmarks people walk
  *  to, so they rank last. */
-const PL_KIND_RANK: Record<StationRecord['kind'], number> = {
-  station: 0, cable: 1, stop: 2, recharge: 3, transmibici: 3,
-};
+const PL_KIND_ORDER: StationRecord['kind'][] = ['station', 'cable', 'stop', 'recharge', 'transmibici'];
+
+const PL_SUGGESTIONS = 8;
 
 /**
- * Ranked endpoint suggestions. Taking the first 8 matches in list order used to
- * hide the obvious answer: `allPoints()` is estaciones, then ~7400 paraderos,
- * then the POIs, so "Portal Norte" could fill all 8 slots with paraderos whose
- * *address* contains the words and never offer the estación itself. Rank by how
- * the query matched (name prefix → name → address) and then by kind.
+ * Ranked endpoint suggestions from the bundled catalog. The *ranking* is the
+ * shared one (`@shared/data/pointKinds`), so the planner, the Buscar tab and
+ * the website can never disagree about what a query matches (spec §1.1 R2);
+ * only the kind ORDER differs here, because a trip endpoint is usually a
+ * station. Same-named paraderos collapse to two rows so one repeated name
+ * can't consume the whole list.
  */
 function searchPoints(query: string): StationRecord[] {
-  const q = norm(query.trim());
-  if (q.length < 2) return [];
-  const scored: { p: StationRecord; s: number }[] = [];
-  for (const p of allPoints()) {
-    const name = norm(p.name);
-    let s: number;
-    if (name.startsWith(q)) s = 0;
-    else if (name.includes(q)) s = 1;
-    else if (norm(p.direccion).includes(q)) s = 2;
-    else continue;
-    scored.push({ p, s: s * 10 + PL_KIND_RANK[p.kind] });
+  const byKind = rankPointsByKind(allPoints(), query, (p) => `${p.code} ${p.direccion}`);
+  const out: StationRecord[] = [];
+  for (const kind of PL_KIND_ORDER) {
+    for (const p of dedupePointsByName(byKind[kind], 2)) {
+      out.push(p);
+      if (out.length >= PL_SUGGESTIONS) return out;
+    }
   }
-  scored.sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
-  return scored.slice(0, 8).map((x) => x.p);
+  return out;
+}
+
+/**
+ * Address/place suggestions for endpoints the catalog doesn't know — "Calle 100
+ * #15-20", "Centro Comercial Andino". The app could only ever plan between
+ * catalog points, so a trip to a street address was simply impossible on the
+ * client whose riders are standing in the street. Native builds query the same
+ * public Photon instance the server uses (spec §5.5.1, §5.2.1b).
+ */
+async function searchAddresses(query: string): Promise<Endpoint[]> {
+  const q = query.trim();
+  if (q.length < 4) return [];
+  try {
+    const res = await api.geocodeAddress(q);
+    const candidates: any[] = res?.success && Array.isArray(res.candidates) ? res.candidates : [];
+    return candidates
+      .filter((c) => Number.isFinite(c?.lat) && Number.isFinite(c?.lon) && isWithinBogota(c.lon, c.lat))
+      .slice(0, 4)
+      .map((c) => ({ coord: [c.lon, c.lat] as [number, number], name: String(c.name), code: c.code }));
+  } catch {
+    // Geocoding is an enhancement — the catalog suggestions still answer.
+    return [];
+  }
 }
 
 export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpoint }): void {
@@ -110,9 +129,10 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
       autocomplete: 'off',
     }) as HTMLInputElement;
     const gps = h('button', { class: 'pl-gps', type: 'button', 'aria-label': 'Mi ubicación', html: ICONS.locate });
+    const pick = h('button', { class: 'pl-gps', type: 'button', 'aria-label': 'Elegir en el mapa', html: ICONS.map });
     const dropdown = h('div', { class: 'pl-dropdown hidden' });
     const dot = h('span', { class: `pl-dot ${role}` });
-    wrap.append(dot, input, gps, dropdown);
+    wrap.append(dot, input, gps, pick, dropdown);
 
     const set = (ep: Endpoint | null) => {
       if (role === 'origin') origin = ep;
@@ -122,33 +142,57 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     if (role === 'origin' && origin) input.value = origin.name;
     if (role === 'destination' && destination) input.value = destination.name;
 
+    const option = (name: string, sub: string, kindCls: string, onPick: () => void): HTMLElement => {
+      const item = h('button', { class: 'pl-opt', type: 'button' }, [
+        h('span', { class: `pl-opt-dot ${kindCls}` }),
+        h('div', {}, [
+          h('div', { class: 'pl-opt-name', text: name }),
+          h('div', { class: 'pl-opt-sub', text: sub }),
+        ]),
+      ]);
+      item.addEventListener('click', () => {
+        onPick();
+        dropdown.classList.add('hidden');
+      });
+      return item;
+    };
+
+    // Bumped per keystroke so a slow geocode never appends its rows under a
+    // newer query's results.
+    let suggestSeq = 0;
     let t: number | undefined;
     input.addEventListener('input', () => {
       window.clearTimeout(t);
       t = window.setTimeout(() => {
-        const results = searchPoints(input.value);
+        const value = input.value;
+        const seq = ++suggestSeq;
+        const results = searchPoints(value);
         dropdown.replaceChildren();
-        if (results.length === 0) {
-          dropdown.classList.add('hidden');
-          return;
-        }
         for (const p of results) {
-          const item = h('button', { class: 'pl-opt', type: 'button' }, [
-            h('span', { class: `pl-opt-dot ${p.kind}` }),
-            h('div', {}, [
-              h('div', { class: 'pl-opt-name', text: p.name }),
-              h('div', { class: 'pl-opt-sub', text: p.direccion || PL_KIND_FALLBACK[p.kind] }),
-            ]),
-          ]);
-          item.addEventListener('click', () => {
-            set({ coord: p.coordinate, code: p.code, name: p.name });
-            dropdown.classList.add('hidden');
-          });
-          dropdown.append(item);
+          dropdown.append(
+            option(p.name, p.direccion || PL_KIND_FALLBACK[p.kind], p.kind, () =>
+              set({ coord: p.coordinate, code: p.code, name: p.name })
+            )
+          );
         }
-        dropdown.classList.remove('hidden');
-      }, 110);
+        dropdown.classList.toggle('hidden', results.length === 0);
+
+        // Addresses/places arrive asynchronously and are appended under the
+        // catalog hits — a station named in the query still wins the top slot.
+        void searchAddresses(value).then((addresses) => {
+          if (seq !== suggestSeq || addresses.length === 0) return;
+          dropdown.append(h('div', { class: 'pl-opt-group', text: 'Direcciones y lugares' }));
+          for (const a of addresses) {
+            dropdown.append(option(a.name, 'Dirección o lugar', 'address', () => set(a)));
+          }
+          dropdown.classList.remove('hidden');
+        });
+      }, 140);
     });
+
+    // Tapping away closes the suggestions — an open dropdown used to sit over
+    // the options below until something else re-rendered it.
+    input.addEventListener('blur', () => window.setTimeout(() => dropdown.classList.add('hidden'), 150));
 
     gps.addEventListener('click', async () => {
       gps.classList.add('busy');
@@ -166,10 +210,32 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
         set({ coord, name: 'Mi ubicación' });
         toast('Ubicación fijada', 'ok');
       } catch {
-        toast('No se pudo obtener tu ubicación', 'warn');
+        // Don't dead-end on a denied/failed GPS — offer the map instead.
+        toast('No se pudo ubicarte · elige en el mapa', 'warn');
       } finally {
         gps.classList.remove('busy');
       }
+    });
+
+    // "Elegir en el mapa" — website parity (`map-pick-btn`), and the only way to
+    // plan from a point that is neither a catalog place nor where you stand.
+    pick.addEventListener('click', async () => {
+      const label = role === 'origin' ? 'Toca el origen en el mapa' : 'Toca el destino en el mapa';
+      sheet.close(true);
+      const coord = await app().pickPointOnMap(label);
+      if (!coord) return;
+      if (!isWithinBogota(coord[0], coord[1])) {
+        toast('Ese punto está fuera de Bogotá', 'warn');
+        return;
+      }
+      const picked: Endpoint = { coord, name: role === 'origin' ? 'Origen en el mapa' : 'Destino en el mapa' };
+      // The sheet was closed to expose the map, so reopen it carrying both
+      // endpoints — the rider must not lose the one they already filled in.
+      openPlannerSheet(
+        role === 'origin'
+          ? { origin: picked, destination: destination ?? undefined }
+          : { origin: origin ?? undefined, destination: picked }
+      );
     });
 
     return { wrap, getInput: () => input };
@@ -294,6 +360,12 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
   const results = h('div', { class: 'pl-results' });
   sheet.body.append(results);
 
+  /** Close the sheet and draw this itinerary on the map. */
+  const showOnMap = (plan: JourneyPlan): void => {
+    sheet.close();
+    app().showJourneyOnMap(plan, planSummary(plan));
+  };
+
   calc.addEventListener('click', () => {
     if (!origin || !destination) {
       toast('Elige origen y destino', 'warn');
@@ -324,12 +396,12 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
         const seq = ++searchSeq;
         const plans = findRoutes(params);
         sortJourneyPlans(plans, sortBy);
-        renderPlans(results, plans.slice(0, 4));
+        renderPlans(results, plans.slice(0, 4), showOnMap);
         // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
         // re-render if this is still the latest search (spec §1.1 R2 shared fn).
         void enrichWalkingGeometries(plans, sortBy, departAt)
           .then(() => {
-            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4));
+            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4), showOnMap);
           })
           .catch((err) => console.warn('[planner] walk enrichment failed:', err));
       } catch (err) {
@@ -364,7 +436,17 @@ function chipGroup(items: { id: string; label: string }[], initial: string, onPi
   return row;
 }
 
-function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
+/** One-line summary of a plan, used on the map banner. */
+function planSummary(plan: JourneyPlan): string {
+  const legs = plan.steps
+    .filter((s) => s.type === 'ride')
+    .map((s) => s.routeCode || '·')
+    .join(' → ');
+  const head = `${plan.totalTime} min · ${plan.transfers} transb.`;
+  return legs ? `${head} · ${legs}` : head;
+}
+
+function renderPlans(host: HTMLElement, plans: JourneyPlan[], onShowOnMap: (plan: JourneyPlan) => void): void {
   host.replaceChildren();
   if (plans.length === 0) {
     host.append(
@@ -465,6 +547,17 @@ function renderPlans(host: HTMLElement, plans: JourneyPlan[]): void {
       }
     }
     card.append(detail);
+
+    // The itinerary was text-only: you could read "Toma la K23 hasta Calle 100"
+    // but never see where that is, on a client built around a map. Draws the
+    // plan with the website's own journey renderer (per-leg colours, dashed
+    // walk legs, boarding/alighting markers).
+    const mapBtn = h('button', { class: 'btn btn-ghost plan-map-btn', type: 'button', html: `${ICONS.map}<span>Ver en el mapa</span>` });
+    mapBtn.addEventListener('click', () => {
+      haptic('medium');
+      onShowOnMap(plan);
+    });
+    card.append(mapBtn);
     host.append(card);
   });
 }

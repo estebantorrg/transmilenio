@@ -8,8 +8,19 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
+import { closedWindowNotice } from '../services/liveWindow';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
-import { nearRowHtml, POINT_KINDS, POINT_KIND_LABELS, type NearbyPoint, type PointKind } from './cerca';
+import { nearRowHtml, type NearbyPoint } from './cerca';
+import {
+  countPointMatches,
+  emptyPointMatches,
+  POINT_KINDS,
+  POINT_KIND_LABELS,
+  previewPointsAcrossKinds,
+  rankPointsByKind,
+  type PointKind,
+  type PointMatches as SharedPointMatches,
+} from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
@@ -1021,7 +1032,7 @@ function applyFilters(): void {
   // Places are only searched — never browsed — so they are computed once per
   // query and shared by the scope chips (which need the per-kind counts) and by
   // the result list (which renders whichever scope is active).
-  const points = searchQuery ? matchingPointsByKind() : emptyPointMatches();
+  const points = searchQuery ? matchingPointsByKind() : emptyPointMatches<NearbyPoint>();
   // Never a dead end: a scope kept from the previous query can be empty for this
   // one while other categories have hits ("Rutas" held over into a query that
   // only matches recharge points). Widening back to `Todo` shows the rider where
@@ -1063,101 +1074,29 @@ function searchRank(route: RouteListItem, q: string): number {
   return 2;
 }
 
-// Places (estaciones, paraderos, recargas, bici) matching the active search, so
-// "busca … estaciones" (the search placeholder) is actually true and the POI
-// catalogues are reachable by NAME, not only by GPS proximity in Cerca.
-const pointHaystacks = new WeakMap<NearbyPoint, { name: string; extra: string }>();
-function pointHaystack(point: NearbyPoint): { name: string; extra: string } {
-  let hay = pointHaystacks.get(point);
-  if (!hay) {
-    hay = {
-      name: normalizeSearchText(point.name),
-      extra: normalizeSearchText(`${point.codigo} ${point.direccion}`),
-    };
-    pointHaystacks.set(point, hay);
-  }
-  return hay;
-}
-
 /** Rows of one kind shown in the mixed `Todo` view — a preview, not the set. */
 const SEARCH_POINT_PREVIEW = 6;
 /** Rows shown when a single kind IS the scope: the user asked for these. */
 const SEARCH_POINT_LIMIT = 60;
 
-type PointMatches = Record<PointKind, NearbyPoint[]>;
-
-function emptyPointMatches(): PointMatches {
-  return { station: [], stop: [], recharge: [], transmibici: [] };
-}
+type PointMatches = SharedPointMatches<NearbyPoint>;
 
 /**
- * Every matching place for the active query, ranked per kind. Splitting by kind
- * (instead of one blended list) is what lets the scope chips show real counts
- * and lets a focused scope show its full set rather than the six rows that fit
- * above the routes.
+ * Every matching place for the active query, ranked per kind. The ranking,
+ * per-kind split, name de-duplication and round-robin preview all live in
+ * `data/pointKinds` — the app's Rutas search runs the exact same code, so the
+ * two clients can never disagree about what a query finds (spec §5.4.2b, R2).
+ * The code is folded into the haystack here (a rider searching "TM0013" or a
+ * cenefa expects the stop, not nothing).
  */
 function matchingPointsByKind(): PointMatches {
-  const out = emptyPointMatches();
-  const q = normalizeSearchText(searchQuery);
-  // Single-char queries would match half the network — noise, not results.
-  if (q.length < 2) return out;
-
-  const scored: Record<PointKind, { p: NearbyPoint; s: number }[]> = {
-    station: [], stop: [], recharge: [], transmibici: [],
-  };
-  for (const p of searchPoints) {
-    const hay = pointHaystack(p);
-    let s: number;
-    if (hay.name.startsWith(q)) s = 0;
-    else if (hay.name.includes(q)) s = 1;
-    else if (hay.extra.includes(q)) s = 2;
-    else continue;
-    scored[p.kind]?.push({ p, s });
-  }
-  for (const kind of POINT_KINDS) {
-    scored[kind].sort((a, b) => a.s - b.s || a.p.name.localeCompare(b.p.name, 'es'));
-    out[kind] = scored[kind].map((x) => x.p);
-  }
-  return out;
-}
-
-/**
- * Same-named paraderos (opposite platforms, repeated barrio stops) would fill
- * every preview slot with one name. Without a user fix there is no distance to
- * break the tie, so the mixed view caps each name at two rows (the address
- * sub-line still distinguishes those two); a focused scope shows them all.
- */
-function dedupeByName(points: NearbyPoint[], perNameMax: number): NearbyPoint[] {
-  const seen = new Map<string, number>();
-  const out: NearbyPoint[] = [];
-  for (const p of points) {
-    const key = pointHaystack(p).name;
-    const count = seen.get(key) ?? 0;
-    if (count >= perNameMax) continue;
-    seen.set(key, count + 1);
-    out.push(p);
-  }
-  return out;
+  return rankPointsByKind(searchPoints, searchQuery, (p) => `${p.codigo} ${p.direccion}`);
 }
 
 /** The place rows the mixed `Todo` view shows above the routes: the best hits
  *  across every kind, so one crowded kind cannot hide the others. */
 function previewPoints(matches: PointMatches): NearbyPoint[] {
-  const perKind = POINT_KINDS.map((kind) => dedupeByName(matches[kind], 2));
-  const out: NearbyPoint[] = [];
-  // Round-robin across kinds: an estación, a paradero, a recarga, a bici, then
-  // the next of each — never six paraderos while a recarga match waits unseen.
-  for (let i = 0; out.length < SEARCH_POINT_PREVIEW; i++) {
-    let added = false;
-    for (const list of perKind) {
-      if (i >= list.length) continue;
-      out.push(list[i]);
-      added = true;
-      if (out.length === SEARCH_POINT_PREVIEW) break;
-    }
-    if (!added) break;
-  }
-  return out;
+  return previewPointsAcrossKinds(matches, SEARCH_POINT_PREVIEW, 2);
 }
 
 // ─── Search scope chips ───────────────────────────────────
@@ -1170,17 +1109,14 @@ function scopeLabel(scope: SearchScope): string {
   return POINT_KIND_LABELS[scope];
 }
 
-/** How many results each scope would show for the current query. */
+/** How many results each scope would show for the current query. Built FROM
+ *  `POINT_KINDS` rather than listing the kinds again, so a new kind can never
+ *  ship with a chip that reads `0` for every query. */
 function scopeCounts(routeCount: number, points: PointMatches): Record<SearchScope, number> {
-  const placeTotal = POINT_KINDS.reduce((sum, kind) => sum + points[kind].length, 0);
-  return {
-    all: routeCount + placeTotal,
-    routes: routeCount,
-    station: points.station.length,
-    stop: points.stop.length,
-    recharge: points.recharge.length,
-    transmibici: points.transmibici.length,
-  };
+  const placeTotal = countPointMatches(points);
+  const counts = { all: routeCount + placeTotal, routes: routeCount } as Record<SearchScope, number>;
+  for (const kind of POINT_KINDS) counts[kind] = points[kind].length;
+  return counts;
 }
 
 /**
@@ -1255,7 +1191,7 @@ function renderResults(routes: RouteListItem[], points: PointMatches): void {
     searchScope === 'all' && searchQuery && currentFilter !== 'fav' && currentFilter !== 'recent'
       ? previewPoints(points)
       : [];
-  const placeTotal = POINT_KINDS.reduce((sum, kind) => sum + points[kind].length, 0);
+  const placeTotal = countPointMatches(points);
   // While the list mixes places and routes, "Rutas · 0" over six visible places
   // reads as a bug. Name what the list actually holds.
   const heading = pointMatches.length > 0
@@ -1718,25 +1654,33 @@ export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?
       startFreshTicker(card, 'Actualizado', asOf);
       break;
 
-    case 'no-buses':
-      // Verified absence from a CO egress — safe to state plainly.
+    case 'no-buses': {
+      // Verified absence from a CO egress — safe to state plainly, EXCEPT
+      // outside the upstream's own service window, when the honest reading is
+      // "the feed is shut", not "this route has no buses" (spec §5.2.2a, §1).
+      const closed = closedWindowNotice();
       dotEl.classList.add('empty');
       chipEl.classList.add('empty');
-      textEl.textContent = 'Sin buses en este momento';
-      chipEl.textContent = 'Sin buses';
-      if (subEl) subEl.textContent = 'Confirmado por el sistema';
+      textEl.textContent = closed ? 'Rastreo en vivo fuera de servicio' : 'Sin buses en este momento';
+      chipEl.textContent = closed ? closed.short : 'Sin buses';
+      if (subEl) subEl.textContent = closed ? closed.detail : 'Confirmado por el sistema';
       break;
+    }
 
-    case 'unverified':
+    case 'unverified': {
       // A free-proxy empty: could be a silent API. Never assert "no buses".
+      const closed = count > 0 ? null : closedWindowNotice();
       dotEl.classList.add('pulse', 'unverified');
       chipEl.classList.add('unverified');
       textEl.textContent = count > 0
         ? `Mostrando ${count} bus${plural} (señal limitada)`
+        : closed
+        ? 'Rastreo en vivo fuera de servicio'
         : 'Señal de rastreo limitada';
-      chipEl.textContent = 'Señal débil';
-      if (subEl) subEl.textContent = 'Reintentando…';
+      chipEl.textContent = closed ? closed.short : 'Señal débil';
+      if (subEl) subEl.textContent = closed ? closed.detail : 'Reintentando…';
       break;
+    }
 
     case 'stale': {
       // Cached positions served during an upstream outage (spec §4.2).

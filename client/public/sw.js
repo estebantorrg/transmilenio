@@ -6,7 +6,10 @@
  *   - navigations (index.html shell)              → network-first (cache fallback)
  * Everything else (live /api/*) is left to the network.
  */
-const VERSION = 'tm-cache-v4';
+// Bumped when the cached surface changes (spec §5.5.2). v5: the web fonts moved
+// from fonts.gstatic.com to same-origin /fonts/*.woff2, so a v4 cache would keep
+// serving a shell that asks a third party for type it now ships itself.
+const VERSION = 'tm-cache-v5';
 const CACHE = `${VERSION}`;
 
 self.addEventListener('install', () => self.skipWaiting());

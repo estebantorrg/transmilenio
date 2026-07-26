@@ -345,6 +345,85 @@ async function getWalkingRoute(from: [number, number], to: [number, number]): Pr
   }
 }
 
+// ─── Address/place geocoding (public Photon, spec §5.5.1) ──────────────────
+const GEOCODE_TIMEOUT_MS = 6_000;
+const GEOCODE_LIMIT = 8;
+// Same window as the server's single Bogotá box (`services/bogota.ts`) and the
+// client's own gate (`utils/geo.ts`) — a city boundary has one definition.
+const BOGOTA_BBOX = `${BOGOTA_WALKING_BOUNDS.west},${BOGOTA_WALKING_BOUNDS.south},${BOGOTA_WALKING_BOUNDS.east},${BOGOTA_WALKING_BOUNDS.north}`;
+
+export interface GeocodeCandidate {
+  name: string;
+  lat: number;
+  lon: number;
+  type: 'station' | 'stop' | 'address' | 'place';
+  code?: string;
+}
+
+export interface GeocodeResponse {
+  success: boolean;
+  candidates?: GeocodeCandidate[];
+  error?: string;
+}
+
+function normalizeCity(value: unknown): string {
+  return String(value ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+/**
+ * Address/place lookup for the app.
+ *
+ * The server's `/api/geocode` fans out to four sources; the app has no server
+ * (spec §5.2.1b), so it queries the same **public** Photon instance the server
+ * uses for its place tier — enough to turn "planear a una dirección" from
+ * impossible into working. The station/stop half of the merge is already local:
+ * the app searches the APK-bundled catalog itself.
+ */
+async function geocode(query: string): Promise<GeocodeResponse> {
+  const q = String(query ?? '').trim();
+  if (q.length < 3) return { success: true, candidates: [] };
+  const url =
+    `https://photon.komoot.io/api?q=${encodeURIComponent(q)}` +
+    `&bbox=${BOGOTA_BBOX}&lat=4.60&lon=-74.08&limit=${GEOCODE_LIMIT}`;
+  try {
+    const res = await nativeHttpRequest({
+      method: 'GET',
+      url,
+      headers: { Accept: 'application/json', 'Accept-Language': 'es-CO,es;q=0.9' },
+      timeoutMs: GEOCODE_TIMEOUT_MS,
+    });
+    if (res.status < 200 || res.status >= 300) throw new Error(`Photon HTTP ${res.status}`);
+    const data = parseJson(res.data);
+    const features: any[] = Array.isArray(data?.features) ? data.features : [];
+    const candidates = features
+      .map((feature): GeocodeCandidate | null => {
+        const coords = feature?.geometry?.coordinates;
+        const lon = Number(coords?.[0]);
+        const lat = Number(coords?.[1]);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+        if (!isWithinWalkingBounds([lon, lat])) return null;
+        const p = feature.properties ?? {};
+        // Photon's bbox is a rectangle, so a neighbouring municipality can slip
+        // in — drop anything not tagged Bogotá.
+        const cityOk =
+          !p.city || normalizeCity(p.city).includes('bogota') || normalizeCity(p.county).includes('bogota');
+        if (!cityOk) return null;
+        const parts = [p.name || p.street, p.district || p.suburb || p.city].filter(
+          (part: unknown): part is string => typeof part === 'string' && part.length > 0
+        );
+        const name = Array.from(new Set(parts)).slice(0, 3).join(', ').trim();
+        if (!name) return null;
+        return { name, lat, lon, type: 'place' };
+      })
+      .filter((c): c is GeocodeCandidate => c !== null);
+    return { success: true, candidates };
+  } catch (error) {
+    // Never hard-fail: the catalog half of the suggestions still answers.
+    console.warn('[officialApi] geocode failed:', error);
+    return { success: false, candidates: [], error: error instanceof Error ? error.message : 'geocode failed' };
+  }
+}
+
 export const officialApi = {
   getTroncalRoutes: () => arcgisResponse(ARCGIS_LAYERS.troncalRoutes),
   getTroncalCorridors: () => arcgisResponse(ARCGIS_LAYERS.troncalCorridors),
@@ -357,4 +436,5 @@ export const officialApi = {
   getStopArrivals,
   readCardBalance,
   getWalkingRoute,
+  geocode,
 };

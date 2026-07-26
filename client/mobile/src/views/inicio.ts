@@ -1,6 +1,7 @@
 /** Inicio tab — dashboard: status, quick actions, favorites, recents, lines. */
 
 import { TRONCAL_COLORS } from '@shared/utils/routeColors';
+import { closedWindowNotice, liveWindowLabel } from '@shared/services/liveWindow';
 import { h, haptic } from '../lib/dom';
 import { formatClock, greeting, needsDarkText } from '../lib/format';
 import { bus, state } from '../state';
@@ -33,6 +34,14 @@ export function createInicioView(): View {
     const dot = (ok: boolean, warn = false) => `status-dot ${warn ? 'warn' : ok ? 'ok' : 'err'}`;
     const catalogOk = (state.counts.stations || hp?.catalogStations || 0) > 0;
     const live = hp?.liveCapable;
+    // Outside the upstream's own window there is nothing to track for anyone —
+    // say that rather than implying the app is degraded (spec §5.2.2a).
+    const closed = closedWindowNotice();
+    const liveText = closed
+      ? `Rastreo en vivo cerrado · opera de ${liveWindowLabel()}`
+      : live
+      ? 'Buses en vivo disponibles'
+      : 'Buses en vivo: modo limitado';
     statusCard.replaceChildren(
       h('div', { class: 'status-line' }, [
         h('span', { class: dot(catalogOk, hp?.catalogStale) }),
@@ -44,8 +53,8 @@ export function createInicioView(): View {
         }),
       ]),
       h('div', { class: 'status-line' }, [
-        h('span', { class: dot(Boolean(live), !live) }),
-        h('span', { class: 'status-text', text: live ? 'Buses en vivo disponibles' : 'Buses en vivo: modo limitado' }),
+        h('span', { class: dot(Boolean(live) && !closed, Boolean(closed) || !live) }),
+        h('span', { class: 'status-text', text: liveText }),
       ])
     );
   }

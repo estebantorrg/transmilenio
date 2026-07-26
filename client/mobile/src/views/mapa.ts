@@ -2,12 +2,14 @@
 
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
+import type { JourneyPlan } from '@shared/services/router';
 import type { LiveBusResult } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
 import { setSessionExactLocation } from '@shared/utils/sessionLocation';
 import { bus, state, type StationRecord } from '../state';
-import { MapController } from '../map/mapController';
-import { openStationSheet } from '../ui/detailSheets';
+import { MapController, MAP_STYLE_URL, preloadMapAssets } from '../map/mapController';
+import { openRouteSheet, openStationSheet } from '../ui/detailSheets';
+import { getMapLayerPrefs, setMapLayerPref, type MapLayerKey } from '../lib/storage';
 import { ICONS, liveChip, routeBadge } from '../ui/components';
 import type { View } from './types';
 
@@ -17,6 +19,16 @@ export interface MapaView extends View {
   setUser: (coord: [number, number]) => void;
   /** Clear the active route + banner (+ stop live tracking). Returns true if one was showing. */
   dismissRoute: () => boolean;
+  /** Warm the map's heavy assets while the app is idle, before the tab is opened. */
+  prewarm: () => void;
+  /** Switch to the map and let the rider tap a point. Resolves null if cancelled. */
+  pickPoint: (prompt: string) => Promise<[number, number] | null>;
+  /** True while a map pick is in progress (hardware back cancels it). */
+  cancelPick: () => boolean;
+  /** Draw a planned itinerary (planner → "Ver en el mapa"). */
+  showJourney: (plan: JourneyPlan, summary: string) => void;
+  /** Clear a drawn itinerary. Returns true if one was showing. */
+  dismissJourney: () => boolean;
 }
 
 export function createMapaView(): MapaView {
@@ -28,9 +40,14 @@ export function createMapaView(): MapaView {
   // attached AND sized, otherwise the style never finishes loading (a detached /
   // display:none container leaves the render loop idle).
   let controller: MapController | null = null;
+  // Layer visibility is the rider's standing choice, not a per-launch one: a
+  // paradero-first user had to re-tick "Paraderos zonales" every single time the
+  // app started. Persisted, and read before the controller exists so the first
+  // style load already has them right.
+  const layerPrefs = getMapLayerPrefs();
   function ensureController(): MapController {
     if (!controller) {
-      controller = new MapController(canvas);
+      controller = new MapController(canvas, layerPrefs);
       controller.onSelectStation = (rec) => openStationSheet(rec);
       // Demand circles aren't stations — a compact toast fits the app's
       // sheet/toast interaction model (no map popups on mobile).
@@ -54,25 +71,27 @@ export function createMapaView(): MapaView {
     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5 9-5Z"/><path d="m3 13 9 5 9-5"/></svg>';
   const filterBtn = h('button', { class: 'map-fab map-filter-btn', type: 'button', 'aria-label': 'Capas del mapa', html: LAYERS_ICON });
   const filterPanel = h('div', { class: 'map-filter-panel hidden' });
-  const mkFilterRow = (key: 'stations' | 'paraderos' | 'demand' | 'cable', label: string, on: boolean) => {
+  const mkFilterRow = (key: MapLayerKey, label: string) => {
     const cb = h('input', { type: 'checkbox' }) as HTMLInputElement;
-    cb.checked = on;
+    cb.checked = layerPrefs[key];
     cb.addEventListener('change', () => {
       const c = ensureController();
       if (key === 'stations') c.setStationsVisible(cb.checked);
       else if (key === 'paraderos') c.setParaderosVisible(cb.checked);
       else if (key === 'cable') c.setCableVisible(cb.checked);
       else c.setDemandVisible(cb.checked);
+      layerPrefs[key] = cb.checked;
+      setMapLayerPref(key, cb.checked);
       haptic('light');
     });
     return h('label', { class: 'map-filter-row' }, [cb, h('span', { class: `mf-dot mf-${key}` }), h('span', { class: 'mf-label', text: label })]);
   };
   filterPanel.append(
     h('div', { class: 'map-filter-title', text: 'Mostrar en el mapa' }),
-    mkFilterRow('stations', 'Estaciones', true),
-    mkFilterRow('paraderos', 'Paraderos zonales', false),
-    mkFilterRow('cable', 'TransMiCable', false),
-    mkFilterRow('demand', 'Demanda', false)
+    mkFilterRow('stations', 'Estaciones'),
+    mkFilterRow('paraderos', 'Paraderos zonales'),
+    mkFilterRow('cable', 'TransMiCable'),
+    mkFilterRow('demand', 'Demanda')
   );
   // Close the layer panel when tapping anywhere outside it (the map, another FAB) —
   // an open panel that only closes via its own button used to sit covering the map.
@@ -96,17 +115,32 @@ export function createMapaView(): MapaView {
   });
   el.append(filterBtn, filterPanel);
 
-  // Active-route banner (shows when a route is drawn).
+  // Active-route banner (shows when a route is drawn). Tapping it reopens that
+  // route's detail sheet — it used to be an inert label, so the only way back to
+  // the paradas/horarios of the route you were watching was to leave the map,
+  // find the route in the list again and reopen it.
+  let bannerRoute: RouteListItem | null = null;
   const banner = h('div', { class: 'map-route-banner hidden' });
   const bannerBadgeSlot = h('div', { class: 'mrb-badge' });
   const bannerLive = h('div', { class: 'mrb-live' }, [liveChip('loading')]);
   const bannerClose = h('button', { class: 'mrb-close', type: 'button', 'aria-label': 'Quitar ruta', html: '✕' });
   const bannerName = h('div', { class: 'mrb-name' });
-  banner.append(bannerBadgeSlot, h('div', { class: 'mrb-mid' }, [bannerName, bannerLive]), bannerClose);
+  const bannerOpen = h('button', {
+    class: 'mrb-open',
+    type: 'button',
+    'aria-label': 'Ver detalle de la ruta',
+  }, [bannerBadgeSlot, h('div', { class: 'mrb-mid' }, [bannerName, bannerLive])]);
+  bannerOpen.addEventListener('click', () => {
+    if (!bannerRoute) return;
+    haptic('light');
+    openRouteSheet(bannerRoute);
+  });
+  banner.append(bannerOpen, bannerClose);
   el.append(banner);
 
   function clearActiveRoute(): void {
     void controller?.clearRoute();
+    bannerRoute = null;
     banner.classList.add('hidden');
     el.classList.remove('has-route');
   }
@@ -126,12 +160,84 @@ export function createMapaView(): MapaView {
   locate.addEventListener('click', () => locateUser());
   el.append(locate);
 
+  // ── Journey banner (a planned itinerary drawn on the map) ──
+  const journeyBanner = h('div', { class: 'map-route-banner map-journey-banner hidden' });
+  const journeyText = h('div', { class: 'mrb-name' });
+  const journeySub = h('div', { class: 'mrb-sub' });
+  const journeyClose = h('button', { class: 'mrb-close', type: 'button', 'aria-label': 'Quitar itinerario', html: '✕' });
+  journeyBanner.append(
+    h('span', { class: 'mrb-journey-icon', html: ICONS.plan }),
+    h('div', { class: 'mrb-mid' }, [journeyText, journeySub]),
+    journeyClose
+  );
+  journeyClose.addEventListener('click', () => {
+    dismissJourney();
+    haptic('light');
+  });
+  el.append(journeyBanner);
+
+  function showJourney(plan: JourneyPlan, summary: string): void {
+    clearActiveRoute();
+    journeyText.textContent = 'Itinerario';
+    journeySub.textContent = summary;
+    journeyBanner.classList.remove('hidden');
+    el.classList.add('has-route');
+    void ensureController().showJourney(plan);
+  }
+
+  function dismissJourney(): boolean {
+    if (journeyBanner.classList.contains('hidden')) return false;
+    journeyBanner.classList.add('hidden');
+    el.classList.remove('has-route');
+    void controller?.clearJourney();
+    return true;
+  }
+
+  // ── Map-pick mode ──
+  // A banner + cancel while the rider is asked to tap a point on the map. Used
+  // whenever the GPS is not an option (denied, no fix, planning from elsewhere).
+  let pickAbort: AbortController | null = null;
+  const pickHint = h('div', { class: 'map-pick-hint hidden' });
+  const pickText = h('span', { class: 'map-pick-text' });
+  const pickCancel = h('button', { class: 'map-pick-cancel', type: 'button', text: 'Cancelar' });
+  pickCancel.addEventListener('click', () => cancelPick());
+  pickHint.append(pickText, pickCancel);
+  el.append(pickHint);
+
+  function cancelPick(): boolean {
+    if (!pickAbort) return false;
+    pickAbort.abort();
+    pickAbort = null;
+    pickHint.classList.add('hidden');
+    return true;
+  }
+
+  async function pickPoint(prompt: string): Promise<[number, number] | null> {
+    cancelPick();
+    const controller = new AbortController();
+    pickAbort = controller;
+    pickText.textContent = prompt;
+    pickHint.classList.remove('hidden');
+    const c = ensureController();
+    c.resize();
+    try {
+      const coord = await c.pickPoint(controller.signal);
+      if (coord) haptic('medium');
+      return coord;
+    } finally {
+      if (pickAbort === controller) pickAbort = null;
+      pickHint.classList.add('hidden');
+    }
+  }
+
   function setBannerLive(payload: LiveBusResult | 'loading'): void {
     const status: TrackingStatus | 'loading' = payload === 'loading' ? 'loading' : payload.status;
     bannerLive.replaceChildren(liveChip(status, payload === 'loading' ? undefined : payload));
   }
 
   function showRoute(route: RouteListItem): void {
+    dismissJourney(); // a route and an itinerary are two different answers
+    bannerRoute = route;
     banner.classList.remove('hidden');
     el.classList.add('has-route');
     bannerBadgeSlot.replaceChildren(routeBadge(route, 'md'));
@@ -185,6 +291,23 @@ export function createMapaView(): MapaView {
     focusPoint,
     setUser,
     dismissRoute,
+    /**
+     * Pull the map's two slow assets — the basemap style JSON and the 3D bus
+     * chunk + model — into cache while the app sits idle on Inicio, so opening
+     * "Mapa" is instant. The MapLibre instance itself is deliberately NOT
+     * created here: its container is `display:none` until the tab is shown, and
+     * a zero-sized container is exactly the state where the style load never
+     * settles.
+     */
+    prewarm: () => {
+      if (controller) return;
+      void fetch(MAP_STYLE_URL, { mode: 'cors' }).catch(() => undefined);
+      void preloadMapAssets();
+    },
+    pickPoint,
+    cancelPick,
+    showJourney,
+    dismissJourney,
     onShow: () => {
       const c = ensureController();
       c.resize();

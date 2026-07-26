@@ -3,6 +3,7 @@
 const FAV_KEY = 'tmgo.favorites.v1';
 const RECENT_KEY = 'tmgo.recents.v1';
 const CARDS_KEY = 'tmgo.cards.v1';
+const MAP_LAYERS_KEY = 'tmgo.mapLayers.v1';
 const MAX_RECENT = 12;
 const MAX_CARDS = 5;
 
@@ -70,4 +71,45 @@ export function rememberCard(digits: string): void {
 
 export function forgetCard(digits: string): void {
   write(CARDS_KEY, read(CARDS_KEY).filter((x) => x !== digits));
+}
+
+/** Which whole-network map layers the rider keeps switched on. */
+export type MapLayerKey = 'stations' | 'paraderos' | 'demand' | 'cable';
+
+const MAP_LAYER_DEFAULTS: Record<MapLayerKey, boolean> = {
+  stations: true,
+  paraderos: false,
+  demand: false,
+  cable: false,
+};
+
+/**
+ * Map layer toggles are a standing preference, not a per-session one: someone
+ * who rides zonal had to re-enable "Paraderos zonales" on every single launch.
+ * Unknown/corrupt values fall back to the defaults rather than throwing.
+ */
+export function getMapLayerPrefs(): Record<MapLayerKey, boolean> {
+  const prefs = { ...MAP_LAYER_DEFAULTS };
+  try {
+    const raw = localStorage.getItem(MAP_LAYERS_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === 'object') {
+      for (const key of Object.keys(prefs) as MapLayerKey[]) {
+        if (typeof parsed[key] === 'boolean') prefs[key] = parsed[key];
+      }
+    }
+  } catch {
+    /* corrupt storage — defaults are a fine answer */
+  }
+  return prefs;
+}
+
+export function setMapLayerPref(key: MapLayerKey, on: boolean): void {
+  const prefs = getMapLayerPrefs();
+  prefs[key] = on;
+  try {
+    localStorage.setItem(MAP_LAYERS_KEY, JSON.stringify(prefs));
+  } catch {
+    /* storage may be full/blocked — non-fatal */
+  }
 }

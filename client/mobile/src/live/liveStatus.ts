@@ -7,6 +7,7 @@
 
 import { api, type LiveBusResult } from '@shared/services/api';
 import { getLiveNameCandidates } from '@shared/data/routeCatalog';
+import { isAppActive, onAppActiveChange } from '@shared/utils/appActive';
 import type { RouteListItem } from '@shared/types/transmilenio';
 
 /** Destination-name candidates for a route's live query, cached on the route. */
@@ -25,6 +26,7 @@ export function pollLiveOnce(route: RouteListItem, fresh = false): Promise<LiveB
 export class LivePoller {
   private timer: number | null = null;
   private inFlight = false;
+  private gateOff: (() => void) | null = null;
   constructor(
     private readonly route: RouteListItem,
     private readonly onUpdate: (result: LiveBusResult | 'loading') => void,
@@ -34,7 +36,15 @@ export class LivePoller {
   start(): void {
     this.stop();
     this.tick();
-    this.timer = window.setInterval(() => this.tick(), this.intervalMs);
+    this.timer = window.setInterval(() => {
+      // Don't spend the rider's battery/data polling a screen they can't see
+      // (app backgrounded / tab hidden).
+      if (isAppActive()) this.tick();
+    }, this.intervalMs);
+    // Back in the foreground the reading on screen is up to an interval stale.
+    this.gateOff = onAppActiveChange((active) => {
+      if (active && this.timer !== null) this.tick();
+    });
   }
 
   private async tick(fresh = false): Promise<void> {
@@ -54,6 +64,8 @@ export class LivePoller {
   }
 
   stop(): void {
+    this.gateOff?.();
+    this.gateOff = null;
     if (this.timer !== null) {
       window.clearInterval(this.timer);
       this.timer = null;

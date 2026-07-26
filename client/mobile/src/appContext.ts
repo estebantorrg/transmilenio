@@ -1,6 +1,7 @@
 /** Wiring shared across views/sheets, set once by main.ts after boot. */
 
 import type { RouteListItem } from '@shared/types/transmilenio';
+import type { JourneyPlan } from '@shared/services/router';
 import type { StationRecord, TabId } from './state';
 
 export interface AppContext {
@@ -17,6 +18,18 @@ export interface AppContext {
   openZone: (zone: number) => void;
   /** Clear the map's active route/banner if one is showing. Returns true if it did. */
   dismissMapRoute: () => boolean;
+  /**
+   * Ask the rider to tap a point on the map — the fallback for every flow that
+   * wants a location when the GPS can't give one (denied, no fix, or simply
+   * planning from somewhere you aren't). Resolves null if cancelled.
+   */
+  pickPointOnMap: (prompt: string) => Promise<[number, number] | null>;
+  /** Cancel an in-progress map pick. Returns true if one was running. */
+  cancelPointPick: () => boolean;
+  /** Show a planned itinerary on the map (planner → "Ver en el mapa"). */
+  showJourneyOnMap: (plan: JourneyPlan, summary: string) => void;
+  /** Clear a drawn itinerary. Returns true if one was showing. */
+  dismissMapJourney: () => boolean;
 }
 
 let ctx: AppContext | null = null;

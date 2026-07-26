@@ -3,6 +3,24 @@
    Dark theme with TransMilenio red accent
    ═══════════════════════════════════════════════════════════ */
 
+/* Self-hosted (OFL) latin variable subset. It used to come from a
+   render-blocking cross-origin <link> to fonts.googleapis.com, which cost a DNS
+   + TLS + CSS round-trip in front of first paint, leaked every visitor to a
+   third party, and — in the Android shell, which ships the same font stack —
+   simply failed with no network at all (spec §5.2.1b: the app is offline-first).
+   One 25/48 KB file each, served from our own origin with the same immutable
+   cache policy as the rest of /public (spec §5.5.2). */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url('/fonts/inter-latin-var.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   /* Colors — sourced from transmilenio_design */
   --tm-red: #D8102D;
@@ -198,6 +216,22 @@ body {
   text-align: center;
   max-width: none;
 }
+
+/* The one action a failed boot can offer. */
+.loading-retry {
+  margin-top: 18px;
+  padding: 11px 26px;
+  border-radius: 12px;
+  border: 1px solid var(--border-medium);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.loading-retry:hover { background: var(--bg-hover); border-color: var(--tm-red); }
 
 /* ─── Map ──────────────────────────────────────────────── */
 

@@ -11,6 +11,7 @@ import maplibregl from 'maplibre-gl';
 import { api, type LiveStatus } from '../services/api';
 import { escapeHTML, safeColor } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
+import { isAppActive, onAppActiveChange } from '../utils/appActive';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
 // Re-exported so callers that lazy-load this module can warm the 3D assets
@@ -24,6 +25,8 @@ export type TrackingStatus = 'loading' | LiveStatus;
 let trackingInterval: number | null = null;
 let fetchInFlight = false;
 let trackingSessionId = 0;
+// Unsubscribe for the foreground/background gate of the active session.
+let activeGateOff: (() => void) | null = null;
 
 // Current frame's buses + context, kept for click-to-popup picking.
 let currentBuses: LiveBus[] = [];
@@ -131,6 +134,8 @@ export function stopBusTracking(): void {
   trackingSessionId++;
   fetchInFlight = false;
   pollNow = null;
+  activeGateOff?.();
+  activeGateOff = null;
 
   if (trackingInterval !== null) {
     window.clearInterval(trackingInterval);
@@ -210,8 +215,19 @@ export function startBusTracking(
   onUpdate?.(0, 'loading');
   pollNow();
 
-  // Poll every 15 seconds (spec §3.4)
-  trackingInterval = window.setInterval(() => pollNow?.(), 15000);
+  // Poll every 15 seconds (spec §3.4) — but only while the user is actually
+  // looking. A backgrounded tab / app kept the ladder running against a screen
+  // nobody could see, which on a phone is pure battery and mobile data.
+  trackingInterval = window.setInterval(() => {
+    if (!isAppActive()) return;
+    pollNow?.();
+  }, 15000);
+
+  // Coming back to the front, the positions on screen are up to a full interval
+  // old — refresh at once instead of making the rider wait out the timer.
+  activeGateOff = onAppActiveChange((active) => {
+    if (active && sessionId === trackingSessionId) pollNow?.();
+  });
 }
 
 /** Force an immediate live poll for the active route (manual refresh button).

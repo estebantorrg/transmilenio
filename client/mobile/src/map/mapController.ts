@@ -15,14 +15,40 @@ import type { RouteListItem } from '@shared/types/transmilenio';
 import { prefetchLiveBuses } from '@shared/services/api';
 import { liveNameCandidates } from '../live/liveStatus';
 import type { TrackingStatus } from '@shared/layers/buses';
+import type { JourneyPlan } from '@shared/services/router';
 import type { DemandRecord, StationRecord } from '../state';
 
 const BOGOTA_CENTER: [number, number] = [-74.0938, 4.6486];
+
+/** Basemap style. Exported so the Mapa tab can warm it before the map exists. */
+export const MAP_STYLE_URL = 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json';
 
 type BusesModule = typeof import('@shared/layers/buses');
 let busesModule: Promise<BusesModule> | null = null;
 function loadBuses(): Promise<BusesModule> {
   return (busesModule ??= import('@shared/layers/buses'));
+}
+
+type JourneyModule = typeof import('@shared/layers/journeyLayer');
+let journeyModule: Promise<JourneyModule> | null = null;
+function loadJourneyLayer(): Promise<JourneyModule> {
+  return (journeyModule ??= import('@shared/layers/journeyLayer'));
+}
+
+/** Warm the 3D bus chunk (three.js) + Draco-decoded models without a map.
+ *  Called while the app is idle so the first tracked route renders immediately. */
+export function preloadMapAssets(): Promise<void> {
+  return loadBuses()
+    .then((buses) => buses.preloadBusModels())
+    .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
+}
+
+/** Which whole-network layers the rider wants drawn (persisted, see storage.ts). */
+export interface MapLayerVisibility {
+  stations: boolean;
+  paraderos: boolean;
+  demand: boolean;
+  cable: boolean;
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
@@ -40,21 +66,27 @@ export class MapController {
   private pendingDemand: DemandRecord[] | null = null;
   private pendingCable: { stations: StationRecord[]; traces: any[] } | null = null;
   private pendingRoute: { route: RouteListItem; onLive?: RouteLiveHandler } | null = null;
+  private pendingJourney: JourneyPlan | null = null;
+  private journeyActive = false;
   private pendingUser: [number, number] | null = null;
   private pendingFly: { coordinate: [number, number]; zoom: number } | null = null;
   // Map-filter state (user intent). Global layers hide while a route is active.
-  private stationsOn = true;
-  private paraderosOn = false;
-  private demandOn = false;
-  private cableOn = false;
+  private stationsOn: boolean;
+  private paraderosOn: boolean;
+  private demandOn: boolean;
+  private cableOn: boolean;
   onSelectStation: (rec: StationRecord) => void = () => {};
   onSelectDemand: (rec: DemandRecord) => void = () => {};
   onSelectCable: (rec: StationRecord) => void = () => {};
 
-  constructor(container: HTMLElement) {
+  constructor(container: HTMLElement, layers?: Partial<MapLayerVisibility>) {
+    this.stationsOn = layers?.stations ?? true;
+    this.paraderosOn = layers?.paraderos ?? false;
+    this.demandOn = layers?.demand ?? false;
+    this.cableOn = layers?.cable ?? false;
     this.map = new maplibregl.Map({
       container,
-      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+      style: MAP_STYLE_URL,
       center: BOGOTA_CENTER,
       zoom: 12,
       minZoom: 10.5,
@@ -360,6 +392,11 @@ export class MapController {
       this.pendingRoute = null;
       void this.showRoute(route, onLive);
     }
+    if (this.pendingJourney) {
+      const plan = this.pendingJourney;
+      this.pendingJourney = null;
+      void this.showJourney(plan);
+    }
     // Sync station/paradero layers to the current filter state (in case a toggle
     // fired before the style finished loading).
     this.applyBaseLayerVisibility();
@@ -367,9 +404,8 @@ export class MapController {
     // Warm the live-tracking assets now that the map is up: the three.js chunk
     // and the Draco-decoded bus model would otherwise both load only after the
     // user opens a route, delaying the first buses well past their data.
-    loadBuses()
-      .then((buses) => buses.preloadBusModels())
-      .catch((error) => console.warn('[Live] Bus asset preload skipped:', error));
+    // (Usually already warm — the Mapa tab prewarms them while the app is idle.)
+    void preloadMapAssets();
   }
 
   setStations(records: StationRecord[]): void {
@@ -503,6 +539,8 @@ export class MapController {
       this.pendingRoute = { route, onLive };
       return;
     }
+    // A drawn itinerary and a tracked route are mutually exclusive views.
+    void this.clearJourney();
     this.activeRouteId = route.id;
     const color = getRouteAccentColor(route);
 
@@ -574,12 +612,82 @@ export class MapController {
     if (busesModule) (await busesModule).stopBusTracking();
   }
 
+  /**
+   * Draw a planned itinerary — the exact renderer the website uses
+   * (`@shared/layers/journeyLayer`: per-leg colours, dashed walk legs, tunnel
+   * legs, boarding/alighting markers), lazy-loaded so it costs nothing until a
+   * rider actually plans a trip.
+   *
+   * Until now the app's planner produced text only: an itinerary you could read
+   * but never see, on a client whose whole point is a map.
+   */
+  async showJourney(plan: JourneyPlan): Promise<void> {
+    if (!this.ready) {
+      this.pendingJourney = plan;
+      return;
+    }
+    // A journey and a tracked route are two different answers to "what am I
+    // looking at" — never both at once.
+    await this.clearRoute();
+    const journey = await loadJourneyLayer();
+    journey.drawJourneyPath(this.map, plan);
+    this.journeyActive = true;
+
+    const bounds = new maplibregl.LngLatBounds();
+    for (const step of plan.steps) {
+      for (const coord of step.path ?? []) bounds.extend(coord as [number, number]);
+    }
+    if (!bounds.isEmpty()) {
+      this.map.fitBounds(bounds, { padding: this.fitPadding(), maxZoom: 15.5, duration: 700 });
+    }
+  }
+
+  /** Remove a drawn itinerary. Returns true if one was showing. */
+  async clearJourney(): Promise<boolean> {
+    this.pendingJourney = null;
+    if (!this.journeyActive) return false;
+    this.journeyActive = false;
+    if (journeyModule) (await journeyModule).clearJourneyPath(this.map);
+    return true;
+  }
+
   flyTo(coordinate: [number, number], zoom = 15.5): void {
     if (!this.ready) {
       this.pendingFly = { coordinate, zoom };
       return;
     }
     this.map.flyTo({ center: coordinate, zoom, duration: 800 });
+  }
+
+  /**
+   * One-shot "tap the map to place a point".
+   *
+   * The GPS is not always an option: permission denied, indoors with no fix, a
+   * borrowed phone, or planning a trip from somewhere you are not. Without this
+   * every location-dependent surface (Cerca, the planner's endpoints) simply
+   * dead-ended on "No se pudo ubicarte". Returns the tapped coordinate, or null
+   * if the caller cancels.
+   */
+  pickPoint(signal: AbortSignal): Promise<[number, number] | null> {
+    return new Promise((resolve) => {
+      if (signal.aborted) return resolve(null);
+      const canvas = this.map.getCanvas();
+      const previousCursor = canvas.style.cursor;
+      canvas.style.cursor = 'crosshair';
+
+      const finish = (coord: [number, number] | null): void => {
+        canvas.style.cursor = previousCursor;
+        this.map.off('click', onClick);
+        signal.removeEventListener('abort', onAbort);
+        resolve(coord);
+      };
+      const onClick = (e: maplibregl.MapMouseEvent): void => finish([e.lngLat.lng, e.lngLat.lat]);
+      const onAbort = (): void => finish(null);
+
+      // `once` isn't used so the handler can be detached on abort too.
+      this.map.on('click', onClick);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
   }
 
   setUser(coordinate: [number, number]): void {

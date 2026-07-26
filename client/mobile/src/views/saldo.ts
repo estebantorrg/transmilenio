@@ -41,8 +41,17 @@ export function createSaldoView(): View {
 
   const submit = h('button', { class: 'btn btn-primary card-submit', type: 'submit', html: `${ICONS.card}<span>Consultar</span>` });
   const nfcBtn = h('button', { class: 'btn btn-ghost card-nfc', type: 'button', html: `${NFC_ICON}<span>Acercar tarjeta (NFC)</span>` });
-  const formChildren = [h('label', { class: 'field-label', text: 'Número de tarjeta' }), input, submit];
-  if (isNfcSupported()) formChildren.push(nfcBtn);
+  const formChildren: (HTMLElement | string)[] = [h('label', { class: 'field-label', text: 'Número de tarjeta' }), input, submit];
+  if (isNfcSupported()) {
+    formChildren.push(nfcBtn);
+  } else {
+    // The button used to just vanish, leaving no clue that this app CAN read a
+    // tullave chip directly (spec §5.5.1b) — riders assumed the feature didn't
+    // exist rather than that their device/build can't reach it.
+    formChildren.push(
+      h('div', { class: 'card-nfc-note', html: `${NFC_ICON}<span>Lectura NFC no disponible en este dispositivo. Consulta el saldo del servidor con el número de la tarjeta.</span>` })
+    );
+  }
   const form = h('form', { class: 'card-form' }, formChildren) as HTMLFormElement;
 
   const recentWrap = h('div', { class: 'card-recents' });
@@ -83,16 +92,35 @@ export function createSaldoView(): View {
 
   function renderResult(read: CardBalanceRead): void {
     const balance = read.balance ?? '—';
+    const fromCard = read.balanceSource === 'card';
     const card = h('div', { class: 'balance-card' });
     card.append(
       h('div', { class: 'balance-top' }, [
-        h('span', { class: 'balance-label', text: 'Saldo (servidor)' }),
-        h('span', { class: 'balance-src', text: read.balanceSource === 'card' ? 'NFC' : 'Servidor' }),
+        // Label follows the actual provenance instead of always claiming
+        // "servidor" while the badge next to it said NFC (spec §5.5.1a).
+        h('span', { class: 'balance-label', text: fromCard ? 'Saldo (tarjeta)' : 'Saldo (servidor)' }),
+        h('span', { class: 'balance-src', text: fromCard ? 'NFC' : 'Servidor' }),
       ]),
       h('div', { class: 'balance-amount', text: balance.startsWith('$') ? balance : `$ ${balance}` }),
-      h('div', { class: 'balance-card-num', text: maskCard(read.numeroTarjeta) })
+      h('div', { class: 'balance-card-num', text: maskCard(read.numeroTarjeta) }),
+      // A balance with no date is a number of unknown age. The upstream's own
+      // `ultima_transaccion` is the only timestamp that means anything here.
+      h('div', {
+        class: 'balance-asof',
+        text: read.asOf ? `Última transacción · ${read.asOf}` : `Consultado ${new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' })}`,
+      })
     );
     result.replaceChildren(card);
+
+    // Re-query without retyping the number — a balance goes stale the moment
+    // the rider taps a validator. Uses the digits we actually sent: what comes
+    // back is masked, so re-deriving them from the response would send a
+    // truncated card number.
+    if (lastQueriedDigits) {
+      const again = h('button', { class: 'btn btn-ghost card-again', type: 'button', html: `${ICONS.refresh}<span>Actualizar</span>` });
+      again.addEventListener('click', () => void consult(lastQueriedDigits));
+      result.append(again);
+    }
 
     // Movements (server ledger only).
     if (read.movements.length) {
@@ -136,11 +164,15 @@ export function createSaldoView(): View {
     );
   }
 
+  /** Digits of the last successful server query — the "Actualizar" button's input. */
+  let lastQueriedDigits = '';
+
   async function consult(digits: string): Promise<void> {
     if (digits.length < 6) {
       toast('Número de tarjeta inválido', 'warn');
       return;
     }
+    lastQueriedDigits = digits;
     submit.classList.add('busy');
     result.replaceChildren(h('div', { class: 'card-loading', html: `${ICONS.refresh}<span>Consultando…</span>` }));
     haptic('medium');
