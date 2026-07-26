@@ -68,27 +68,22 @@ const ROUTE_BUDGET_MS = 8_500;
 // Hard ceiling on the whole fan-out. MUST stay under the client's 15 s fetch
 // timeout so the endpoint always answers (with whatever ETAs are ready — a
 // PARTIAL result, never a transport error). Remaining routes resolve on the
-// next open (12 s result cache) rather than failing the popup.
+// next open (the result cache below) rather than failing the popup.
 const OVERALL_BUDGET_MS = 12_000;
 // Cache computed arrivals so re-opening a popup (or a second client) is instant
 // instead of re-running the whole ~9 s live fan-out. ETAs drift only slightly
 // over this window (they're shown in whole minutes), so a modestly long TTL is
 // the right trade for responsiveness.
 const RESULT_CACHE_TTL_MS = 30_000;
+// A TTL is only consulted on read, so entries for stops nobody opens again are
+// never freed — one per stop code ever queried (~7500 possible) on a 512 MB
+// instance (spec §5.1.3). Bound it, evicting the oldest computation.
+const RESULT_CACHE_MAX = 200;
 
 const DEG2RAD = Math.PI / 180;
 const EARTH_R = 6_371_000;
 
 // ─── Geometry helpers ─────────────────────────────────────
-
-function haversine(aLng: number, aLat: number, bLng: number, bLat: number): number {
-  const dLat = (bLat - aLat) * DEG2RAD;
-  const dLng = (bLng - aLng) * DEG2RAD;
-  const la1 = aLat * DEG2RAD;
-  const la2 = bLat * DEG2RAD;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
-}
 
 function isCoordPair(value: unknown): value is number[] {
   return Array.isArray(value) &&
@@ -344,6 +339,16 @@ function withTimeout(p: Promise<StopArrival | null>, ms: number): Promise<StopAr
 
 const resultCache = new Map<string, { at: number; catalogAt: number; result: StopArrivalsResult }>();
 
+function cacheResult(key: string, catalogAt: number, result: StopArrivalsResult): void {
+  // Re-inserting an existing key keeps its ORIGINAL position in a Map, so delete
+  // first — otherwise a refreshed entry would still be evicted as "oldest".
+  resultCache.delete(key);
+  resultCache.set(key, { at: Date.now(), catalogAt, result });
+  if (resultCache.size <= RESULT_CACHE_MAX) return;
+  const oldest = resultCache.keys().next().value;
+  if (oldest !== undefined) resultCache.delete(oldest);
+}
+
 /**
  * Real-time arrivals for a stop (paradero or estación), computed from live bus
  * positions projected onto each serving route's official trace.
@@ -368,7 +373,7 @@ export async function computeStopArrivals(stopCode: string): Promise<StopArrival
   const fanned = serving.slice(0, MAX_FANOUT_ROUTES);
   if (fanned.length === 0) {
     const empty: StopArrivalsResult = { arrivals: [], routesServing: 0 };
-    resultCache.set(cacheKey, { at: Date.now(), catalogAt, result: empty });
+    cacheResult(cacheKey, catalogAt, empty);
     return empty;
   }
 
@@ -395,7 +400,7 @@ export async function computeStopArrivals(stopCode: string): Promise<StopArrival
   // Only cache a COMPLETE result — a partial (deadline-cut) one must not be
   // pinned, or a slow first open would suppress the rest for the whole TTL.
   if (complete) {
-    resultCache.set(cacheKey, { at: Date.now(), catalogAt, result });
+    cacheResult(cacheKey, catalogAt, result);
   }
   return result;
 }

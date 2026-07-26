@@ -12,6 +12,9 @@ const ARCGIS_QUERY_TIMEOUT_MS = 15_000;
 // upstream outage can fail the query (spec §3.4, §4.1).
 const ARCGIS_MAX_ATTEMPTS = 3;
 const ARCGIS_RETRY_BASE_MS = 600; // 600ms, then 1200ms
+// Hard stop for cursor pagination. The biggest layer we read
+// (`consulta_paraderos_rutas`, ~42.6k rows at 2000/page) needs 22 pages.
+const MAX_PAGES = 60;
 
 interface ArcGISQueryOptions {
   folder: string;
@@ -114,11 +117,20 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
 
   const label = `${folder}/${service}`;
   const baseUrl = `${BASE_URL}/${folder}/${service}/FeatureServer/${layerIndex}/query`;
-  let allFeatures: any[] = [];
+  const allFeatures: any[] = [];
   let offset = 0;
   let hasMore = true;
+  let page = 0;
 
   while (hasMore) {
+    // A service that ignores `resultOffset` keeps reporting exceededTransferLimit
+    // with the same page forever: an unbounded loop that fills the heap on a
+    // 512 MB instance (spec §5.1.3). The largest real layer is ~22 pages.
+    if (++page > MAX_PAGES) {
+      console.warn(`[ArcGIS] ${label}: stopping at the ${MAX_PAGES}-page cap (${allFeatures.length} features)`);
+      break;
+    }
+
     const params = new URLSearchParams({
       where,
       outFields,
@@ -132,19 +144,14 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
     const url = `${baseUrl}?${params.toString()}`;
     console.log(`[ArcGIS] Fetching ${label}: offset=${offset}, limit=${resultRecordCount}`);
 
-    try {
-      const data = await fetchPageWithRetry(url, label);
-      const features = data.features ?? [];
-      if (features.length > 0) {
-        allFeatures = allFeatures.concat(features);
-        offset += features.length;
-      }
+    const data = await fetchPageWithRetry(url, label);
+    const features = data.features ?? [];
+    // push, not concat: concat reallocated and copied the whole accumulator on
+    // every page, which is ~470k element copies for the 42k-row stop-route layer.
+    for (const feature of features) allFeatures.push(feature);
+    offset += features.length;
 
-      hasMore = data.exceededTransferLimit === true && features.length > 0;
-    } catch (error) {
-      console.error(`[ArcGIS] Error fetching ${label}:`, error);
-      throw error;
-    }
+    hasMore = data.exceededTransferLimit === true && features.length > 0;
   }
 
   console.log(`[ArcGIS] ${label}: Fetched ${allFeatures.length} features total`);
@@ -163,13 +170,6 @@ export const queries = {
     queryFeatureLayer({
       folder: 'Troncal',
       service: 'consulta_estaciones_troncales',
-    }),
-
-  troncalWagons: () =>
-    queryFeatureLayer({
-      folder: 'Troncal',
-      service: 'consulta_esquemas_estaciones',
-      where: "secciontipo IN ('Vagon', 'Conexion', 'Transicion')",
     }),
 
   troncalCorridors: () =>

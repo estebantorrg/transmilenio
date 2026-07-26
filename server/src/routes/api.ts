@@ -4,6 +4,7 @@ import * as tmApi from '../services/tm_api.js';
 import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
 import { computeStopArrivals } from '../services/stop_arrivals.js';
 import { geocodeAddress } from '../services/geocode.js';
+import { isWithinBogota } from '../services/bogota.js';
 import zlib from 'zlib';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +32,25 @@ const UPSTREAM_RETRY_AFTER_S = 5;
  */
 const liveBusCache = new Map<string, { buses: any[]; at: number }>();
 const LIVE_BUS_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+// The TTL alone never frees anything: it is only consulted on read, so an entry
+// for a route nobody opens again stays resident forever. The catalog has ~1000
+// route variants and each entry holds a full bus array — real memory on a 512 MB
+// instance (spec §5.1.3). Bound it and evict the oldest fix when full.
+const LIVE_BUS_CACHE_MAX = 120;
+
+function rememberLiveBuses(key: string, buses: any[]): void {
+  liveBusCache.set(key, { buses, at: Date.now() });
+  if (liveBusCache.size <= LIVE_BUS_CACHE_MAX) return;
+  let oldestKey: string | null = null;
+  let oldestAt = Infinity;
+  for (const [k, entry] of liveBusCache) {
+    if (entry.at < oldestAt) {
+      oldestAt = entry.at;
+      oldestKey = k;
+    }
+  }
+  if (oldestKey !== null) liveBusCache.delete(oldestKey);
+}
 const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
 const LIVE_DESTINATION_MAX_LENGTH = 160;
 const LIVE_NAME_CANDIDATE_LIMIT = 12;
@@ -242,75 +262,66 @@ router.get('/zonal/routes', featureEndpoint('zonal-routes', queries.zonalRoutes,
 router.get('/zonal/stops', featureEndpoint('zonal-stops', queries.zonalStops, 'zonal stops', 1800));
 router.get('/zonal/stop-routes', featureEndpoint('zonal-stop-routes', queries.zonalStopRoutes, 'zonal stop routes', 1800));
 
-// ─── Recharge Points (tullave POIs) ───────────────────────
-// Static POI catalog committed from a Colombian egress (spec §5.8, see
-// `sync_recarga.ts`). Served read-only with no runtime geofence dependency.
+// ─── Committed POI / demand datasets ──────────────────────
+// Three static catalogues aggregated offline and committed, because none of them
+// has a single official endpoint we could proxy: tullave recharge points
+// (`sync_recarga.ts`, spec §5.8), per-station weekday demand (`sync_demand.ts`,
+// spec §5.8) and TransMiBici bike parking (`sync_transmibici.ts`, spec §5.3).
+// They are read from disk once and served read-only — no bulk download or parse
+// on the hot path, and no runtime geofence dependency.
+//
+// ONE loader for all three: the read + memo + concurrent-first-hit sharing is
+// identical, only the filename differs (spec §1.1 R2).
 
-let rechargePointsCache: any[] | null = null;
-async function loadRechargePoints(): Promise<any[]> {
-  if (rechargePointsCache) return rechargePointsCache;
-  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'recarga_points.json');
-  rechargePointsCache = JSON.parse(await readFile(file, 'utf8'));
-  return rechargePointsCache!;
+const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
+const dataFileCache = new Map<string, unknown>();
+const dataFileInFlight = new Map<string, Promise<unknown>>();
+
+function loadDataFile<T>(filename: string): Promise<T> {
+  const cached = dataFileCache.get(filename);
+  if (cached !== undefined) return Promise.resolve(cached as T);
+
+  const pending = dataFileInFlight.get(filename);
+  if (pending) return pending as Promise<T>;
+
+  const request = readFile(join(DATA_DIR, filename), 'utf8')
+    .then((text) => {
+      const parsed = JSON.parse(text);
+      dataFileCache.set(filename, parsed);
+      return parsed;
+    })
+    .finally(() => {
+      dataFileInFlight.delete(filename);
+    });
+
+  dataFileInFlight.set(filename, request);
+  return request as Promise<T>;
 }
 
-router.get('/recarga-points', async (_req: Request, res: Response) => {
-  try {
-    const points = await loadRechargePoints();
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.json({ success: true, count: points.length, points });
-  } catch (error) {
-    console.error('Error loading recharge points:', error);
-    res.status(500).json({ success: false, error: 'Failed to load recharge points' });
-  }
-});
-
-// ─── Station Demand (Salidas ridership) ───────────────────
-// Mean weekday entry/exit counts per troncal station, aggregated offline from
-// the open "Salidas" dataset and committed (spec §5.8, see `sync_demand.ts`).
-// Served read-only — no bulk download/parse on the hot path.
-
-let stationDemandCache: any | null = null;
-async function loadStationDemand(): Promise<any> {
-  if (stationDemandCache) return stationDemandCache;
-  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'station_demand.json');
-  stationDemandCache = JSON.parse(await readFile(file, 'utf8'));
-  return stationDemandCache!;
+/** Serves one committed dataset. `shape` turns the parsed file into the response
+ *  body, which is the only thing that differs between the three endpoints. */
+function dataFileEndpoint<T>(filename: string, label: string, shape: (data: T) => object): RequestHandler {
+  return async (_req: Request, res: Response) => {
+    try {
+      const data = await loadDataFile<T>(filename);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.json({ success: true, ...shape(data) });
+    } catch (error) {
+      console.error(`Error loading ${label}:`, error);
+      res.status(500).json({ success: false, error: `Failed to load ${label}` });
+    }
+  };
 }
 
-router.get('/station-demand', async (_req: Request, res: Response) => {
-  try {
-    const demand = await loadStationDemand();
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.json({ success: true, ...demand });
-  } catch (error) {
-    console.error('Error loading station demand:', error);
-    res.status(500).json({ success: false, error: 'Failed to load station demand' });
-  }
-});
-
-// ─── TransMiBici (bike-parking POIs) ──────────────────────
-// Secure bike-parking facilities at stations, with capacity/occupancy (spec
-// §5.3, see `sync_transmibici.ts`). Static committed catalog.
-
-let transmibiciCache: any[] | null = null;
-async function loadTransmibici(): Promise<any[]> {
-  if (transmibiciCache) return transmibiciCache;
-  const file = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'transmibici.json');
-  transmibiciCache = JSON.parse(await readFile(file, 'utf8'));
-  return transmibiciCache!;
-}
-
-router.get('/transmibici', async (_req: Request, res: Response) => {
-  try {
-    const points = await loadTransmibici();
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.json({ success: true, count: points.length, points });
-  } catch (error) {
-    console.error('Error loading transmibici:', error);
-    res.status(500).json({ success: false, error: 'Failed to load transmibici' });
-  }
-});
+router.get('/recarga-points', dataFileEndpoint<any[]>(
+  'recarga_points.json', 'recharge points', (points) => ({ count: points.length, points })
+));
+router.get('/station-demand', dataFileEndpoint<object>(
+  'station_demand.json', 'station demand', (demand) => demand
+));
+router.get('/transmibici', dataFileEndpoint<any[]>(
+  'transmibici.json', 'transmibici', (points) => ({ count: points.length, points })
+));
 
 // ─── Cable Endpoints ──────────────────────────────────────
 
@@ -348,7 +359,7 @@ router.post('/buses', async (req: Request, res: Response) => {
     console.log(`[/buses] Response: ${buses.length} buses for ruta="${ruta}" via=${source}`);
 
     if (buses.length > 0) {
-      liveBusCache.set(cacheKey, { buses, at: Date.now() });
+      rememberLiveBuses(cacheKey, buses);
       res.json({ success: true, status: 'live', confidence: 'high', count: buses.length, data: buses, source });
       return;
     }
@@ -426,11 +437,9 @@ router.post('/stop-arrivals', async (req: Request, res: Response) => {
   }
 });
 
-// ─── Approximate Geolocation (IP fallback) ────────────────
-// Used when the browser's native geolocation is unavailable (e.g. the OS/
-// network location provider is blocked, returning POSITION_UNAVAILABLE).
-// Resolves the *client's* IP to an approximate coordinate. Nothing is stored
-// (spec §3.3 — zero PII storage); the client only calls /api/* (spec §2.3).
+// ─── Lectura de saldo (tullave card ledger) ───────────────
+// Reproduces the official app's `POST /lectura_tarjeta` (spec §5.5.1a). The card
+// number is never logged in full and never cached.
 
 router.post('/card/read', async (req: Request, res: Response) => {
   const rawCardNumber = req.body?.numero_tarjeta ?? req.body?.numeroTarjeta ?? req.body?.cardNumber;
@@ -456,6 +465,12 @@ router.post('/card/read', async (req: Request, res: Response) => {
   }
 });
 
+// ─── Approximate Geolocation (IP fallback) ────────────────
+// Used when the browser's native geolocation is unavailable (e.g. the OS/
+// network location provider is blocked, returning POSITION_UNAVAILABLE).
+// Resolves the *client's* IP to an approximate coordinate. Nothing is stored
+// (spec §3.3 — zero PII storage); the client only calls /api/* (spec §2.3).
+
 const GEOIP_TIMEOUT_MS = 5_000;
 const WALKING_ROUTE_TIMEOUT_MS = 9_000;
 // Pedestrian speed used to derive walking time from the routed path distance.
@@ -464,12 +479,6 @@ const WALKING_ROUTE_TIMEOUT_MS = 9_000;
 // totals stay consistent before and after walking-geometry enrichment.
 const WALK_SPEED_M_PER_MINUTE = 75;
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
-const BOGOTA_WALKING_BOUNDS = {
-  west: -74.25,
-  south: 4.4,
-  east: -73.95,
-  north: 4.85,
-};
 
 type LngLat = [number, number];
 
@@ -483,10 +492,7 @@ function parseLngLatQuery(value: unknown): LngLat | null {
 }
 
 function isWithinWalkingBounds([lng, lat]: LngLat): boolean {
-  return lng >= BOGOTA_WALKING_BOUNDS.west &&
-    lng <= BOGOTA_WALKING_BOUNDS.east &&
-    lat >= BOGOTA_WALKING_BOUNDS.south &&
-    lat <= BOGOTA_WALKING_BOUNDS.north;
+  return isWithinBogota(lng, lat);
 }
 
 function getClientIp(req: Request): string | null {

@@ -1,4 +1,5 @@
 import * as tmApi from './tm_api.js';
+import { BOGOTA_BBOX, BOGOTA_BOUNDS, isWithinBogota } from './bogota.js';
 
 export interface GeocodeCandidate {
   name: string;
@@ -15,13 +16,6 @@ interface LocalCandidate extends GeocodeCandidate {
 interface VerifiedLocalStation extends GeocodeCandidate {
   aliases: string[];
 }
-
-const BOGOTA_BOUNDS = {
-  west: -74.25,
-  south: 4.45,
-  east: -73.98,
-  north: 4.85,
-};
 
 const LOCAL_MIN_SCORE = 45;
 // Cap how many local station/stop hits reserve slots in a merged list so real
@@ -144,30 +138,64 @@ function uniqueSearchTexts(candidate: GeocodeCandidate, aliases: string[] = []):
   return Array.from(new Set([candidate.name, candidate.code || '', ...aliases].filter(Boolean)));
 }
 
-function scoreCandidate(query: string, candidate: GeocodeCandidate, aliases: string[] = []): number {
-  const canonicalQuery = canonicalSearchText(query);
-  const compactQuery = compactSearchText(query);
-  const tokens = queryTokens(query);
-  const code = canonicalSearchText(candidate.code || '');
+/**
+ * The query side of the scoring, canonicalised ONCE per lookup.
+ *
+ * `scoreCandidate` used to recompute `canonicalSearchText` + `compactSearchText` +
+ * `queryTokens` from the raw query on every call — and it is called once per
+ * catalog station, i.e. ~7 500 times per keystroke-debounced lookup, each running
+ * six regex passes. That is the geocode hot path on a 0.1-CPU instance and it
+ * blocks the event loop (spec §1.1 R2).
+ */
+interface ScoredQuery {
+  canonical: string;
+  compact: string;
+  tokens: string[];
+}
 
-  if (code && code === canonicalQuery) return 100;
+function prepareQuery(query: string): ScoredQuery {
+  return {
+    canonical: canonicalSearchText(query),
+    compact: compactSearchText(query),
+    tokens: queryTokens(query),
+  };
+}
+
+/** A candidate's searchable text, canonicalised once instead of per lookup. */
+interface PreparedTexts {
+  code: string;
+  texts: Array<{ canonical: string; compact: string; tokens: Set<string> }>;
+}
+
+function prepareTexts(candidate: GeocodeCandidate, aliases: string[] = []): PreparedTexts {
+  return {
+    code: canonicalSearchText(candidate.code || ''),
+    texts: uniqueSearchTexts(candidate, aliases).map((text) => {
+      const canonical = canonicalSearchText(text);
+      return {
+        canonical,
+        compact: compactSearchText(text),
+        tokens: new Set(canonical.split(' ').filter(Boolean)),
+      };
+    }),
+  };
+}
+
+function scoreCandidate(q: ScoredQuery, prepared: PreparedTexts): number {
+  if (prepared.code && prepared.code === q.canonical) return 100;
 
   let best = 0;
-  for (const text of uniqueSearchTexts(candidate, aliases)) {
-    const canonicalText = canonicalSearchText(text);
-    const compactText = compactSearchText(text);
-    const textTokens = new Set(canonicalText.split(' ').filter(Boolean));
+  for (const { canonical: canonicalText, compact: compactText, tokens: textTokens } of prepared.texts) {
+    if (compactText === q.compact) best = Math.max(best, 96);
+    else if (compactText.startsWith(q.compact)) best = Math.max(best, 90);
+    else if (compactText.includes(q.compact)) best = Math.max(best, 84);
 
-    if (compactText === compactQuery) best = Math.max(best, 96);
-    else if (compactText.startsWith(compactQuery)) best = Math.max(best, 90);
-    else if (compactText.includes(compactQuery)) best = Math.max(best, 84);
-
-    if (tokens.length > 0) {
-      const matched = tokens.filter((token) => textTokens.has(token) || canonicalText.includes(token)).length;
-      if (matched === tokens.length) {
-        best = Math.max(best, 80 + Math.min(tokens.length, 8));
+    if (q.tokens.length > 0) {
+      const matched = q.tokens.filter((token) => textTokens.has(token) || canonicalText.includes(token)).length;
+      if (matched === q.tokens.length) {
+        best = Math.max(best, 80 + Math.min(q.tokens.length, 8));
       } else if (matched >= 2) {
-        best = Math.max(best, 45 + Math.round((matched / tokens.length) * 20));
+        best = Math.max(best, 45 + Math.round((matched / q.tokens.length) * 20));
       }
     }
   }
@@ -175,34 +203,32 @@ function scoreCandidate(query: string, candidate: GeocodeCandidate, aliases: str
   return best;
 }
 
-function inBogota(candidate: GeocodeCandidate): boolean {
-  return Number.isFinite(candidate.lat) &&
-    Number.isFinite(candidate.lon) &&
-    candidate.lon >= BOGOTA_BOUNDS.west &&
-    candidate.lon <= BOGOTA_BOUNDS.east &&
-    candidate.lat >= BOGOTA_BOUNDS.south &&
-    candidate.lat <= BOGOTA_BOUNDS.north;
+/**
+ * Canonicalised search text for every catalog station, built once per catalog
+ * version.
+ *
+ * Recomputing it per lookup meant ~7 500 stations × 4 texts × two regex chains on
+ * EVERY autocomplete keystroke — measured at ~123 ms of pure string work per
+ * lookup on the committed catalog, synchronously on the event loop of a 0.1-CPU
+ * instance (spec §1.1 R2). Keyed to `getCatalogLoadedAt()` so a re-synced catalog
+ * rebuilds it instead of serving stale names.
+ */
+interface LocalIndexEntry {
+  candidate: GeocodeCandidate;
+  prepared: PreparedTexts;
 }
+let localIndex: LocalIndexEntry[] | null = null;
+let localIndexCatalogAt = -1;
 
-function finiteNumber(value: unknown): number | null {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-}
-
-function stripLocalScore(candidate: LocalCandidate): GeocodeCandidate {
-  const { score: _score, ...rest } = candidate;
-  return rest;
-}
-
-function searchLocalCatalog(query: string): LocalCandidate[] {
-  if (!canonicalSearchText(query)) return [];
+function getLocalIndex(): LocalIndexEntry[] {
+  const catalogAt = tmApi.getCatalogLoadedAt();
+  if (localIndex && localIndexCatalogAt === catalogAt) return localIndex;
 
   const catalog = tmApi.getCatalog();
-  const candidates: LocalCandidate[] = [];
+  const entries: LocalIndexEntry[] = [];
 
   for (const station of VERIFIED_LOCAL_STATIONS) {
-    const score = scoreCandidate(query, station, station.aliases);
-    if (score >= LOCAL_MIN_SCORE) candidates.push({ ...station, score });
+    entries.push({ candidate: station, prepared: prepareTexts(station, station.aliases) });
   }
 
   for (const [fallbackCode, station] of Object.entries(catalog.stations || {})) {
@@ -223,8 +249,48 @@ function searchLocalCatalog(query: string): LocalCandidate[] {
       type: isTroncal ? 'station' : 'stop',
       code: station.codigo || fallbackCode,
     };
-    const score = scoreCandidate(query, candidate, [station.nombre, station.direccion, station.codigo]);
-    if (score >= LOCAL_MIN_SCORE) candidates.push({ ...candidate, score });
+    entries.push({
+      candidate,
+      prepared: prepareTexts(candidate, [station.nombre, station.direccion, station.codigo]),
+    });
+  }
+
+  localIndex = entries;
+  localIndexCatalogAt = catalogAt;
+  console.log(`[Geocode] Local index built: ${entries.length} searchable stations/paraderos`);
+  return entries;
+}
+
+function inBogota(candidate: GeocodeCandidate): boolean {
+  return isWithinBogota(candidate.lon, candidate.lat);
+}
+
+function finiteNumber(value: unknown): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+/** Narrow a scored local hit to the public contract. `aliases` is a matching aid
+ *  for `VERIFIED_LOCAL_STATIONS`, not part of the response shape the client
+ *  declares (`GeocodeCandidate`) — spreading the verified entries leaked it. */
+function stripLocalScore(candidate: LocalCandidate): GeocodeCandidate {
+  return {
+    name: candidate.name,
+    lat: candidate.lat,
+    lon: candidate.lon,
+    type: candidate.type,
+    ...(candidate.code ? { code: candidate.code } : {}),
+  };
+}
+
+function searchLocalCatalog(query: string): LocalCandidate[] {
+  const prepared = prepareQuery(query);
+  if (!prepared.canonical) return [];
+
+  const candidates: LocalCandidate[] = [];
+  for (const entry of getLocalIndex()) {
+    const score = scoreCandidate(prepared, entry.prepared);
+    if (score >= LOCAL_MIN_SCORE) candidates.push({ ...entry.candidate, score });
   }
 
   const uniqueByCode = new Map<string, LocalCandidate>();
@@ -244,7 +310,10 @@ function searchLocalCatalog(query: string): LocalCandidate[] {
 }
 
 async function fetchNominatim(query: string): Promise<GeocodeCandidate[]> {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&viewbox=-74.25,4.45,-73.98,4.85&bounded=1&limit=6`;
+  // Same window as `inBogota` — a hard-coded literal here had already drifted from it.
+  const url =
+    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}` +
+    `&format=json&viewbox=${BOGOTA_BBOX}&bounded=1&limit=6`;
 
   const response = await fetch(url, {
     headers: {
@@ -282,10 +351,9 @@ async function fetchNominatim(query: string): Promise<GeocodeCandidate[]> {
  * `bbox` restricts to the Bogotá window; `inBogota` re-checks as defense in depth.
  */
 async function fetchPhoton(query: string): Promise<GeocodeCandidate[]> {
-  const bbox = `${BOGOTA_BOUNDS.west},${BOGOTA_BOUNDS.south},${BOGOTA_BOUNDS.east},${BOGOTA_BOUNDS.north}`;
   const url =
     `https://photon.komoot.io/api?q=${encodeURIComponent(query)}` +
-    `&bbox=${bbox}&lat=4.60&lon=-74.08&limit=6`;
+    `&bbox=${BOGOTA_BBOX}&lat=4.60&lon=-74.08&limit=6`;
 
   const response = await fetch(url, {
     headers: {
@@ -390,8 +458,7 @@ function dedupeCandidates(candidates: GeocodeCandidate[]): GeocodeCandidate[] {
   return uniqueCandidates;
 }
 
-function remoteLooksRelevant(query: string, candidate: GeocodeCandidate): boolean {
-  const tokens = queryTokens(query);
+function remoteLooksRelevant(tokens: string[], candidate: GeocodeCandidate): boolean {
   if (tokens.length === 0) return true;
   const text = canonicalSearchText(candidate.name);
   const matched = tokens.filter((token) => text.includes(token)).length;
@@ -431,8 +498,9 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
 
   // Photon leads: it's the autocomplete-tuned place source. Nominatim/ArcGIS
   // backfill addresses it misses. dedupeCandidates + inBogota keep it Bogotá-only.
+  const remoteTokens = queryTokens(trimmed);
   const relevantRemote = [...photon, ...nominatim, ...arcgis].filter((candidate) =>
-    remoteLooksRelevant(trimmed, candidate)
+    remoteLooksRelevant(remoteTokens, candidate)
   );
 
   // Keep the strongest local station/stop hits on top, but cap them when remote

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
+import { collectBody, decodeBody } from './upstream_body.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -139,35 +140,24 @@ function fetchApi(params: Record<string, string>): Promise<any> {
         timeout: 15000,
       },
       (res) => {
-        const chunks: Buffer[] = [];
-        res.on('data', (chunk: Buffer) => chunks.push(chunk));
-        res.on('end', () => {
-          const raw = Buffer.concat(chunks);
-          const encoding = res.headers['content-encoding'];
-
-          const parse = (buf: Buffer) => {
-            const text = buf.toString('utf-8');
-            try {
-              return JSON.parse(text);
-            } catch {
-              console.error(`[TM API] JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
-              return null;
-            }
-          };
-
-          if (encoding === 'gzip') {
-            zlib.gunzip(raw, (err, decompressed) => {
-              if (err) {
-                // Try parsing raw in case it's not actually gzipped
-                resolve(parse(raw));
-              } else {
-                resolve(parse(decompressed));
-              }
-            });
-          } else {
-            resolve(parse(raw));
+        const parse = (buf: Buffer) => {
+          const text = buf.toString('utf-8');
+          try {
+            return JSON.parse(text);
+          } catch {
+            console.error(`[TM API] JSON parse error. Status: ${res.statusCode}. Body: ${text.slice(0, 200)}`);
+            return null;
           }
-        });
+        };
+
+        collectBody(res, 'catalog loader').then(
+          (raw) =>
+            // A gzip failure means the body was not actually gzipped — parse it raw.
+            decodeBody(raw, res.headers['content-encoding'])
+              .then((body) => resolve(parse(body)))
+              .catch(() => resolve(parse(raw))),
+          reject
+        );
       }
     );
 
@@ -303,10 +293,6 @@ const gzipAsync = promisify(zlib.gzip);
 function invalidateLightCatalog(): void {
   lightCatalogGzip = null;
   lightCatalogStationCount = 0;
-}
-
-export function getCatalogFilePath(): string {
-  return CATALOG_FILE;
 }
 
 export function getCatalogLoadedAt(): number {
@@ -1077,18 +1063,6 @@ function allowPublicColombianProxyFallback(): boolean {
   return process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1';
 }
 
-function decodeBody(raw: Buffer, encoding: string | string[] | undefined): Promise<Buffer> {
-  const contentEncoding = Array.isArray(encoding) ? encoding.join(',') : encoding || '';
-  if (!contentEncoding.toLowerCase().includes('gzip')) return Promise.resolve(raw);
-
-  return new Promise((resolve, reject) => {
-    zlib.gunzip(raw, (err, decompressed) => {
-      if (err) reject(err);
-      else resolve(decompressed);
-    });
-  });
-}
-
 /** Shared decode + JSON + upstream-error handling for any live-host endpoint.
  *  The `normalize` step is what differs (buses vs arrivals). */
 async function parseLivePayload(
@@ -1154,23 +1128,26 @@ function requestLiveJson(
       agent,
       timeout: timeoutMs,
     }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', async () => {
-        cleanup();
-        const raw = Buffer.concat(chunks);
-
-        if (res.statusCode !== 200) {
-          reject(new Error(`${source}: Status: ${res.statusCode}`));
-          return;
-        }
-
-        try {
-          resolve(await parse(raw, res.headers['content-encoding'], source));
-        } catch (error) {
+      // Bounded read + `error` listener live in one place (upstream_body.ts):
+      // the transport may be an untrusted free proxy (spec §5.2.5).
+      collectBody(res, source).then(
+        async (raw) => {
+          cleanup();
+          if (res.statusCode !== 200) {
+            reject(new Error(`${source}: Status: ${res.statusCode}`));
+            return;
+          }
+          try {
+            resolve(await parse(raw, res.headers['content-encoding'], source));
+          } catch (error) {
+            reject(error);
+          }
+        },
+        (error) => {
+          cleanup();
           reject(error);
         }
-      });
+      );
     });
 
     // Let a parallel race cancel the losers as soon as a winner resolves.
@@ -1237,7 +1214,14 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signa
   return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, agent as https.Agent, signal);
 }
 
-function buildProxyHeaders(context: LiveRequestContext): Record<string, string | number> {
+/**
+ * The exact header set the official app sends to the live host (spec §5.2.3 /
+ * §5.5.1a). ONE definition: the direct tier, the proxy tier and the arrivals
+ * request all send the same thing, and three hand-maintained copies of an
+ * upstream contract is exactly how one of them drifts (spec §1.1 R2).
+ * `Content-Type` is omitted for a bodyless request (zonal `/location/ruta`).
+ */
+function buildLiveApiHeaders(postData: string): Record<string, string | number> {
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'identity',
     'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
@@ -1246,9 +1230,9 @@ function buildProxyHeaders(context: LiveRequestContext): Record<string, string |
     'User-Agent': 'okhttp/4.12.0',
     'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
     'version': '2.9.5',
-    'Content-Length': Buffer.byteLength(context.postData),
+    'Content-Length': Buffer.byteLength(postData),
   };
-  if (context.postData) headers['Content-Type'] = 'application/json; charset=UTF-8';
+  if (postData) headers['Content-Type'] = 'application/json; charset=UTF-8';
   return headers;
 }
 
@@ -1335,7 +1319,7 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, sign
   if (ready === 0) throw new Error('No Colombian proxy available');
 
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  const headers = buildProxyHeaders(context);
+  const headers = buildLiveApiHeaders(context.postData);
 
   const tried = new Set<string>();
   let lastError: Error | null = null;
@@ -1370,19 +1354,7 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, sign
 async function fetchLiveBusesDirect(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
   const postData = context.postData;
-  const headers: Record<string, string | number> = {
-    'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-    'Connection': 'Keep-Alive',
-    'Host': LIVE_API_HOST,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
-    'Content-Length': Buffer.byteLength(postData),
-  };
-  if (postData) {
-    headers['Content-Type'] = 'application/json; charset=UTF-8';
-  }
+  const headers = buildLiveApiHeaders(postData);
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=DIRECT`);
   try {
@@ -1600,35 +1572,25 @@ function normalizeArrivalsPayload(payload: any): any[] {
 
 export interface ArrivalsResult {
   arrivals: any[];
-  source: LiveBusSource;
-}
-
-function buildArrivalsHeaders(postData: string): Record<string, string | number> {
-  return {
-    'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-    'Connection': 'Keep-Alive',
-    'Host': LIVE_API_HOST,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
-    'Content-Type': 'application/json; charset=UTF-8',
-    'Content-Length': Buffer.byteLength(postData),
-  };
+  /** `null` = no transport reached upstream (an empty list is NOT a verified
+   *  "no buses inbound"). */
+  source: LiveBusSource | null;
 }
 
 /**
  * Real-time arrivals at a paradero (`POST /paradero/buses`, spec §5.8). Reuses
- * the live transport tiers: direct (Colombian egress) → public CO proxy (prod
- * fallback). Never throws for "no buses" — returns an empty list.
+ * the live transport tiers: direct (Colombian egress) → CO relay → public CO
+ * proxy. Never throws for "no buses" — returns an empty list, with `source: null`
+ * when no transport reached upstream at all, so the caller can tell a verified
+ * "nothing inbound" from an outage (spec §1 certainty).
  */
 export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
   const cenefa = normalizeLiveText(paradero, LIVE_ROUTE_CODE_MAX_LENGTH);
-  if (!cenefa) return { arrivals: [], source: 'direct' };
+  if (!cenefa) return { arrivals: [], source: null };
 
   const url = new URL(`${LIVE_API_ORIGIN}/paradero/buses`);
   const postData = JSON.stringify({ paradero: cenefa });
-  const headers = buildArrivalsHeaders(postData);
+  const headers = buildLiveApiHeaders(postData);
 
   const overall = new AbortController();
   const timer = setTimeout(() => overall.abort(), LIVE_OVERALL_TIMEOUT_MS);
@@ -1678,7 +1640,9 @@ export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
         }
       }
     }
-    return { arrivals: [], source: 'direct' };
+    // Nothing reached upstream. Reporting `direct` here would claim a Colombian
+    // egress verified an empty arrivals board when in fact none answered.
+    return { arrivals: [], source: null };
   } finally {
     clearTimeout(timer);
   }

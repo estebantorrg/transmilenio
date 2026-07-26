@@ -1,6 +1,6 @@
 import https from 'https';
-import zlib from 'zlib';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
+import { collectBody, decodeBody } from './upstream_body.js';
 
 const CARD_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const CARD_API_PATH = '/lectura_tarjeta';
@@ -95,18 +95,6 @@ export function maskCardNumber(cardNumber: string): string {
   return `${cardNumber.slice(0, 4)}...${cardNumber.slice(-4)}`;
 }
 
-function decodeCardBody(raw: Buffer, encoding: string | string[] | undefined): Promise<Buffer> {
-  const contentEncoding = Array.isArray(encoding) ? encoding.join(',') : encoding || '';
-  if (!contentEncoding.toLowerCase().includes('gzip')) return Promise.resolve(raw);
-
-  return new Promise((resolve, reject) => {
-    zlib.gunzip(raw, (err, decoded) => {
-      if (err) reject(err);
-      else resolve(decoded);
-    });
-  });
-}
-
 function isRow(item: unknown): item is Record<string, unknown> {
   return item != null && typeof item === 'object' && !Array.isArray(item);
 }
@@ -141,28 +129,33 @@ function requestCardRows(
       agent,
       timeout: timeoutMs,
     }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', async () => {
-        cleanup();
-        const raw = Buffer.concat(chunks);
-        if (res.statusCode !== 200) {
-          const status = res.statusCode ?? 0;
-          // 401/451 = CO-IP geofence; map to 503 and tag the upstream status so
-          // the caller can decide to retry via a Colombian egress.
-          const clientStatus = status === 401 || status === 451 ? 503 : 502;
-          reject(new CardBalanceError(`Card API status ${status}`, clientStatus, status));
-          return;
-        }
+      // Bounded read + `error` listener (shared, spec §5.2.5: the transport may
+      // be an untrusted free proxy, so the body is capped and the inflate too).
+      collectBody(res, 'Card API').then(
+        async (raw) => {
+          cleanup();
+          if (res.statusCode !== 200) {
+            const status = res.statusCode ?? 0;
+            // 401/451 = CO-IP geofence; map to 503 and tag the upstream status so
+            // the caller can decide to retry via a Colombian egress.
+            const clientStatus = status === 401 || status === 451 ? 503 : 502;
+            reject(new CardBalanceError(`Card API status ${status}`, clientStatus, status));
+            return;
+          }
 
-        try {
-          const body = await decodeCardBody(raw, res.headers['content-encoding']);
-          const payload = JSON.parse(body.toString('utf-8'));
-          resolve(Array.isArray(payload) ? payload.filter(isRow) : []);
-        } catch (error: any) {
-          reject(new CardBalanceError(`Card API JSON parse error: ${error?.message || error}`, 502));
+          try {
+            const body = await decodeBody(raw, res.headers['content-encoding']);
+            const payload = JSON.parse(body.toString('utf-8'));
+            resolve(Array.isArray(payload) ? payload.filter(isRow) : []);
+          } catch (error: any) {
+            reject(new CardBalanceError(`Card API JSON parse error: ${error?.message || error}`, 502));
+          }
+        },
+        (error: any) => {
+          cleanup();
+          reject(new CardBalanceError(`Card API read failed: ${error?.message || error}`, 502));
         }
-      });
+      );
     });
 
     const onAbort = () => {

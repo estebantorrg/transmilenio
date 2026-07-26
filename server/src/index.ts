@@ -22,6 +22,22 @@ const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   next(error);
 };
 
+/**
+ * Terminal error handler (spec §4.1 — "clients never receive stack traces").
+ * Without one, anything a route throws outside its own try/catch falls through
+ * to Express's default handler, which writes the stack into the response body
+ * unless NODE_ENV happens to be `production`. Log server-side, answer with the
+ * structured shape the API contract promises.
+ */
+const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
+  console.error(`[Unhandled] ${req.method} ${req.originalUrl}:`, error);
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  res.status(500).json({ success: false, error: 'Internal server error' });
+};
+
 // Behind Render's proxy — trust X-Forwarded-* so req.ip is the real client IP
 // (used by /api/geoip for approximate location).
 app.set('trust proxy', true);
@@ -83,23 +99,37 @@ app.use(express.static(seoDir, {
   },
 }));
 
-// Root API test path
+// Root API test path. Keep this list in step with routes/api.ts AND with the
+// contract in spec §5.5.1 — it had silently drifted eleven endpoints behind.
 app.get('/api', (_req, res) => {
   res.json({
     name: 'Transmilenio API Proxy',
     version: '2.0.0',
     endpoints: [
+      'GET /api/health',
+      'GET /api/debug-buses',
       'GET /api/troncal/routes',
       'GET /api/troncal/stations',
       'GET /api/troncal/corridors',
       'GET /api/troncal/master-catalog',
+      'GET /api/troncal/route/:code',
       'GET /api/troncal/station/:code',
       'POST /api/troncal/sync',
       'GET /api/zonal/routes',
       'GET /api/zonal/stops',
       'GET /api/zonal/stop-routes',
+      'GET /api/cable/stations',
+      'GET /api/cable/trazado',
+      'GET /api/recarga-points',
+      'GET /api/station-demand',
+      'GET /api/transmibici',
+      'POST /api/buses',
+      'POST /api/arrivals',
+      'POST /api/stop-arrivals',
       'POST /api/card/read',
-      'GET /api/health',
+      'GET /api/geoip',
+      'GET /api/geocode',
+      'GET /api/walking-route',
     ],
   });
 });
@@ -113,6 +143,10 @@ app.use('/api', (_req, res) => {
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(clientDist, 'index.html'));
 });
+
+// Last in the stack, so it catches anything any route above threw (Express walks
+// the stack FORWARD from where the error was raised).
+app.use(apiErrorHandler);
 
 async function start(): Promise<void> {
   // Load cached catalog from disk

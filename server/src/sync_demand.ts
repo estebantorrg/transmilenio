@@ -80,8 +80,9 @@ function unzipSingleEntry(buf: Buffer): Buffer {
  *  The `Estacion` code is the only 5-digit `(NNNNN)` token per row (Línea and
  *  Acceso codes are 2-digit); `Entradas_E`/`Salidas_S` are the last two integer
  *  columns — robust even for the ~0.5% of rows with commas inside access names. */
-function aggregateDay(csv: string, agg: Map<string, { e: number; s: number }>): void {
+function aggregateDay(csv: string, agg: Map<string, { e: number; s: number }>): number {
   const lines = csv.split(/\r?\n/);
+  let rows = 0;
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
@@ -95,7 +96,9 @@ function aggregateDay(csv: string, agg: Map<string, { e: number; s: number }>): 
     prev.e += entradas;
     prev.s += salidas;
     agg.set(codeMatch[1], prev);
+    rows++;
   }
+  return rows;
 }
 
 async function fetchStationRefs(): Promise<Map<string, StationRef>> {
@@ -146,10 +149,17 @@ export async function syncStationDemand(): Promise<number> {
       if (!res.ok) continue; // missing day (holiday/not yet published) — skip
       const buf = Buffer.from(await res.arrayBuffer());
       const csv = unzipSingleEntry(buf).toString('utf8');
-      aggregateDay(csv, agg);
+      const rows = aggregateDay(csv, agg);
+      // A day that parsed to ZERO rows must not count: `daysUsed` is the divisor
+      // for every mean, so an upstream format change would silently deflate the
+      // whole dataset instead of failing (spec §1 certainty).
+      if (rows === 0) {
+        console.warn(`[sync:demand] ${name} parsed 0 rows — skipped (CSV format changed?)`);
+        continue;
+      }
       daysUsed++;
       usedDates.push(name.slice(7, 15));
-      console.log(`[sync:demand] ${name} ok (${daysUsed}/${TARGET_DAYS})`);
+      console.log(`[sync:demand] ${name} ok, ${rows} rows (${daysUsed}/${TARGET_DAYS})`);
     } catch (err: any) {
       console.warn(`[sync:demand] ${name} skipped: ${err?.message || err}`);
     }
