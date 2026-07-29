@@ -1,6 +1,7 @@
 {
   "name": "transmilenio-mobile",
   "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "description": "TransMilenio Explorer - Android app. Capacitor shell around the web client; live tracking runs natively from the device's own Colombian connection.",
   "scripts": {
