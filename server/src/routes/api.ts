@@ -263,10 +263,12 @@ router.get('/zonal/stops', featureEndpoint('zonal-stops', queries.zonalStops, 'z
 router.get('/zonal/stop-routes', featureEndpoint('zonal-stop-routes', queries.zonalStopRoutes, 'zonal stop routes', 1800));
 
 // ─── Committed POI / demand datasets ──────────────────────
-// Three static catalogues aggregated offline and committed, because none of them
-// has a single official endpoint we could proxy: tullave recharge points
-// (`sync_recarga.ts`, spec §5.8), per-station weekday demand (`sync_demand.ts`,
-// spec §5.8) and TransMiBici bike parking (`sync_transmibici.ts`, spec §5.3).
+// Four static catalogues aggregated offline and committed, because none of them
+// can be served from a US host at request time: the two tullave POI sets —
+// recharge + personalization — are on the CO-geofenced live host
+// (`sync_tullave_points.ts`, spec §5.8), and per-station weekday demand
+// (`sync_demand.ts`, spec §5.8) and TransMiBici bike parking
+// (`sync_transmibici.ts`, spec §5.3) have no single official endpoint at all.
 // They are read from disk once and served read-only — no bulk download or parse
 // on the hot path, and no runtime geofence dependency.
 //
@@ -315,6 +317,9 @@ function dataFileEndpoint<T>(filename: string, label: string, shape: (data: T) =
 
 router.get('/recarga-points', dataFileEndpoint<any[]>(
   'recarga_points.json', 'recharge points', (points) => ({ count: points.length, points })
+));
+router.get('/personalizacion-points', dataFileEndpoint<any[]>(
+  'personalizacion_points.json', 'personalization points', (points) => ({ count: points.length, points })
 ));
 router.get('/station-demand', dataFileEndpoint<object>(
   'station_demand.json', 'station demand', (demand) => demand

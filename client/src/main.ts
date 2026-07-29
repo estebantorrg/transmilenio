@@ -7,7 +7,7 @@
 
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
-import { api, prefetchLiveBuses } from './services/api';
+import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
@@ -33,6 +33,7 @@ import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { isWithinBogota } from './utils/geo';
 import { initCerca, setCercaLocation, setNearbyPoints, type NearbyPoint } from './ui/cerca';
+import { POINT_KIND_META } from './data/pointKinds';
 import { escapeHTML } from './utils/html';
 import {
   applyZonalStopEnrichment,
@@ -240,6 +241,7 @@ let userMarker: maplibregl.Marker | null = null;
 let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
+let nearbyPersonalizacionPoints: NearbyPoint[] = [];
 let nearbyBikeParkingPoints: NearbyPoint[] = [];
 // TransMiCable gondola stations. They render on the map and the app already
 // lists them under Cerca, but on the website they were in neither lookup
@@ -250,6 +252,7 @@ function pushNearbyPoints(): void {
     ...nearbyStationPoints,
     ...nearbyStopPoints,
     ...nearbyRechargePoints,
+    ...nearbyPersonalizacionPoints,
     ...nearbyBikeParkingPoints,
     ...nearbyCablePoints,
   ];
@@ -307,12 +310,22 @@ function placeUserMarker(
   }
 }
 
-/** Lightweight popup for a tullave recharge POI (name/address/hours). */
+/** Accent per tullave POI kind — matches the `.near-dot` colours in style.css. */
+const TULLAVE_ACCENT: Record<string, string> = {
+  recharge: '#22c55e',
+  personalizacion: '#a855f7',
+};
+
+/** Lightweight popup for a tullave POI — recharge or personalization
+ *  (name/address/hours). Label and accent come from the kind, so a
+ *  personalization counter is not announced as a recharge point. */
 function showRechargePopup(map: maplibregl.Map, point: NearbyPoint): void {
-  const hours = point.hours ? `<div class="popup-meta"><span>Lun–Vie ${escapeHTML(point.hours)}</span></div>` : '';
+  const meta = POINT_KIND_META[point.kind];
+  const prefix = meta.extraPrefix ? `${meta.extraPrefix} ` : '';
+  const hours = point.hours ? `<div class="popup-meta"><span>${escapeHTML(prefix + point.hours)}</span></div>` : '';
   const html = `
     <div class="popup-card">
-      <div class="popup-eyebrow" style="color:#22c55e">Punto de recarga tullave</div>
+      <div class="popup-eyebrow" style="color:${TULLAVE_ACCENT[point.kind] ?? '#22c55e'}">${escapeHTML(meta.fallback)}</div>
       <div class="popup-title">${escapeHTML(point.name)}</div>
       ${point.direccion ? `<div class="popup-meta"><span>${escapeHTML(point.direccion)}</span></div>` : ''}
       ${hours}
@@ -703,7 +716,7 @@ async function main(): Promise<void> {
   // Cerca rows and the Explore search's station/paradero hits (spec §1.1 R2).
   const focusNearbyPoint = (point: NearbyPoint): void => {
     map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
-    if (point.kind === 'recharge') {
+    if (point.kind === 'recharge' || point.kind === 'personalizacion') {
       showRechargePopup(map, point);
     } else if (point.kind === 'transmibici') {
       showBikeParkingPopup(map, point);
@@ -910,23 +923,39 @@ async function main(): Promise<void> {
   });
   pushNearbyPoints();
 
-  // Recharge POIs (static catalog, spec §5.8) → the Cerca "Recargas" kind.
-  api.getRechargePoints()
-    .then((res) => {
-      if (!res.success || !res.points) return;
-      nearbyRechargePoints = res.points
-        .map((p, i): NearbyPoint => ({
-          codigo: `rp-${i}`,
-          name: p.nombre,
-          coordinate: [p.longitud, p.latitud],
-          direccion: p.direccion || p.localidad || '',
-          kind: 'recharge',
-          hours: p.wks,
-        }))
-        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
-      pushNearbyPoints();
-    })
-    .catch((error) => console.warn('[Recharge] Failed to load recharge points:', error));
+  // The two tullave POI catalogues (static, spec §5.8) → the "Recargas" and
+  // "Personalización" kinds in Cerca and the Explore search. One upstream model
+  // serves both, so one loader does too (spec §1.1 R2).
+  const loadTuLlavePoints = (
+    fetchPoints: () => Promise<RechargePointsResponse>,
+    kind: 'recharge' | 'personalizacion',
+    prefix: string,
+    assign: (points: NearbyPoint[]) => void
+  ) =>
+    fetchPoints()
+      .then((res) => {
+        if (!res.success || !res.points) return;
+        assign(
+          res.points
+            .map((p, i): NearbyPoint => ({
+              codigo: `${prefix}-${i}`,
+              name: p.nombre,
+              coordinate: [p.longitud, p.latitud],
+              direccion: p.direccion || p.localidad || '',
+              kind,
+              // `hds` is the weekday row. This read `wks` — Sundays/holidays —
+              // so a counter open right now could show its "No Opera" Sunday
+              // value as if it were closed (spec §1 certainty).
+              hours: p.hds,
+            }))
+            .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]))
+        );
+        pushNearbyPoints();
+      })
+      .catch((error) => console.warn(`[tullave] Failed to load ${kind} points:`, error));
+
+  loadTuLlavePoints(api.getRechargePoints, 'recharge', 'rp', (points) => { nearbyRechargePoints = points; });
+  loadTuLlavePoints(api.getPersonalizacionPoints, 'personalizacion', 'pp', (points) => { nearbyPersonalizacionPoints = points; });
 
   // Station demand heat overlay (open Salidas dataset, spec §5.8). Off by
   // default; adds its own toggle-driven layer without touching station render.

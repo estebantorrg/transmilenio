@@ -19,7 +19,7 @@ import { openPoiSheet, openStationSheet } from './detailSheets';
  *  POIs put their hours/capacity next to the address — that IS the useful bit. */
 export function pointSubtitle(point: StationRecord): string {
   const meta = POINT_KIND_META[point.kind];
-  if (point.kind === 'recharge' || point.kind === 'transmibici') {
+  if (meta.carriesExtra) {
     return [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback;
   }
   return point.direccion || meta.fallback;

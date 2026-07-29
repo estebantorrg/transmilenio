@@ -121,6 +121,7 @@ app.get('/api', (_req, res) => {
       'GET /api/cable/stations',
       'GET /api/cable/trazado',
       'GET /api/recarga-points',
+      'GET /api/personalizacion-points',
       'GET /api/station-demand',
       'GET /api/transmibici',
       'POST /api/buses',

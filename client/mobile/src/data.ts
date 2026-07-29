@@ -32,6 +32,7 @@ import { idbGet, idbSet } from './lib/cache';
 // keeps the heavy catalog out of the JS bundle; Capacitor serves it locally.
 import catalogAssetUrl from './generated/catalog.light.json?url';
 import recargaAssetUrl from './generated/recarga_points.json?url';
+import personalizacionAssetUrl from './generated/personalizacion_points.json?url';
 import transmibiciAssetUrl from './generated/transmibici.json?url';
 import demandAssetUrl from './generated/station_demand.json?url';
 
@@ -56,6 +57,12 @@ function fetchCatalogResponse(): Promise<MasterCatalogResponse> {
 async function fetchRechargePoints(): Promise<RechargePointsResponse> {
   if (!state.native) return api.getRechargePoints();
   const points = await loadBundledJson<RechargePoint[]>(recargaAssetUrl);
+  return { success: true, count: points.length, points };
+}
+
+async function fetchPersonalizacionPoints(): Promise<RechargePointsResponse> {
+  if (!state.native) return api.getPersonalizacionPoints();
+  const points = await loadBundledJson<RechargePoint[]>(personalizacionAssetUrl);
   return { success: true, count: points.length, points };
 }
 
@@ -250,25 +257,41 @@ export async function loadBackground(): Promise<void> {
   // SITP zones built earlier. Signal the zones/enrichment are ready.
   bus.emit('stops:ready', undefined);
 
-  // Recharge POIs (static catalog, spec §5.8) → Cerca "Recargas" kind. Independent
-  // of the enrichment above, so it doesn't block the ready signal.
-  fetchRechargePoints()
-    .then((res) => {
-      if (!res.success || !res.points) return;
-      state.rechargePoints = res.points
-        .map((p, i): StationRecord => ({
-          code: `rp-${i}`,
-          name: p.nombre,
-          direccion: [p.direccion, p.localidad].filter(Boolean).join(', '),
-          coordinate: [p.longitud, p.latitud],
-          wagonCount: 0,
-          kind: 'recharge',
-          hours: p.wks,
-        }))
-        .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
-      bus.emit('stops:ready', undefined);
-    })
-    .catch((err) => console.warn('[data] recharge points load failed:', err));
+  // The two tullave POI catalogues (static, spec §5.8) → the Cerca/Buscar
+  // "Recargas" and "Personalización" kinds. Independent of the enrichment above,
+  // so they don't block the ready signal. One upstream model serves both, so one
+  // loader does too (spec §1.1 R2).
+  const loadTuLlavePoints = (
+    fetchPoints: () => Promise<RechargePointsResponse>,
+    kind: 'recharge' | 'personalizacion',
+    prefix: string,
+    assign: (points: StationRecord[]) => void
+  ) =>
+    fetchPoints()
+      .then((res) => {
+        if (!res.success || !res.points) return;
+        assign(
+          res.points
+            .map((p, i): StationRecord => ({
+              code: `${prefix}-${i}`,
+              name: p.nombre,
+              direccion: [p.direccion, p.localidad].filter(Boolean).join(', '),
+              coordinate: [p.longitud, p.latitud],
+              wagonCount: 0,
+              kind,
+              // `hds` is the weekday row. This read `wks` — Sundays/holidays —
+              // so a counter open right now could show its "No Opera" Sunday
+              // value as if it were closed (spec §1 certainty).
+              hours: p.hds,
+            }))
+            .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]))
+        );
+        bus.emit('stops:ready', undefined);
+      })
+      .catch((err) => console.warn(`[data] ${kind} points load failed:`, err));
+
+  loadTuLlavePoints(fetchRechargePoints, 'recharge', 'rp', (points) => { state.rechargePoints = points; });
+  loadTuLlavePoints(fetchPersonalizacionPoints, 'personalizacion', 'pp', (points) => { state.personalizacionPoints = points; });
 
   // TransMiBici bike-parking POIs (static catalog, spec §5.5.1) → Cerca "Bici" kind.
   fetchTransmibici()

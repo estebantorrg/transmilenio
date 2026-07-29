@@ -1172,6 +1172,9 @@ body.sidebar-collapsed .sidebar-fab {
 .near-dot.is-recharge {
   background: #22c55e;
 }
+.near-dot.is-personalizacion {
+  background: #a855f7;
+}
 .near-dot.is-transmibici {
   background: #38bdf8;
 }
@@ -1213,6 +1216,10 @@ body.sidebar-collapsed .sidebar-fab {
 .near-kind.is-recharge {
   color: #86efac;
   background: color-mix(in srgb, #22c55e 18%, transparent);
+}
+.near-kind.is-personalizacion {
+  color: #d8b4fe;
+  background: color-mix(in srgb, #a855f7 18%, transparent);
 }
 .near-kind.is-transmibici {
   color: #7dd3fc;

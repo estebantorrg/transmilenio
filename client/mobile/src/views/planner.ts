@@ -57,6 +57,7 @@ const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
   station: POINT_KIND_META.station.label,
   stop: POINT_KIND_META.stop.label,
   recharge: POINT_KIND_META.recharge.fallback,
+  personalizacion: POINT_KIND_META.personalizacion.fallback,
   transmibici: POINT_KIND_META.transmibici.fallback,
   cable: POINT_KIND_META.cable.fallback,
 };
@@ -64,7 +65,7 @@ const PL_KIND_FALLBACK: Record<StationRecord['kind'], string> = {
 /** Kind order when two candidates are equally relevant: a journey endpoint is
  *  most often an estación, then a paradero; the POIs are landmarks people walk
  *  to, so they rank last. */
-const PL_KIND_ORDER: StationRecord['kind'][] = ['station', 'cable', 'stop', 'recharge', 'transmibici'];
+const PL_KIND_ORDER: StationRecord['kind'][] = ['station', 'cable', 'stop', 'recharge', 'personalizacion', 'transmibici'];
 
 const PL_SUGGESTIONS = 8;
 

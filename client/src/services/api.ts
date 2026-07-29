@@ -483,6 +483,10 @@ export const api = {
   /** tullave recharge-point POIs (static catalog, spec §5.8). */
   getRechargePoints: () => fetchJson<RechargePointsResponse>('/recarga-points', 15_000, undefined, 1),
 
+  /** tullave personalization-point POIs (static catalog, spec §5.8). Same payload
+   *  shape as the recharge points — one upstream model serves both. */
+  getPersonalizacionPoints: () => fetchJson<RechargePointsResponse>('/personalizacion-points', 15_000, undefined, 1),
+
   /** Per-station mean weekday demand from the open Salidas dataset (spec §5.8). */
   getStationDemand: () => fetchJson<StationDemandResponse>('/station-demand', 15_000, undefined, 1),
 
@@ -548,15 +552,18 @@ export interface ArrivalsResponse {
   error?: string;
 }
 
+/** A tullave POI — recharge or personalization; one upstream model serves both.
+ *  Hour fields are labelled as the OFFICIAL APP labels them (v2.9.6), NOT as
+ *  their names suggest: `wks` is Sundays/holidays, not weekdays. */
 export interface RechargePoint {
   nombre: string;
   direccion: string;
   localidad: string;
   latitud: number;
   longitud: number;
-  hds?: string;
-  exs?: string;
-  wks?: string;
+  hds?: string; // "Horario entre semana"        → Mon–Fri
+  exs?: string; // "Horario Sabados"             → Saturday
+  wks?: string; // "Horario Domingos y Festivos" → Sunday + holidays
 }
 export interface RechargePointsResponse {
   success: boolean;

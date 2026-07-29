@@ -3,6 +3,7 @@
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { MasterCatalog } from '@shared/types/catalog';
 import type { CableStationInput } from '@shared/services/router';
+import type { PointKind } from '@shared/data/pointKinds';
 
 export interface StationRecord {
   code: string;
@@ -10,8 +11,10 @@ export interface StationRecord {
   direccion: string;
   coordinate: [number, number];
   wagonCount: number;
-  kind: 'station' | 'stop' | 'recharge' | 'transmibici' | 'cable';
-  hours?: string; // recharge (weekday hours) / transmibici (capacity · occupancy)
+  // The shared vocabulary, not a copy of it: a local union silently disagreed
+  // with `POINT_KINDS` the moment a kind was added there (spec §1.1 R2).
+  kind: PointKind;
+  hours?: string; // tullave POIs (weekday hours) / transmibici (capacity · occupancy)
 }
 
 /** Per-station mean weekday footfall (open Salidas dataset, spec §5.8). */
@@ -76,6 +79,8 @@ interface AppState {
   stations: StationRecord[];
   zonalStops: StationRecord[];
   rechargePoints: StationRecord[];
+  /** tullave personalization counters (spec §5.8) — the recharge points' twin. */
+  personalizacionPoints: StationRecord[];
   bikeParkings: StationRecord[];
   /** TransMiCable gondola stations (spec §5.3) — shown on the map + Cerca. */
   cableStations: StationRecord[];
@@ -103,6 +108,7 @@ export const state: AppState = {
   stations: [],
   zonalStops: [],
   rechargePoints: [],
+  personalizacionPoints: [],
   bikeParkings: [],
   cableStations: [],
   cableTraces: [],
@@ -122,7 +128,14 @@ export function setRoutes(routes: RouteListItem[]): void {
   bus.emit('routes:ready', undefined);
 }
 
-/** All station + zonal-stop + recharge + bike-parking + cable records combined (for search / nearby). */
+/** Every place record combined — stations, zonal stops, both tullave POI sets,
+ *  bike parking and cable stations (for search / nearby). */
 export function allPoints(): StationRecord[] {
-  return state.stations.concat(state.zonalStops, state.rechargePoints, state.bikeParkings, state.cableStations);
+  return state.stations.concat(
+    state.zonalStops,
+    state.rechargePoints,
+    state.personalizacionPoints,
+    state.bikeParkings,
+    state.cableStations
+  );
 }

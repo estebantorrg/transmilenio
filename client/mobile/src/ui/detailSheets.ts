@@ -301,6 +301,7 @@ function plannerSeedButtons(sheet: import('./sheet').SheetHandle, point: Station
 
 const POI_ACCENT: Record<string, string> = {
   recharge: '#22c55e',
+  personalizacion: '#a855f7',
   transmibici: '#38bdf8',
   cable: CABLE_COLOR,
 };
@@ -330,10 +331,10 @@ export function openPoiSheet(point: StationRecord): void {
 
   if (point.direccion) sheet.body.append(h('div', { class: 'st-addr', text: point.direccion }));
 
-  // `hours` carries the weekday window for a recharge point and the
+  // `hours` carries the weekday window for the two tullave POI kinds and the
   // capacity/occupancy line for a cicloparqueadero (see data.ts).
   if (point.hours) {
-    const label = point.kind === 'recharge' ? `Lun–Vie ${point.hours}` : point.hours;
+    const label = meta.extraPrefix ? `${meta.extraPrefix} ${point.hours}` : point.hours;
     sheet.body.append(h('div', { class: 'st-meta' }, [h('span', { class: 'st-pill', text: label })]));
   }
   if (point.kind === 'cable') {

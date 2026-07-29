@@ -50,12 +50,18 @@ export interface RelayForwardResult {
  * relay and returns the upstream status + parsed payload. Rejects on transport
  * failure or a non-2xx *relay* response (a non-200 *upstream* status is not an
  * error here — it surfaces via `upstreamStatus` so the caller decides).
+ *
+ * `upstreamMethod` is the verb the relay uses to call the TransMi host, NOT the
+ * verb used to reach the relay (that is always POST — the forward envelope is a
+ * JSON body). It defaulted to POST unconditionally, which silently POSTed to the
+ * GET-only POI catalogues (`/puntos_recarga`, `/puntos_personalizacion`).
  */
 export function relayForward(
   path: string,
   body: unknown,
   timeoutMs: number = DEFAULT_TIMEOUT_MS,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  upstreamMethod: 'GET' | 'POST' = 'POST'
 ): Promise<RelayForwardResult> {
   const base = relayBaseUrl();
   if (!base) {
@@ -63,7 +69,7 @@ export function relayForward(
   }
 
   const url = new URL(`${base.replace(/\/$/, '')}/forward`);
-  const postData = JSON.stringify({ path, method: 'POST', body });
+  const postData = JSON.stringify({ path, method: upstreamMethod, body });
   const headers: Record<string, string | number> = {
     'Content-Type': 'application/json; charset=UTF-8',
     'Accept-Encoding': 'identity',

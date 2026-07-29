@@ -50,7 +50,7 @@ export function initCerca(options: CercaOptions): void {
   const locateBtn = document.getElementById('cerca-locate') as HTMLButtonElement | null;
   locateBtn?.addEventListener('click', () => void locate());
 
-  // Five kind chips do not fit a phone's sidebar width, so the row scrolls like
+  // The kind chips do not fit a phone's sidebar width, so the row scrolls like
   // the Explore chip rows (wheel + drag on desktop, swipe on touch) instead of
   // clipping "Bici" out of reach.
   const chipRow = document.getElementById('cerca-chips');
@@ -166,7 +166,7 @@ const KIND_META = POINT_KIND_META;
  *  without a distance column (spec §1.1 R2 — no duplicated markup). */
 export function nearRowHtml(point: NearbyPoint, meters?: number): string {
   const meta = KIND_META[point.kind];
-  const sub = point.kind === 'recharge' || point.kind === 'transmibici'
+  const sub = meta.carriesExtra
     ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
     : point.direccion || meta.fallback;
   const right = typeof meters === 'number' && Number.isFinite(meters)

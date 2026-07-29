@@ -10,7 +10,7 @@
  * Two request shapes, both Bearer-gated (RELAY_SECRET) and both restricted to
  * the fixed live host + an allowlisted set of paths (no open proxy):
  *
- *   1. Generic forward (saldo, arrivals, buses, …):
+ *   1. Generic forward (saldo, arrivals, buses, POI harvests, …):
  *        POST <gateway>/relay/forward
  *        body: { path: "/lectura_tarjeta", method?: "POST", body?: {...} }
  *        → { upstreamStatus, payload }   (HTTP 200 whenever upstream was reached)
@@ -34,7 +34,17 @@ const LIVE_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 
 // Only these upstream paths may be forwarded — keeps this a relay, not an open
 // proxy. `/location/ruta` carries a `?ruta=` query, so match by prefix.
-const ALLOWED_PATH_PREFIXES = ['/buses', '/location/ruta', '/paradero/buses', '/lectura_tarjeta'];
+// The two `puntos_*` POI catalogues are GET, not POST: they are harvested once
+// from here into committed JSON (spec §5.5.1) rather than served at runtime, so
+// the caller must pass `method: 'GET'` — the forward shape defaults to POST.
+const ALLOWED_PATH_PREFIXES = [
+  '/buses',
+  '/location/ruta',
+  '/paradero/buses',
+  '/lectura_tarjeta',
+  '/puntos_recarga',
+  '/puntos_personalizacion',
+];
 
 const UPSTREAM_HEADERS = {
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',

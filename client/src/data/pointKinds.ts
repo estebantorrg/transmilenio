@@ -9,10 +9,12 @@
  * UI, so a kind cannot exist in one surface and not the other (spec §1.1 R2).
  */
 
-export type PointKind = 'station' | 'stop' | 'recharge' | 'transmibici' | 'cable';
+export type PointKind = 'station' | 'stop' | 'recharge' | 'personalizacion' | 'transmibici' | 'cable';
 
-/** Display order everywhere: the two transit kinds first, then the POIs. */
-export const POINT_KINDS: PointKind[] = ['station', 'stop', 'recharge', 'transmibici', 'cable'];
+/** Display order everywhere: the two transit kinds first, then the POIs.
+ *  `personalizacion` sits next to `recharge` — both are tullave counters, and a
+ *  rider looking for one often wants the other. */
+export const POINT_KINDS: PointKind[] = ['station', 'stop', 'recharge', 'personalizacion', 'transmibici', 'cable'];
 
 export interface PointKindMeta {
   /** CSS modifier shared by the dot/badge in both clients. */
@@ -23,23 +25,29 @@ export interface PointKindMeta {
   plural: string;
   /** Sub-line when the point has no address of its own. */
   fallback: string;
+  /** This kind carries an `hours`-style extra (opening hours, capacity) that is
+   *  worth showing next to the address — for a POI that IS the useful bit.
+   *  Data, not a `kind === 'recharge' || kind === '…'` chain repeated in four
+   *  render sites that a new kind then silently misses (spec §1.1 R2). */
+  carriesExtra?: boolean;
+  /** Prefix for that extra when shown as its own pill (a detail sheet). */
+  extraPrefix?: string;
 }
 
 export const POINT_KIND_META: Record<PointKind, PointKindMeta> = {
   station: { cls: 'is-station', label: 'Estación', plural: 'Estaciones', fallback: 'Estación troncal' },
   stop: { cls: 'is-stop', label: 'Paradero', plural: 'Paraderos', fallback: 'Paradero zonal' },
-  recharge: { cls: 'is-recharge', label: 'Recarga', plural: 'Recargas', fallback: 'Punto de recarga tullave' },
-  transmibici: { cls: 'is-transmibici', label: 'Bici', plural: 'Bici', fallback: 'Cicloparqueadero TransMiBici' },
+  recharge: { cls: 'is-recharge', label: 'Recarga', plural: 'Recargas', fallback: 'Punto de recarga tullave', carriesExtra: true, extraPrefix: 'Lun–Vie' },
+  personalizacion: { cls: 'is-personalizacion', label: 'Personalización', plural: 'Personalización', fallback: 'Punto de personalización tullave', carriesExtra: true, extraPrefix: 'Lun–Vie' },
+  transmibici: { cls: 'is-transmibici', label: 'Bici', plural: 'Bici', fallback: 'Cicloparqueadero TransMiBici', carriesExtra: true },
   cable: { cls: 'is-cable', label: 'Cable', plural: 'Cable', fallback: 'Estación TransMiCable' },
 };
 
-export const POINT_KIND_LABELS: Record<PointKind, string> = {
-  station: POINT_KIND_META.station.plural,
-  stop: POINT_KIND_META.stop.plural,
-  recharge: POINT_KIND_META.recharge.plural,
-  transmibici: POINT_KIND_META.transmibici.plural,
-  cable: POINT_KIND_META.cable.plural,
-};
+/** Derived, not restated: a hand-written copy of the plurals is one more place
+ *  a new kind has to be registered, and the two drifted apart silently. */
+export const POINT_KIND_LABELS: Record<PointKind, string> = Object.fromEntries(
+  POINT_KINDS.map((kind) => [kind, POINT_KIND_META[kind].plural])
+) as Record<PointKind, string>;
 
 /** Minimum a point must expose to be searchable. Both clients' record types
  *  structurally satisfy it, so neither has to convert. */
@@ -64,7 +72,9 @@ export const MIN_POINT_QUERY = 2;
 export type PointMatches<T extends SearchablePoint> = Record<PointKind, T[]>;
 
 export function emptyPointMatches<T extends SearchablePoint>(): PointMatches<T> {
-  return { station: [], stop: [], recharge: [], transmibici: [], cable: [] };
+  const out = {} as PointMatches<T>;
+  for (const kind of POINT_KINDS) out[kind] = [];
+  return out;
 }
 
 /**
@@ -108,9 +118,8 @@ export function rankPointsByKind<T extends SearchablePoint>(
   const q = normalizePointText(query);
   if (q.length < MIN_POINT_QUERY) return out;
 
-  const scored: Record<PointKind, { p: T; s: number }[]> = {
-    station: [], stop: [], recharge: [], transmibici: [], cable: [],
-  };
+  const scored = {} as Record<PointKind, { p: T; s: number }[]>;
+  for (const kind of POINT_KINDS) scored[kind] = [];
   for (const point of points) {
     const hay = haystackOf(point, extraOf);
     let s: number;

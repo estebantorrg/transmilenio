@@ -9,10 +9,11 @@
  * into the APK. This script produces those assets from the same committed server
  * data the website serves, so the two clients never drift (spec §1.1 R2):
  *
- *   catalog.light.json   ← getCatalogLightGzip() (identical to /api/troncal/master-catalog)
- *   recarga_points.json  ← server/src/data/recarga_points.json  (spec §5.5.1 recharge POIs)
- *   transmibici.json     ← server/src/data/transmibici.json     (spec §5.3 bike parking)
- *   station_demand.json  ← server/src/data/station_demand.json  (spec §5.8 Salidas demand)
+ *   catalog.light.json           ← getCatalogLightGzip() (identical to /api/troncal/master-catalog)
+ *   recarga_points.json          ← server/src/data/recarga_points.json          (spec §5.5.1 recharge POIs)
+ *   personalizacion_points.json  ← server/src/data/personalizacion_points.json  (spec §5.5.1 personalization POIs)
+ *   transmibici.json             ← server/src/data/transmibici.json             (spec §5.3 bike parking)
+ *   station_demand.json          ← server/src/data/station_demand.json          (spec §5.8 Salidas demand)
  *
  * Run `npm run bundle:mobile` (server) whenever the catalog/POI data is refreshed,
  * then commit the regenerated assets — the same "sync offline, commit, redeploy"
@@ -29,9 +30,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, 'data');
 const OUT_DIR = path.resolve(__dirname, '..', '..', 'client', 'mobile', 'src', 'generated');
 
-// The three static datasets are copied verbatim — the mobile app wraps each in
-// the same `{ success, ... }` envelope its API endpoints return.
-const STATIC_DATASETS = ['recarga_points.json', 'transmibici.json', 'station_demand.json'];
+// The static datasets are copied verbatim — the mobile app wraps each in the
+// same `{ success, ... }` envelope its API endpoints return.
+const STATIC_DATASETS = [
+  'recarga_points.json',
+  'personalizacion_points.json',
+  'transmibici.json',
+  'station_demand.json',
+];
 
 async function main(): Promise<void> {
   await mkdir(OUT_DIR, { recursive: true });
