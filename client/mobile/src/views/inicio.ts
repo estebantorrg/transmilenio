@@ -8,7 +8,6 @@ import { bus, state } from '../state';
 import { getFavorites, getRecents } from '../lib/storage';
 import { app } from '../appContext';
 import { openRouteSheet } from '../ui/detailSheets';
-import { openPlannerSheet } from './planner';
 import { ICONS, routeBadge } from '../ui/components';
 import type { View } from './types';
 
@@ -74,7 +73,7 @@ export function createInicioView(): View {
     return btn;
   };
   actions.append(
-    mkAction(ICONS.plan, 'Planear', 'qa-plan', () => openPlannerSheet()),
+    mkAction(ICONS.plan, 'Planear', 'qa-plan', () => app().navigate('planner')),
     mkAction(ICONS.map, 'Mapa en vivo', 'qa-map', () => app().navigate('mapa')),
     mkAction(ICONS.near, 'Cerca de mí', 'qa-near', () => app().navigate('cerca')),
     mkAction(ICONS.card, 'Mi saldo', 'qa-card', () => app().navigate('saldo'))

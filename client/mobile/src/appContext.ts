@@ -12,6 +12,12 @@ export interface AppContext {
   focusPoint: (rec: StationRecord) => void;
   /** Draw the user's blue dot on the map (no tab switch). */
   setUserLocation: (coord: [number, number]) => void;
+  /**
+   * Open the Planear tab, optionally seeding one endpoint ("Desde aquí" /
+   * "Hasta aquí" on a place sheet). The planner is a screen, so the other
+   * endpoint and any previous answer survive the trip.
+   */
+  openPlanner: (seed?: { role: 'origin' | 'destination'; coord: [number, number]; code?: string; name: string }) => void;
   /** Jump to the Rutas tab filtered to a troncal line (Explora por línea). */
   openLine: (letter: string) => void;
   /** Jump to the Rutas tab filtered to a SITP numeric zone (1–13). */

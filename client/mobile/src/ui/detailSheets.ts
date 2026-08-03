@@ -13,7 +13,6 @@ import { LivePoller } from '../live/liveStatus';
 import { app } from '../appContext';
 import { bus, state, type StationRecord } from '../state';
 import { openSheet } from './sheet';
-import { openPlannerSheet } from '../views/planner';
 import { ICONS, liveChip, routeBadge, routeTypeLabel } from './components';
 
 /**
@@ -288,9 +287,8 @@ async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
 function plannerSeedButtons(sheet: import('./sheet').SheetHandle, point: StationRecord): HTMLElement {
   const seed = (role: 'origin' | 'destination') => {
     haptic('medium');
-    const ep = { coord: point.coordinate, code: point.code, name: point.name };
-    sheet.close(true); // synchronous — no sheet-over-sheet cross-animation
-    openPlannerSheet(role === 'origin' ? { origin: ep } : { destination: ep });
+    sheet.close(true); // synchronous — the planner tab is what comes next
+    app().openPlanner({ role, coord: point.coordinate, code: point.code, name: point.name });
   };
   const fromBtn = h('button', { class: 'btn btn-ghost', type: 'button', html: `${ICONS.plan}<span>Desde aquí</span>` });
   fromBtn.addEventListener('click', () => seed('origin'));

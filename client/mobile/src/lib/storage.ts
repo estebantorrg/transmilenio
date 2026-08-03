@@ -56,6 +56,73 @@ export function pushRecent(id: string): void {
   write(RECENT_KEY, list.slice(0, MAX_RECENT));
 }
 
+/**
+ * Recently planned trips (most recent first). A rider repeats the same two or
+ * three journeys — casa→trabajo and back — and re-typing both endpoints every
+ * time was the planner's real cost. Coordinates + labels only, on this device
+ * (zero PII leaves it, spec §3.3).
+ */
+export interface RecentTrip {
+  originName: string;
+  originCoord: [number, number];
+  originCode?: string;
+  destName: string;
+  destCoord: [number, number];
+  destCode?: string;
+}
+
+const TRIPS_KEY = 'tmgo.trips.v1';
+const MAX_TRIPS = 6;
+
+function isCoord(value: unknown): value is [number, number] {
+  return Array.isArray(value) && value.length === 2 && value.every((n) => typeof n === 'number' && Number.isFinite(n));
+}
+
+function isTrip(value: unknown): value is RecentTrip {
+  const t = value as RecentTrip;
+  return (
+    !!t &&
+    typeof t.originName === 'string' &&
+    typeof t.destName === 'string' &&
+    isCoord(t.originCoord) &&
+    isCoord(t.destCoord)
+  );
+}
+
+/** Same two endpoints = same trip, whichever labels they were saved under. */
+function tripKey(trip: RecentTrip): string {
+  return `${trip.originCoord.join()}|${trip.destCoord.join()}`;
+}
+
+export function getRecentTrips(): RecentTrip[] {
+  try {
+    const raw = localStorage.getItem(TRIPS_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter(isTrip) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushRecentTrip(trip: RecentTrip): void {
+  const key = tripKey(trip);
+  const list = getRecentTrips().filter((t) => tripKey(t) !== key);
+  list.unshift(trip);
+  try {
+    localStorage.setItem(TRIPS_KEY, JSON.stringify(list.slice(0, MAX_TRIPS)));
+  } catch {
+    /* storage may be full/blocked — non-fatal */
+  }
+}
+
+export function clearRecentTrips(): void {
+  try {
+    localStorage.removeItem(TRIPS_KEY);
+  } catch {
+    /* non-fatal */
+  }
+}
+
 /** Remembered card numbers (last used first). Stored locally only. */
 export function getCards(): string[] {
   return read(CARDS_KEY);

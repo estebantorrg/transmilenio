@@ -532,9 +532,31 @@ input { font-family: inherit; }
 .mrb-journey-icon { width: 38px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 11px; background: rgba(75, 141, 255, 0.16); color: var(--blue); }
 .mrb-journey-icon svg { width: 20px; height: 20px; }
 
-/* ── Planner ───────────────────────────────────────────── */
-.pl-inputs { position: relative; display: flex; flex-direction: column; gap: 9px; margin-bottom: 6px; }
-.pl-field { position: relative; display: flex; align-items: center; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 0 12px; height: 50px; }
+/* ── Planner (Planear tab) ─────────────────────────────────
+   A screen, not a sheet: the form survives every trip to the map, so it is laid
+   out in cards — trip, salida, opciones — over a sticky search action. */
+/* Bottom padding is deliberately small here: a sticky inset is resolved against
+   the scrollport *inset by the scroller's own padding*, so the tab-bar-sized
+   padding the other screens carry would float the action bar ~90 px up the
+   screen. The tab bar is a sibling of `.screens`, not an overlay, so nothing
+   needs clearing. */
+.screen-planner { display: flex; flex-direction: column; gap: 12px; padding-bottom: 14px; }
+.screen-planner .screen-head { margin-bottom: 0; }
+.screen-planner .screen-sub { margin-bottom: 0; }
+
+.pl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.pl-inputs { position: relative; gap: 14px; }
+/* The rail joins the two endpoints into one journey instead of two unrelated
+   inputs. It lives in the gutter between them, in line with the two dots
+   (card padding 12 + field 52 = 64 from either edge), dotted like a walked leg. */
+.pl-rail {
+  position: absolute; left: 29px; top: 64px; bottom: 64px; width: 2px;
+  background: repeating-linear-gradient(180deg, var(--muted) 0 3px, transparent 3px 6px);
+  opacity: 0.7;
+}
+.pl-field { position: relative; display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 0 12px; height: 52px; }
+.pl-field:focus-within { border-color: var(--border-2); }
 .pl-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
 .pl-dot.origin { background: var(--green); }
 .pl-dot.destination { background: var(--red); }
@@ -542,9 +564,11 @@ input { font-family: inherit; }
 .pl-gps { width: 34px; height: 34px; border-radius: 9px; background: var(--surface-3); border: 0; color: var(--muted); display: grid; place-items: center; flex: none; }
 .pl-gps svg { width: 17px; height: 17px; }
 .pl-gps.busy svg { animation: spin 0.9s linear infinite; color: var(--blue); }
-.pl-swap { position: absolute; right: 16px; top: 34px; z-index: 2; width: 34px; height: 34px; border-radius: 10px; background: var(--surface-3); border: 2px solid var(--surface); color: var(--text); display: grid; place-items: center; }
+/* Centred in the gutter: 12 (padding) + 52 (field) + 7 (half the gap) − 18 (half
+   the button) = 53. */
+.pl-swap { position: absolute; right: 14px; top: 53px; z-index: 2; width: 36px; height: 36px; border-radius: 11px; background: var(--surface-3); border: 2px solid var(--surface); color: var(--text); display: grid; place-items: center; }
 .pl-swap svg { width: 16px; height: 16px; }
-.pl-dropdown { position: absolute; top: 54px; left: 0; right: 0; z-index: 10; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); max-height: 260px; overflow-y: auto; }
+.pl-dropdown { position: absolute; top: 56px; left: 0; right: 0; z-index: 10; background: var(--surface-2); border: 1px solid var(--border-2); border-radius: 14px; overflow: hidden; box-shadow: var(--shadow); max-height: 260px; overflow-y: auto; }
 .pl-opt { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid var(--border); color: var(--text); padding: 11px 13px; }
 .pl-opt:active { background: var(--surface-3); }
 .pl-opt-dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
@@ -562,12 +586,47 @@ input { font-family: inherit; }
   color: var(--muted-2); padding: 9px 13px 5px; background: var(--surface);
 }
 .plan-map-btn { margin-top: 12px; padding: 10px; font-size: 13.5px; }
-.pl-options { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+.pl-options { display: flex; flex-direction: column; gap: 12px; padding-top: 4px; }
 .pl-opt-row { display: flex; flex-direction: column; gap: 7px; }
 .pl-opt-label { font-size: 12px; color: var(--muted); font-weight: 600; }
-.pl-calc { margin-bottom: 8px; }
+
+/* "Opciones" folds away behind the summary of what it is currently doing —
+   three chip rows with sane defaults do not deserve permanent screen. */
+.pl-options-card { padding: 0; }
+.pl-more { display: flex; align-items: center; gap: 8px; width: 100%; background: none; border: 0; color: var(--text); padding: 14px 12px; font-size: 14px; font-weight: 650; text-align: left; }
+.pl-more-label { flex: none; }
+.pl-more-summary { flex: 1; font-size: 12px; font-weight: 500; color: var(--muted-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-more-chev { flex: none; color: var(--muted-2); font-size: 18px; transition: transform 0.18s ease; }
+.pl-more.open .pl-more-chev { transform: rotate(90deg); }
+.pl-options-card .pl-options { padding: 0 12px 14px; }
+
+/* The action never scrolls out of reach on a screen taller than the viewport.
+   `order` puts it last in the flex flow — a sticky `bottom` only pins an element
+   that is still ahead of you in flow — while the DOM keeps it before the
+   results, so it stays early in the tab order. */
+.pl-actions { order: 99; position: sticky; bottom: 0; z-index: 4; padding: 14px 0 8px; background: linear-gradient(180deg, rgba(7, 11, 18, 0) 0%, var(--bg) 45%, var(--bg) 100%); }
+.pl-calc { margin: 0; }
 .pl-calc.busy svg { animation: spin 0.9s linear infinite; }
-.pl-results { display: flex; flex-direction: column; gap: 11px; margin-top: 12px; }
+/* Dimmed until both endpoints exist — the button is still tappable and says
+   what is missing, rather than being disabled with no explanation. */
+.pl-calc[aria-disabled='true'] { filter: saturate(0.55) brightness(0.85); box-shadow: none; }
+
+.pl-results-head { display: flex; align-items: center; justify-content: space-between; }
+.pl-results { display: flex; flex-direction: column; gap: 11px; }
+
+/* Saved trips: the two or three journeys a rider repeats, one tap each. */
+.pl-trips { display: flex; flex-direction: column; gap: 8px; }
+.pl-hint { border: 1px dashed var(--border-2); border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
+.pl-hint-title { font-family: var(--font-head); font-size: 15px; font-weight: 650; }
+.pl-hint-text { font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.pl-trip { display: flex; align-items: center; gap: 11px; width: 100%; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 11px 12px; color: var(--text); }
+.pl-trip:active { background: var(--surface-2); }
+.pl-trip-rail { flex: none; width: 3px; align-self: stretch; border-radius: 3px; background: linear-gradient(180deg, var(--green), var(--red)); }
+.pl-trip-text { flex: 1; min-width: 0; }
+.pl-trip-from, .pl-trip-to { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pl-trip-from { font-weight: 600; }
+.pl-trip-to { color: var(--muted); margin-top: 2px; }
+.pl-trip-go { flex: none; color: var(--muted-2); font-size: 20px; }
 .plan-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px; }
 .plan-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .plan-time { font-family: var(--font-head); font-size: 15px; color: var(--muted); }

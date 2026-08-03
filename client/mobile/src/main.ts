@@ -16,6 +16,7 @@ import { initNetworkBanner } from './ui/netBanner';
 import { ICONS } from './ui/components';
 import { createInicioView } from './views/inicio';
 import { createRutasView } from './views/rutas';
+import { createPlannerView, type PlannerView } from './views/planner';
 import { createMapaView, type MapaView } from './views/mapa';
 import { createCercaView } from './views/cerca';
 import { createSaldoView } from './views/saldo';
@@ -27,6 +28,10 @@ const TABS: { id: TabId; label: string; icon: string }[] = [
   // "Buscar", not "Rutas": the tab now looks up the whole network by name —
   // routes AND estaciones, paraderos, recargas, bici, cable (spec §5.4.2b).
   { id: 'rutas', label: 'Buscar', icon: ICONS.search },
+  // Planning a trip is the app's headline job and it was a bottom sheet: it
+  // covered everything, and reaching the map (to pick a point, or to see the
+  // itinerary drawn) destroyed it along with everything typed into it.
+  { id: 'planner', label: 'Planear', icon: ICONS.plan },
   { id: 'mapa', label: 'Mapa', icon: ICONS.map },
   { id: 'cerca', label: 'Cerca', icon: ICONS.near },
   { id: 'saldo', label: 'Saldo', icon: ICONS.card },
@@ -78,11 +83,12 @@ async function main(): Promise<void> {
   type RutasView = View & { setLine: (letter: string) => void; setZone: (zone: number) => void };
   const inicio = createInicioView();
   const rutas = createRutasView() as RutasView;
+  const planner: PlannerView = createPlannerView();
   const mapa = createMapaView() as MapaView;
   const cerca = createCercaView();
   const saldo = createSaldoView();
 
-  const views: Record<TabId, View> = { inicio, rutas, mapa, cerca, saldo };
+  const views: Record<TabId, View> = { inicio, rutas, planner, mapa, cerca, saldo };
 
   const screens = document.getElementById('screens')!;
   for (const [id, view] of Object.entries(views) as [TabId, View][]) {
@@ -188,6 +194,10 @@ async function main(): Promise<void> {
       mapa.focusPoint(rec);
     },
     setUserLocation: (coord) => mapa.setUser(coord),
+    openPlanner: (seed) => {
+      navigate('planner');
+      if (seed) planner.seedEndpoint(seed.role, { coord: seed.coord, code: seed.code, name: seed.name });
+    },
     openLine: (letter: string) => {
       navigate('rutas');
       rutas.setLine(letter);

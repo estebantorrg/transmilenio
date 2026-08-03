@@ -21,7 +21,7 @@ import {
   describeDeparture,
   planDayDelta,
 } from '@shared/services/departure';
-import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
+import { getRouteAccentColor, CABLE_COLOR } from '@shared/utils/routeColors';
 import { api } from '@shared/services/api';
 import { POINT_KIND_META, rankPointsByKind, POINT_KINDS, dedupePointsByName } from '@shared/data/pointKinds';
 import { isWithinBogota } from '@shared/utils/geo';
@@ -30,9 +30,10 @@ import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { app } from '../appContext';
-import { openSheet } from '../ui/sheet';
+import { getRecentTrips, pushRecentTrip, type RecentTrip } from '../lib/storage';
 import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
+import type { View } from './types';
 
 interface Endpoint {
   coord: [number, number];
@@ -120,12 +121,28 @@ async function searchAddresses(query: string): Promise<Endpoint[]> {
   }
 }
 
-export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpoint }): void {
-  ensureRouter();
-  const sheet = openSheet({ title: 'Planear viaje', accent: STATION_COLOR, full: true });
+export interface PlannerView extends View {
+  /** Fill one endpoint from elsewhere in the app (a place sheet's "Desde aquí"). */
+  seedEndpoint: (role: 'origin' | 'destination', ep: Endpoint) => void;
+}
 
-  let origin: Endpoint | null = seed?.origin ?? null;
-  let destination: Endpoint | null = seed?.destination ?? null;
+/**
+ * Planear — a tab of its own, not a sheet.
+ *
+ * The planner was a stacked bottom sheet: it covered the app, it had to be torn
+ * down to reach the map (so "Elegir en el mapa" closed it and rebuilt it from
+ * scratch, and "Ver en el mapa" threw the itinerary away), and every trip
+ * started from two empty fields because nothing survived the close. As a screen
+ * it keeps its state for the whole session — endpoints, options, results — so
+ * the map round-trip is a tab switch, and it has room for the things a sheet had
+ * no space for: recent trips, an options section that stays out of the way, and
+ * a persistent search action.
+ */
+export function createPlannerView(): PlannerView {
+  const el = h('section', { class: 'screen screen-planner' });
+
+  let origin: Endpoint | null = null;
+  let destination: Endpoint | null = null;
   let mode: RouteSearchParams['mode'] = 'mix';
   let sortBy: NonNullable<RouteSearchParams['sortBy']> = 'transfers';
 
@@ -134,7 +151,11 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     const input = h('input', {
       class: 'pl-input',
       type: 'text',
-      placeholder: role === 'origin' ? 'Origen — estación o dirección' : 'Destino — estación o dirección',
+      // Short on purpose: the field is ~220 px wide next to its two buttons, so
+      // a longer placeholder was cut mid-word on a 360 px phone. What the field
+      // accepts is spelled out by the hint block instead.
+      placeholder: role === 'origin' ? '¿Desde dónde?' : '¿Hasta dónde?',
+      'aria-label': role === 'origin' ? 'Origen: estación, paradero o dirección' : 'Destino: estación, paradero o dirección',
       autocomplete: 'off',
     }) as HTMLInputElement;
     const gps = h('button', { class: 'pl-gps', type: 'button', 'aria-label': 'Mi ubicación', html: ICONS.locate });
@@ -147,9 +168,14 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
       if (role === 'origin') origin = ep;
       else destination = ep;
       if (ep) input.value = ep.name;
+      // Settling an endpoint retires any in-flight suggestion round: the async
+      // geocode used to land *after* the pick and re-open the dropdown over the
+      // form, leaving a chosen endpoint buried under stale address rows.
+      suggestSeq++;
+      dropdown.replaceChildren();
+      dropdown.classList.add('hidden');
+      syncReady();
     };
-    if (role === 'origin' && origin) input.value = origin.name;
-    if (role === 'destination' && destination) input.value = destination.name;
 
     const option = (name: string, sub: string, kindCls: string, onPick: () => void): HTMLElement => {
       const item = h('button', { class: 'pl-opt', type: 'button' }, [
@@ -166,8 +192,8 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
       return item;
     };
 
-    // Bumped per keystroke so a slow geocode never appends its rows under a
-    // newer query's results.
+    // Bumped per keystroke AND on every settled pick, so a slow geocode never
+    // appends its rows under a newer query's results — or under no query at all.
     let suggestSeq = 0;
     let t: number | undefined;
     input.addEventListener('input', () => {
@@ -229,32 +255,27 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
 
     // "Elegir en el mapa" — website parity (`map-pick-btn`), and the only way to
     // plan from a point that is neither a catalog place nor where you stand.
+    // As a screen this is a plain tab round-trip: nothing is torn down, so the
+    // other endpoint, the options and any results are exactly where they were.
     pick.addEventListener('click', async () => {
       const label = role === 'origin' ? 'Toca el origen en el mapa' : 'Toca el destino en el mapa';
-      sheet.close(true);
       const coord = await app().pickPointOnMap(label);
+      app().navigate('planner');
       if (!coord) return;
       if (!isWithinBogota(coord[0], coord[1])) {
         toast('Ese punto está fuera de Bogotá', 'warn');
         return;
       }
-      const picked: Endpoint = { coord, name: role === 'origin' ? 'Origen en el mapa' : 'Destino en el mapa' };
-      // The sheet was closed to expose the map, so reopen it carrying both
-      // endpoints — the rider must not lose the one they already filled in.
-      openPlannerSheet(
-        role === 'origin'
-          ? { origin: picked, destination: destination ?? undefined }
-          : { origin: origin ?? undefined, destination: picked }
-      );
+      set({ coord, name: role === 'origin' ? 'Origen en el mapa' : 'Destino en el mapa' });
     });
 
-    return { wrap, getInput: () => input };
+    return { wrap, getInput: () => input, set };
   };
 
   const originField = field('origin');
   const destField = field('destination');
 
-  const swap = h('button', { class: 'pl-swap', type: 'button', 'aria-label': 'Intercambiar', html: ICONS.swap });
+  const swap = h('button', { class: 'pl-swap', type: 'button', 'aria-label': 'Intercambiar origen y destino', html: ICONS.swap });
   swap.addEventListener('click', () => {
     const tmp = origin;
     origin = destination;
@@ -262,29 +283,49 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     originField.getInput().value = origin?.name ?? '';
     destField.getInput().value = destination?.name ?? '';
     haptic('light');
+    syncReady();
   });
 
-  const inputs = h('div', { class: 'pl-inputs' }, [originField.wrap, swap, destField.wrap]);
-  sheet.body.append(inputs);
+  // The trip card: two endpoints joined by a rail (dot — line — dot), the way a
+  // journey reads on paper. The sheet stacked them as two unrelated inputs.
+  const inputs = h('div', { class: 'pl-card pl-inputs' }, [
+    h('span', { class: 'pl-rail', 'aria-hidden': 'true' }),
+    originField.wrap,
+    swap,
+    destField.wrap,
+  ]);
 
-  // Options.
+  el.append(
+    h('div', { class: 'screen-head' }, [
+      h('h1', { class: 'screen-title', text: 'Planear viaje' }),
+      h('p', { class: 'screen-sub', text: 'De dónde sales, a dónde vas y a qué hora' }),
+    ]),
+    inputs
+  );
+
+  // Options. Their labels double as the collapsed summary, so the rider can see
+  // what the search is constrained by without opening the section.
+  const MODE_LABELS: Record<string, string> = { mix: 'Mixto', troncal: 'TransMilenio', zonal: 'SITP' };
+  const PREF_LABELS: Record<string, string> = {
+    transfers: 'Menos transbordos',
+    time: 'Más rápido',
+    walk: 'Menos caminata',
+  };
   const modeChips = chipGroup(
-    [
-      { id: 'mix', label: 'Mixto' },
-      { id: 'troncal', label: 'TransMilenio' },
-      { id: 'zonal', label: 'SITP' },
-    ],
+    Object.entries(MODE_LABELS).map(([id, label]) => ({ id, label })),
     'mix',
-    (id) => (mode = id as RouteSearchParams['mode'])
+    (id) => {
+      mode = id as RouteSearchParams['mode'];
+      syncOptionsSummary();
+    }
   );
   const prefChips = chipGroup(
-    [
-      { id: 'transfers', label: 'Menos transbordos' },
-      { id: 'time', label: 'Más rápido' },
-      { id: 'walk', label: 'Menos caminata' },
-    ],
+    Object.entries(PREF_LABELS).map(([id, label]) => ({ id, label })),
     'transfers',
-    (id) => (sortBy = id as typeof sortBy)
+    (id) => {
+      sortBy = id as typeof sortBy;
+      syncOptionsSummary();
+    }
   );
 
   // Departure moment — routes do not all run at all hours (spec §5.6.2), so the
@@ -416,35 +457,140 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
       { id: 'strict', label: 'Solo en servicio' },
     ],
     'all',
-    (id) => (enforceSchedules = id === 'strict')
+    (id) => {
+      enforceSchedules = id === 'strict';
+      syncOptionsSummary();
+    }
   );
 
-  sheet.body.append(
-    h('div', { class: 'pl-options' }, [
+  /** The collapsed line under "Opciones": what the search is constrained by. */
+  function syncOptionsSummary(): void {
+    optionsSummary.textContent = [
+      MODE_LABELS[mode ?? 'mix'],
+      PREF_LABELS[sortBy],
+      enforceSchedules ? 'Solo en servicio' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  }
+
+  // Departure is its own card: it is the one option a rider changes on purpose.
+  el.append(
+    h('div', { class: 'pl-card pl-depart-card' }, [
       h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Salida' }), departChips.row]),
       departFields,
       departHint,
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Horarios' }), schedChips.row]),
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips.row]),
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips.row]),
     ])
   );
 
+  // The other three shape the search rather than describe the trip, and they
+  // have sane defaults — so they fold away behind a summary instead of being
+  // three chip rows the rider scrolls past on every plan.
+  const optionsBody = h('div', { class: 'pl-options', id: 'pl-options' }, [
+    h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Horarios' }), schedChips.row]),
+    h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips.row]),
+    h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips.row]),
+  ]);
+  optionsBody.classList.add('hidden');
+  const optionsSummary = h('span', { class: 'pl-more-summary' });
+  const optionsToggle = h('button', {
+    class: 'pl-more',
+    type: 'button',
+    'aria-expanded': 'false',
+    'aria-controls': 'pl-options',
+  }, [h('span', { class: 'pl-more-label', text: 'Opciones' }), optionsSummary, h('span', { class: 'pl-more-chev', text: '›' })]);
+  optionsToggle.addEventListener('click', () => {
+    const open = optionsBody.classList.toggle('hidden') === false;
+    optionsToggle.setAttribute('aria-expanded', String(open));
+    optionsToggle.classList.toggle('open', open);
+    haptic('light');
+  });
+  el.append(h('div', { class: 'pl-card pl-options-card' }, [optionsToggle, optionsBody]));
+
   const calc = h('button', { class: 'btn btn-primary pl-calc', type: 'button', html: `${ICONS.plan}<span>Buscar ruta</span>` });
-  sheet.body.append(calc);
+  // Sticky above the tab bar: on a screen the form can be longer than the
+  // viewport, and the action must never be the thing you have to scroll to.
+  el.append(h('div', { class: 'pl-actions' }, [calc]));
 
+  const resultsHead = h('div', { class: 'pl-results-head hidden' }, [
+    h('span', { class: 'section-title', text: 'Opciones de viaje' }),
+  ]);
   const results = h('div', { class: 'pl-results' });
-  sheet.body.append(results);
+  // Saved trips fill the screen before the first search — the two or three
+  // journeys a rider actually repeats, one tap each.
+  const tripsSection = h('div', { class: 'pl-trips' });
 
-  /** Close the sheet and draw this itinerary on the map. */
+  /** Re-plan a saved trip end to end. */
+  function applyTrip(trip: RecentTrip): void {
+    originField.set({ coord: trip.originCoord, code: trip.originCode, name: trip.originName });
+    destField.set({ coord: trip.destCoord, code: trip.destCode, name: trip.destName });
+    haptic('medium');
+    calc.click();
+  }
+
+  function renderTrips(): void {
+    const trips = getRecentTrips();
+    tripsSection.replaceChildren();
+    if (results.childElementCount > 0) {
+      tripsSection.classList.add('hidden');
+      return;
+    }
+    tripsSection.classList.remove('hidden');
+    // Nothing planned yet on this device: say what the three ways to name a
+    // point are, since two of them (the map, the GPS) are icons a rider has no
+    // reason to try first.
+    if (trips.length === 0) {
+      tripsSection.append(
+        h('div', { class: 'pl-hint' }, [
+          h('div', { class: 'pl-hint-title', text: '¿A dónde vas?' }),
+          h('div', {
+            class: 'pl-hint-text',
+            text: 'Escribe una estación, un paradero o una dirección. También puedes usar tu ubicación o tocar el punto directamente en el mapa.',
+          }),
+          h('div', { class: 'pl-hint-text', text: 'Los viajes que planees quedan guardados aquí para repetirlos con un toque.' }),
+        ])
+      );
+      return;
+    }
+    tripsSection.append(
+      h('div', { class: 'section-head' }, [h('span', { class: 'section-title', html: `${ICONS.clock} Viajes recientes` })])
+    );
+    for (const trip of trips) {
+      const row = h('button', { class: 'pl-trip', type: 'button' }, [
+        h('span', { class: 'pl-trip-rail', 'aria-hidden': 'true' }),
+        h('div', { class: 'pl-trip-text' }, [
+          h('div', { class: 'pl-trip-from', text: trip.originName }),
+          h('div', { class: 'pl-trip-to', text: trip.destName }),
+        ]),
+        h('span', { class: 'pl-trip-go', text: '›' }),
+      ]);
+      row.addEventListener('click', () => applyTrip(trip));
+      tripsSection.append(row);
+    }
+  }
+
+  el.append(tripsSection, resultsHead, results);
+
+  /** Draw this itinerary on the map. The screen keeps its state, so coming back
+   *  is one tab tap — the sheet used to be destroyed at this point. */
   const showOnMap = (plan: JourneyPlan): void => {
-    sheet.close();
     app().showJourneyOnMap(plan, planSummary(plan));
   };
 
+  /** The action reflects whether a search is possible at all. */
+  function syncReady(): void {
+    const ready = Boolean(origin && destination);
+    calc.classList.toggle('pl-calc-ready', ready);
+    calc.setAttribute('aria-disabled', String(!ready));
+  }
+
   calc.addEventListener('click', () => {
     if (!origin || !destination) {
-      toast('Elige origen y destino', 'warn');
+      // Name the field that is missing and put the cursor in it — "elige origen
+      // y destino" made the rider work out which half they had already done.
+      const missing = !origin ? originField : destField;
+      toast(!origin ? 'Falta el origen' : 'Falta el destino', 'warn');
+      missing.getInput().focus();
       return;
     }
     haptic('medium');
@@ -484,6 +630,21 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
         const plans = findRoutes(params);
         sortJourneyPlans(plans, sortBy);
         renderPlans(results, plans.slice(0, 4), showOnMap, constraints);
+        resultsHead.classList.remove('hidden');
+        // A trip the rider actually asked for is worth remembering, whatever the
+        // search returned — a journey with no connection today may have one at
+        // another hour, and re-typing both endpoints is the cost either way.
+        pushRecentTrip({
+          originName: origin!.name,
+          originCoord: origin!.coord,
+          originCode: origin!.code,
+          destName: destination!.name,
+          destCoord: destination!.coord,
+          destCode: destination!.code,
+        });
+        renderTrips();
+        // The form can be a screenful; put the answer in view.
+        window.requestAnimationFrame(() => resultsHead.scrollIntoView({ behavior: 'smooth', block: 'start' }));
         // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
         // re-render if this is still the latest search (spec §1.1 R2 shared fn).
         void enrichWalkingGeometries(plans, sortBy, departAt)
@@ -510,10 +671,31 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     }, 30);
   });
 
-  if (seed?.origin || seed?.destination) {
-    originField.getInput().value = origin?.name ?? '';
-    destField.getInput().value = destination?.name ?? '';
-  }
+  syncOptionsSummary();
+  syncReady();
+  renderTrips();
+  // Stops and cable stations land after boot, but nothing here caches them: the
+  // endpoint suggestions read `allPoints()` live and the graph rebuilds itself
+  // on the `stops:ready` / `cable:ready` handlers at the top of this module.
+
+  return {
+    el,
+    onShow: () => {
+      // Cheap when already built; keeps the first search off the critical path.
+      if (state.routes.length) ensureRouter();
+      renderTrips();
+      refreshDepartHint();
+    },
+    seedEndpoint: (role, ep) => {
+      const target = role === 'origin' ? originField : destField;
+      target.set(ep);
+      target.getInput().value = ep.name;
+      // Seeding is an explicit new intent: the previous answer is stale.
+      results.replaceChildren();
+      resultsHead.classList.add('hidden');
+      renderTrips();
+    },
+  };
 }
 
 /** A chip group plus a handle to move it from code — an empty state that offers

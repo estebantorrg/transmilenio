@@ -36,7 +36,7 @@ export interface HealthInfo {
   ok: boolean;
 }
 
-export type TabId = 'inicio' | 'rutas' | 'mapa' | 'cerca' | 'saldo';
+export type TabId = 'inicio' | 'rutas' | 'planner' | 'mapa' | 'cerca' | 'saldo';
 
 type Events = {
   'routes:ready': void;
