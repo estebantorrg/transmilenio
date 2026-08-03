@@ -416,7 +416,186 @@ function stepDepartTime(minutes: number): void {
   date.value = inputs.date;
   time.value = inputs.time;
   renderDepartDays();
+  syncDepartTimeUI();
   onDepartFieldChange();
+}
+
+// ─── Departure clock picker ───────────────────────────────
+// The hour is picked in the app, not by the browser. `<input type="time">` opens
+// the engine's own popup — a white, OS-chrome spinner sitting on top of a dark
+// panel, unreachable by any page style. The value stays an `HH:MM` hidden input
+// so the deep link, the seeding and `planTimeFromInputs` keep the single source
+// they had (§5.6.2); only the picking surface changed.
+
+const DEPART_MINUTE_STEP = 5;
+
+function departTimePicker(): { pop: HTMLElement | null; trigger: HTMLButtonElement | null } {
+  return {
+    pop: document.getElementById('depart-time-pop'),
+    trigger: document.getElementById('depart-time-trigger') as HTMLButtonElement | null,
+  };
+}
+
+/** The clock currently in the hidden field, falling back to the Bogotá now. */
+function departClockParts(): { hour24: number; minute: number } {
+  const { time } = getDepartInputs();
+  const match = /^(\d{1,2}):(\d{2})$/.exec(time?.value ?? '');
+  const minuteOfDay = match ? Number(match[1]) * 60 + Number(match[2]) : bogotaNow().minute;
+  return { hour24: Math.floor(minuteOfDay / 60) % 24, minute: minuteOfDay % 60 };
+}
+
+/** Writes a picked clock back to the hidden field and re-syncs everything that
+ *  reads it. The date is untouched — only the ± steps roll the day. */
+function setDepartClock(hour24: number, minute: number): void {
+  const { time } = getDepartInputs();
+  if (!time) return;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  time.value = `${pad(hour24)}:${pad(minute)}`;
+  syncDepartTimeUI();
+  onDepartFieldChange();
+}
+
+/** Trigger label + the options' selected state, after any write to the field. */
+function syncDepartTimeUI(): void {
+  const label = document.getElementById('depart-time-label');
+  const { time } = getDepartInputs();
+  const { hour24, minute } = departClockParts();
+  if (label) label.textContent = time?.value ? formatClockMinute(hour24 * 60 + minute) : '--:--';
+  // A ±15 step while the popup is open moves the selection with it.
+  if (departTimePicker().pop?.classList.contains('hidden') === false) {
+    renderDepartTimeOptions();
+    scrollDepartTimeIntoView();
+  }
+}
+
+function renderDepartTimeOptions(): void {
+  const { pop } = departTimePicker();
+  if (!pop) return;
+
+  const active = pop.contains(document.activeElement)
+    ? (document.activeElement as HTMLElement).closest<HTMLElement>('.depart-time-opt')
+    : null;
+  const { hour24, minute } = departClockParts();
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  const isPM = hour24 >= 12;
+
+  const hours = Array.from({ length: 12 }, (_, i) => (i === 0 ? 12 : i));
+  // A seeded "ahora" lands on any minute, so the exact one is always listed —
+  // a 5-minute grid alone would show the rider's own time as unselected.
+  const minutes = Array.from(new Set([...Array.from({ length: 60 / DEPART_MINUTE_STEP }, (_, i) => i * DEPART_MINUTE_STEP), minute])).sort(
+    (a, b) => a - b
+  );
+
+  const option = (kind: string, value: string, text: string, selected: boolean) => `
+    <button class="depart-time-opt${selected ? ' selected' : ''}" type="button" role="option"
+            aria-selected="${selected}" tabindex="${selected ? 0 : -1}"
+            data-kind="${kind}" data-value="${escapeHTML(value)}">${escapeHTML(text)}</button>`;
+
+  pop.innerHTML = `
+    <div class="depart-time-cols">
+      <div class="depart-time-col" role="listbox" aria-label="Hora">
+        <span class="depart-time-head">Hora</span>
+        ${hours.map((h) => option('hour', String(h), String(h), h === hour12)).join('')}
+      </div>
+      <div class="depart-time-col" role="listbox" aria-label="Minutos">
+        <span class="depart-time-head">Min</span>
+        ${minutes.map((m) => option('minute', String(m), String(m).padStart(2, '0'), m === minute)).join('')}
+      </div>
+      <div class="depart-time-col depart-time-col-period" role="listbox" aria-label="Franja">
+        <span class="depart-time-head">Franja</span>
+        ${option('period', 'am', 'a.m.', !isPM)}
+        ${option('period', 'pm', 'p.m.', isPM)}
+      </div>
+    </div>
+    <button class="depart-time-done" type="button">Listo</button>`;
+
+  // A pick repaints the options it was made from, so the element that had focus
+  // is gone — put it back on its replacement, or the keyboard lands on <body>
+  // after the first selection (spec §1.1 R5).
+  if (active?.dataset.kind) {
+    pop
+      .querySelector<HTMLButtonElement>(`.depart-time-opt[data-kind="${active.dataset.kind}"][data-value="${active.dataset.value}"]`)
+      ?.focus({ preventScroll: true });
+  }
+}
+
+/** Centres each column on its selected option, so the popup opens showing the
+ *  current hour instead of midnight. */
+function scrollDepartTimeIntoView(): void {
+  const { pop } = departTimePicker();
+  pop?.querySelectorAll<HTMLElement>('.depart-time-col').forEach((column) => {
+    const selected = column.querySelector<HTMLElement>('.depart-time-opt.selected');
+    if (!selected) return;
+    column.scrollTop = selected.offsetTop - column.clientHeight / 2 + selected.offsetHeight / 2;
+  });
+}
+
+function setDepartTimePickerOpen(open: boolean): void {
+  const { pop, trigger } = departTimePicker();
+  if (!pop || !trigger) return;
+  if (open) renderDepartTimeOptions();
+  pop.classList.toggle('hidden', !open);
+  trigger.setAttribute('aria-expanded', String(open));
+  if (open) scrollDepartTimeIntoView();
+}
+
+function initDepartTimePicker(): void {
+  const { pop, trigger } = departTimePicker();
+  if (!pop || !trigger) return;
+
+  trigger.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setDepartTimePickerOpen(pop.classList.contains('hidden'));
+  });
+
+  pop.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('.depart-time-opt, .depart-time-done');
+    if (!button) return;
+    if (button.classList.contains('depart-time-done')) {
+      setDepartTimePickerOpen(false);
+      trigger.focus();
+      return;
+    }
+
+    const { hour24, minute } = departClockParts();
+    const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+    const isPM = hour24 >= 12;
+    const value = button.dataset.value!;
+    const toHour24 = (h12: number, pm: boolean) => (h12 % 12) + (pm ? 12 : 0);
+
+    if (button.dataset.kind === 'hour') setDepartClock(toHour24(Number(value), isPM), minute);
+    else if (button.dataset.kind === 'minute') setDepartClock(hour24, Number(value));
+    else setDepartClock(toHour24(hour12, value === 'pm'), minute);
+  });
+
+  // Escape closes from anywhere in the control — including the trigger itself,
+  // which keeps focus while the popup is open.
+  document.getElementById('depart-time-picker')?.addEventListener('keydown', (event) => {
+    if ((event as KeyboardEvent).key !== 'Escape' || pop.classList.contains('hidden')) return;
+    setDepartTimePickerOpen(false);
+    trigger.focus();
+  });
+
+  // Roving tabindex + arrows inside a column, like every other option row in the
+  // app (spec §1.1 R5): three tab stops, not twenty-six.
+  pop.addEventListener('keydown', (event) => {
+    const step = event.key === 'ArrowDown' ? 1 : event.key === 'ArrowUp' ? -1 : 0;
+    if (step === 0) return;
+    const column = (event.target as HTMLElement).closest('.depart-time-col');
+    const options = Array.from(column?.querySelectorAll<HTMLButtonElement>('.depart-time-opt') ?? []);
+    const index = options.indexOf(document.activeElement as HTMLButtonElement);
+    if (index < 0) return;
+    event.preventDefault();
+    options[(index + step + options.length) % options.length]?.focus();
+  });
+
+  // An outside click closes it — except on the ±15 steps flanking it, which are
+  // the same control: they rewrite the clock the popup is showing.
+  document.addEventListener('click', (event) => {
+    if ((event.target as HTMLElement).closest('.depart-time-row')) return;
+    setDepartTimePickerOpen(false);
+  });
 }
 
 function setDepartMode(mode: 'now' | 'custom', prefill?: PlanTime): void {
@@ -438,6 +617,9 @@ function setDepartMode(mode: 'now' | 'custom', prefill?: PlanTime): void {
     if (date) date.value = inputs.date;
     if (time) time.value = inputs.time;
     renderDepartDays();
+    syncDepartTimeUI();
+  } else {
+    setDepartTimePickerOpen(false);
   }
 
   updateDepartHint();
@@ -451,7 +633,7 @@ function planAtDepartTime(plan: PlanTime): void {
 }
 
 function initDepartControls(): void {
-  const { date, time } = getDepartInputs();
+  const { date } = getDepartInputs();
 
   document.getElementById('depart-mode-now')?.addEventListener('click', () => {
     if (departMode === 'now') return;
@@ -471,7 +653,8 @@ function initDepartControls(): void {
     renderDepartDays();
     onDepartFieldChange();
   });
-  time?.addEventListener('change', onDepartFieldChange);
+  initDepartTimePicker();
+  syncDepartTimeUI();
 
   document
     .getElementById('depart-time-minus')

@@ -284,7 +284,17 @@
           <div id="depart-days" class="depart-days" role="radiogroup" aria-label="Día de salida"></div>
           <div class="depart-time-row">
             <button id="depart-time-minus" class="depart-step" type="button" aria-label="Quitar 15 minutos" title="15 min antes">−15</button>
-            <input type="time" id="plan-depart-time" class="depart-input depart-time" step="300" aria-label="Hora de salida" />
+            <div class="depart-time" id="depart-time-picker">
+              <button id="depart-time-trigger" class="depart-time-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Hora de salida" title="Elegir la hora de salida">
+                <svg class="depart-time-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9"/>
+                  <path d="M12 7.5V12l2.8 1.8"/>
+                </svg>
+                <span class="depart-time-value" id="depart-time-label">--:--</span>
+              </button>
+              <div id="depart-time-pop" class="depart-time-pop hidden" role="group" aria-label="Hora de salida"></div>
+              <input type="hidden" id="plan-depart-time" />
+            </div>
             <button id="depart-time-plus" class="depart-step" type="button" aria-label="Sumar 15 minutos" title="15 min después">+15</button>
           </div>
           <input type="date" id="plan-depart-date" class="depart-input depart-date hidden" aria-label="Otra fecha de salida" />

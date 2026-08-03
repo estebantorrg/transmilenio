@@ -3175,9 +3175,177 @@ body.sidebar-collapsed .sidebar-fab {
   outline-offset: 1px;
 }
 
+/* The clock is picked in-app: a native `<input type="time">` opens the engine's
+   own popup — white OS chrome over a dark panel, unreachable by page style. */
 .depart-time {
-  text-align: center;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.depart-time-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-family);
   font-size: var(--font-size-sm);
+  font-weight: 600;
+  padding: 8px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: all var(--transition-fast);
+}
+
+.depart-time-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.depart-time-trigger:focus-visible,
+.depart-time-trigger[aria-expanded="true"] {
+  border-color: var(--tm-red-light);
+  box-shadow: 0 0 10px rgba(255, 90, 110, 0.25);
+}
+
+.depart-time-icon {
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  transition: color var(--transition-fast);
+}
+
+.depart-time-trigger[aria-expanded="true"] .depart-time-icon {
+  color: var(--tm-red-light);
+}
+
+.depart-time-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.depart-time-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 110;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(30, 32, 38, 0.96);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+.depart-time-pop.hidden {
+  display: none;
+}
+
+.depart-time-cols {
+  display: flex;
+  gap: 4px;
+}
+
+.depart-time-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Head + a whole number of 32px rows, so the list never ends mid-option. */
+  max-height: 182px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.depart-time-col::-webkit-scrollbar {
+  display: none;
+}
+
+.depart-time-col-period {
+  flex: 0 0 62px;
+}
+
+.depart-time-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 2px 0 5px;
+  /* Opaque: the options scroll UNDER it, and a translucent head showed "12"
+     through the word "Hora". */
+  background: #1e2026;
+  box-shadow: 0 4px 6px -5px rgba(0, 0, 0, 0.9);
+  color: var(--text-tertiary);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.depart-time-opt {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  padding: 6px 4px;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.depart-time-opt:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.depart-time-opt:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: -2px;
+}
+
+.depart-time-opt.selected {
+  background: rgba(216, 16, 45, 0.18);
+  border-color: rgba(255, 90, 110, 0.45);
+  color: var(--tm-red-light);
+  font-weight: 700;
+}
+
+.depart-time-done {
+  appearance: none;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 7px;
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.depart-time-done:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-medium);
+}
+
+.depart-time-done:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: 1px;
 }
 
 .depart-input {
