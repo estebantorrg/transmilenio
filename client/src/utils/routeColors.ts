@@ -19,6 +19,9 @@ export const TRONCAL_COLORS: Record<string, string> = {
   Z: '#EAB308',
 };
 
+/** The two networks a service can belong to — `RouteListItem['type']`. */
+export type RouteNetwork = 'troncal' | 'zonal';
+
 export const ALIMENTADOR_COLOR = '#009944';
 export const RUTA_FACIL_COLOR = '#000000';
 export const DEFAULT_TRONCAL_COLOR = '#FB2C17';
@@ -61,20 +64,40 @@ export function normalizeRouteCodeForMatch(value: string | null | undefined): st
     .replace(/\s+/g, '');
 }
 
-export function isRutaFacilCode(value: string | null | undefined): boolean {
+/**
+ * `RF` is a TRONCAL service family, so the network is part of the test — the
+ * número alone is not. The catalog files four variants under código `7`: the two
+ * rutas fáciles (`7 Portal Suba`, `7 Polo FINCOMERCIO`, `TransMilenio/TRONCAL`)
+ * **and** two SITP zonal services (`7 Palmitas`, `7 Consuelo`,
+ * `TransMiZonal/URBANO`). A code-only test called all four rutas fáciles: the
+ * zonal pair wore the black RF badge and answered the "Fácil" filter.
+ *
+ * Pass `network` (or use `isRutaFacilRoute`) wherever it is known; omitting it
+ * keeps the code-shape-only answer and is correct only in troncal-only contexts.
+ */
+export function isRutaFacilCode(value: string | null | undefined, network?: RouteNetwork): boolean {
+  if (network === 'zonal') return false;
   const normalized = normalizeRouteCodeForMatch(value);
   if (!normalized) return false;
   return RUTA_FACIL_CODES.has(normalized) || normalized.includes('RUTAFACIL');
 }
 
-export function getRouteZoneLetters(value: string | null | undefined): string[] {
+/** The unambiguous form: a route item always carries its own network. */
+export function isRutaFacilRoute(route: Pick<RouteListItem, 'code' | 'type'>): boolean {
+  return isRutaFacilCode(route.code, route.type);
+}
+
+export function getRouteZoneLetters(value: string | null | undefined, network?: RouteNetwork): string[] {
   const normalized = normalizeRouteCodeForMatch(value);
   if (!normalized) return [];
-  if (isRutaFacilCode(normalized)) return ['RF'];
+  if (isRutaFacilCode(normalized, network)) return ['RF'];
 
   const prefix = normalized.match(ROUTE_ZONE_PREFIX_RE)?.[1];
   if (!prefix) return [];
-  if (prefix === 'RF') return ['RF'];
+  // Same rule as above: the RF family is troncal-only, so a zonal service never
+  // carries it. Every other letter is shared by both networks on purpose — a
+  // zonal `T25` and a troncal `T…` are the same corridor colour (spec §5.4.3).
+  if (prefix === 'RF') return network === 'zonal' ? [] : ['RF'];
   if (prefix === 'MP') return ['M', 'P'];
 
   return Array.from(prefix).filter((letter) => letter in TRONCAL_COLORS);
@@ -128,15 +151,15 @@ export function getRouteAccentColor(
   route: Pick<RouteListItem, 'code' | 'type' | 'subType' | 'busType' | 'color'>
 ): string {
   if (isAlimentadorRoute(route)) return ALIMENTADOR_COLOR;
-  if (isRutaFacilCode(route.code)) return RUTA_FACIL_COLOR;
+  if (isRutaFacilRoute(route)) return RUTA_FACIL_COLOR;
 
   if (route.type === 'troncal') {
-    const routeLetters = getRouteZoneLetters(route.code);
+    const routeLetters = getRouteZoneLetters(route.code, 'troncal');
     if (routeLetters.length > 0) return getTroncalColor(route.code);
     return validHexColor(route.color) ?? getTroncalColor(route.code);
   }
 
-  return getStopTagColor(route.code, route.color);
+  return getStopTagColor(route.code, route.color, 'zonal');
 }
 
 /**
@@ -144,14 +167,18 @@ export function getRouteAccentColor(
  * Uses the route code to derive a zone-based color, falling back to a
  * validated catalog color, then to the default zonal color.
  * This is the SINGLE source of truth for paradero popup route badge colors.
+ *
+ * `network` is the network the tag is being rendered FOR (the popup's own stop,
+ * the route item's own type) — a zonal service is never a ruta fácil no matter
+ * what its número looks like.
  */
-export function getStopTagColor(code: string, catalogColor?: string | null): string {
-  if (isRutaFacilCode(code)) return RUTA_FACIL_COLOR;
+export function getStopTagColor(code: string, catalogColor?: string | null, network?: RouteNetwork): string {
+  if (isRutaFacilCode(code, network)) return RUTA_FACIL_COLOR;
 
   const normalized = normalizeRouteCodeForMatch(code);
   if (/^\d+-\d+$/.test(normalized)) return ALIMENTADOR_COLOR;
 
-  const routeLetters = getRouteZoneLetters(code);
+  const routeLetters = getRouteZoneLetters(code, network);
   if (routeLetters.length > 0) return getTroncalColor(code);
 
   const catalog = validHexColor(catalogColor);

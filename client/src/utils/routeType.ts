@@ -12,7 +12,7 @@
  */
 
 import type { MasterCatalog } from '../types/catalog';
-import { normalizeRouteCodeForMatch } from './routeColors';
+import { normalizeRouteCodeForMatch, type RouteNetwork } from './routeColors';
 
 export type RouteServiceType = 'troncal' | 'zonal' | 'dual';
 
@@ -24,6 +24,16 @@ export type RouteServiceType = 'troncal' | 'zonal' | 'dual';
 export function isZonalService(sistema?: string | null, tipoServicio?: string | null): boolean {
   const service = `${sistema ?? ''} ${tipoServicio ?? ''}`.toUpperCase();
   return service.includes('ZONAL') || service.includes('ALIMENTADOR');
+}
+
+/**
+ * The network ONE catalog entry belongs to. Every `stations.wagons` entry and
+ * every `catalog.routes` variant carries `sistema`/`tipoServicio`, so a tag can
+ * be resolved exactly instead of guessing from the código — which is ambiguous
+ * wherever the two networks reuse a número (código `7`, see `isRutaFacilCode`).
+ */
+export function catalogRouteNetwork(route: { sistema?: string | null; tipoServicio?: string | null }): RouteNetwork {
+  return isZonalService(route.sistema, route.tipoServicio) ? 'zonal' : 'troncal';
 }
 
 let index: Map<string, RouteServiceType> = new Map();

@@ -1,6 +1,27 @@
 import maplibregl from 'maplibre-gl';
 
 let activePopup: maplibregl.Popup | null = null;
+let activePin: maplibregl.Marker | null = null;
+
+/**
+ * Drops a pin under the popup for a place that has NO symbol of its own on the
+ * map. The tullave counters and the cicloparqueaderos are catalog POIs with no
+ * layer, so opening one from Cerca floated a card over blank street with nothing
+ * marking the doorway it describes — the popup tip is 14 px of transparent CSS
+ * triangle. The pin is owned here, next to the single-popup state, so it cannot
+ * outlive or duplicate the card it belongs to.
+ */
+function dropPin(map: maplibregl.Map, lngLat: maplibregl.LngLatLike, color: string): maplibregl.Marker {
+  const el = document.createElement('div');
+  el.className = 'poi-pin';
+  el.style.setProperty('--poi-pin-color', color);
+  el.innerHTML =
+    '<svg width="26" height="34" viewBox="0 0 26 34" aria-hidden="true">' +
+    '<path d="M13 33.2C13 33.2 24.5 20.6 24.5 12.6A11.5 11.5 0 0 0 1.5 12.6C1.5 20.6 13 33.2 13 33.2Z" ' +
+    'fill="var(--poi-pin-color)" stroke="#ffffff" stroke-width="2"/>' +
+    '<circle cx="13" cy="12.4" r="4.2" fill="#ffffff"/></svg>';
+  return new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
+}
 
 export function showPopup(
   map: maplibregl.Map,
@@ -9,9 +30,14 @@ export function showPopup(
   options: {
     maxWidth?: string;
     offset?: number;
+    /** Accent colour of a pin to show, at the popup's own coordinate, for as
+     *  long as the popup is open. Omit for places the map already draws. */
+    pinColor?: string;
   } = {}
 ): void {
   activePopup?.remove();
+  activePin?.remove();
+  activePin = options.pinColor ? dropPin(map, lngLat, options.pinColor) : null;
   const popup = new maplibregl.Popup({
     className: 'tm-popup',
     closeButton: true,
@@ -58,6 +84,9 @@ export function showPopup(
   }, 440);
 
   popup.on('close', () => {
-    if (activePopup === popup) activePopup = null;
+    if (activePopup !== popup) return;
+    activePopup = null;
+    activePin?.remove();
+    activePin = null;
   });
 }

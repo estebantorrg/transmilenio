@@ -6,7 +6,7 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { de } from '../utils/text';
-import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '../utils/routeColors';
+import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
 import { closedWindowNotice } from '../services/liveWindow';
@@ -1005,7 +1005,7 @@ function matchesTypeFilter(r: RouteListItem): boolean {
     case 'alimentador':
       return isAlimentadorRoute(r) || r.subType === 'alimentador';
     case 'facil':
-      return isRutaFacilCode(r.code);
+      return isRutaFacilRoute(r);
     default:
       return true;
   }

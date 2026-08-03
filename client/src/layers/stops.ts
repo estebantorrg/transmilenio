@@ -10,7 +10,7 @@ import { showPopup } from './popup';
 import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
-import { servesZonal } from '../utils/routeType';
+import { catalogRouteNetwork, servesZonal } from '../utils/routeType';
 import { showStationPopupByCode } from './stations';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 
@@ -75,20 +75,23 @@ function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void 
       for (const route of routes) {
         addStopRoute(map, station.codigo, {
           code: route.codigo,
-          color: getStopTagColor(route.codigo, route.color),
+          color: getStopTagColor(route.codigo, route.color, catalogRouteNetwork(route)),
         });
       }
     }
   }
 }
 
+/** Code → tag colour for the ZONAL paradero layer (its only consumer), so every
+ *  entry is resolved for that network: código `7` in a paradero is the SITP
+ *  service `7 Palmitas`/`7 Consuelo`, not the troncal ruta fácil. */
 function buildCatalogRouteColorMap(catalog: MasterCatalog): Map<string, string> {
   const colors = new Map<string, string>();
 
   for (const variants of Object.values(catalog.routes || {})) {
     for (const route of variants) {
       if (route.codigo) {
-        colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color));
+        colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color, 'zonal'));
       }
     }
   }
@@ -97,7 +100,7 @@ function buildCatalogRouteColorMap(catalog: MasterCatalog): Map<string, string> 
     for (const routes of Object.values(station.wagons || {})) {
       for (const route of routes) {
         if (route.codigo) {
-          colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color));
+          colors.set(normalizeRouteCodeForMatch(route.codigo), getStopTagColor(route.codigo, route.color, 'zonal'));
         }
       }
     }
@@ -121,7 +124,7 @@ export function buildStopRoutesMap(
     
     const routeTag = {
       code: route,
-      color: catalogColors.get(normalizedRoute) ?? getStopTagColor(route),
+      color: catalogColors.get(normalizedRoute) ?? getStopTagColor(route, null, 'zonal'),
     };
 
     addStopRoute(map, cenefa, routeTag);

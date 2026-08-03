@@ -2,7 +2,7 @@
 
 import { getRouteAccentColor } from '@shared/utils/routeColors';
 import { isAlimentadorRoute } from '@shared/utils/routeColors';
-import { isRutaFacilCode } from '@shared/utils/routeColors';
+import { isRutaFacilRoute } from '@shared/utils/routeColors';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { LiveBusResult } from '@shared/services/api';
@@ -12,7 +12,7 @@ import { needsDarkText } from '../lib/format';
 
 export function routeTypeLabel(route: RouteListItem): string {
   if (isAlimentadorRoute(route)) return 'Alimentador';
-  if (isRutaFacilCode(route.code)) return 'Ruta fácil';
+  if (isRutaFacilRoute(route)) return 'Ruta fácil';
   if (route.subType === 'dual') return 'Dual';
   return route.type === 'troncal' ? 'Troncal' : 'Zonal';
 }

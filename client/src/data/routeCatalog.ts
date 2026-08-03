@@ -208,7 +208,7 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
         busType: route.tipoServicio,
         schedule: formatScheduleText(route),
         serviceSpans: parseServiceSpans(route.horarios),
-        color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color),
+        color: type === 'troncal' ? getRouteColor(code, 'troncal') : getStopTagColor(code, route.color, 'zonal'),
         catalogNombre: route.nombre || '',
         geometry,
         stops,

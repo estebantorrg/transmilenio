@@ -24,6 +24,11 @@ export interface NearbyPoint {
   direccion: string;
   kind: PointKind;
   hours?: string; // recharge points (weekday hours) / transmibici (capacity)
+  /** Labelled rows for the point's own popup/sheet — the full opening hours of a
+   *  tullave counter (weekday / Saturday / Sunday-holiday, §5.5.1), a
+   *  cicloparqueadero's capacity. `hours` stays the one-line row summary, which
+   *  is all a Cerca row has space for. */
+  details?: Array<{ label: string; value: string }>;
 }
 
 type KindFilter = 'all' | PointKind;

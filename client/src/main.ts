@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getNearestVisibleStation, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
@@ -31,10 +31,11 @@ import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
 import { setRouteTypeIndex } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
-import { isWithinBogota } from './utils/geo';
+import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from './utils/geo';
 import { initCerca, setCercaLocation, setNearbyPoints, type NearbyPoint } from './ui/cerca';
 import { POINT_KIND_META } from './data/pointKinds';
-import { escapeHTML } from './utils/html';
+import { planActionsHtml } from './layers/popupActions';
+import { escapeHTML, safeColor } from './utils/html';
 import {
   applyZonalStopEnrichment,
   buildRouteList,
@@ -262,16 +263,21 @@ function pushNearbyPoints(): void {
 }
 
 /**
- * Drops (or moves) the user-location marker, recentring the map when `fly`, and
- * opens the popup for the closest troncal station. Geolocation is processed
- * entirely client-side (no PII stored).
+ * Drops (or moves) the user-location marker, recentring the map when `fly`.
+ * Geolocation is processed entirely client-side (no PII stored).
+ *
+ * It deliberately opens NOTHING. Placing the marker used to also open the popup
+ * of the closest troncal station: the rider asked "what is near me", got the
+ * ranked Cerca list they asked for AND a popup for one station they never
+ * picked, covering the map — and, because the drag handler re-enters here, the
+ * same popup re-opened on every nudge of the location dot. Choosing a point is
+ * the list's job (`focusNearbyPoint`) and the map's; locating is not a choice.
  */
 function placeUserMarker(
   map: maplibregl.Map,
   longitude: number,
   latitude: number,
-  fly = true,
-  openNearest = true
+  fly = true
 ): void {
   userMarker?.remove();
   const el = document.createElement('div');
@@ -296,56 +302,64 @@ function placeUserMarker(
   if (fly) {
     map.flyTo({ center: [longitude, latitude], zoom: 14, duration: 1200 });
   }
-
-  if (!openNearest) return;
-  const nearest = getNearestVisibleStation(longitude, latitude);
-  if (nearest) {
-    if (fly) {
-      map.once('moveend', () => {
-        showStationPopupByCode(map, nearest.code, nearest.coordinate);
-      });
-    } else {
-      showStationPopupByCode(map, nearest.code, nearest.coordinate);
-    }
-  }
 }
 
-/** Accent per tullave POI kind — matches the `.near-dot` colours in style.css. */
-const TULLAVE_ACCENT: Record<string, string> = {
+/** Accent per POI kind — matches the `.near-dot` colours in style.css and the
+ *  app's own POI sheet accents (spec §1.1 R2). */
+const POI_ACCENT: Record<string, string> = {
   recharge: '#22c55e',
   personalizacion: '#a855f7',
+  transmibici: '#38bdf8',
 };
 
-/** Lightweight popup for a tullave POI — recharge or personalization
- *  (name/address/hours). Label and accent come from the kind, so a
- *  personalization counter is not announced as a recharge point. */
-function showRechargePopup(map: maplibregl.Map, point: NearbyPoint): void {
+/**
+ * Popup for a catalog POI — a tullave recharge or personalization counter, or a
+ * TransMiBici cicloparqueadero. One renderer for all three: they differ only in
+ * their accent, their kind label and their detail rows, and three near-copies is
+ * exactly how the recharge card ended up the thinnest of them (spec §1.1 R2).
+ *
+ * These POIs have **no layer of their own**, so unlike an estación or a paradero
+ * there is nothing on the map under the card: it asks for a `pinColor` so the
+ * rider can see WHICH doorway on the block it is describing, and it carries the
+ * same distance/walking line the Cerca row promised plus the `Desde aquí /
+ * Hasta aquí` actions every other place popup has. It used to be an eyebrow, a
+ * name, an address and one unlabelled time range.
+ */
+function showPoiPopup(map: maplibregl.Map, point: NearbyPoint): void {
   const meta = POINT_KIND_META[point.kind];
-  const prefix = meta.extraPrefix ? `${meta.extraPrefix} ` : '';
-  const hours = point.hours ? `<div class="popup-meta"><span>${escapeHTML(prefix + point.hours)}</span></div>` : '';
-  const html = `
-    <div class="popup-card">
-      <div class="popup-eyebrow" style="color:${TULLAVE_ACCENT[point.kind] ?? '#22c55e'}">${escapeHTML(meta.fallback)}</div>
-      <div class="popup-title">${escapeHTML(point.name)}</div>
-      ${point.direccion ? `<div class="popup-meta"><span>${escapeHTML(point.direccion)}</span></div>` : ''}
-      ${hours}
-    </div>`;
-  // Reuse the shared single-popup helper so recharge popups replace (not stack
-  // on top of) any open station/stop popup.
-  showPopup(map, point.coordinate, html, { offset: 12, maxWidth: '280px' });
-}
+  const accent = POI_ACCENT[point.kind] ?? '#22c55e';
 
-/** Lightweight popup for a TransMiBici bike-parking POI (capacity/occupancy). */
-function showBikeParkingPopup(map: maplibregl.Map, point: NearbyPoint): void {
-  const capacity = point.hours ? `<div class="popup-meta"><span>${escapeHTML(point.hours)}</span></div>` : '';
+  const rows = (point.details ?? [])
+    .map(
+      (d) =>
+        `<div class="popup-detail-row"><span class="popup-detail-label">${escapeHTML(d.label)}</span>` +
+        `<span class="popup-detail-value">${escapeHTML(d.value)}</span></div>`
+    )
+    .join('');
+
+  // The walk is measured from wherever the user dot currently sits — the same
+  // origin the Cerca ranking used, so the two can never disagree.
+  const from = userMarker?.getLngLat();
+  const meters = from ? haversineMeters([from.lng, from.lat], point.coordinate) : NaN;
+  const walk = Number.isFinite(meters)
+    ? `<div class="popup-meta"><span>A ${escapeHTML(formatDistance(meters))} · ${walkMinutes(meters)} min a pie</span></div>`
+    : '';
+
   const html = `
     <div class="popup-card">
-      <div class="popup-eyebrow" style="color:#38bdf8">Cicloparqueadero TransMiBici</div>
+      <div class="popup-eyebrow" style="color:${safeColor(accent)}">${escapeHTML(meta.fallback)}</div>
       <div class="popup-title">${escapeHTML(point.name)}</div>
       ${point.direccion ? `<div class="popup-meta"><span>${escapeHTML(point.direccion)}</span></div>` : ''}
-      ${capacity}
+      ${walk}
+      ${rows ? `<div class="popup-details">${rows}</div>` : ''}
+      ${planActionsHtml(point.name, point.coordinate)}
     </div>`;
-  showPopup(map, point.coordinate, html, { offset: 12, maxWidth: '280px' });
+
+  // Reuse the shared single-popup helper so a POI popup replaces (not stacks on
+  // top of) any open station/stop popup — and so its pin dies with it. The
+  // offset clears the pin's own height (34 px), or the card covers the marker it
+  // exists to show.
+  showPopup(map, point.coordinate, html, { offset: 38, maxWidth: '290px', pinColor: accent });
 }
 
 /**
@@ -716,10 +730,8 @@ async function main(): Promise<void> {
   // Cerca rows and the Explore search's station/paradero hits (spec §1.1 R2).
   const focusNearbyPoint = (point: NearbyPoint): void => {
     map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
-    if (point.kind === 'recharge' || point.kind === 'personalizacion') {
-      showRechargePopup(map, point);
-    } else if (point.kind === 'transmibici') {
-      showBikeParkingPopup(map, point);
+    if (point.kind === 'recharge' || point.kind === 'personalizacion' || point.kind === 'transmibici') {
+      showPoiPopup(map, point);
     } else if (point.kind === 'cable') {
       showCableStationPopup(map, { name: point.name, code: point.codigo, coordinate: point.coordinate });
     } else if (point.kind === 'station') {
@@ -918,7 +930,7 @@ async function main(): Promise<void> {
   // cascade + user marker so nothing is duplicated (spec §1.1 R2).
   initCerca({
     resolveLocation: () => resolveUserLocation(),
-    onLocated: (lng, lat, source) => placeUserMarker(map, lng, lat, source === 'gps', false),
+    onLocated: (lng, lat, source) => placeUserMarker(map, lng, lat, source === 'gps'),
     onSelect: focusNearbyPoint,
   });
   pushNearbyPoints();
@@ -941,12 +953,20 @@ async function main(): Promise<void> {
               codigo: `${prefix}-${i}`,
               name: p.nombre,
               coordinate: [p.longitud, p.latitud],
-              direccion: p.direccion || p.localidad || '',
+              direccion: [p.direccion, p.localidad].filter(Boolean).join(' · '),
               kind,
               // `hds` is the weekday row. This read `wks` — Sundays/holidays —
               // so a counter open right now could show its "No Opera" Sunday
               // value as if it were closed (spec §1 certainty).
               hours: p.hds,
+              // The popup has room for all three windows, each under the day it
+              // actually covers (§5.5.1): the row's single line cannot say
+              // whether a counter is open on the Saturday the rider is planning.
+              details: [
+                { label: 'Lun–Vie', value: p.hds },
+                { label: 'Sábados', value: p.exs },
+                { label: 'Dom y festivos', value: p.wks },
+              ].filter((d): d is { label: string; value: string } => Boolean(d.value)),
             }))
             .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]))
         );
@@ -981,6 +1001,10 @@ async function main(): Promise<void> {
           direccion: '',
           kind: 'transmibici',
           hours: p.cupos != null ? `${p.cupos} cupos${p.ocupacion != null ? ` · ocupación ~${p.ocupacion}` : ''}` : undefined,
+          details: [
+            p.cupos != null ? { label: 'Cupos', value: String(p.cupos) } : null,
+            p.ocupacion != null ? { label: 'Ocupación', value: `~${p.ocupacion}` } : null,
+          ].filter((d): d is { label: string; value: string } => d !== null),
         }))
         .filter((p) => Number.isFinite(p.coordinate[0]) && Number.isFinite(p.coordinate[1]));
       pushNearbyPoints();

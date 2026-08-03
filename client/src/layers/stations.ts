@@ -23,7 +23,7 @@ import {
   type ResolvedCatalogWagons,
   type StationCatalogAudit,
 } from './stationCatalogResolver';
-import { isZonalService } from '../utils/routeType';
+import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
@@ -104,7 +104,7 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
   const tags = visibleGroups
     .map((group) => {
       const route = group.primary;
-      const color = safeColor(getStopTagColor(route.codigo, route.color), '#FB2C17');
+      const color = safeColor(getStopTagColor(route.codigo, route.color, catalogRouteNetwork(route)), '#FB2C17');
       const routeId = group.routes.length === 1 && route.id ? `catalog-${route.id}` : '';
       const names = Array.from(new Set(group.routes.map((item) => item.nombre).filter(Boolean)));
       const title = names.join(' / ') || route.nombre;
@@ -481,42 +481,6 @@ export function bringStationsLayerToFront(map: maplibregl.Map): void {
 }
 
 let globalStations: TroncalStationFeature[] = [];
-
-/**
- * Finds the closest visible troncal station to a coordinate.
- * Uses an equirectangular approximation — accurate enough at city scale
- * and far cheaper than haversine for a one-shot nearest lookup.
- */
-export function getNearestVisibleStation(
-  lng: number,
-  lat: number
-): { code: string; coordinate: [number, number]; name: string } | null {
-  const latRad = (lat * Math.PI) / 180;
-  const cosLat = Math.cos(latRad);
-
-  let best: { code: string; coordinate: [number, number]; name: string } | null = null;
-  let bestDistSq = Infinity;
-
-  for (const station of globalStations) {
-    if (!isVisibleTroncalStation(station)) continue;
-    const { x, y } = station.geometry;
-    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-
-    const dx = (x - lng) * cosLat;
-    const dy = y - lat;
-    const distSq = dx * dx + dy * dy;
-    if (distSq < bestDistSq) {
-      bestDistSq = distSq;
-      best = {
-        code: station.attributes.numero_estacion,
-        coordinate: [x, y],
-        name: station.attributes.nombre_estacion,
-      };
-    }
-  }
-
-  return best;
-}
 
 export function showStationPopupByCode(map: maplibregl.Map, stationCode: string, coordinate: [number, number]): boolean {
   let resolvedStation: ResolvedCatalogStation | undefined;

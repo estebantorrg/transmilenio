@@ -930,6 +930,12 @@ function initTabs(): void {
 
     setMapPickMode(null);
 
+    // "Consultar saldo" belongs to Explore too. As a permanent footer it sat
+    // under the Cerca results and under the planner's own sticky action on every
+    // tab — a second call-to-action competing with the one the rider is using,
+    // for an unrelated errand. It follows its tab like the route detail does.
+    document.querySelector('.sidebar-footer')?.classList.toggle('hidden', activeTab !== 'tab-explore');
+
     // The route-detail overlay belongs to Explore; hide it on the other tabs so
     // their panels are visible, restore it when returning to Explore.
     const routeDetail = document.getElementById('route-detail');

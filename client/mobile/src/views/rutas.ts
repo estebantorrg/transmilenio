@@ -1,6 +1,6 @@
 /** Rutas tab — searchable, filterable browser for routes AND places. */
 
-import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
+import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
 import {
   countPointMatches,
   emptyPointMatches,
@@ -53,7 +53,7 @@ function matchesFilter(route: RouteListItem, filter: Filter, favorites: Set<stri
     case 'alimentador':
       return isAlimentadorRoute(route);
     case 'facil':
-      return isRutaFacilCode(route.code);
+      return isRutaFacilRoute(route);
     case 'fav':
       return favorites.has(route.id);
     default:

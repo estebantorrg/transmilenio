@@ -9,6 +9,7 @@
  */
 
 import { api } from '../services/api';
+import { isStationStopCode } from '../data/routeCatalog';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
 
@@ -45,6 +46,8 @@ export async function renderStopArrivals(code: string, allowedCodes?: Iterable<s
     ? new Set(Array.from(allowedCodes, (c) => normalizeRouteCodeForMatch(c)))
     : null;
 
+  const network = isStationStopCode(code) ? 'troncal' : 'zonal';
+
   try {
     const res = await api.getStopArrivals(code);
     const el = document.querySelector<HTMLElement>(sel);
@@ -63,7 +66,10 @@ export async function renderStopArrivals(code: string, allowedCodes?: Iterable<s
       arrivals
         .slice(0, 8)
         .map((a) => {
-          const color = safeColor(getStopTagColor(a.codigo, a.color), '#00608B');
+          // The stop code names the network the board belongs to (`TM…` =
+          // troncal estación), so código `7` on a paradero resolves to the SITP
+          // service and not to the troncal ruta fácil.
+          const color = safeColor(getStopTagColor(a.codigo, a.color, network), '#00608B');
           const dest = a.destino ? `→ ${escapeHTML(a.destino)}` : '';
           return `
         <div class="arr-row">
