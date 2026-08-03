@@ -224,7 +224,10 @@ function showStationPopup(
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
       ? buildWagonSectionsHtml(resolvedStation.wagons)
-      : '<div class="popup-empty">Sin datos de vagones disponibles</div>';
+      // Not "no routes serve this station" — the catalog simply files no wagon
+      // assignment for it, and saying which is the difference between a data gap
+      // and a claim about the network (spec §1).
+      : '<div class="popup-empty">El catálogo oficial no asigna vagones a esta estación. Busca la estación por nombre para ver sus rutas.</div>';
 
   // Station meta
   const meta = [

@@ -5,9 +5,10 @@ import { formatDistance, haversineMeters } from '../lib/format';
 import { POINT_KIND_LABELS, POINT_KINDS, type PointKind } from '@shared/data/pointKinds';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
-import { isWithinBogota } from '@shared/utils/geo';
+import { NEARBY_RADIUS_METERS, isWithinBogota } from '@shared/utils/geo';
+import { locationFailureMessage } from '@shared/utils/locationError';
 import { app } from '../appContext';
-import { pointRow } from '../ui/pointRow';
+import { openPointDetail, pointRow } from '../ui/pointRow';
 import { ICONS } from '../ui/components';
 import type { View } from './types';
 
@@ -15,12 +16,6 @@ type KindFilter = 'all' | PointKind;
 
 /** Ranked rows shown. Beyond this the list stops being "cerca de ti". */
 const MAX_ROWS = 40;
-/**
- * Nothing further than this is "near" on foot — 3 km is a ~40 min walk. Without
- * a bound, a rider on the edge of the network (or with a coarse fix) got a list
- * of things kilometres away presented as their nearby options.
- */
-const MAX_NEARBY_METERS = 3000;
 
 export function createCercaView(): View {
   const el = h('section', { class: 'screen screen-cerca' });
@@ -86,31 +81,48 @@ export function createCercaView(): View {
       return;
     }
     const [lng, lat] = userCoord;
-    const ranked = allPoints()
+    const measured = allPoints()
       .filter((p) => kindFilter === 'all' || p.kind === kindFilter)
       .map((p) => ({ p, d: haversineMeters([lng, lat], p.coordinate) }))
-      .filter((x) => Number.isFinite(x.d) && x.d <= MAX_NEARBY_METERS)
-      .sort((a, b) => a.d - b.d)
-      .slice(0, MAX_ROWS);
+      .filter((x) => Number.isFinite(x.d))
+      .sort((a, b) => a.d - b.d);
+    const ranked = measured.filter((x) => x.d <= NEARBY_RADIUS_METERS).slice(0, MAX_ROWS);
 
     list.replaceChildren();
     if (ranked.length === 0) {
       // Distinguish "still loading the catalogue" from "genuinely nothing of
-      // this kind within walking distance" — they need different reactions.
+      // this kind within walking distance" — they need different reactions —
+      // and when something exists further out, name it and its distance instead
+      // of ending at "no hay".
       const loading = allPoints().length === 0;
-      list.append(
-        h('div', { class: 'empty' }, [
-          h('div', { class: 'empty-title', text: loading ? 'Cargando la red…' : 'Nada a menos de 3 km' }),
+      const kindLabel = kindFilter === 'all' ? 'puntos de la red' : POINT_KIND_LABELS[kindFilter as PointKind].toLowerCase();
+      const nearest = measured[0];
+      const block = h('div', { class: 'empty' }, [
+        h('div', {
+          class: 'empty-title',
+          text: loading ? 'Cargando la red…' : `Sin ${kindLabel} a menos de ${formatDistance(NEARBY_RADIUS_METERS)}`,
+        }),
+        h('div', {
+          class: 'empty-text',
+          text: loading
+            ? 'Los paraderos y puntos aparecerán en un momento.'
+            : kindFilter === 'all'
+            ? 'Nada a distancia caminable desde aquí.'
+            : `Nada a distancia caminable desde aquí. Prueba con “Todos”.`,
+        }),
+      ]);
+      if (!loading && nearest) {
+        block.append(
           h('div', {
             class: 'empty-text',
-            text: loading
-              ? 'Los paraderos y puntos aparecerán en un momento.'
-              : kindFilter === 'all'
-              ? 'No hay puntos de la red a distancia caminable desde aquí.'
-              : `No hay ${POINT_KIND_LABELS[kindFilter as PointKind].toLowerCase()} a distancia caminable. Prueba con “Todos”.`,
-          }),
-        ])
-      );
+            text: `Lo más cercano es ${nearest.p.name}, a ${formatDistance(nearest.d)}.`,
+          })
+        );
+        const go = h('button', { class: 'btn btn-ghost empty-action', type: 'button', text: 'Ver el más cercano' });
+        go.addEventListener('click', () => openPointDetail(nearest.p));
+        block.append(go);
+      }
+      list.append(block);
       return;
     }
     for (const { p, d } of ranked) list.append(pointRow(p, d));
@@ -141,14 +153,9 @@ export function createCercaView(): View {
     } catch (err) {
       // Say WHICH failure it was and always leave a way forward — the old
       // handler collapsed permission-denied, no-fix and out-of-city into one
-      // "No se pudo ubicarte" with nothing to do next.
-      const denied = err instanceof GeolocationPositionError && err.code === err.PERMISSION_DENIED;
-      const outside = err instanceof Error && err.message.includes('Bogotá');
-      const msg = outside
-        ? 'Estás fuera de Bogotá'
-        : denied
-        ? 'Permiso de ubicación denegado'
-        : 'No se pudo obtener tu ubicación';
+      // "No se pudo ubicarte" with nothing to do next. The classification is
+      // shared with every other locate button (spec §1.1 R2).
+      const msg = locationFailureMessage(err);
       status.textContent = `${msg} · marca un punto en el mapa`;
       toast(msg, 'warn');
       pickBtn.classList.add('nudge');

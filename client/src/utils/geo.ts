@@ -35,13 +35,23 @@ export function haversineMeters(a: [number, number], b: [number, number]): numbe
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-/** Rounded human distance: "320 m" under 1 km, "1.4 km" beyond. */
+/** Rounded human distance: "320 m" under 1 km, "1,4 km" beyond — Spanish
+ *  decimal comma, and no trailing ",0" on a whole number of kilometres. */
 export function formatDistance(meters: number): string {
   if (!Number.isFinite(meters)) return '';
-  return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`;
+  if (meters < 1000) return `${Math.round(meters / 10) * 10} m`;
+  return `${(meters / 1000).toFixed(1).replace(/\.0$/, '').replace('.', ',')} km`;
 }
 
 /** Walking minutes at ~1.35 m/s, floored at 1. */
 export function walkMinutes(meters: number): number {
   return Math.max(1, Math.round(meters / 1.35 / 60));
 }
+
+/**
+ * Nothing further than this is "cerca de ti" on foot — 3 km is a ~40 min walk.
+ * Both Cerca panels bound their list by it, so a rider on the edge of the network
+ * (or with a coarse IP fix) is not handed things kilometres away as their nearby
+ * options. One constant, both clients (spec §1.1 R2).
+ */
+export const NEARBY_RADIUS_METERS = 3000;

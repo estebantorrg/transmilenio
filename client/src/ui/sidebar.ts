@@ -5,6 +5,7 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
+import { de } from '../utils/text';
 import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilCode, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
@@ -80,6 +81,16 @@ export function setSearchPoints(points: NearbyPoint[]): void {
 }
 
 type RouteFilter = 'all' | 'fav' | 'recent' | 'troncal' | 'zonal' | 'alimentador' | 'facil';
+/** Chip wording, reused verbatim when an empty state has to name the filter. */
+const ROUTE_FILTER_LABELS: Record<RouteFilter, string> = {
+  all: 'Todas',
+  fav: 'Favoritas',
+  recent: 'Recientes',
+  troncal: 'Troncal',
+  zonal: 'Zonal',
+  alimentador: 'Alimentador',
+  facil: 'Ruta fácil',
+};
 let currentFilter: RouteFilter = 'all';
 // SITP zone narrowing, active only under the Zonal filter (null = all zones).
 let currentZone: number | null = null;
@@ -1042,6 +1053,9 @@ function applyFilters(): void {
     searchScope = SCOPE_ALL;
   }
   renderSearchScopeChips(base.length, points);
+  // A new query/filter starts at page one; only "Ver más" grows the list.
+  routePages = 1;
+  pointPages = 1;
   renderResults(base, points);
 }
 
@@ -1078,6 +1092,47 @@ function searchRank(route: RouteListItem, q: string): number {
 const SEARCH_POINT_PREVIEW = 6;
 /** Rows shown when a single kind IS the scope: the user asked for these. */
 const SEARCH_POINT_LIMIT = 60;
+/** Route rows drawn per page. */
+const ROUTE_PAGE_SIZE = 200;
+
+/**
+ * Both lists page instead of stopping dead at a cap. "Mostrando 200 de 419 ·
+ * usa la búsqueda para filtrar" was an instruction, not a way out: the other 219
+ * routes were unreachable, and refining the query is exactly what a rider
+ * *browsing* a zone does not want to do. Same "Ver más" rule the app already
+ * follows (spec §5.4.2b).
+ */
+let routePages = 1;
+let pointPages = 1;
+let lastRouteResults: RouteListItem[] = [];
+let lastPointResults: PointMatches | null = null;
+
+/** Re-render the current results with one more page revealed. */
+function showMore(kind: 'routes' | 'points'): void {
+  if (kind === 'routes') routePages++;
+  else pointPages++;
+  if (lastPointResults) renderResults(lastRouteResults, lastPointResults);
+}
+
+/** The "Ver más" footer under a paged list. */
+function overflowHtml(shown: number, total: number, kind: 'routes' | 'points'): string {
+  if (shown >= total) return '';
+  const remaining = total - shown;
+  return `
+    <div class="route-list-overflow">
+      Mostrando ${shown} de ${total}
+      <button class="route-list-more" type="button" data-more="${kind}">Ver ${Math.min(
+        remaining,
+        kind === 'routes' ? ROUTE_PAGE_SIZE : SEARCH_POINT_LIMIT
+      )} más</button>
+    </div>`;
+}
+
+function wireShowMore(container: HTMLElement): void {
+  container.querySelectorAll<HTMLButtonElement>('.route-list-more').forEach((btn) => {
+    btn.addEventListener('click', () => showMore(btn.dataset.more === 'points' ? 'points' : 'routes'));
+  });
+}
 
 type PointMatches = SharedPointMatches<NearbyPoint>;
 
@@ -1178,6 +1233,8 @@ function syncListHeading(label: string, count: number): void {
 
 function renderResults(routes: RouteListItem[], points: PointMatches): void {
   syncScopeChrome();
+  lastRouteResults = routes;
+  lastPointResults = points;
 
   // A place scope answers with places only — no route list, no route filters.
   if (searchScope !== 'all' && searchScope !== 'routes') {
@@ -1207,23 +1264,25 @@ function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
   syncListHeading(label, matches.length);
 
   if (matches.length === 0) {
+    // Reaching here means nothing matched anywhere: a scope that is empty while
+    // another has hits widens back to `Todo` before rendering (§5.4.2b).
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-title">Sin ${escapeHTML(label.toLowerCase())}</div>
-        <div class="empty-state-text">Ningún resultado para “${escapeHTML(searchQuery)}”. Prueba con otro nombre o dirección.</div>
+        <div class="empty-state-text">Nada coincide con “${escapeHTML(searchQuery)}” en ninguna categoría.</div>
+        <div class="empty-state-text">Se busca por nombre, dirección y código (por ejemplo TM0013 o una cenefa).</div>
       </div>
     `;
     return;
   }
 
-  const visible = matches.slice(0, SEARCH_POINT_LIMIT);
+  const visible = matches.slice(0, SEARCH_POINT_LIMIT * pointPages);
   container.innerHTML =
     `<div class="search-points">${visible.map((p) => nearRowHtml(p)).join('')}</div>` +
-    (matches.length > visible.length
-      ? `<div class="route-list-overflow">Mostrando ${visible.length} de ${matches.length}. Afina la búsqueda para ver el resto.</div>`
-      : '');
+    overflowHtml(visible.length, matches.length, 'points');
 
   wirePointRows(container, visible);
+  wireShowMore(container);
   wireResultKeyboardColumn(container);
 }
 
@@ -1257,6 +1316,57 @@ function wireResultKeyboardColumn(container: HTMLElement): void {
   });
 }
 
+/** Labels for the narrowing currently in effect, so the empty state can name it. */
+function activeRouteNarrowing(): { label: string; clear: string } | null {
+  if (currentZone !== null) {
+    return { label: getZoneLabel(currentZone) || `la zona ${currentZone}`, clear: 'Ver todas las zonas' };
+  }
+  if (currentLine !== null) return { label: `la línea ${currentLine}`, clear: 'Ver todas las líneas' };
+  if (currentFilter !== 'all' && currentFilter !== 'fav' && currentFilter !== 'recent') {
+    return { label: `el filtro ${ROUTE_FILTER_LABELS[currentFilter]}`, clear: 'Ver todos los tipos' };
+  }
+  return null;
+}
+
+/**
+ * "Sin rutas · prueba con otro código" was the same sentence whether the rider
+ * had typed a typo or had a zone/line/type filter silently swallowing every
+ * result. The state now names the narrowing in effect and offers to lift it.
+ */
+function emptyRouteListHtml(): string {
+  if (currentFilter === 'fav') {
+    return `
+      <div class="empty-state">
+        <div class="empty-state-title">Sin rutas favoritas</div>
+        <div class="empty-state-text">Toca la estrella ★ en cualquier ruta para guardarla aquí y tenerla a un clic.</div>
+      </div>`;
+  }
+  if (currentFilter === 'recent') {
+    return `
+      <div class="empty-state">
+        <div class="empty-state-title">Sin rutas recientes</div>
+        <div class="empty-state-text">Las últimas rutas que abras quedarán listadas aquí durante la sesión.</div>
+      </div>`;
+  }
+
+  const narrowing = activeRouteNarrowing();
+  const query = searchQuery
+    ? `Ningún resultado para “${escapeHTML(searchQuery)}”${narrowing ? ` dentro ${escapeHTML(de(narrowing.label))}` : ''}.`
+    : narrowing
+    ? `No hay rutas en ${escapeHTML(narrowing.label)}.`
+    : 'No hay rutas que coincidan.';
+  const next = narrowing
+    ? `<button class="empty-state-action" type="button">${escapeHTML(narrowing.clear)}</button>`
+    : '<div class="empty-state-text">Busca por código (B75), por estación (Calle 100) o por destino (Portal Sur).</div>';
+
+  return `
+    <div class="empty-state">
+      <div class="empty-state-title">Sin rutas</div>
+      <div class="empty-state-text">${query}</div>
+      ${next}
+    </div>`;
+}
+
 function renderRouteList(
   routes: RouteListItem[],
   pointMatches: NearbyPoint[],
@@ -1278,24 +1388,27 @@ function renderRouteList(
   const wirePointClicks = (): void => wirePointRows(container, pointMatches);
 
   if (routes.length === 0) {
-    const empty =
-      currentFilter === 'fav'
-        ? { title: 'Sin favoritas', text: 'Toca la estrella ★ en una ruta para guardarla aquí.' }
-        : currentFilter === 'recent'
-        ? { title: 'Sin recientes', text: 'Las rutas que abras aparecerán aquí.' }
-        : { title: 'Sin rutas', text: 'Prueba con otro código, estación o destino.' };
-    container.innerHTML = pointsHtml || `
-      <div class="empty-state">
-        <div class="empty-state-title">${empty.title}</div>
-        <div class="empty-state-text">${empty.text}</div>
-      </div>
-    `;
+    container.innerHTML = pointsHtml || emptyRouteListHtml();
+    container.querySelector<HTMLButtonElement>('.empty-state-action')?.addEventListener('click', () => {
+      // The narrowing the rider forgot about is the one thing to undo.
+      if (currentZone !== null) {
+        currentZone = null;
+        renderZoneChips();
+        applyFilters();
+      } else if (currentLine !== null) {
+        currentLine = null;
+        renderLineChips();
+        applyFilters();
+      } else {
+        setRouteFilter('all');
+      }
+    });
     wirePointClicks();
     wireResultKeyboardColumn(container);
     return;
   }
 
-  const visible = routes.slice(0, 200);
+  const visible = routes.slice(0, ROUTE_PAGE_SIZE * routePages);
 
   container.innerHTML = pointsHtml + visible
     .map((route) => {
@@ -1337,14 +1450,9 @@ function renderRouteList(
     })
     .join('');
 
-  if (routes.length > 200) {
-    container.innerHTML += `
-      <div class="route-list-overflow">
-        Mostrando 200 de ${routes.length} rutas. Usa la búsqueda para filtrar.
-      </div>
-    `;
-  }
+  container.innerHTML += overflowHtml(visible.length, routes.length, 'routes');
 
+  wireShowMore(container);
   wireResultKeyboardColumn(container);
 
   container.querySelectorAll<HTMLElement>('.route-item').forEach((el) => {

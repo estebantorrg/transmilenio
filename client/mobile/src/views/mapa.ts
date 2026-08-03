@@ -6,6 +6,7 @@ import type { JourneyPlan } from '@shared/services/router';
 import type { LiveBusResult } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
 import { setSessionExactLocation } from '@shared/utils/sessionLocation';
+import { locationFailureMessage } from '@shared/utils/locationError';
 import { bus, state, type StationRecord } from '../state';
 import { MapController, MAP_STYLE_URL, preloadMapAssets } from '../map/mapController';
 import { openRouteSheet, openStationSheet } from '../ui/detailSheets';
@@ -270,8 +271,10 @@ export function createMapaView(): MapaView {
       const c = ensureController();
       c.setUser(coord);
       c.flyTo(coord, 15.5);
-    } catch {
-      toast('No se pudo obtener tu ubicación', 'warn');
+    } catch (err) {
+      // Name the cause (denied vs no fix) and the way out — the fab is also the
+      // entry point to "Elegir en el mapa" (spec §5.2.1b).
+      toast(`${locationFailureMessage(err)} · toca tu punto en el mapa`, 'warn');
     } finally {
       locate.classList.remove('busy');
     }

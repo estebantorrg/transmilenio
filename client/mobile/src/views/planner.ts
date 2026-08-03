@@ -7,17 +7,25 @@ import {
   describeServiceSpans,
   festivoName,
   formatClockMinute,
-  formatPlanDay,
   formatServiceDuration,
-  dayOfWeek,
+  planTimeAddMinutes,
   planTimeFromInputs,
   planTimeToInputs,
   type PlanTime,
 } from '@shared/services/schedule';
+import {
+  DEPART_STEP_MINUTES,
+  departDayLabel,
+  departDayOptions,
+  departureHint,
+  describeDeparture,
+  planDayDelta,
+} from '@shared/services/departure';
 import { getRouteAccentColor, STATION_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
 import { api } from '@shared/services/api';
 import { POINT_KIND_META, rankPointsByKind, POINT_KINDS, dedupePointsByName } from '@shared/data/pointKinds';
 import { isWithinBogota } from '@shared/utils/geo';
+import { locationFailureMessage } from '@shared/utils/locationError';
 import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
 import { allPoints, bus, state, type StationRecord } from '../state';
@@ -210,9 +218,10 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
         setSessionExactLocation(coord[0], coord[1], 'gps');
         set({ coord, name: 'Mi ubicación' });
         toast('Ubicación fijada', 'ok');
-      } catch {
-        // Don't dead-end on a denied/failed GPS — offer the map instead.
-        toast('No se pudo ubicarte · elige en el mapa', 'warn');
+      } catch (err) {
+        // Don't dead-end on a denied/failed GPS — name the cause and offer the
+        // map instead (shared classifier, spec §1.1 R2).
+        toast(`${locationFailureMessage(err)} · elige en el mapa`, 'warn');
       } finally {
         gps.classList.remove('busy');
       }
@@ -279,12 +288,18 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
   );
 
   // Departure moment — routes do not all run at all hours (spec §5.6.2), so the
-  // planner asks WHEN. "Ahora" needs no input; "Otra hora" reveals the native
-  // date/time pair and the hint spells out which service applies that day.
+  // planner asks WHEN. "Ahora" needs no input; "Otra hora" opens a day row (Hoy ·
+  // Mañana · the rest of the week, festivos flagged because they run a different
+  // service) and a clock with ±15 min steps. Setting a departure used to mean
+  // typing a full date into a native field on a phone.
   let departMode: 'now' | 'custom' = 'now';
-  const dateInput = h('input', { class: 'pl-depart-input', type: 'date', 'aria-label': 'Fecha de salida' }) as HTMLInputElement;
-  const timeInput = h('input', { class: 'pl-depart-input', type: 'time', 'aria-label': 'Hora de salida' }) as HTMLInputElement;
-  const departFields = h('div', { class: 'pl-depart-fields hidden' }, [dateInput, timeInput]);
+  const dateInput = h('input', { class: 'pl-depart-input hidden', type: 'date', 'aria-label': 'Otra fecha de salida' }) as HTMLInputElement;
+  const timeInput = h('input', { class: 'pl-depart-input pl-depart-time', type: 'time', step: '300', 'aria-label': 'Hora de salida' }) as HTMLInputElement;
+  const dayRow = h('div', { class: 'chip-row pl-depart-days', role: 'radiogroup', 'aria-label': 'Día de salida' });
+  const minus = h('button', { class: 'chip pl-depart-step', type: 'button', text: '−15', 'aria-label': 'Quitar 15 minutos' });
+  const plus = h('button', { class: 'chip pl-depart-step', type: 'button', text: '+15', 'aria-label': 'Sumar 15 minutos' });
+  const timeRow = h('div', { class: 'pl-depart-time-row' }, [minus, timeInput, plus]);
+  const departFields = h('div', { class: 'pl-depart-fields hidden' }, [dayRow, timeRow, dateInput]);
   const departHint = h('div', { class: 'pl-depart-hint' });
 
   const readDepart = (): PlanTime => {
@@ -295,19 +310,71 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     return bogotaNow();
   };
 
-  const serviceDayLabel = (plan: PlanTime): string => {
-    const holiday = festivoName(plan.year, plan.month, plan.day);
-    if (holiday) return `servicio de festivo · ${holiday}`;
-    const dow = dayOfWeek(plan.year, plan.month, plan.day);
-    if (dow === 0) return 'servicio de domingo';
-    if (dow === 6) return 'servicio de sábado';
-    return 'servicio de día hábil';
-  };
-
   const refreshDepartHint = () => {
     const plan = readDepart();
-    const prefix = departMode === 'now' ? 'Ahora · ' : '';
-    departHint.textContent = `${prefix}${formatPlanDay(plan, false)}, ${formatClockMinute(plan.minute)} · ${serviceDayLabel(plan)}`;
+    // A moment behind the Bogotá clock is plannable, but it is stated — never
+    // answered as if it were the trip the rider meant (spec §1).
+    departHint.classList.toggle('warn', departMode === 'custom' && describeDeparture(plan).past);
+    departHint.textContent = departureHint(plan, departMode);
+  };
+
+  /** Paints the day chips; the picked day (deep-seeded or "Otra fecha") always
+   *  has one, even when it falls outside the coming week. */
+  const renderDays = (): void => {
+    const now = bogotaNow();
+    const options = departDayOptions(now);
+    if (dateInput.value && !options.some((o) => o.date === dateInput.value)) {
+      const picked = planTimeFromInputs(dateInput.value, '00:00');
+      if (picked) {
+        options.push({
+          date: dateInput.value,
+          label: departDayLabel(picked, planDayDelta(now, picked)),
+          festivo: festivoName(picked.year, picked.month, picked.day),
+        });
+      }
+    }
+
+    dayRow.replaceChildren();
+    for (const option of options) {
+      const selected = option.date === dateInput.value;
+      const chip = h('button', {
+        class: `chip${selected ? ' active' : ''}`,
+        type: 'button',
+        role: 'radio',
+        'aria-checked': String(selected),
+        text: option.label,
+      });
+      if (option.festivo) {
+        chip.classList.add('festivo');
+        chip.title = `Festivo · ${option.festivo}`;
+        chip.append(h('span', { class: 'pl-depart-dot', 'aria-hidden': 'true' }));
+      }
+      chip.addEventListener('click', () => {
+        dateInput.value = option.date;
+        haptic('light');
+        renderDays();
+        refreshDepartHint();
+      });
+      dayRow.append(chip);
+    }
+
+    const other = h('button', { class: 'chip pl-depart-other', type: 'button', text: 'Otra fecha…' });
+    other.addEventListener('click', () => {
+      dateInput.classList.remove('hidden');
+      dateInput.focus();
+    });
+    dayRow.append(other);
+  };
+
+  /** Steps the clock, rolling the day when it wraps past midnight. */
+  const stepDepart = (minutes: number): void => {
+    const next = planTimeAddMinutes(planTimeFromInputs(dateInput.value, timeInput.value) ?? bogotaNow(), minutes);
+    const fields = planTimeToInputs(next);
+    dateInput.value = fields.date;
+    timeInput.value = fields.time;
+    haptic('light');
+    renderDays();
+    refreshDepartHint();
   };
 
   const departChips = chipGroup(
@@ -319,15 +386,23 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
     (id) => {
       departMode = id as 'now' | 'custom';
       departFields.classList.toggle('hidden', departMode !== 'custom');
-      if (departMode === 'custom' && !dateInput.value) {
-        const seed = planTimeToInputs(bogotaNow());
-        dateInput.value = seed.date;
-        timeInput.value = seed.time;
+      if (departMode === 'custom') {
+        if (!dateInput.value) {
+          const seed = planTimeToInputs(bogotaNow());
+          dateInput.value = seed.date;
+          timeInput.value = seed.time;
+        }
+        renderDays();
       }
       refreshDepartHint();
     }
   );
-  dateInput.addEventListener('change', refreshDepartHint);
+  minus.addEventListener('click', () => stepDepart(-DEPART_STEP_MINUTES));
+  plus.addEventListener('click', () => stepDepart(DEPART_STEP_MINUTES));
+  dateInput.addEventListener('change', () => {
+    renderDays();
+    refreshDepartHint();
+  });
   timeInput.addEventListener('change', refreshDepartHint);
   refreshDepartHint();
 
@@ -346,12 +421,12 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
 
   sheet.body.append(
     h('div', { class: 'pl-options' }, [
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Salida' }), departChips]),
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Salida' }), departChips.row]),
       departFields,
       departHint,
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Horarios' }), schedChips]),
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips]),
-      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips]),
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Horarios' }), schedChips.row]),
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Transporte' }), modeChips.row]),
+      h('div', { class: 'pl-opt-row' }, [h('span', { class: 'pl-opt-label', text: 'Preferencia' }), prefChips.row]),
     ])
   );
 
@@ -394,20 +469,41 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
           departAt,
           enforceSchedules,
         };
+        // Snapshot of what constrained THIS search, so an empty result can name
+        // the constraint and offer to lift it.
+        const constraints: SearchConstraints = {
+          mode,
+          enforceSchedules,
+          relax: (which) => {
+            if (which === 'mix') modeChips.select('mix');
+            else schedChips.select('all');
+            calc.click();
+          },
+        };
         const seq = ++searchSeq;
         const plans = findRoutes(params);
         sortJourneyPlans(plans, sortBy);
-        renderPlans(results, plans.slice(0, 4), showOnMap);
+        renderPlans(results, plans.slice(0, 4), showOnMap, constraints);
         // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
         // re-render if this is still the latest search (spec §1.1 R2 shared fn).
         void enrichWalkingGeometries(plans, sortBy, departAt)
           .then(() => {
-            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4), showOnMap);
+            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4), showOnMap, constraints);
           })
           .catch((err) => console.warn('[planner] walk enrichment failed:', err));
       } catch (err) {
         console.error('[planner]', err);
-        results.replaceChildren(h('div', { class: 'empty' }, [h('div', { class: 'empty-title', text: 'Error al calcular' })]));
+        // A bare "Error al calcular" left the rider with no idea whether to wait,
+        // retry or change something.
+        const retry = h('button', { class: 'btn btn-ghost empty-action', type: 'button', text: 'Intentar de nuevo' });
+        retry.addEventListener('click', () => calc.click());
+        results.replaceChildren(
+          h('div', { class: 'empty' }, [
+            h('div', { class: 'empty-title', text: 'No se pudo calcular la ruta' }),
+            h('div', { class: 'empty-text', text: err instanceof Error ? err.message : 'Error inesperado del planificador.' }),
+            retry,
+          ])
+        );
       } finally {
         calc.classList.remove('busy');
       }
@@ -420,21 +516,34 @@ export function openPlannerSheet(seed?: { origin?: Endpoint; destination?: Endpo
   }
 }
 
-function chipGroup(items: { id: string; label: string }[], initial: string, onPick: (id: string) => void): HTMLElement {
+/** A chip group plus a handle to move it from code — an empty state that offers
+ *  "search the whole network" has to be able to flip the chip it is undoing. */
+interface ChipGroup {
+  row: HTMLElement;
+  select(id: string): void;
+}
+
+function chipGroup(items: { id: string; label: string }[], initial: string, onPick: (id: string) => void): ChipGroup {
   const row = h('div', { class: 'chip-row pl-chips' });
   const els = new Map<string, HTMLElement>();
   let active = initial;
+  const pick = (id: string): void => {
+    active = id;
+    els.forEach((c, key) => c.classList.toggle('active', key === active));
+    onPick(id);
+  };
   for (const it of items) {
     const chip = h('button', { class: `chip${it.id === initial ? ' active' : ''}`, type: 'button', text: it.label });
-    chip.addEventListener('click', () => {
-      active = it.id;
-      els.forEach((c, id) => c.classList.toggle('active', id === active));
-      onPick(it.id);
-    });
+    chip.addEventListener('click', () => pick(it.id));
     els.set(it.id, chip);
     row.append(chip);
   }
-  return row;
+  return {
+    row,
+    select: (id) => {
+      if (els.has(id)) pick(id);
+    },
+  };
 }
 
 /** One-line summary of a plan, used on the map banner. */
@@ -447,15 +556,53 @@ function planSummary(plan: JourneyPlan): string {
   return legs ? `${head} · ${legs}` : head;
 }
 
-function renderPlans(host: HTMLElement, plans: JourneyPlan[], onShowOnMap: (plan: JourneyPlan) => void): void {
+/** What the empty result was constrained by, so the state can name it and undo it. */
+interface SearchConstraints {
+  mode: RouteSearchParams['mode'];
+  enforceSchedules: boolean;
+  /** Lifts the named constraint and re-runs the search. */
+  relax: (which: 'mix' | 'schedules') => void;
+}
+
+function renderPlans(
+  host: HTMLElement,
+  plans: JourneyPlan[],
+  onShowOnMap: (plan: JourneyPlan) => void,
+  constraints?: SearchConstraints
+): void {
   host.replaceChildren();
   if (plans.length === 0) {
-    host.append(
-      h('div', { class: 'empty' }, [
-        h('div', { class: 'empty-title', text: 'Sin rutas' }),
-        h('div', { class: 'empty-text', text: 'No encontramos una conexión. Prueba con otro modo o puntos más cercanos a una estación.' }),
-      ])
-    );
+    // A search comes back empty for one of three reasons, and each has a
+    // different move: a mode filter halved the network, the schedule filter
+    // deleted the connections, or an endpoint has no stop within the router's
+    // 1.5 km access radius. "Prueba con otro modo" covered one of the three.
+    const limitedMode = constraints && constraints.mode !== 'mix';
+    const block = h('div', { class: 'empty' }, [
+      h('div', { class: 'empty-title', text: 'Sin rutas' }),
+      h('div', {
+        class: 'empty-text',
+        text: limitedMode
+          ? `La búsqueda está limitada a ${constraints!.mode === 'troncal' ? 'TransMilenio' : 'SITP zonal'} y no hay una conexión completa con ese modo.`
+          : constraints?.enforceSchedules
+          ? 'Con “Solo en servicio” se descartan las rutas que no operan a esa hora, y no queda ninguna conexión.'
+          : 'Ninguno de los dos extremos tiene estación o paradero a menos de 1,5 km, o no existe conexión con menos de 3 transbordos.',
+      }),
+    ]);
+    if (constraints && (limitedMode || constraints.enforceSchedules)) {
+      const which = limitedMode ? 'mix' : 'schedules';
+      const btn = h('button', {
+        class: 'btn btn-ghost empty-action',
+        type: 'button',
+        text: limitedMode ? 'Buscar en toda la red' : 'Incluir rutas fuera de servicio',
+      });
+      btn.addEventListener('click', () => constraints.relax(which));
+      block.append(btn);
+    } else if (!constraints?.enforceSchedules) {
+      block.append(
+        h('div', { class: 'empty-text', text: 'Mueve el origen o el destino hacia una vía principal, o elige la estación más cercana.' })
+      );
+    }
+    host.append(block);
     return;
   }
 

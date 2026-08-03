@@ -645,34 +645,26 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* Overflow affordance for the hidden-scrollbar chip rows: edge fades appear on
-   the side(s) with more content; wheel/drag panning is wired in ui/chipRow.ts. */
-.layer-chips,
-.zone-chips,
-.cerca-chips {
+   the side(s) with more content; wheel/drag panning is wired in ui/chipRow.ts,
+   which stamps `.chip-scroll` on every row it takes over — so this styling
+   follows the wiring instead of enumerating each row class (spec §1.1 R2). */
+.chip-scroll {
   --fade-l: 0px;
   --fade-r: 0px;
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
   mask-image: linear-gradient(90deg, transparent 0, #000 var(--fade-l), #000 calc(100% - var(--fade-r)), transparent 100%);
 }
 
-.layer-chips.can-scroll-left,
-.zone-chips.can-scroll-left,
-.cerca-chips.can-scroll-left {
+.chip-scroll.can-scroll-left {
   --fade-l: 26px;
 }
 
-.layer-chips.can-scroll-right,
-.zone-chips.can-scroll-right,
-.cerca-chips.can-scroll-right {
+.chip-scroll.can-scroll-right {
   --fade-r: 26px;
 }
 
-.layer-chips.can-scroll-left,
-.layer-chips.can-scroll-right,
-.zone-chips.can-scroll-left,
-.zone-chips.can-scroll-right,
-.cerca-chips.can-scroll-left,
-.cerca-chips.can-scroll-right {
+.chip-scroll.can-scroll-left,
+.chip-scroll.can-scroll-right {
   cursor: grab;
 }
 
@@ -681,9 +673,7 @@ body.sidebar-collapsed .sidebar-fab {
   user-select: none;
 }
 
-.chip-row-dragging .layer-chip,
-.chip-row-dragging .zone-chip,
-.chip-row-dragging .cerca-chip {
+.chip-row-dragging > * {
   pointer-events: none;
 }
 
@@ -1345,6 +1335,61 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-secondary);
   font-weight: 700;
   margin-bottom: 4px;
+}
+
+.empty-state-text + .empty-state-text {
+  margin-top: 6px;
+}
+
+/* Paged lists end in a way out, not in an instruction (spec §5.4.2b). */
+.route-list-more {
+  display: block;
+  margin: 8px auto 0;
+  padding: 7px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.route-list-more:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.route-list-more:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: 1px;
+}
+
+/* An empty state that knows what to do next says so with a button, not prose. */
+.empty-state-action {
+  margin-top: 10px;
+  padding: 7px 14px;
+  background: var(--bg-active);
+  border: 1px solid var(--border-accent);
+  border-radius: 99px;
+  color: var(--tm-red-light);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.empty-state-action:hover {
+  background: var(--bg-hover);
+  border-color: var(--tm-red);
+}
+
+.empty-state-action:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: 1px;
 }
 
 /* ─── Route Detail Panel ──────────────────────────────── */
@@ -2943,6 +2988,24 @@ body.sidebar-collapsed .sidebar-fab {
   text-overflow: ellipsis;
 }
 
+/* The "nothing matched" row is a message, not a choice: it stacks, wraps and
+   does not pretend to be clickable. */
+.autocomplete-item.autocomplete-empty {
+  display: block;
+  cursor: default;
+}
+
+.autocomplete-item.autocomplete-empty:hover {
+  background: transparent;
+}
+
+.autocomplete-detail {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+}
+
 /* ─── Planner Options & Options Compact ───────────────── */
 
 .planner-options {
@@ -3006,10 +3069,115 @@ body.sidebar-collapsed .sidebar-fab {
   outline-offset: 1px;
 }
 
+/* "Otra hora": a day row + a clock with ±15 min steps. Typing a full date into
+   a native field was the only way to move a trip half an hour before. */
 .depart-fields {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   padding: 0 4px;
+}
+
+.depart-days {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.depart-days::-webkit-scrollbar {
+  display: none;
+}
+
+.depart-day {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 11px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: 99px;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.depart-day:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.depart-day.active {
+  background: rgba(216, 16, 45, 0.18);
+  border-color: rgba(255, 90, 110, 0.45);
+  color: var(--tm-red-light);
+}
+
+.depart-day:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: 1px;
+}
+
+/* A festivo runs a different service (§5.6.2) — flag it before the trip is
+   planned, not after the itinerary comes back empty. */
+.depart-day-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tm-yellow);
+}
+
+.depart-day-other {
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.depart-time-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.depart-step {
+  flex: 0 0 auto;
+  min-width: 46px;
+  background: #131416;
+  border: 1px solid #202226;
+  border-radius: var(--radius-md);
+  color: var(--text-secondary);
+  font-family: var(--font-family);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.depart-step:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
+}
+
+.depart-step:active {
+  transform: scale(0.96);
+}
+
+.depart-step:focus-visible {
+  outline: 2px solid var(--tm-red-light);
+  outline-offset: 1px;
+}
+
+.depart-time {
+  text-align: center;
+  font-size: var(--font-size-sm);
 }
 
 .depart-input {
@@ -3052,6 +3220,12 @@ body.sidebar-collapsed .sidebar-fab {
   font-size: 11px;
   line-height: 1.4;
   color: var(--text-tertiary);
+}
+
+/* The chosen moment is already behind the Bogotá clock: still plannable, but
+   never silently (spec §1 — say what is being answered). */
+.depart-hint.warn {
+  color: var(--tm-yellow);
 }
 
 /* Schedule filter, folded into the Salida block (§5.6.2): one toggle chip.

@@ -11,6 +11,11 @@
  * Cerca panel (`cerca.ts`) need it — one implementation, no drift (spec §1.1 R2).
  */
 export function initChipRowScroll(row: HTMLElement): void {
+  // Marks the row for the shared edge-fade / grab-cursor styling, so a new chip
+  // row gets the affordance by being wired here — not by being added to three
+  // selector lists in the stylesheet (spec §1.1 R2).
+  row.classList.add('chip-scroll');
+
   const syncEdges = (): void => {
     const max = row.scrollWidth - row.clientWidth;
     row.classList.toggle('can-scroll-left', row.scrollLeft > 2);

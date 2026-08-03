@@ -15,6 +15,7 @@ import {
 } from '@shared/data/pointKinds';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { h } from '../lib/dom';
+import { de } from '@shared/utils/text';
 import { needsDarkText } from '../lib/format';
 import { getZonalAreas } from '../data';
 import { allPoints, bus, state, type StationRecord } from '../state';
@@ -109,6 +110,7 @@ export function createRutasView(): View {
       activeFilter = f.id;
       syncTypeChips();
       shownRoutes = PAGE_SIZE;
+      shownPlaces = PLACE_LIMIT;
       render();
     });
     chipEls.set(f.id, chip);
@@ -156,6 +158,7 @@ export function createRutasView(): View {
   let query = '';
   /** How many route rows are currently rendered ("Ver más" grows it). */
   let shownRoutes = PAGE_SIZE;
+  let shownPlaces = PLACE_LIMIT;
 
   function matchedRoutes(): RouteListItem[] {
     const q = normalizePointText(query);
@@ -234,6 +237,7 @@ export function createRutasView(): View {
         if (scope === s) return;
         scope = s;
         shownRoutes = PAGE_SIZE;
+        shownPlaces = PLACE_LIMIT;
         render();
       });
       scopeRow.append(chip);
@@ -278,18 +282,33 @@ export function createRutasView(): View {
 
     if (placesOnly) {
       const matches = points[scope as PointKind];
-      const visible = matches.slice(0, PLACE_LIMIT);
+      const visible = matches.slice(0, shownPlaces);
       const kindMeta = POINT_KIND_META[scope as PointKind];
       countLine.textContent = `${matches.length} ${(matches.length === 1 ? kindMeta.label : kindMeta.plural).toLowerCase()}`;
       if (visible.length === 0) {
-        list.append(emptyBlock('Sin resultados', 'Prueba con otro nombre o dirección.'));
+        // Reaching here means nothing matched in ANY category: a scope that is
+        // empty while another has hits already widened back to `Todo` above.
+        list.append(
+          emptyBlock(
+            `Sin ${kindMeta.plural.toLowerCase()}`,
+            `Nada coincide con “${q}” en ninguna categoría. Se busca por nombre, dirección y código.`
+          )
+        );
         return;
       }
       const wrap = h('div', { class: 'near-list' });
       for (const p of visible) wrap.append(pointRow(p));
       list.append(wrap);
+      // Places page like the routes do — "Afina la búsqueda" was an instruction,
+      // not a way to reach the rest of the list.
       if (matches.length > visible.length) {
-        list.append(h('div', { class: 'list-overflow', text: `Mostrando ${visible.length} de ${matches.length}. Afina la búsqueda.` }));
+        const more = h('button', { class: 'list-more', type: 'button', text: `Ver más (${matches.length - visible.length} restantes)` });
+        more.addEventListener('click', () => {
+          shownPlaces += PLACE_LIMIT;
+          render();
+          list.lastElementChild?.scrollIntoView({ block: 'nearest' });
+        });
+        list.append(more);
       }
       return;
     }
@@ -322,11 +341,45 @@ export function createRutasView(): View {
 
     if (routes.length === 0) {
       if (preview.length === 0) {
-        list.append(
-          activeFilter === 'fav'
-            ? emptyBlock('Sin favoritas', 'Toca la estrella ★ en una ruta para guardarla aquí.')
-            : emptyBlock('Sin resultados', 'Prueba otro código, estación o destino.')
-        );
+        // Name the narrowing in effect and offer to lift it — "prueba otro
+        // código" was the same sentence whether the rider had a typo or a line
+        // /zone/type filter silently swallowing every result.
+        const narrowing = lineFilter
+          ? { label: `la línea ${lineFilter}`, clear: () => clearArea() }
+          : zoneFilter != null
+          ? { label: `la zona ${zoneFilter}`, clear: () => clearArea() }
+          : activeFilter !== 'all' && activeFilter !== 'fav'
+          ? {
+              label: `el filtro ${filters.find((f) => f.id === activeFilter)?.label ?? activeFilter}`,
+              clear: () => {
+                activeFilter = 'all';
+                syncTypeChips();
+              },
+            }
+          : null;
+
+        if (activeFilter === 'fav') {
+          list.append(emptyBlock('Sin rutas favoritas', 'Toca la estrella ★ en cualquier ruta para guardarla aquí.'));
+        } else {
+          const block = emptyBlock(
+            'Sin rutas',
+            q
+              ? `Ningún resultado para “${q}”${narrowing ? ` dentro ${de(narrowing.label)}` : ''}.`
+              : narrowing
+              ? `No hay rutas en ${narrowing.label}.`
+              : 'Busca por código (B75), estación (Calle 100) o destino (Portal Sur).'
+          );
+          if (narrowing) {
+            const undo = h('button', { class: 'btn btn-ghost empty-action', type: 'button', text: 'Quitar el filtro' });
+            undo.addEventListener('click', () => {
+              narrowing.clear();
+              shownRoutes = PAGE_SIZE;
+              render();
+            });
+            block.append(undo);
+          }
+          list.append(block);
+        }
       }
       countLine.textContent = preview.length > 0 ? plural(placeTotal, 'lugar', 'lugares') : '';
       return;
@@ -361,6 +414,7 @@ export function createRutasView(): View {
     if (input.value) clearArea();
     query = input.value;
     shownRoutes = PAGE_SIZE;
+    shownPlaces = PLACE_LIMIT;
     if (!query.trim()) scope = 'all';
     window.clearTimeout(searchTimer);
     searchTimer = window.setTimeout(render, 90);
@@ -387,6 +441,7 @@ export function createRutasView(): View {
       query = '';
       input.value = '';
       shownRoutes = PAGE_SIZE;
+      shownPlaces = PLACE_LIMIT;
       showAreaBanner(letter, `Línea ${letter} · TransMilenio troncal`, TRONCAL_COLORS[letter] || STATION_COLOR);
       render();
     },
@@ -399,6 +454,7 @@ export function createRutasView(): View {
       query = '';
       input.value = '';
       shownRoutes = PAGE_SIZE;
+      shownPlaces = PLACE_LIMIT;
       const label = state.zoneLabels.get(zone);
       showAreaBanner(String(zone), label ? `Zona ${zone} · ${label}` : `Zona SITP ${zone}`, PARADERO_COLOR);
       render();

@@ -12,6 +12,9 @@ import { api, type LiveStatus } from '../services/api';
 import { escapeHTML, safeColor } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
+// One distance formatter for the whole app: this module had its own copy, so a
+// bus popup and a Cerca row could word the same distance differently (§1.1 R2).
+import { formatDistance } from '../utils/geo';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
 // Re-exported so callers that lazy-load this module can warm the 3D assets
@@ -392,10 +395,6 @@ function computeNextStop(bus: LiveBus, stops: PopupStop[]): { stop: PopupStop; m
   const stop = stops[idx];
   const [lng, lat] = stop.coordinate;
   return { stop, meters: haversineMeters(bus.longitude, bus.latitude, lng, lat) };
-}
-
-function formatDistance(meters: number): string {
-  return meters < 1000 ? `${Math.round(meters / 10) * 10} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
 /**

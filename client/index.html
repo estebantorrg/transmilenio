@@ -281,8 +281,13 @@
           </div>
         </div>
         <div id="depart-fields" class="depart-fields hidden">
-          <input type="date" id="plan-depart-date" class="depart-input" aria-label="Fecha de salida" />
-          <input type="time" id="plan-depart-time" class="depart-input" aria-label="Hora de salida" />
+          <div id="depart-days" class="depart-days" role="radiogroup" aria-label="Día de salida"></div>
+          <div class="depart-time-row">
+            <button id="depart-time-minus" class="depart-step" type="button" aria-label="Quitar 15 minutos" title="15 min antes">−15</button>
+            <input type="time" id="plan-depart-time" class="depart-input depart-time" step="300" aria-label="Hora de salida" />
+            <button id="depart-time-plus" class="depart-step" type="button" aria-label="Sumar 15 minutos" title="15 min después">+15</button>
+          </div>
+          <input type="date" id="plan-depart-date" class="depart-input depart-date hidden" aria-label="Otra fecha de salida" />
         </div>
         <div id="depart-hint" class="depart-hint" role="status" aria-live="polite"></div>
         <button id="sched-strict-toggle" class="sched-strict-toggle" type="button" aria-pressed="false" title="Oculta las conexiones que no estén operando a la hora de salida">

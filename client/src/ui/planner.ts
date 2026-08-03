@@ -7,7 +7,6 @@ import {
   dayOffsetSuffix,
   festivoName,
   formatClockMinute,
-  formatPlanDay,
   formatServiceDuration,
   isOpenAt,
   nextOpeningAt,
@@ -16,12 +15,21 @@ import {
   planTimeToInputs,
   serviceIntervals,
   describeServiceSpans,
-  dayOfWeek,
   type PlanTime,
   type ServiceClock,
 } from '../services/schedule';
+import {
+  DEPART_STEP_MINUTES,
+  departDayLabel,
+  departDayOptions,
+  departureHint,
+  describeDeparture,
+  planDayDelta,
+} from '../services/departure';
 import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
+import { initChipRowScroll } from './chipRow';
 import { escapeHTML, safeColor } from '../utils/html';
+import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
 import { BOGOTA_CENTER, isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
@@ -274,10 +282,14 @@ function updateMapPickHint(mode: PlannerEndpoint | null): void {
 
 // ─── Departure time (§5.6.2) ──────────────────────────────
 // Not every route runs at every hour, so the trip's departure moment is part of
-// the query. "Ahora" is the default and needs no input; "Otra hora" exposes a
-// native date + time pair (keyboard-accessible, native pickers on mobile) and
-// the hint line always spells out the resolved day so the rider can see WHICH
-// service applies — weekday, Saturday, or Sunday/holiday.
+// the query. "Ahora" is the default and needs no input; "Otra hora" opens a
+// one-tap control: a day row (Hoy · Mañana · the rest of the week, festivos
+// marked, since a holiday runs a different service), and a clock with ±15 min
+// steps around it. Typing a full `dd/mm/yyyy` into a native date field to move a
+// trip half an hour was the whole interaction before.
+//
+// `#plan-depart-date` stays the authoritative date value — the chips write into
+// it — so the deep link, the seeding and `planTimeFromInputs` keep one source.
 
 function getDepartInputs(): { date: HTMLInputElement | null; time: HTMLInputElement | null } {
   return {
@@ -296,31 +308,115 @@ function getDepartTime(): PlanTime {
   return bogotaNow();
 }
 
-/** "día hábil" / "sábado" / "domingo o festivo" — which schedule column applies. */
-function serviceDayLabel(plan: PlanTime): string {
-  const holiday = festivoName(plan.year, plan.month, plan.day);
-  if (holiday) return `servicio de festivo · ${holiday}`;
-  const dow = dayOfWeek(plan.year, plan.month, plan.day);
-  if (dow === 0) return 'servicio de domingo';
-  if (dow === 6) return 'servicio de sábado';
-  return 'servicio de día hábil';
-}
-
 function updateDepartHint(): void {
   const hint = document.getElementById('depart-hint');
   if (!hint) return;
 
   if (departMode === 'now') {
-    const now = bogotaNow();
-    hint.textContent = `Ahora · ${formatPlanDay(now, false)}, ${formatClockMinute(now.minute)} (hora de Bogotá) · ${serviceDayLabel(now)}`;
+    hint.classList.remove('warn');
+    hint.textContent = departureHint(bogotaNow(), 'now');
     return;
   }
 
   const { date, time } = getDepartInputs();
   const parsed = planTimeFromInputs(date?.value ?? '', time?.value ?? '');
-  hint.textContent = parsed
-    ? `${formatPlanDay(parsed, false)}, ${formatClockMinute(parsed.minute)} · ${serviceDayLabel(parsed)}`
-    : 'Elige la fecha y la hora de salida.';
+  if (!parsed) {
+    hint.classList.remove('warn');
+    hint.textContent = 'Elige el día y la hora de salida.';
+    return;
+  }
+
+  // A moment already behind the Bogotá clock is a legitimate query (checking
+  // yesterday evening's service) but it is never what a rider means to ask by
+  // accident — so it is stated, not silently planned.
+  const past = describeDeparture(parsed).past;
+  hint.classList.toggle('warn', past);
+  hint.textContent = departureHint(parsed, 'custom');
+}
+
+/** Paints the day row: chips for the coming week, plus the selected day when it
+ *  falls outside that window (a restored deep link, or "Otra fecha"). */
+function renderDepartDays(): void {
+  const row = document.getElementById('depart-days');
+  const { date } = getDepartInputs();
+  if (!row || !date) return;
+
+  const now = bogotaNow();
+  const options = departDayOptions(now);
+  if (date.value && !options.some((o) => o.date === date.value)) {
+    const picked = planTimeFromInputs(date.value, '00:00');
+    if (picked) {
+      options.push({
+        date: date.value,
+        label: departDayLabel(picked, planDayDelta(now, picked)),
+        festivo: festivoName(picked.year, picked.month, picked.day),
+      });
+    }
+  }
+
+  row.innerHTML =
+    options
+      .map((option) => {
+        const selected = option.date === date.value;
+        const title = option.festivo ? `Festivo · ${option.festivo}` : '';
+        return `
+          <button class="depart-day${selected ? ' active' : ''}${option.festivo ? ' festivo' : ''}"
+                  type="button" role="radio" aria-checked="${selected}" tabindex="${selected ? 0 : -1}"
+                  data-date="${option.date}" title="${escapeHTML(title)}">
+            ${escapeHTML(option.label)}${option.festivo ? '<span class="depart-day-dot" aria-hidden="true"></span>' : ''}
+          </button>`;
+      })
+      .join('') +
+    `<button class="depart-day depart-day-other" type="button" tabindex="-1" title="Elegir otra fecha en el calendario">Otra fecha…</button>`;
+
+  const chips = Array.from(row.querySelectorAll<HTMLButtonElement>('.depart-day[data-date]'));
+  chips.forEach((chip, index) => {
+    chip.addEventListener('click', () => {
+      date.value = chip.dataset.date!;
+      renderDepartDays();
+      onDepartFieldChange();
+    });
+    // Roving tabindex + arrow keys: one stop in the tab order, like every other
+    // chip group in the app (spec §1.1 R5).
+    chip.addEventListener('keydown', (event) => {
+      const step = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+      if (step === 0) return;
+      event.preventDefault();
+      chips[(index + step + chips.length) % chips.length]?.focus();
+    });
+  });
+
+  row.querySelector<HTMLButtonElement>('.depart-day-other')?.addEventListener('click', () => {
+    date.classList.remove('hidden');
+    date.focus();
+    if (typeof date.showPicker === 'function') {
+      try {
+        date.showPicker();
+      } catch {
+        /* not allowed without a user gesture on some browsers — the field is visible either way */
+      }
+    }
+  });
+}
+
+/** A field edit invalidates the itinerary on screen and re-syncs the link. */
+function onDepartFieldChange(): void {
+  updateDepartHint();
+  invalidatePlannerResults();
+  syncPlannerHash();
+}
+
+/** Moves the departure clock by whole minutes, rolling the day when it wraps. */
+function stepDepartTime(minutes: number): void {
+  const { date, time } = getDepartInputs();
+  if (!date || !time) return;
+  const current = planTimeFromInputs(date.value, time.value) ?? bogotaNow();
+  const next = planTimeAddMinutes(current, minutes);
+  const inputs = planTimeToInputs(next);
+  date.value = inputs.date;
+  time.value = inputs.time;
+  renderDepartDays();
+  onDepartFieldChange();
 }
 
 function setDepartMode(mode: 'now' | 'custom', prefill?: PlanTime): void {
@@ -341,6 +437,7 @@ function setDepartMode(mode: 'now' | 'custom', prefill?: PlanTime): void {
     const inputs = planTimeToInputs(seed);
     if (date) date.value = inputs.date;
     if (time) time.value = inputs.time;
+    renderDepartDays();
   }
 
   updateDepartHint();
@@ -355,8 +452,6 @@ function planAtDepartTime(plan: PlanTime): void {
 
 function initDepartControls(): void {
   const { date, time } = getDepartInputs();
-  const today = planTimeToInputs(bogotaNow()).date;
-  date?.setAttribute('min', today);
 
   document.getElementById('depart-mode-now')?.addEventListener('click', () => {
     if (departMode === 'now') return;
@@ -372,13 +467,21 @@ function initDepartControls(): void {
     syncPlannerHash();
   });
 
-  for (const input of [date, time]) {
-    input?.addEventListener('change', () => {
-      updateDepartHint();
-      invalidatePlannerResults();
-      syncPlannerHash();
-    });
-  }
+  date?.addEventListener('change', () => {
+    renderDepartDays();
+    onDepartFieldChange();
+  });
+  time?.addEventListener('change', onDepartFieldChange);
+
+  document
+    .getElementById('depart-time-minus')
+    ?.addEventListener('click', () => stepDepartTime(-DEPART_STEP_MINUTES));
+  document
+    .getElementById('depart-time-plus')
+    ?.addEventListener('click', () => stepDepartTime(DEPART_STEP_MINUTES));
+
+  const days = document.getElementById('depart-days');
+  if (days) initChipRowScroll(days);
 
   updateDepartHint();
 }
@@ -756,7 +859,14 @@ function renderAutocompleteCandidates(
   onSelect: (name: string, coord: [number, number], code?: string) => void
 ): void {
   if (candidates.length === 0) {
-    dropdown.innerHTML = `<div class="autocomplete-item"><div class="autocomplete-name">Sin resultados</div></div>`;
+    // The lookup covers stations, stops and Bogotá addresses; a bare "Sin
+    // resultados" left the rider without the two things that do work — a street
+    // address, and picking the point straight off the map.
+    dropdown.innerHTML = `
+      <div class="autocomplete-item autocomplete-empty">
+        <div class="autocomplete-name">Sin resultados</div>
+        <div class="autocomplete-detail">Prueba con una dirección (Calle 26 # 13-40) o usa “Elegir en mapa”.</div>
+      </div>`;
     dropdown.classList.remove('hidden');
     return;
   }
@@ -1010,12 +1120,15 @@ function initInputHandlers(): void {
       setEndpointSelection(endpoint, 'Mi ubicación actual', [coord.longitude, coord.latitude]);
     } catch (err) {
       console.warn('[GPS] Failed to get user location:', err);
-      input.value = 'No se pudo obtener ubicación';
+      // Name the cause and point at the two alternatives this panel actually
+      // has, instead of a single "no se pudo" that closes every door.
+      const failure = LOCATION_FAILURE_MESSAGE[classifyLocationFailure(err)];
+      input.value = failure;
       clearBtn.classList.add('hidden');
-      invalidatePlannerResults('No se pudo obtener tu ubicación. Elige un punto manualmente.');
+      invalidatePlannerResults(`${failure}. Escribe una dirección o usa “Elegir en mapa”.`);
       window.setTimeout(() => {
-        if (input.value === 'No se pudo obtener ubicación') input.value = '';
-      }, 3000);
+        if (input.value === failure) input.value = '';
+      }, 4000);
     } finally {
       btn.classList.remove('loading');
     }
@@ -1134,10 +1247,13 @@ function renderCalcError(container: HTMLElement, err: unknown): void {
     <div class="planner-empty-state">
       ${getEmptyStateIllustration('error')}
       <div class="card-empty-title" style="color: var(--tm-red-light);">Error de cálculo</div>
-      <div class="card-empty-text">Ocurrió un error al buscar las rutas. Inténtalo de nuevo.</div>
+      <div class="card-empty-text">Ocurrió un error al buscar las rutas. Tus puntos siguen seleccionados.</div>
       ${detail ? `<div class="card-empty-text" style="opacity:.55;font-size:11px;margin-top:6px;word-break:break-word;">${escapeHTML(detail)}</div>` : ''}
+      <button class="empty-state-action" type="button">Intentar de nuevo</button>
     </div>
   `;
+  // "Inténtalo de nuevo" as prose meant hunting for the search button again.
+  container.querySelector<HTMLButtonElement>('.empty-state-action')?.addEventListener('click', () => calculateRoute());
 }
 
 /**
@@ -1379,17 +1495,52 @@ function renderStepServiceLine(step: JourneyStep): string {
   return `<div class="journey-step-service${isTight ? ' warn' : ''}">${escapeHTML(parts.join(' · '))}</div>`;
 }
 
+/**
+ * "No se pudo encontrar una conexión … con los filtros actuales" named no filter
+ * and offered no way out. A search comes back empty for one of three reasons and
+ * each has a concrete next move: a mode filter cut the network in half, the
+ * schedule filter deleted the connections, or an endpoint has no stop within the
+ * router's 1.5 km access radius. Say which, and hand over the button.
+ */
+function renderNoResults(container: HTMLElement): void {
+  const mode = (document.getElementById('plan-transport-mode') as HTMLInputElement | null)?.value ?? 'mix';
+  const modeLabel = mode === 'troncal' ? 'solo TransMilenio' : 'solo SITP zonal';
+
+  const reason = mode !== 'mix'
+    ? `La búsqueda está limitada a <strong>${modeLabel}</strong>, y no hay una conexión completa entre estos dos puntos con ese modo.`
+    : enforceSchedules
+    ? 'Con <strong>“Solo rutas en servicio”</strong> activo se descartan las rutas que no operan a la hora elegida, y no queda ninguna conexión.'
+    : 'Ninguno de los dos extremos tiene una estación o paradero a menos de 1,5 km, o no existe una conexión con menos de 3 transbordos.';
+
+  const action = mode !== 'mix'
+    ? '<button class="empty-state-action" type="button" data-action="mix">Buscar en toda la red</button>'
+    : enforceSchedules
+    ? '<button class="empty-state-action" type="button" data-action="schedules">Incluir rutas fuera de servicio</button>'
+    : '<div class="card-empty-text">Mueve el origen o el destino hacia una vía principal — o elige la estación más cercana con “Elegir en mapa”.</div>';
+
+  container.innerHTML = `
+    <div class="planner-empty-state">
+      ${getEmptyStateIllustration('no-results')}
+      <div class="card-empty-title">Sin rutas encontradas</div>
+      <div class="card-empty-text">${reason}</div>
+      ${action}
+    </div>
+  `;
+
+  container.querySelector<HTMLButtonElement>('.empty-state-action')?.addEventListener('click', (event) => {
+    const which = (event.currentTarget as HTMLElement).dataset.action;
+    if (which === 'mix') setDropdownValue('dropdown-transport', 'plan-transport-mode', 'mix');
+    else setScheduleMode(false);
+    syncPlannerHash();
+    calculateRoute();
+  });
+}
+
 function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
   const container = document.getElementById('planner-results')!;
 
   if (plans.length === 0) {
-    container.innerHTML = `
-      <div class="planner-empty-state">
-        ${getEmptyStateIllustration('no-results')}
-        <div class="card-empty-title">Sin rutas encontradas</div>
-        <div class="card-empty-text">No se pudo encontrar una conexión entre el origen y destino seleccionados con los filtros actuales.</div>
-      </div>
-    `;
+    renderNoResults(container);
     clearJourneyPath(mapInstance);
     activePlanIndex = null;
     return;

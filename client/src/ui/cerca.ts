@@ -7,7 +7,8 @@
  */
 
 import { escapeHTML } from '../utils/html';
-import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from '../utils/geo';
+import { NEARBY_RADIUS_METERS, formatDistance, haversineMeters, isWithinBogota, walkMinutes } from '../utils/geo';
+import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
 import { POINT_KIND_META, POINT_KINDS, type PointKind } from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
 
@@ -93,6 +94,18 @@ function setStatus(text: string): void {
   if (el) el.textContent = text;
 }
 
+/** The cause (shared classifier) plus this panel's own way forward. */
+function locateFailureMessage(err: unknown): string {
+  const failure = classifyLocationFailure(err);
+  const next =
+    failure === 'outside'
+      ? 'esta app cubre solo la red de Bogotá'
+      : failure === 'denied'
+      ? 'actívalo en el navegador, o arrastra el círculo azul en el mapa'
+      : 'arrastra el círculo azul en el mapa hasta donde estás';
+  return `${LOCATION_FAILURE_MESSAGE[failure]} · ${next}`;
+}
+
 async function locate(): Promise<void> {
   const btn = document.getElementById('cerca-locate') as HTMLButtonElement | null;
   if (btn?.classList.contains('loading') || !opts) return;
@@ -107,16 +120,50 @@ async function locate(): Promise<void> {
     opts.onLocated?.(lng, lat, result.source);
     setStatus(
       result.source === 'ip'
-        ? 'Ubicación aproximada (IP) · arrastra el punto en el mapa para ajustar'
+        ? 'Ubicación aproximada (IP, ~2 km) · arrastra el punto en el mapa para ajustar'
         : 'Ubicación fijada'
     );
     render();
   } catch (err) {
-    const outOfBounds = err instanceof Error && err.message.includes('Bogotá');
-    setStatus(outOfBounds ? 'Estás fuera de Bogotá' : 'No se pudo ubicarte');
+    setStatus(locateFailureMessage(err));
   } finally {
     btn?.classList.remove('loading');
   }
+}
+
+/** Empty state that says what happened AND what is actually out there — a bare
+ *  "Sin resultados" next to a filter chip left the rider guessing whether the
+ *  kind is empty, still loading, or simply far away. */
+function renderEmpty(nearest: { p: NearbyPoint; d: number } | null): string {
+  if (points.length === 0) {
+    return `
+      <div class="empty-state">
+        <div class="empty-state-title">Cargando la red…</div>
+        <div class="empty-state-text">Las estaciones ya están; los paraderos zonales y los puntos tullave entran en un momento.</div>
+      </div>`;
+  }
+
+  const kindLabel = kindFilter === 'all' ? 'puntos de la red' : POINT_KIND_META[kindFilter].plural.toLowerCase();
+  const radius = formatDistance(NEARBY_RADIUS_METERS);
+  // The nearest match beyond the radius is the most useful thing we know: it
+  // turns "no hay" into a distance and a name, and it is one click away.
+  const beyond = nearest
+    ? `<div class="empty-state-text">Lo más cercano es <strong>${escapeHTML(nearest.p.name)}</strong>, a ${escapeHTML(
+        formatDistance(nearest.d)
+      )} (${walkMinutes(nearest.d)} min a pie).</div>
+       <button class="empty-state-action" type="button" data-kind="${nearest.p.kind}" data-code="${escapeHTML(
+        nearest.p.codigo
+      )}">Ver el más cercano</button>`
+    : `<div class="empty-state-text">No hay ${escapeHTML(kindLabel)} en el catálogo para esta zona.</div>`;
+
+  return `
+    <div class="empty-state">
+      <div class="empty-state-title">Sin ${escapeHTML(kindLabel)} a menos de ${escapeHTML(radius)}</div>
+      <div class="empty-state-text">Nada a distancia caminable desde tu ubicación${
+        kindFilter === 'all' ? '' : ' · prueba con “Todos”'
+      }.</div>
+      ${beyond}
+    </div>`;
 }
 
 function render(): void {
@@ -127,25 +174,29 @@ function render(): void {
     list.innerHTML = `
       <div class="empty-state">
         <div class="empty-state-title">Cerca de ti</div>
-        <div class="empty-state-text">Usa tu ubicación para ver las estaciones y paraderos más cercanos con tiempos a pie.</div>
+        <div class="empty-state-text">Usa tu ubicación para ver las estaciones, paraderos, puntos tullave y cicloparqueaderos más cercanos, con la distancia y el tiempo a pie de cada uno.</div>
+        <div class="empty-state-text">También puedes arrastrar el círculo azul en el mapa para consultar cualquier otro punto de la ciudad.</div>
       </div>`;
     return;
   }
 
   const origin = userCoord;
-  const ranked = points
+  const measured = points
     .filter((p) => kindFilter === 'all' || p.kind === kindFilter)
     .map((p) => ({ p, d: haversineMeters(origin, p.coordinate) }))
     .filter((x) => Number.isFinite(x.d))
-    .sort((a, b) => a.d - b.d)
-    .slice(0, MAX_ROWS);
+    .sort((a, b) => a.d - b.d);
+  // Bounded like the app's list (spec §5.2.1b): a coarse fix used to present
+  // things kilometres away as "cerca de ti".
+  const ranked = measured.filter((x) => x.d <= NEARBY_RADIUS_METERS).slice(0, MAX_ROWS);
 
   if (ranked.length === 0) {
-    list.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-title">${points.length === 0 ? 'Cargando paraderos…' : 'Sin resultados'}</div>
-        <div class="empty-state-text">${points.length === 0 ? 'Los paraderos zonales aparecerán en un momento.' : 'Prueba con otro tipo de punto.'}</div>
-      </div>`;
+    list.innerHTML = renderEmpty(measured[0] ?? null);
+    const action = list.querySelector<HTMLButtonElement>('.empty-state-action');
+    action?.addEventListener('click', () => {
+      const point = points.find((p) => p.kind === action.dataset.kind && p.codigo === action.dataset.code);
+      if (point) opts?.onSelect(point);
+    });
     return;
   }
 
