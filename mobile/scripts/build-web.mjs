@@ -16,7 +16,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { rmSync, existsSync } from 'node:fs';
+import { cpSync, rmSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -54,7 +54,19 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-// 3. Drop the service worker — the native app skips SW registration and shipping
+// 3. Copy the per-route voice shards (spec §5.9) into the APK web root. They are
+//    deliberately not in a Vite `public/` dir — the mobile client's publicDir is
+//    the *website's* one, so shards left there would ship in the website bundle
+//    too. Copied here instead, so `/voice/<CODE>.json` resolves inside the app.
+const voiceSrc = path.join(clientDir, 'mobile', 'src', 'generated', 'voice');
+if (existsSync(voiceSrc)) {
+  cpSync(voiceSrc, path.join(wwwDir, 'voice'), { recursive: true });
+  console.log('[mobile] Voice shards copied → www/voice');
+} else {
+  console.warn('[mobile] No voice shards found — voice answers will fall back to "ruta desconocida".');
+}
+
+// 4. Drop the service worker — the native app skips SW registration and shipping
 //    a dead worker would be noise.
 const swFile = path.join(wwwDir, 'sw.js');
 if (existsSync(swFile)) {
