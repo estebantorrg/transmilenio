@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Launcher long-press shortcuts (spec §5.9).
+
+  The hands-free path is "Hey Google, abre TransMi Go" plus the hot mic the app
+  opens with. This is the same feature for a rider who would rather not talk: one
+  press-and-hold on the icon, one tap, same answer. Both land on the same deep
+  link, so there is a single entry point to maintain.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="voice-ask"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="transmigo://voice"
+            android:targetPackage="com.transmilenio.explorer"
+            android:targetClass="com.transmilenio.explorer.MainActivity" />
+    </shortcut>
+</shortcuts>

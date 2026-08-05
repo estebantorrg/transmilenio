@@ -22,6 +22,28 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- Voice entry point (spec §5.9). Every hands-free surface aims here:
+                 the launcher long-press shortcuts below, and anything the rider
+                 wires up themselves (a Google Home automation, a home-screen
+                 shortcut). "Hey Google, abre TransMi Go" arrives as a plain MAIN
+                 launch instead, which the app answers the same way.
+
+                 Deliberately NOT `BROWSABLE`: that category exists so a link in a
+                 web page can fire this, and this link opens a live microphone.
+                 None of the entry points above need it — a launcher shortcut is an
+                 explicit component and an automation's implicit VIEW intent gets
+                 DEFAULT — so allowing any page to open the app straight into
+                 recording buys nothing and is the one thing worth refusing. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="transmigo" android:host="voice" />
+            </intent-filter>
+
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+
         </activity>
 
         <provider
@@ -39,7 +61,24 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Webview geolocation ("mi ubicación" on the map) — Capacitor forwards the
-         page's geolocation prompt to these Android runtime permissions. -->
+         page's geolocation prompt to these Android runtime permissions. The voice
+         flow reads the same permission, but only ever the LAST KNOWN fix (spec
+         §5.9) — it never starts its own location updates. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Voice question ("¿qué tan cerca está el F19?", spec §5.9). Requested at
+         the moment the rider first uses voice, never at boot. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+ package visibility: without this the system speech services
+         are invisible to us and SpeechRecognizer.isRecognitionAvailable() answers
+         false on a device that can perfectly well listen. -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
 </manifest>

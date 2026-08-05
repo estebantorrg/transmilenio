@@ -1,7 +1,13 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">TransMilenio Explorer</string>
-    <string name="title_activity_main">TransMilenio Explorer</string>
+    <!-- The launcher label is also what a rider says out loud: the hands-free
+         entry point is the stock "Hey Google, abre <app>" (spec §5.9), so the name
+         has to be the short one the app already calls itself everywhere else.
+         "TransMilenio Explorer" is eight syllables and gets misrecognised. -->
+    <string name="app_name">TransMi Go</string>
+    <string name="title_activity_main">TransMi Go</string>
     <string name="package_name">com.transmilenio.explorer</string>
     <string name="custom_url_scheme">com.transmilenio.explorer</string>
+    <string name="shortcut_voice_short">¿Cuánto falta?</string>
+    <string name="shortcut_voice_long">Preguntar por una ruta</string>
 </resources>
