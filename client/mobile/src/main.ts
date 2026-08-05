@@ -20,6 +20,8 @@ import { createPlannerView, type PlannerView } from './views/planner';
 import { createMapaView, type MapaView } from './views/mapa';
 import { createCercaView } from './views/cerca';
 import { createSaldoView } from './views/saldo';
+import { closeVoice, isVoiceOpen, openVoice } from './views/voz';
+import { consumeVoiceLaunch, onVoiceLaunch } from './voice/bridge';
 import type { View } from './views/types';
 import type { RouteListItem } from '@shared/types/transmilenio';
 
@@ -231,12 +233,38 @@ async function main(): Promise<void> {
   // One connectivity banner for the whole app (spec §4.2 graceful degradation).
   initNetworkBanner();
 
+  // ── Voice (spec §5.9) ──────────────────────────────────
+  // The mic is a floating control rather than a seventh tab: it is not a place
+  // in the app, it is a shortcut past all of them.
+  const micButton = document.createElement('button');
+  micButton.className = 'voz-fab';
+  micButton.type = 'button';
+  micButton.setAttribute('aria-label', 'Preguntar por una ruta con la voz');
+  micButton.innerHTML = `<span aria-hidden="true">${ICONS.mic}</span>`;
+  micButton.addEventListener('click', () => openVoice());
+  document.getElementById('app')?.append(micButton);
+
+  // A voice launch must not wait for the catalog: the whole feature is answering
+  // in ~1.5 s, and `loadCore` parses 13.6 MB. The overlay runs off the 367 KB
+  // voice index in parallel with boot and closes over its own data.
+  void consumeVoiceLaunch().then((launch) => {
+    if (launch.voice) openVoice(launch.code);
+  });
+  // Deep link while the app is already open (singleTask relaunch).
+  onVoiceLaunch((code) => openVoice(code));
+
   // Android hardware back: close sheet → clear active map route → retrace the tab
   // trail → exit (only from Inicio with an empty trail).
   const cap = (window as any).Capacitor;
   const appPlugin = cap?.Plugins?.App;
   if (cap?.isNativePlatform?.() && appPlugin?.addListener) {
     appPlugin.addListener('backButton', () => {
+      // The voice overlay owns the microphone and the speaker; back must stop
+      // both, not leave them running behind another screen.
+      if (isVoiceOpen()) {
+        closeVoice();
+        return;
+      }
       // A pending map pick is the most modal thing on screen — back cancels it
       // rather than navigating away and leaving the caller waiting forever.
       if (app().cancelPointPick()) return;

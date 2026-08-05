@@ -53,6 +53,10 @@
   --radius: 20px;
   --radius-sm: 13px;
   --tabbar-h: 62px;
+  /* Corner reserved by the floating voice mic (56 px + 18 px gutter, spec §5.9).
+     Anything anchored to the bottom-right of a screen offsets by this or lands
+     underneath it. */
+  --voz-lane: 74px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -124,10 +128,16 @@ input { font-family: inherit; }
 .screen {
   position: absolute; inset: 0;
   overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: calc(var(--safe-top) + 14px) 16px calc(var(--tabbar-h) + var(--safe-bottom) + 20px);
+  /* The extra bottom room is the voice FAB's lane: it floats over the scroller,
+     so without this the last row of every list sits underneath it. */
+  padding: calc(var(--safe-top) + 14px) 16px calc(var(--tabbar-h) + var(--safe-bottom) + var(--voz-lane) + 14px);
   animation: screen-in 0.28s ease;
 }
-.screen-hidden { display: none; }
+/* `!important` because hiding a screen must beat any per-screen rule that sets
+   its own `display`. `.screen-planner` further down sets `display:flex` at the
+   same specificity and later in the file, which silently defeated this: the
+   Planear screen rendered on top of every other tab. */
+.screen-hidden { display: none !important; }
 @keyframes screen-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .screen-mapa { padding: 0; overflow: hidden; }
 
@@ -331,7 +341,12 @@ input { font-family: inherit; }
 .zone-name { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ── Bottom sheets ─────────────────────────────────────── */
-.sheet-host { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+/* Above the boot splash (z-index 100), because one sheet legitimately opens
+   during boot: a `transmigo://voice` launch answers off the 367 KB voice index
+   while `loadCore` is still parsing the 13.6 MB catalog (spec §5.9). Underneath
+   it, the overlay listened, answered and spoke from behind the splash — the
+   rider saw "Encendiendo motores…" and never knew the mic was open. */
+.sheet-host { position: fixed; inset: 0; z-index: 110; pointer-events: none; }
 .sheet-host.active { pointer-events: auto; }
 .sheet { position: absolute; inset: 0; display: flex; align-items: flex-end; }
 .sheet-backdrop { position: absolute; inset: 0; background: rgba(3, 6, 12, 0.55); opacity: 0; transition: opacity 0.24s ease; backdrop-filter: blur(2px); }
@@ -489,9 +504,13 @@ input { font-family: inherit; }
 .map-fab { position: absolute; right: 14px; bottom: 24px; z-index: 5; width: 50px; height: 50px; border-radius: 16px; background: rgba(9, 13, 22, 0.9); backdrop-filter: blur(12px); border: 1px solid var(--border-2); color: var(--text); display: grid; place-items: center; box-shadow: var(--shadow); }
 .map-fab svg { width: 23px; height: 23px; }
 .map-fab.busy svg { animation: spin 0.9s linear infinite; color: var(--blue); }
-/* Lift the locate FAB above the active-route banner so the two don't overlap. */
-.map-locate-btn { transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
-.screen-mapa.has-route .map-locate-btn { bottom: 96px; }
+/* Lift the locate FAB above the voice FAB's lane, and above the active-route
+   banner when there is one. The voice mic floats over every screen in the
+   bottom-right corner (`--voz-lane` below), which is exactly where "Mi
+   ubicación" used to sit — the two overlapped pixel for pixel and the mic won,
+   so the map's own locate button was untappable. */
+.map-locate-btn { bottom: calc(24px + var(--voz-lane)); transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+.screen-mapa.has-route .map-locate-btn { bottom: calc(96px + var(--voz-lane)); }
 /* Map-pick prompt ("toca tu ubicación en el mapa"). */
 .map-pick-hint {
   /* `right` clears the layers FAB (44px at right:14) so the two never overlap. */
@@ -518,7 +537,7 @@ input { font-family: inherit; }
 .mf-cable { background: #f97316; }
 .mf-label { font-size: 13.5px; }
 
-.map-route-banner { position: absolute; left: 12px; right: 12px; bottom: 20px; z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
+.map-route-banner { position: absolute; left: 12px; right: 12px; bottom: calc(20px + var(--voz-lane)); z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
 /* The badge + name + live chip are one big tap target back into the route sheet. */
 .mrb-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; background: none; border: 0; padding: 0; color: var(--text); text-align: left; }
 .mrb-open:active { opacity: 0.72; }
@@ -604,7 +623,12 @@ input { font-family: inherit; }
    `order` puts it last in the flex flow — a sticky `bottom` only pins an element
    that is still ahead of you in flow — while the DOM keeps it before the
    results, so it stays early in the tab order. */
-.pl-actions { order: 99; position: sticky; bottom: 0; z-index: 4; padding: 14px 0 8px; background: linear-gradient(180deg, rgba(7, 11, 18, 0) 0%, var(--bg) 45%, var(--bg) 100%); }
+/* The right inset is the voice mic's lane (spec §5.9): this bar is sticky and
+   full-width, so with a short trip it sits mid-screen and with a long one it
+   pins above the tab bar — either way it crosses the corner the floating mic
+   occupies, and only reserving the corner keeps "Buscar ruta" tappable at every
+   content length. Moving the mic instead only ever works for one of them. */
+.pl-actions { order: 99; position: sticky; bottom: 0; z-index: 4; padding: 14px var(--voz-lane) 8px 0; background: linear-gradient(180deg, rgba(7, 11, 18, 0) 0%, var(--bg) 45%, var(--bg) 100%); }
 .pl-calc { margin: 0; }
 .pl-calc.busy svg { animation: spin 0.9s linear infinite; }
 /* Dimmed until both endpoints exist — the button is still tappable and says
@@ -684,7 +708,9 @@ input { font-family: inherit; }
 .rd-schedule-hours { font-weight: 600; text-align: right; }
 
 /* ── Toast ─────────────────────────────────────────────── */
-.toast-host { position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px); z-index: 90; display: flex; justify-content: center; pointer-events: none; }
+/* Above the sheets, which are now above the splash: a toast raised from inside a
+   sheet has to be readable, and it is the shortest-lived thing on screen. */
+.toast-host { position: fixed; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px); z-index: 120; display: flex; justify-content: center; pointer-events: none; }
 .toast { background: var(--surface-3); color: var(--text); border: 1px solid var(--border-2); padding: 10px 16px; border-radius: 999px; font-size: 13px; font-weight: 550; box-shadow: var(--shadow); transform: translateY(16px); opacity: 0; transition: all 0.24s ease; max-width: 88%; }
 .toast.show { transform: none; opacity: 1; }
 .toast-ok { border-color: rgba(52, 211, 153, 0.4); }
@@ -733,3 +759,48 @@ input { font-family: inherit; }
 .nfc-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-top: 1px solid var(--border); font-size: 13px; }
 .nfc-row span { color: var(--muted-2); }
 .nfc-row strong { font-weight: 600; word-break: break-all; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Voz (spec §5.9) ───────────────────────────────────── */
+/* The mic sits above the tab bar rather than in it: asking out loud is a
+   shortcut past every tab, not a seventh destination. It floats over every
+   screen, so the bottom-right corner is reserved for it — `--voz-lane` (its
+   height plus a gutter) is what the map's own bottom furniture is offset by,
+   and what every screen's bottom padding accounts for. */
+.voz-fab {
+  position: absolute; right: 16px; z-index: 40;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
+  width: 56px; height: 56px; border-radius: 50%; border: 0; color: #fff;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--red-2), var(--red));
+  box-shadow: 0 10px 28px rgba(227, 52, 47, 0.42);
+  transition: transform 0.14s ease;
+}
+.voz-fab svg { width: 26px; height: 26px; }
+.voz-fab:active { transform: scale(0.93); }
+
+.voz { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 22px 4px 8px; text-align: center; }
+.voz-status { font-size: 14px; color: var(--muted); min-height: 18px; }
+.voz-heard { font-size: 15px; color: var(--muted-2); font-style: italic; min-height: 20px; word-break: break-word; }
+.voz-headline { font-family: var(--font-head); font-size: 26px; font-weight: 700; line-height: 1.15; }
+.voz-detail { font-size: 15px; color: var(--muted); }
+/* The spoken sentence, verbatim. A device with no Spanish voice, a loud bus or
+   a rider who cannot hear still gets the whole answer (spec §4.2, §1.1 R5). */
+.voz-spoken { font-size: 17px; line-height: 1.45; color: var(--text); max-width: 34ch; }
+.voz-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 8px; }
+.voz-actions .btn:disabled { opacity: 0.5; }
+
+.voz-pulse { display: flex; align-items: flex-end; gap: 6px; height: 42px; }
+.voz-pulse span { width: 7px; border-radius: 4px; background: var(--red-2); height: 12px; }
+.voz-pulse.listening span { animation: voz-bounce 0.9s ease-in-out infinite; }
+.voz-pulse.listening span:nth-child(2) { animation-delay: 0.15s; }
+.voz-pulse.listening span:nth-child(3) { animation-delay: 0.3s; }
+.voz-pulse.working span { background: var(--amber); animation: voz-bounce 1.6s ease-in-out infinite; }
+.voz-pulse.working span:nth-child(2) { animation-delay: 0.2s; }
+.voz-pulse.working span:nth-child(3) { animation-delay: 0.4s; }
+.voz-pulse.done span { background: var(--green); height: 8px; }
+@keyframes voz-bounce { 0%, 100% { height: 12px; } 50% { height: 34px; } }
+/* Respect the OS setting — a full-screen pulsing animation is exactly the kind
+   of motion someone turns that switch off for (WCAG 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  .voz-pulse span { animation: none !important; height: 16px; }
+}
