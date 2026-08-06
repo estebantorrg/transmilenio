@@ -24,6 +24,23 @@ export function normalizeUtterance(value: string): string {
     .trim();
 }
 
+/**
+ * The comparable words of a place name — folded, punctuation gone, one- and
+ * two-letter connectors dropped ("de", "la", "Av") but digits always kept, since
+ * a Bogotá stop is very often only distinguished by its number ("Calle 100" vs
+ * "Calle 106").
+ *
+ * One implementation, used wherever the rider's words are matched against a stop
+ * or destination name (`routeEta.matchStopByName`, `voiceStops`) — two copies of
+ * this would drift into two different ideas of what "Calle 100" matches
+ * (spec §1.1 R2).
+ */
+export function nameTokens(value: string): string[] {
+  return normalizeUtterance(value)
+    .split(' ')
+    .filter((token) => token.length > 2 || /^\d+$/.test(token));
+}
+
 // ─── Letters ──────────────────────────────────────────────
 // Written → spoken, for reading a código out loud. "F19" as-is is read by
 // Android TTS as an English-ish "F"; "efe 19" is unambiguous in es-CO.
@@ -72,11 +89,16 @@ export function letterFromPartial(token: string): string | null {
   return letters.size === 1 ? (letters.values().next().value ?? null) : null;
 }
 
-/** "F19" → "efe 19"; "1" → "1". Digits are left alone — TTS reads them fine. */
+/**
+ * "F19" → "efe 19"; "1" → "1"; "8-1" → "8 1". Digits are left alone — TTS reads
+ * them fine — but the hyphen in an alimentador código is not punctuation a rider
+ * says: es-CO TTS reads "8-1" as "ocho menos uno", which is arithmetic, not a bus.
+ * Riders say "la ocho uno", so the separator becomes a pause.
+ */
 export function speakRouteCode(code: string): string {
   const parts: string[] = [];
   let digits = '';
-  for (const char of String(code ?? '').toUpperCase()) {
+  for (const char of String(code ?? '').toUpperCase().replace(/-/g, ' ')) {
     const spoken = LETTER_SPOKEN[char];
     if (spoken) {
       if (digits) {

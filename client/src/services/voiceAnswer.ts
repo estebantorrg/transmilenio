@@ -27,6 +27,7 @@ import { speakClock, speakDistance, speakMinutes, speakPlace, speakRouteCode } f
 import { formatClockMinute, MINUTES_PER_DAY } from './schedule';
 import { formatDistance } from '../utils/geo';
 import type { RouteEtaAnswer, RouteEtaDirection, RouteServiceDay, RouteServiceState } from './routeEta';
+import type { StopRoutes } from './voiceStops';
 
 export interface VoiceAnswer {
   /** Read aloud verbatim. Letter names, spoken clock, no abbreviations. */
@@ -243,6 +244,173 @@ export function composeRouteAnswer(answer: RouteEtaAnswer): VoiceAnswer {
       };
     }
   }
+}
+
+/** "el F19, el B12 y la ruta 6" — each código keeps its own article. */
+function routeList(codes: string[], p: Phrasing, max: number): string {
+  const named = codes.slice(0, max).map((code) => subject(code, p));
+  if (named.length === 0) return '';
+  if (named.length === 1) return named[0];
+  return `${named.slice(0, -1).join(', ')} y ${named[named.length - 1]}`;
+}
+
+/** How many códigos a spoken list can carry before it stops being an answer. */
+const SPOKEN_ROUTE_LIST_MAX = 4;
+
+/**
+ * "¿Qué buses pasan por aquí?" — the stop answer (spec §5.9 `paradas`).
+ *
+ * Two rules shape it. It says **which routes are running now**, not which are
+ * filed: a station with 28 routes and 3 running at 11 p.m. reported as 28 options
+ * is how a rider waits for a bus that stopped hours ago (§1). And it names the
+ * stop it is talking about, with the distance when the rider is not standing at
+ * it — a coarse fix can be a block off, and "aquí" has to be checkable.
+ */
+export function composeStopRoutes(stop: StopRoutes): VoiceAnswer {
+  const build = (p: Phrasing): string => {
+    const place = p.place(stop.name);
+    const where =
+      stop.here
+        ? `Estás en ${place}`
+        : stop.named || stop.meters === null
+          ? `En ${place}`
+          : `Tu parada más cercana es ${place}, a ${p.distance(stop.meters)}`;
+
+    if (stop.routes.length === 0) return `${where}. No tengo rutas registradas ahí.`;
+    if (stop.running.length === 0) {
+      const count = stop.routes.length === 1 ? 'una ruta' : `${stop.routes.length} rutas`;
+      return `${where}. Por ahí pasan ${count}, pero ninguna está operando a esta hora.`;
+    }
+    const named = routeList(stop.highlights, p, SPOKEN_ROUTE_LIST_MAX);
+    // "…el B12, el K86 y la 6 y 21 rutas más" reads as one list with two
+    // conjunctions. A count up front and "entre ellas" behind it says the same
+    // thing in one breath, and puts the useful number first.
+    if (stop.running.length > stop.highlights.length) {
+      return `${where}. Ahora pasan ${stop.running.length} rutas, entre ellas ${named}.`;
+    }
+    return `${where}. Ahora pasan ${named}.`;
+  };
+
+  const distance = stop.meters === null ? '' : `a ${formatDistance(stop.meters)}`;
+  const walk = stop.walkMinutes === null ? '' : ` · ${stop.walkMinutes} min caminando`;
+  return {
+    ...both(build),
+    headline: `${stop.name} · ${stop.running.length} en servicio`,
+    detail: distance ? `${distance}${walk}` : `${stop.routes.length} rutas registradas`,
+  };
+}
+
+/** No position and no stop named, for a question that is entirely about place. */
+export function composeStopUnknown(heard: string): VoiceAnswer {
+  const sentence =
+    'No sé en qué parada estás. Dime su nombre, o activa la ubicación y te digo qué pasa por ahí.';
+  return {
+    spoken: sentence,
+    written: sentence,
+    headline: 'No sé dónde estás',
+    detail: heard.trim() ? `Escuché "${heard.trim()}"` : 'Sin ubicación y sin parada',
+  };
+}
+
+/** The rider named a place we have no stop for. Named back, so they can hear what
+ *  we heard rather than guess at it. */
+export function composeStopNotFound(hint: string): VoiceAnswer {
+  const sentence = hint.trim()
+    ? `No encontré una parada que se llame ${hint.trim()}. ¿La puedes decir de otra forma?`
+    : 'No encontré esa parada. ¿La puedes decir de otra forma?';
+  return { spoken: sentence, written: sentence, headline: 'Parada no encontrada', detail: hint.trim() ? `Escuché "${hint.trim()}"` : '' };
+}
+
+/**
+ * The card balance (spec §5.5.1a), read from a remembered card with no tap.
+ *
+ * Spoken and written differ on the amount, for the usual reason: "$ 5.400" is what
+ * a rider must *see*, and es-CO TTS makes nothing sensible of it, so the speaker is
+ * told "5.400 pesos". Only the last four digits are ever said or shown — the number
+ * is the rider's, and reading it out loud on a bus is not a thing this app does
+ * (spec §3.3).
+ */
+export function composeCardBalance(tail: string, balance: string, asOf?: string): VoiceAnswer {
+  const amount = balance.replace(/^\$\s*/, '').trim();
+  const card = tail ? ` terminada en ${tail}` : '';
+  const when = asOf ? ` Consultado ${asOf}.` : '';
+  return {
+    spoken: `Tu tarjeta${card} tiene ${amount} pesos.`,
+    written: `Tu tarjeta${card} tiene $ ${amount}.${when}`,
+    headline: `$ ${amount}`,
+    detail: tail ? `tullave •••• ${tail}` : 'Saldo del servidor',
+  };
+}
+
+export function composeCardMissing(): VoiceAnswer {
+  const sentence =
+    'No tengo una tarjeta guardada. Ábrela en Saldo una vez y después te digo el saldo cuando preguntes.';
+  return { spoken: sentence, written: sentence, headline: 'Sin tarjeta guardada', detail: 'Guárdala en Saldo' };
+}
+
+export function composeCardUnavailable(): VoiceAnswer {
+  const sentence = 'No pude consultar tu saldo en este momento. Intenta de nuevo en un minuto.';
+  return { spoken: sentence, written: sentence, headline: 'Saldo no disponible', detail: 'No se pudo consultar el servidor' };
+}
+
+/**
+ * "¿Cómo llego a X?" — the trip is handed to the planner, seeded from what the
+ * rider just said.
+ *
+ * Deliberately not a spoken itinerary: the router needs the full catalog and its
+ * answer is four itineraries with legs and transfers, which is a screen, not a
+ * sentence. What voice removes is the part that made the planner a chore — typing
+ * two endpoints you already said out loud.
+ */
+export function composeTripHandoff(destination: string, hasOrigin: boolean): VoiceAnswer {
+  const place = speakPlace(destination);
+  const spoken = hasOrigin
+    ? `Busco cómo llegar a ${place} desde donde estás.`
+    : `Abrí el planeador con destino ${place}. Dime desde dónde sales.`;
+  const written = hasOrigin
+    ? `Buscando cómo llegar a ${destination} desde tu ubicación.`
+    : `Planeador abierto con destino ${destination}. Falta el punto de partida.`;
+  return {
+    spoken,
+    written,
+    headline: hasOrigin ? 'Planeando tu viaje' : 'Falta el origen',
+    detail: destination,
+  };
+}
+
+export function composeTripUnknown(hint: string): VoiceAnswer {
+  const sentence = hint.trim()
+    ? `No encontré ${hint.trim()} en Bogotá. ¿Lo puedes decir de otra forma?`
+    : '¿A dónde quieres ir?';
+  return { spoken: sentence, written: sentence, headline: 'Destino no encontrado', detail: hint.trim() ? `Escuché "${hint.trim()}"` : '' };
+}
+
+/**
+ * Example questions, in the order they are worth learning.
+ *
+ * A voice surface has no menu, so the only way a rider finds out it does more than
+ * one thing is being told — which is why these are shown both on "¿qué puedes
+ * hacer?" and on every reading that resolved to nothing. A feature nobody can
+ * discover is not a feature anybody uses daily.
+ */
+export const VOICE_EXAMPLES = [
+  '¿Qué tan cerca está el F19?',
+  '¿Qué buses pasan por aquí?',
+  '¿A qué hora abre el K86?',
+  '¿Cómo llego a la Calle 100?',
+  '¿Cuánto saldo tengo?',
+];
+
+export function composeHelp(): VoiceAnswer {
+  const sentence =
+    'Puedes preguntarme qué tan cerca viene una ruta, qué buses pasan por tu parada, ' +
+    'a qué hora abre o cierra, cómo llegar a un lugar, o cuánto saldo te queda.';
+  return {
+    spoken: sentence,
+    written: sentence,
+    headline: 'Esto te puedo responder',
+    detail: 'Toca un ejemplo o pregunta con tus palabras',
+  };
 }
 
 /**

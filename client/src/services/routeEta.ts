@@ -21,6 +21,7 @@
 
 import { haversineMeters, walkMinutes } from '../utils/geo';
 import { toFiniteNumber } from '../utils/liveBus';
+import { nameTokens } from './voiceSpanish';
 import {
   closingAfter,
   createServiceClock,
@@ -338,18 +339,6 @@ function nearestStop(stops: VoiceStop[], userPos: [number, number]): { stop: Voi
     if (best === null || meters < best.meters) best = { stop, meters };
   }
   return best;
-}
-
-/** Accent/case-folded words of a name, short connectors dropped. */
-function nameTokens(value: string): string[] {
-  return String(value ?? '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
-    .split(' ')
-    .filter((token) => token.length > 2 || /^\d+$/.test(token));
 }
 
 /**
