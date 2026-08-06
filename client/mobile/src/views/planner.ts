@@ -1,6 +1,6 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
-import { initRouter, findRoutes, sortJourneyPlans, enrichWalkingGeometries, getRouteServiceSpans, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import { initRouter, findRoutes, resolveWalkingLegs, getRouteServiceSpans, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
 import {
   bogotaNow,
   dayOffsetSuffix,
@@ -634,9 +634,12 @@ export function createPlannerView(): PlannerView {
           },
         };
         const seq = ++searchSeq;
-        const plans = findRoutes(params);
-        sortJourneyPlans(plans, sortBy);
-        renderPlans(results, plans.slice(0, 4), showOnMap, constraints);
+        // `pool` is the wider candidate set the shown ranking was cut from; the
+        // pedestrian pass ranks it on real walking distances and can promote a
+        // plan out of it (§5.6.4).
+        const pool: { candidates?: JourneyPlan[] } = {};
+        const plans = findRoutes(params, pool);
+        renderPlans(results, plans, showOnMap, constraints);
         resultsHead.classList.remove('hidden');
         // A trip the rider actually asked for is worth remembering, whatever the
         // search returned — a journey with no connection today may have one at
@@ -652,13 +655,14 @@ export function createPlannerView(): PlannerView {
         renderTrips();
         // The form can be a screenful; put the answer in view.
         window.requestAnimationFrame(() => resultsHead.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-        // Refine walk legs with real OSRM geometry/distance/time, then re-rank +
-        // re-render if this is still the latest search (spec §1.1 R2 shared fn).
-        void enrichWalkingGeometries(plans, sortBy, departAt)
-          .then(() => {
-            if (seq === searchSeq) renderPlans(results, plans.slice(0, 4), showOnMap, constraints);
+        // Resolve every walk leg against the real pedestrian network, then
+        // re-validate, re-rank and re-cut the pool — and re-render if this is
+        // still the latest search (spec §1.1 R2 shared fn).
+        void resolveWalkingLegs(pool.candidates ?? plans, sortBy, departAt, () => seq === searchSeq)
+          .then((resolved) => {
+            if (seq === searchSeq) renderPlans(results, resolved, showOnMap, constraints);
           })
-          .catch((err) => console.warn('[planner] walk enrichment failed:', err));
+          .catch((err) => console.warn('[planner] walk resolution failed:', err));
       } catch (err) {
         console.error('[planner]', err);
         // A bare "Error al calcular" left the rider with no idea whether to wait,
@@ -837,6 +841,9 @@ function renderPlans(
       if (!plan.outsideService && plan.lastServiceRisk) clock.append(h('span', { class: 'plan-chip warn', text: 'Último servicio' }));
       // Why a slightly slower itinerary can outrank this one (§5.6.2).
       if (!plan.outsideService && plan.shortService) clock.append(h('span', { class: 'plan-chip', text: 'Servicio limitado' }));
+      // Some leg's pedestrian route could not be fetched, so its distance is an
+      // estimate — said out loud rather than passed off as measured (§5.6.4).
+      if (plan.walkEstimated) clock.append(h('span', { class: 'plan-chip', text: 'Caminata estimada' }));
       card.append(clock);
     }
     const legs = h('div', { class: 'plan-legs' });

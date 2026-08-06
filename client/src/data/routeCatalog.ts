@@ -183,13 +183,19 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
           existing.serviceSpans = mergeServiceSpans(existing.serviceSpans, parseServiceSpans(route.horarios));
         }
 
+        // Stops and trace must come from the SAME variant. They describe one
+        // journey between them, and the planner projects one onto the other
+        // (§5.6.3) — pairing variant A's stop list with variant B's `trazado`
+        // put stops hundreds of metres off "their" trace and made the leg
+        // unusable. So the variant that supplies the stops supplies the trace,
+        // and a trace is only adopted on its own when there are no stops yet to
+        // contradict it.
         const traceGeometry = traceToGeometry(route.trazado);
-        if (!existing.geometry && traceGeometry) {
-          existing.geometry = traceGeometry;
-        }
-
         if ((!existing.stops || existing.stops.length === 0) && stops.length > 0) {
           existing.stops = stops;
+          existing.geometry = traceGeometry;
+        } else if (!existing.geometry && !existing.stops?.length && traceGeometry) {
+          existing.geometry = traceGeometry;
         }
         continue;
       }

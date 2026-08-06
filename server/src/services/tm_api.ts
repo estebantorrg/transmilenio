@@ -38,7 +38,18 @@ const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 3000;
 const STALE_DAYS = 7;
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
-const LIGHT_TRACE_MAX_POINTS = 160;
+/**
+ * Vertices kept per route variant in the browser catalog.
+ *
+ * The trace is not just something to draw any more — the planner projects each
+ * route's stops onto it and rides it (§5.6.3), so how coarse it arrives decides
+ * both what the map shows and how many legs get real driven distances. Measured
+ * over the committed catalog: at 160 the planner could use 91.3% of ride legs
+ * and drew them with vertices a median 145 m apart; at 320 that is 93.1% and
+ * 78 m, for +0.28 MB gzipped on a payload the service worker caches. Past 320
+ * the curve flattens — the full traces buy another 0.0% of legs for +4.4 MB.
+ */
+const LIGHT_TRACE_MAX_POINTS = 320;
 
 // ─── Types ──────────────────────────────────────────────
 

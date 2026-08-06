@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, enrichWalkingGeometries as enrichPlansWalking, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
 import {
   bogotaNow,
   createServiceClock,
@@ -1514,6 +1514,9 @@ function calculateRoute(): void {
 
     // Compute first. Only a routing failure should surface the error state.
     let plans: JourneyPlan[];
+    // The pool the shown ranking was cut from — the pedestrian pass ranks it on
+    // real walking distances, which can promote a plan out of it (§5.6.4).
+    const pool: { candidates?: JourneyPlan[] } = {};
     try {
       plans = findRoutes({
         origin: originCoord!,
@@ -1525,7 +1528,7 @@ function calculateRoute(): void {
         sortBy,
         departAt,
         enforceSchedules,
-      });
+      }, pool);
     } catch (err) {
       if (requestId !== plannerRequestSeq) return;
       console.error('[Planner] Route search failed:', err);
@@ -1547,9 +1550,9 @@ function calculateRoute(): void {
       console.error('[Planner] Rendering results failed (itinerary still computed):', err);
     }
 
-    // Asynchronously load real street-level walking paths from OSRM
-    enrichWalkingGeometries(calculatedPlans, requestId).catch(err => {
-      console.error('[Planner] Failed walking enrichment:', err);
+    // Resolve real street-level walking, then re-rank and re-cut the pool.
+    resolveWalking(pool.candidates ?? calculatedPlans, requestId).catch(err => {
+      console.error('[Planner] Failed walking resolution:', err);
     });
   }, 0));
 }
@@ -1572,6 +1575,11 @@ function renderPlanClockRow(plan: JourneyPlan): string {
   // Why a slightly slower itinerary may be ranked above this one (§5.6.2).
   if (!plan.outsideService && plan.shortService) {
     chips.push('<span class="journey-chip">Servicio limitado</span>');
+  }
+  // The pedestrian router could not be reached for some leg, so its distance is
+  // an estimate — said out loud rather than passed off as measured (§5.6.4).
+  if (plan.walkEstimated) {
+    chips.push('<span class="journey-chip" title="No se pudo consultar el trazado peatonal de algún tramo; esa distancia es una estimación.">Caminata estimada</span>');
   }
 
   return `
@@ -1825,18 +1833,27 @@ function getMapFitPadding(): { top: number; bottom: number; left: number; right:
   };
 }
 
-async function enrichWalkingGeometries(plans: JourneyPlan[], requestId: number): Promise<void> {
-  // Core walk-refinement (OSRM fetch, total recompute, re-rank) is shared with
-  // the mobile planner (spec §1.1 R2). Here we only add the website's staleness
-  // guard + selection preservation + re-render.
-  const selectedPlan = activePlanIndex !== null ? plans[activePlanIndex] : null;
+async function resolveWalking(pool: JourneyPlan[], requestId: number): Promise<void> {
+  // The pedestrian pass (OSRM fetch, total recompute, re-validate, re-rank, cut
+  // to four) is shared with the mobile planner (spec §1.1 R2). Here we only add
+  // the website's staleness guard + selection preservation + re-render.
+  const selectedPlan = activePlanIndex !== null ? calculatedPlans[activePlanIndex] : null;
   try {
-    await enrichPlansWalking(plans, lastSortBy, lastDepartAt ?? undefined);
-    if (requestId !== plannerRequestSeq || plans !== calculatedPlans) return;
-    activePlanIndex = selectedPlan ? Math.max(0, plans.indexOf(selectedPlan)) : 0;
-    renderResults(plans, true);
+    const resolved = await resolveWalkingLegs(
+      pool,
+      lastSortBy,
+      lastDepartAt ?? undefined,
+      () => requestId === plannerRequestSeq
+    );
+    // A newer search has already replaced these itineraries — dropping the
+    // result is the point of the guard; rendering it would show the old trip.
+    if (requestId !== plannerRequestSeq) return;
+    calculatedPlans = resolved;
+    const keptIndex = selectedPlan ? resolved.indexOf(selectedPlan) : -1;
+    activePlanIndex = keptIndex >= 0 ? keptIndex : 0;
+    renderResults(resolved, true);
   } catch (error) {
-    console.error('[Planner] Error enriching walking paths:', error);
+    console.error('[Planner] Error resolving walking paths:', error);
   }
 }
 

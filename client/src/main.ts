@@ -577,7 +577,7 @@ async function main(): Promise<void> {
   let cableRouterStations: import('./services/router').CableStationInput[] = [];
 
   let activeRouteId: string | null = null;
-  // Routes whose geometry has already been upgraded from the light (160-pt,
+  // Routes whose geometry has already been upgraded from the light (320-pt,
   // spec §5.1.4) overview trace to the full-resolution official `trazado`.
   const fullTraceLoaded = new Set<string>();
   // ArcGIS-backed layers that opened degraded (upstream failed or answered
@@ -781,7 +781,14 @@ async function main(): Promise<void> {
             if (variant) {
               const vStops = variant.stops || [];
               const detailGeometry = traceToGeometry(variant.trazado);
-              if (detailGeometry) route.geometry = detailGeometry;
+              if (detailGeometry) {
+                route.geometry = detailGeometry;
+                // The planner holds this same object and indexed its trace at
+                // boot (§5.6.3); re-index so it rides the trace the route now
+                // claims instead of the coarser one it was built from.
+                const { refreshRouteTrace } = await import('./services/router');
+                refreshRouteTrace(route.id);
+              }
               if (routeHasDualStops(vStops)) route.subType = 'dual';
               if (!route.stops || route.stops.length === 0) {
                 route.stops = dedupeStops(vStops.map((stop: any) => parseCatalogStop(stop, variant, catalog)).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));

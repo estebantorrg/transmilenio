@@ -10,6 +10,8 @@ import {
   type ServiceClock,
   type ServiceSpan,
 } from './schedule';
+import { buildTraceIndex, traceDistanceBetween, traceSliceBetween, type TraceIndex } from './trace';
+import { haversineMeters } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 
 export interface GraphEdge {
@@ -21,6 +23,21 @@ export interface GraphEdge {
   type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
   time: number;
+  /**
+   * Position of this edge's endpoints in the route's own stop list. Carried on
+   * the edge (not looked up by code) because a loop route visits the same code
+   * twice, and slicing its trace by code would then pick an arbitrary pass —
+   * `-1` on walking edges, which have no route of their own.
+   */
+  fromOrd: number;
+  toOrd: number;
+  /**
+   * True when `distance` was measured along the route's trace (§5.6.3). A ride
+   * step is only drawn from the trace when **every** leg it spans is traced:
+   * where a leg was refused the trace there is wrong, so drawing through it
+   * would put metres on the map that the itinerary does not charge.
+   */
+  traced: boolean;
 }
 
 export interface RouteStop {
@@ -55,6 +72,20 @@ export interface JourneyStep {
   stops?: string[]; // Intermediate stop names (excluding boarding/alighting)
   path?: [number, number][]; // Coordinates for this leg
   isTunnel?: boolean;
+  /**
+   * Walk steps: where `distance`/`time`/`path` come from (§5.6.4).
+   * `estimate` = straight line with the pavement correction applied;
+   * `osrm` = a real pedestrian route; `tunnel` = a surveyed station link.
+   * A plan can legitimately mix them when one lookup fails, and the UI says so
+   * rather than presenting an estimate as a measurement (spec §1).
+   */
+  walkSource?: 'estimate' | 'osrm' | 'tunnel';
+  /**
+   * Walk steps: the two endpoints to route between, kept so the OSRM pass is
+   * idempotent — after the first resolution `path` is no longer a straight line
+   * and the endpoints could not be recovered from it.
+   */
+  walkStraightLine?: [[number, number], [number, number]];
   // ── Schedule annotations (§5.6.2). Present only on schedule-aware searches;
   // minutes are counted from the plan day's midnight in Bogotá, so a value
   // above 1440 means the step happens after midnight.
@@ -93,6 +124,12 @@ export interface JourneyPlan {
   servicePenalty?: number;
   /** True when some ride runs only a short part of the day (`SHORT_SERVICE_DAY_MINUTES`). */
   shortService?: boolean;
+  /**
+   * True when at least one walk leg is still an estimate after the pedestrian
+   * pass — the routing service was unreachable for it. Surfaced so a card never
+   * presents a straight-line guess as a measured walk (spec §1 certainty).
+   */
+  walkEstimated?: boolean;
 }
 
 export interface RouteSearchParams {
@@ -129,6 +166,12 @@ let rawRoutesList: RouteListItem[] = [];
 let rawCableStations: CableStationInput[] = [];
 // Operating windows per dense route index (undefined = unknown → always runs).
 let routeSpansByIdx: Array<ServiceSpan[] | undefined> = [];
+/**
+ * Each route's stop list projected onto its own `trazado`, built once per graph
+ * (§5.6.3). Absent = that route has no usable trace, and every leg of it falls
+ * back to straight-line distance and a stop-to-stop polyline.
+ */
+let traceIndexById = new Map<string, TraceIndex>();
 
 // TransMiCable: a single line of gondola stations. It connects to the rest of
 // the network ONLY at Tunal ↔ Portal Tunal (the portal complex). Every other
@@ -142,13 +185,57 @@ const PORTAL_TUNAL_STATION_CODE = 'TM0119'; // troncal Portal Tunal node
 const CABLE_SPEED_M_PER_MINUTE = 300; // 18 km/h
 const CABLE_DWELL_MINUTES = 0.4;
 
-// In-motion cruise speeds + per-stop dwell, calibrated so effective door-to-door
-// speeds land on the published figures: troncal ≈ 26–27 km/h commercial speed,
-// SITP zonal ≈ 13–15 km/h in mixed traffic.
-const TRONCAL_SPEED_M_PER_MINUTE = 533; // 32 km/h between stations
+// In-motion cruise speeds + per-stop dwell.
+//
+// These are speeds over the metres a bus actually DRIVES (§5.6.3): every ride
+// edge is measured along the route's own `trazado`, not straight-line between
+// stops. Straight-line distances under-count the driven metres by a mean 8%
+// (troncal) / 11% (zonal), and the old speeds absorbed that as a constant —
+// which only worked on average. Per leg the ratio runs 1.00×–1.36× (p90), so a
+// winding SITP loop was priced like a straight avenue and won rankings it
+// should have lost. The speeds below are the old ones (533 / 300) scaled by
+// their own median ratio, which holds the median trip time where it was while
+// removing the per-route bias: measured over the committed catalog the implied
+// commercial speed stays at 29.0 km/h troncal and 15.2 km/h zonal, but its
+// spread narrows from 24.8–32.5 to 25.5–30.6 and from 14.4–18.5 to 14.7–16.5.
+//
+// KNOWN GAP, deliberately not changed here: those medians are ~8% faster than
+// the published commercial speeds (troncal 26–27 km/h, SITP 13–15 km/h) — the
+// old constants were already optimistic, and re-centring them would move every
+// reported trip time for reasons unrelated to the trace work. §5.8 records the
+// real fix: harvest `consultar_programacion` (the theoretical per-stop
+// timetable) offline over a bounded route sample and calibrate against it.
+const TRONCAL_SPEED_M_PER_MINUTE = 570; // 34 km/h along the trace
 const TRONCAL_DWELL_MINUTES = 0.5;
-const ZONAL_SPEED_M_PER_MINUTE = 300;   // 18 km/h between stops
+const ZONAL_SPEED_M_PER_MINUTE = 333;   // 20 km/h along the trace
 const ZONAL_DWELL_MINUTES = 0.35;
+
+// Ceiling on a trace-derived ride leg: past it the projection wrapped the wrong
+// way round a loop in a way the per-route gates in `trace.ts` did not catch.
+// Rejected legs keep the straight-line distance, i.e. the old behaviour.
+//
+// The bound is on the **detour** — how far the trace goes beyond the straight
+// line — not on the ratio, because a ratio cannot tell a real detour from a
+// broken projection: it depends on how close the two stops happen to be, so it
+// condemns a feeder that loops 2 km between neighbouring stops while waving
+// through an express leg that is wrong by kilometres. Measured over the
+// catalog's 39 876 trace-measured legs the detour is 20 m at the median, 758 m
+// at p99 and 3.2 km at p99.9, then jumps to 13.8 km — a clean separation
+// between "the bus went round the block" and "the projection jumped".
+//
+// Validated against ArcGIS `longitud_ruta_troncal`, a published route length
+// that touches neither the catalog nor our geometry, over 83 matched routes:
+// mean |error| is 2.95% with no guard, 2.60% with this one, and 3.47% with a
+// 3 km detour bound that starts rejecting real loops. The ratio arm costs
+// nothing there and still catches the shape the detour bound cannot — a 355 m
+// hop traced at 5.1 km — on the zonal side, where no published length exists
+// to check against.
+const TRACE_EDGE_MAX_DETOUR_M = 5000;
+const TRACE_EDGE_MAX_RATIO = 12;
+// Whole-ride sanity for the drawn polyline: a slice several times longer than
+// the ride's own stop chain means the projection wrapped, and a legible straight
+// chain beats a confidently wrong detour (spec §1).
+const TRACE_SLICE_MAX_RATIO = 4;
 
 // Expected wait when boarding a service (≈ half a typical route headway).
 // Charged in BOTH time and cost on every boarding — first ride and transfers —
@@ -199,6 +286,42 @@ function coveragePenalty(minutes: number): number {
 }
 
 const WALK_SPEED_M_PER_MINUTE = 75;
+
+/**
+ * Straight-line → pavement correction (§5.6.4).
+ *
+ * Nobody walks a straight line: there are blocks, one-way footbridges, the NQS,
+ * and crossings that only exist at the corner. The search used to optimise on
+ * the *uncorrected* straight line and only learn the truth afterwards, which
+ * made the "menos caminata" preference provably optimal for a metric nobody
+ * walks — a 396 m straight-line leg (798 m real) outranked a 490 m one (493 m
+ * real), and every itinerary's walking was under-reported by 25%.
+ *
+ * Fitted against the same OSRM foot router the planner then refines with, over
+ * 125 stop pairs in this graph stratified across the 120 m–1.5 km range the
+ * planner produces: `1.25 × straight + 40 m`, which is unbiased (mean error
+ * 0 m, mean |error| 74 m, 11.7% relative) where the raw straight line is short
+ * by 193 m on average.
+ *
+ * The fixed 40 m is the part a pure ratio cannot express and the part that
+ * matters for ranking: **every** walk leg costs a crossing, so an itinerary
+ * that breaks the same total into three little walks really is worse than one
+ * that walks it in a single leg. Under a pure multiplier those two rank
+ * identically, since scaling every leg by the same factor cannot reorder them.
+ *
+ * Distance only. Time follows from distance at walking pace, and both are
+ * replaced outright by the real route for every leg of every candidate before
+ * anything is ranked for display (`resolveWalkingLegs`).
+ */
+const WALK_DETOUR_SCALE = 1.25;
+const WALK_DETOUR_CROSSING_M = 40;
+
+/** Straight-line metres → the metres a rider actually walks. */
+function walkMeters(straightLine: number): number {
+  if (straightLine <= 0) return 0;
+  return Math.max(straightLine, straightLine * WALK_DETOUR_SCALE + WALK_DETOUR_CROSSING_M);
+}
+
 const WALK_TRANSFER_THRESHOLD_M = 500;
 const MAX_WALK_NEIGHBORS = 6;
 const ACCESS_SEARCH_RADIUS_M = 1500;
@@ -290,20 +413,7 @@ function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boole
  * Calculates geographic distance in meters between two coordinates using the Haversine formula.
  */
 export function getDistance(coord1: [number, number], coord2: [number, number]): number {
-  const [lon1, lat1] = coord1;
-  const [lon2, lat2] = coord2;
-  const R = 6371e3; // Earth radius in meters
-  const phi1 = (lat1 * Math.PI) / 180;
-  const phi2 = (lat2 * Math.PI) / 180;
-  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-  const deltaLon = ((lon2 - lon1) * Math.PI) / 180;
-
-  const a =
-    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-    Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLon / 2) * Math.sin(deltaLon / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-  return R * c;
+  return haversineMeters(coord1, coord2);
 }
 
 // ── Spatial grid ────────────────────────────────────────────────────────────
@@ -416,8 +526,13 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   stopIndexByCode = new Map(stopList.map((stop, index) => [stop.codigo, index]));
   adjacency = stopList.map(() => []);
 
-  // 2. Add Transit edges (A -> B for successive stops in routes)
+  // 2. Add Transit edges (A -> B for successive stops in routes).
+  // Each leg is charged the metres the bus actually drives — the route's own
+  // trace between the two stops (§5.6.3) — falling back to the straight line
+  // only where no usable trace exists.
+  traceIndexById = new Map();
   let transitEdgesCount = 0;
+  let tracedEdgesCount = 0;
   for (const route of routes) {
     if (!route.stops || route.stops.length < 2) continue;
 
@@ -425,12 +540,26 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
     const routeIdx = routeIndexById.get(route.id)!;
 
+    const traceIndex = buildTraceIndex(route.stops, route.geometry?.paths);
+    if (traceIndex) traceIndexById.set(route.id, traceIndex);
+
     for (let i = 0; i < route.stops.length - 1; i++) {
       const fromStop = route.stops[i];
       const toStop = route.stops[i + 1];
       if (!fromStop.codigo || !toStop.codigo) continue;
 
-      const distance = getDistance(fromStop.coordinate, toStop.coordinate);
+      const straight = getDistance(fromStop.coordinate, toStop.coordinate);
+      const traced = traceIndex ? traceDistanceBetween(traceIndex, i, i + 1) : null;
+      // Below the straight line is a pair of stops projecting almost on top of
+      // each other (opposite kerbs of one street) — not a reason to throw the
+      // trace away, since the floor is simply the straight line, which no bus
+      // beats.
+      const usable =
+        traced !== null &&
+        traced - straight <= TRACE_EDGE_MAX_DETOUR_M &&
+        traced <= straight * TRACE_EDGE_MAX_RATIO + 50;
+      const distance = usable ? Math.max(traced!, straight) : straight;
+      if (usable) tracedEdgesCount++;
       const time = (distance / speed) + dwell;
 
       adjacency[stopIndexByCode.get(fromStop.codigo)!].push({
@@ -442,6 +571,9 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         type: route.type,
         distance,
         time,
+        fromOrd: i,
+        toOrd: i + 1,
+        traced: usable,
       });
       transitEdgesCount++;
     }
@@ -464,6 +596,9 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         type: 'cable',
         distance,
         time,
+        fromOrd: -1,
+        toOrd: -1,
+        traced: false,
       });
       transitEdgesCount++;
     };
@@ -489,6 +624,9 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       type: 'walking',
       distance,
       time: distance / WALK_SPEED_M_PER_MINUTE,
+      fromOrd: -1,
+      toOrd: -1,
+      traced: false,
     });
     walkingEdgesCount++;
   };
@@ -499,7 +637,9 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     const toStop = uniqueStops.get(toCode);
     if (!fromStop || !toStop) continue;
 
-    let distance = getDistance(fromStop.coordinate, toStop.coordinate);
+    // A hand-traced tunnel is a real measured path — it is already the walked
+    // distance and must not be corrected again.
+    let distance = walkMeters(getDistance(fromStop.coordinate, toStop.coordinate));
     if (TUNNEL_PATHS[key]) {
       const coords = TUNNEL_PATHS[key];
       let pathDist = 0;
@@ -520,7 +660,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   const portalTunal = uniqueStops.get(PORTAL_TUNAL_STATION_CODE);
   const cableTunal = uniqueStops.get(CABLE_TUNAL_CODE);
   if (portalTunal && cableTunal) {
-    const dist = getDistance(portalTunal.coordinate, cableTunal.coordinate);
+    const dist = walkMeters(getDistance(portalTunal.coordinate, cableTunal.coordinate));
     addWalkingEdge(PORTAL_TUNAL_STATION_CODE, CABLE_TUNAL_CODE, dist);
     addWalkingEdge(CABLE_TUNAL_CODE, PORTAL_TUNAL_STATION_CODE, dist);
   }
@@ -537,12 +677,15 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       neighbors.push({ stopCode: toStop.codigo, distance });
     }
     // Sort neighbors by distance and take nearest few to keep transfers sane.
+    // The threshold and the ranking stay straight-line (they describe "is this
+    // stop next door"); the metres charged are the pavement ones.
     neighbors.sort((a, b) => a.distance - b.distance);
-    neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, n.distance));
+    neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, walkMeters(n.distance)));
   }
 
   console.log(
-    `[Router] Graph ready in ${Date.now() - startedAt}ms. Vertices: ${uniqueStops.size}, Transit Edges: ${transitEdgesCount}, Walking Edges: ${walkingEdgesCount}`
+    `[Router] Graph ready in ${Date.now() - startedAt}ms. Vertices: ${uniqueStops.size}, ` +
+    `Transit Edges: ${transitEdgesCount} (${tracedEdgesCount} trace-measured), Walking Edges: ${walkingEdgesCount}`
   );
 }
 
@@ -639,6 +782,11 @@ interface RawLeg {
   type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
   time: number;
+  /** Position in the route's own stop list (`-1` for walks and the cable). */
+  fromOrd: number;
+  toOrd: number;
+  /** Whether this leg's distance came from the trace (§5.6.3). */
+  traced: boolean;
 }
 
 function getStop(code: string, virtualStops?: Map<string, RouteStop>): RouteStop | undefined {
@@ -751,6 +899,23 @@ function boardingPenalty(schedule: ScheduleContext, routeIdx: number): number {
   return schedule.coveragePenalties[routeIdx];
 }
 
+/**
+ * Rebuilds one route's trace index after its geometry is replaced in place — the
+ * route-detail panel upgrades a selected route from the transport-capped trace
+ * (§5.1.4) to the full official `trazado`, and the planner holds the same
+ * objects. Without this the index would keep describing the coarse trace it was
+ * built from while the route claims the fine one. Edge distances are left alone
+ * on purpose: they are the graph the current itineraries were costed against,
+ * and the two traces agree on length to well under a percent.
+ */
+export function refreshRouteTrace(routeId: string): void {
+  const route = routesById.get(routeId);
+  if (!route?.stops || route.stops.length < 2) return;
+  const index = buildTraceIndex(route.stops, route.geometry?.paths);
+  if (index) traceIndexById.set(routeId, index);
+  else traceIndexById.delete(routeId);
+}
+
 /** Public schedule of a route variant, for the UIs' service labels. */
 export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
   if (!routeId) return undefined;
@@ -802,83 +967,40 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
 }
 
 /**
- * Slice coordinates of a route variant between two stops. `fallback` is the
- * stop-to-stop chain of the ride (boarding, intermediates, alighting) — used
- * whenever the variant has no usable geometry or the slice snaps wrong.
+ * The drawn path of one ride: the route's own trace between the boarding and
+ * alighting stops, cut at their exact projections (§5.6.3).
+ *
+ * `fromOrd`/`toOrd` are positions in the route's stop list, carried on the graph
+ * edges. The previous implementation matched by *coordinate*, scanning every
+ * vertex of every path for the nearest one to each stop — which cost a full scan
+ * per step, picked an arbitrary pass on a loop route, and then forced direction
+ * by comparing vertex indexes and reversing the slice. On the browser's
+ * transport-capped traces that landed the drawn line a mean 305 m (up to 1.4 km)
+ * from the station the rider boards at, so the walking leg and the bus leg were
+ * drawn as two disconnected pieces.
+ *
+ * `fallback` is the stop-to-stop chain of the ride, kept for routes with no
+ * usable trace.
  */
 function sliceRouteGeometry(
   routeId: string,
-  fromStopCode: string,
-  toStopCode: string,
+  fromOrd: number,
+  toOrd: number,
   fallback: [number, number][]
 ): [number, number][] {
-  const route = routesById.get(routeId);
-  const fromStop = uniqueStops.get(fromStopCode);
-  const toStop = uniqueStops.get(toStopCode);
+  const index = traceIndexById.get(routeId);
+  if (!index) return fallback;
+  const sliced = traceSliceBetween(index, fromOrd, toOrd);
+  if (!sliced || sliced.length < 2) return fallback;
 
-  if (!fromStop || !toStop) return fallback;
-  if (!route || !route.geometry || !route.geometry.paths || route.geometry.paths.length === 0) {
-    return fallback;
-  }
-
-  let bestPath: [number, number][] | null = null;
-  let bestScore = Infinity;
-  let bestIdxA = 0;
-  let bestIdxB = 0;
-
-  for (const path of route.geometry.paths) {
-    const coords = path as [number, number][];
-    if (coords.length === 0) continue;
-
-    let idxA = 0;
-    let idxB = 0;
-    let minDistA = Infinity;
-    let minDistB = Infinity;
-
-    for (let i = 0; i < coords.length; i++) {
-      const coord = coords[i];
-      const distA = getDistance(coord, fromStop.coordinate);
-      const distB = getDistance(coord, toStop.coordinate);
-
-      if (distA < minDistA) {
-        minDistA = distA;
-        idxA = i;
-      }
-      if (distB < minDistB) {
-        minDistB = distB;
-        idxB = i;
-      }
-    }
-
-    const score = minDistA + minDistB;
-    if (score < bestScore) {
-      bestScore = score;
-      bestPath = coords;
-      bestIdxA = idxA;
-      bestIdxB = idxB;
-    }
-  }
-
-  if (!bestPath) return fallback;
-
-  let sliced: [number, number][];
-  if (bestIdxA <= bestIdxB) {
-    sliced = bestPath.slice(bestIdxA, bestIdxB + 1);
-  } else {
-    sliced = bestPath.slice(bestIdxB, bestIdxA + 1).reverse();
-  }
-
-  if (sliced.length < 2) return fallback;
-
-  // Sanity check: if the sliced path is unreasonably long compared to
-  // straight-line distance, the geometry snapped to the wrong segment.
-  const straightDist = getDistance(fromStop.coordinate, toStop.coordinate);
-  let slicedDist = 0;
-  for (let k = 0; k < sliced.length - 1; k++) {
-    slicedDist += getDistance(sliced[k], sliced[k + 1]);
-  }
-  // Allow up to 8x straight distance for winding routes (or ignore if straight distance is small)
-  if (straightDist > 100 && slicedDist > straightDist * 8) return fallback;
+  // The trace can only be trusted as far as the stop chain agrees with it — a
+  // slice several times longer than the ride means the projection wrapped, and a
+  // legible straight chain beats a confidently wrong detour (spec §1).
+  let chain = 0;
+  for (let k = 0; k < fallback.length - 1; k++) chain += getDistance(fallback[k], fallback[k + 1]);
+  let drawn = 0;
+  for (let k = 0; k < sliced.length - 1; k++) drawn += getDistance(sliced[k], sliced[k + 1]);
+  if (chain > 100 && drawn > chain * TRACE_SLICE_MAX_RATIO) return fallback;
 
   return sliced;
 }
@@ -900,6 +1022,13 @@ function buildJourneySteps(
   let currentStep: JourneyStep | null = null;
   let currentRouteId: string | null = null;
   let currentChain: [number, number][] = [];
+  // Positions of the ride's boarding / alighting stop inside the route's own
+  // stop list — what the trace is sliced by (§5.6.3).
+  let currentFromOrd = -1;
+  let currentToOrd = -1;
+  // Cleared by any leg the trace could not measure: the drawn path must not
+  // cross ground the itinerary did not charge for (§5.6.3).
+  let currentAllTraced = true;
   // Wall-clock cursor: the moment the step being built starts. Advanced only on
   // commit, so a ride's boarding annotations use the same cumulative time the
   // search charged for that path.
@@ -907,12 +1036,17 @@ function buildJourneySteps(
 
   const commitCurrent = (): void => {
     if (!currentStep) return;
-    currentStep.path = sliceRouteGeometry(currentRouteId!, currentStep.fromCode, currentStep.toCode, currentChain);
+    currentStep.path = currentAllTraced
+      ? sliceRouteGeometry(currentRouteId!, currentFromOrd, currentToOrd, currentChain)
+      : currentChain;
     cursor += currentStep.time;
     steps.push(currentStep);
     currentStep = null;
     currentRouteId = null;
     currentChain = [];
+    currentFromOrd = -1;
+    currentToOrd = -1;
+    currentAllTraced = true;
   };
 
   for (const leg of legs) {
@@ -953,6 +1087,10 @@ function buildJourneySteps(
         time,
         path: walkPath,
         isTunnel,
+        // A tunnel is a surveyed path; everything else is the corrected
+        // straight line until `resolveWalkingLegs` replaces it (§5.6.4).
+        walkSource: isTunnel ? 'tunnel' : 'estimate',
+        walkStraightLine: isTunnel ? undefined : [fromStop.coordinate, toStop.coordinate],
         ...(schedule ? { startMinute: cursor } : {}),
       });
       cursor += time;
@@ -968,6 +1106,8 @@ function buildJourneySteps(
       currentStep.time += leg.time;
       if (currentStep.stopCount !== undefined) currentStep.stopCount++;
       currentChain.push(toStop.coordinate);
+      currentToOrd = leg.toOrd;
+      if (!leg.traced) currentAllTraced = false;
     } else {
       // New ride step (first boarding or a transfer)
       commitCurrent();
@@ -991,6 +1131,9 @@ function buildJourneySteps(
       currentStep = rideStep;
       currentRouteId = leg.routeId;
       currentChain = [fromStop.coordinate, toStop.coordinate];
+      currentFromOrd = leg.fromOrd;
+      currentToOrd = leg.toOrd;
+      currentAllTraced = leg.traced;
     }
   }
 
@@ -1011,20 +1154,36 @@ function isStopCompatible(stop: RouteStop, mode: 'mix' | 'troncal' | 'zonal'): b
   return true;
 }
 
+/**
+ * Access / egress candidates. `distance` is the straight line — it is what the
+ * search radii and the nearest-N cuts mean — while `walk` is the metres the
+ * rider is actually charged for (§5.6.4), replaced by the real pedestrian route
+ * before anything is ranked for display.
+ */
+interface AccessNode {
+  nodeCode: string;
+  distance: number;
+  walk: number;
+}
+
+function accessNode(nodeCode: string, distance: number): AccessNode {
+  return { nodeCode, distance, walk: walkMeters(distance) };
+}
+
 function findAccessNodes(
   coordinate: [number, number],
   mode: 'mix' | 'troncal' | 'zonal',
   selectedStopCode?: string,
   minWalk: boolean = false
-): { nodeCode: string; distance: number }[] {
+): AccessNode[] {
   const selectedCode = String(selectedStopCode || '').trim();
-  const candidates: { nodeCode: string; distance: number }[] = [];
+  const candidates: AccessNode[] = [];
   const seenCodes = new Set<string>();
 
   if (selectedCode) {
     const exact = uniqueStops.get(selectedCode);
     if (exact && isStopCompatible(exact, mode)) {
-      candidates.push({ nodeCode: exact.codigo, distance: 0 });
+      candidates.push(accessNode(exact.codigo, 0));
       seenCodes.add(exact.codigo);
     }
 
@@ -1032,7 +1191,7 @@ function findAccessNodes(
     // platforms from the local neighborhood instead of scanning every stop.
     for (const { stop, distance } of stopsWithinRadius(coordinate, ACCESS_SEARCH_RADIUS_M)) {
       if (stop.sourceCode === selectedCode && isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo)) {
-        candidates.push({ nodeCode: stop.codigo, distance });
+        candidates.push(accessNode(stop.codigo, distance));
         seenCodes.add(stop.codigo);
       }
     }
@@ -1049,7 +1208,7 @@ function findAccessNodes(
       .sort((a, b) => a.distance - b.distance);
 
     for (const { stop, distance } of inRadius.slice(0, limit)) {
-      candidates.push({ nodeCode: stop.codigo, distance });
+      candidates.push(accessNode(stop.codigo, distance));
       seenCodes.add(stop.codigo);
     }
 
@@ -1060,7 +1219,7 @@ function findAccessNodes(
         .filter(({ stop, distance }) => stop.kind === 'station' && distance <= ACCESS_STATION_RADIUS_M && !seenCodes.has(stop.codigo))
         .slice(0, ACCESS_STATION_LIMIT);
       for (const { stop, distance } of stations) {
-        candidates.push({ nodeCode: stop.codigo, distance });
+        candidates.push(accessNode(stop.codigo, distance));
         seenCodes.add(stop.codigo);
       }
     }
@@ -1077,7 +1236,7 @@ function findAccessNodes(
       .sort((a, b) => a.distance - b.distance)
       .slice(0, 5);
     if (widened.length > 0) {
-      return widened.map(({ stop, distance }) => ({ nodeCode: stop.codigo, distance }));
+      return widened.map(({ stop, distance }) => accessNode(stop.codigo, distance));
     }
   }
   return [];
@@ -1085,11 +1244,13 @@ function findAccessNodes(
 
 /**
  * Ranks journey plans in place by the chosen preference. Each criterion uses the
- * others as deterministic tie-breakers so the ordering is stable. Exported so the
- * async walking-geometry enrichment can re-rank with accurate distances/times
- * (the initial search ranks on straight-line estimates).
+ * others as deterministic tie-breakers so the ordering is stable. Module-private:
+ * ranking is only meaningful against the cost the search actually charged, and
+ * both places that need it (the search itself and `resolveWalkingLegs`, once the
+ * walking is real) are in this file. The clients used to call it themselves,
+ * which is how a re-rank could silently undo the §5.6.2 long-service preference.
  */
-export function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
+function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
   const sortCriteria = sortBy || 'transfers';
   // Ranked minutes = the search's own time criterion: door-to-door time plus the
   // long-service preference the search charged in cost (§5.6.2). Ranking on the
@@ -1116,6 +1277,15 @@ function diversitySlack(preference: SearchPreference): number {
   if (preference === 'walk') return 120 * WALK_PRIMARY_SCALE + SECONDARY_SLACK_MINUTES;
   return SECONDARY_SLACK_MINUTES;
 }
+/** Itineraries offered to the rider. */
+const PLAN_DISPLAY_LIMIT = 4;
+/**
+ * Itineraries carried into the walking pass before the display cut. Sized so the
+ * pass costs a handful of extra pedestrian lookups (deduplicated across the
+ * pool, and mostly the same legs) while giving a genuinely better plan room to
+ * climb once its real walking distance is known.
+ */
+const PLAN_CANDIDATE_POOL = 8;
 const TERMINAL_CANDIDATE_CAP = 24;
 // Absolute bound on reconstructed candidates (guards reconstruction cost).
 const TERMINAL_HARD_CAP = 64;
@@ -1139,8 +1309,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   if (startNodes.length === 0) return [];
 
   // 2. Identify destination nodes
-  const destNodes = new Map<string, number>(); // nodeCode -> walkDistance
-  findAccessNodes(destination, mode, destStopCode, minWalk).forEach((node) => destNodes.set(node.nodeCode, node.distance));
+  const destNodes = new Map<string, number>(); // nodeCode -> walked egress metres
+  findAccessNodes(destination, mode, destStopCode, minWalk).forEach((node) => destNodes.set(node.nodeCode, node.walk));
   if (destNodes.size === 0) return [];
 
   // 3. A* over (node, arriving route) states, ordered by cost + an admissible
@@ -1188,8 +1358,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   for (const start of startNodes) {
     const nodeIdx = stopIndexByCode.get(start.nodeCode);
     if (nodeIdx === undefined) continue;
-    const walkTime = start.distance / WALK_SPEED_M_PER_MINUTE;
-    const cost = walkTime + start.distance * walkPrimary;
+    const walkTime = start.walk / WALK_SPEED_M_PER_MINUTE;
+    const cost = walkTime + start.walk * walkPrimary;
     const state: DijkstraState = {
       nodeIdx,
       routeIdx: startRouteIdx,
@@ -1197,7 +1367,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       routeId: 'start',
       cost,
       time: walkTime,
-      walkDistance: start.distance,
+      walkDistance: start.walk,
       transfers: 0,
       parentKey: null,
       hasRidden: false,
@@ -1343,6 +1513,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         type: 'walking',
         distance: egressDistance,
         time: egressDistance / WALK_SPEED_M_PER_MINUTE,
+        fromOrd: -1,
+        toOrd: -1,
+        traced: false,
       });
 
       virtualStops.set('END', {
@@ -1372,6 +1545,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           type: edge.type,
           distance: edge.distance,
           time: edge.time,
+          fromOrd: edge.fromOrd,
+          toOrd: edge.toOrd,
+          traced: edge.traced,
         });
       }
 
@@ -1382,15 +1558,18 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     const startStop = uniqueStops.get(startNodeCode);
     const startWalk = startNodes.find((s) => s.nodeCode === startNodeCode);
 
-    if (startStop && startWalk && startWalk.distance > 0) {
+    if (startStop && startWalk && startWalk.walk > 0) {
       legs.unshift({
         fromNode: 'START',
         toNode: startNodeCode,
         routeCode: 'walking',
         routeId: 'walking',
         type: 'walking',
-        distance: startWalk.distance,
-        time: startWalk.distance / WALK_SPEED_M_PER_MINUTE,
+        distance: startWalk.walk,
+        time: startWalk.walk / WALK_SPEED_M_PER_MINUTE,
+        fromOrd: -1,
+        toOrd: -1,
+        traced: false,
       });
 
       virtualStops.set('START', {
@@ -1420,15 +1599,10 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
 
   // Deduplicate, validate, and filter plans
   const finalPlans: JourneyPlan[] = [];
+  const longWalkPlans: JourneyPlan[] = [];
   const seenRouteKeys = new Set<string>();
 
   for (const plan of plans) {
-    // Reject plans demanding more total walking than we'd ever suggest as a
-    // walk — they only appear when the mode filter leaves no sane option (e.g.
-    // troncal-only to a neighborhood without stations) and no human would
-    // follow them; "no routes" is the honest answer there.
-    if (plan.walkDistance > WALK_ONLY_FALLBACK_MAX_M) continue;
-
     // Validate: reject plans where troncal rides start/end at non-station nodes
     const hasInvalidTroncalBoarding = plan.steps.some((step) => {
       if (step.type !== 'ride' || step.routeType !== 'troncal') return false;
@@ -1443,16 +1617,34 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       .map((s) => `${s.routeCode}|${s.fromCode}|${s.toCode}`)
       .join(' -> ');
 
-    if (!seenRouteKeys.has(routeKey) && plan.steps.length > 0) {
-      seenRouteKeys.add(routeKey);
-      finalPlans.push(plan);
-    }
+    if (seenRouteKeys.has(routeKey) || plan.steps.length === 0) continue;
+    seenRouteKeys.add(routeKey);
+
+    // Plans demanding more walking than we would ever suggest are held back, not
+    // dropped: they appear where the mode filter leaves no sane option (e.g.
+    // troncal-only into a neighbourhood with no stations), and no human would
+    // follow them — but an empty panel is the worse answer, and this limit is
+    // measured in real pavement metres now (§5.6.4), which are ~25% more than
+    // the straight lines it used to see. Applying it unconditionally turned
+    // trips that previously had an answer into dead ends.
+    if (plan.walkDistance > WALK_ONLY_FALLBACK_MAX_M) longWalkPlans.push(plan);
+    else finalPlans.push(plan);
+  }
+
+  // Only when nothing else exists — same rule the schedule filter follows
+  // (§5.6.2 "never a dead end"): offer the long walk rather than nothing.
+  if (finalPlans.length === 0 && longWalkPlans.length > 0) {
+    finalPlans.push(...longWalkPlans);
   }
 
   sortJourneyPlans(finalPlans, sortBy);
 
-  // Show at most 4 distinct options (we over-collected terminals for ranking).
-  return finalPlans.slice(0, 4);
+  // Keep a pool, not just the four we will show. Which four are *best* is only
+  // known once every walk leg has been routed for real (§5.6.4) — and the real
+  // metres move a leg by a median 33%, enough to reorder plans across the
+  // display cut. Trimming here would make that pass unable to recover a winner
+  // it had already thrown away. `findRoutes` cuts to `PLAN_DISPLAY_LIMIT`.
+  return finalPlans.slice(0, PLAN_CANDIDATE_POOL);
 }
 
 /**
@@ -1500,7 +1692,7 @@ function createWalkingFallbackPlan(
   destination: [number, number],
   departMinute: number
 ): JourneyPlan {
-  const distance = getDistance(origin, destination);
+  const distance = walkMeters(getDistance(origin, destination));
   const time = distance / WALK_SPEED_M_PER_MINUTE;
   return {
     totalTime: Math.round(time),
@@ -1518,13 +1710,24 @@ function createWalkingFallbackPlan(
         distance: distance,
         time: time,
         path: [origin, destination],
+        walkSource: 'estimate',
+        walkStraightLine: [origin, destination],
         startMinute: departMinute,
       },
     ],
   };
 }
 
-export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
+/**
+ * Ranked itineraries for the trip, best first.
+ *
+ * The result is what the rider should see **now**; it is computed entirely from
+ * local data, in a few tens of milliseconds, and its walking legs are estimates
+ * (§5.6.4). `out.candidates` receives the wider pool this ranking was cut from —
+ * hand it to `resolveWalkingLegs` to replace every estimate with a real
+ * pedestrian route and get the ranking the rider should keep.
+ */
+export function findRoutes(params: RouteSearchParams, out?: { candidates?: JourneyPlan[] }): JourneyPlan[] {
   const { origin, destination, mode } = params;
 
   if (uniqueStops.size === 0) {
@@ -1561,7 +1764,11 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
   // every transit plan door-to-door (common on sub-km trips once waits are
   // modeled). Beyond walkable range a straight "walk 8 km / 100 min" plan is
   // misleading, so an empty result stays empty ("no routes" state).
-  const directWalk = getDistance(origin, destination);
+  // Measured in walked metres, like every other plan's `walkDistance` (§5.6.4) —
+  // gating this one on the raw straight line instead would admit a "walk 2.5 km"
+  // plan that is really 3.2 km of pavement, i.e. past the limit every transit
+  // plan is held to, and that the pedestrian pass would then drop again.
+  const directWalk = walkMeters(getDistance(origin, destination));
   if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
     const walkPlan = createWalkingFallbackPlan(origin, destination, departAt.minute);
     if (plans.length === 0) {
@@ -1570,55 +1777,190 @@ export function findRoutes(params: RouteSearchParams): JourneyPlan[] {
     } else if (walkPlan.totalTime <= Math.min(...plans.map((p) => p.totalTime))) {
       plans.push(walkPlan);
       sortJourneyPlans(plans, params.sortBy);
-      plans.splice(4);
+      plans.splice(PLAN_CANDIDATE_POOL);
     }
   } else if (plans.length === 0) {
     console.log('[Router] No transit routes found and destination too far to walk.');
   }
 
-  return plans;
+  if (out) out.candidates = plans;
+  return plans.slice(0, PLAN_DISPLAY_LIMIT);
 }
 
 export interface WalkingPathResult {
   coordinates: [number, number][];
   distance: number;
   time: number;
+  /** False when the lookup failed and this is the estimate, not a real route. */
+  real: boolean;
 }
 
+// ─── Pedestrian route cache (§5.6.4) ────────────────────────────────────────
+// A walk between two fixed points never changes, so a result is worth keeping
+// past the search that asked for it — and past the page load. Three layers:
+//
+//   `walkingCache`   resolved routes, for the rest of the session;
+//   `walkingInFlight` requests already on the wire. Without it a single search
+//                     fired the same leg once per plan that used it (92 walk
+//                     steps over ten trips were only 53 distinct routes), since
+//                     the cache is only written when a request *resolves*;
+//   `localStorage`   survives the reload, so the second visit walks for free.
+//
+// Keys round to ~1 m, which is finer than any endpoint the planner produces.
 const walkingCache = new Map<string, WalkingPathResult>();
+const walkingInFlight = new Map<string, Promise<WalkingPathResult>>();
 
+const WALK_CACHE_STORAGE_KEY = 'tm.walkroutes.v1';
+/**
+ * Cap on persisted entries. The store is rewritten whole after a search that
+ * added anything, on the main thread, so the cap is a write-cost budget, not a
+ * quota one: measured against the real pedestrian geometries this returns,
+ * entries average ~820 bytes, so 250 is ~200 KB per write. A search resolves
+ * about six distinct legs, so that still covers ~40 trips of history.
+ */
+const WALK_CACHE_PERSIST_MAX = 250;
+let walkingCacheLoaded = false;
+let walkingCacheDirty = false;
+
+function walkCacheKey(from: [number, number], to: [number, number]): string {
+  return `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+}
+
+function storage(): Storage | null {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    // Private mode / blocked storage: the memory cache still works.
+    return null;
+  }
+}
+
+function loadPersistedWalkCache(): void {
+  if (walkingCacheLoaded) return;
+  walkingCacheLoaded = true;
+  const store = storage();
+  if (!store) return;
+  try {
+    const raw = store.getItem(WALK_CACHE_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as Record<string, [number, number, number[][]]>;
+    for (const [key, value] of Object.entries(parsed)) {
+      if (!Array.isArray(value) || value.length !== 3 || !Array.isArray(value[2])) continue;
+      const coordinates = value[2].filter((c) => Array.isArray(c) && c.length >= 2) as [number, number][];
+      if (coordinates.length < 2) continue;
+      walkingCache.set(key, { distance: value[0], time: value[1], coordinates, real: true });
+    }
+  } catch {
+    // A corrupt entry must never break planning — drop the store and move on.
+    try { store.removeItem(WALK_CACHE_STORAGE_KEY); } catch { /* ignore */ }
+  }
+}
+
+function persistWalkCache(): void {
+  if (!walkingCacheDirty) return;
+  walkingCacheDirty = false;
+  const store = storage();
+  if (!store) return;
+  try {
+    const out: Record<string, [number, number, number[][]]> = {};
+    let written = 0;
+    // Newest first: `Map` preserves insertion order, so walking it backwards
+    // keeps what this session actually used.
+    const entries = Array.from(walkingCache.entries()).reverse();
+    for (const [key, value] of entries) {
+      if (written >= WALK_CACHE_PERSIST_MAX) break;
+      if (!value.real) continue; // never persist an estimate as if it were a route
+      out[key] = [value.distance, value.time, value.coordinates];
+      written++;
+    }
+    store.setItem(WALK_CACHE_STORAGE_KEY, JSON.stringify(out));
+  } catch {
+    // Quota or serialization failure — the cache is an optimisation, not state.
+  }
+}
+
+/**
+ * Real pedestrian route between two points, or the corrected straight-line
+ * estimate when the lookup fails (`real: false`, so callers can say which one
+ * the rider is looking at rather than passing a guess off as a measurement).
+ */
 export async function fetchWalkingPath(from: [number, number], to: [number, number]): Promise<WalkingPathResult> {
-  const key = `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+  loadPersistedWalkCache();
+  const key = walkCacheKey(from, to);
   const cached = walkingCache.get(key);
   if (cached) return cached;
+  const pending = walkingInFlight.get(key);
+  if (pending) return pending;
 
-  try {
-    // Lazy import keeps this module free of api.ts's Vite-only globals
-    // (import.meta.env), so the router stays importable from Node test harnesses.
-    const { api } = await import('./api');
-    const data = await api.getWalkingRoute(from, to);
-    const route = data.data;
-    if (data.success && route && route.coordinates.length >= 2) {
-      const result: WalkingPathResult = {
-        coordinates: route.coordinates,
-        distance: route.distance,
-        time: route.time,
-      };
-      walkingCache.set(key, result);
-      return result;
+  const request = (async (): Promise<WalkingPathResult> => {
+    try {
+      // Lazy import keeps this module free of api.ts's Vite-only globals
+      // (import.meta.env), so the router stays importable from Node test harnesses.
+      const { api } = await import('./api');
+      const data = await api.getWalkingRoute(from, to);
+      const route = data.data;
+      if (data.success && route && route.coordinates.length >= 2) {
+        const result: WalkingPathResult = {
+          coordinates: route.coordinates,
+          distance: route.distance,
+          time: route.time,
+          real: true,
+        };
+        walkingCache.set(key, result);
+        walkingCacheDirty = true;
+        return result;
+      }
+    } catch (error) {
+      console.warn('[Router] Failed to fetch walking path from API:', error);
     }
-  } catch (error) {
-    console.warn('[Router] Failed to fetch walking path from API:', error);
-  }
 
-  // Fallback to straight line
-  const distance = getDistance(from, to);
-  return {
-    coordinates: [from, to],
-    distance,
-    time: distance / WALK_SPEED_M_PER_MINUTE,
-  };
+    // Estimate: the same pavement-corrected straight line the search used, so a
+    // failed lookup leaves the itinerary consistent instead of shrinking one leg
+    // back to a distance nobody can walk. Not cached — the next search should
+    // try again rather than inherit the failure.
+    const distance = walkMeters(getDistance(from, to));
+    return {
+      coordinates: [from, to],
+      distance,
+      time: distance / WALK_SPEED_M_PER_MINUTE,
+      real: false,
+    };
+  })().finally(() => {
+    walkingInFlight.delete(key);
+  });
+
+  walkingInFlight.set(key, request);
+  return request;
 }
+
+/**
+ * Resolves `jobs` with at most `limit` requests on the wire at a time. The pass
+ * used to fire every leg of every plan at once — dozens of parallel requests to
+ * one public routing service, which is both rude and slower than a short queue
+ * once the service starts shedding them.
+ */
+async function runBounded<T>(
+  jobs: Array<() => Promise<T>>,
+  limit: number,
+  stillWanted?: () => boolean
+): Promise<void> {
+  let next = 0;
+  const workers = new Array(Math.min(limit, jobs.length)).fill(0).map(async () => {
+    while (next < jobs.length) {
+      // A newer search has replaced these itineraries: stop dispatching. The
+      // queue is shared with that search, so finishing a discarded one does not
+      // just waste requests on a public service, it delays the answer the rider
+      // is now waiting for.
+      if (stillWanted && !stillWanted()) return;
+      const job = jobs[next++];
+      await job();
+    }
+  });
+  await Promise.all(workers);
+}
+
+/** Concurrent pedestrian lookups. One public router, one short queue. */
+const WALK_FETCH_CONCURRENCY = 6;
 
 export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
   const fromStop = uniqueStops.get(fromCode);
@@ -1627,17 +1969,9 @@ export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
 }
 
 /**
- * Replace each straight-line walk leg with a real OSRM pedestrian route
- * (geometry + distance + time), then recompute plan totals and re-rank — the
- * initial search uses straight-line estimates, so the shown answer is only
- * accurate after this pass. Shared by the website and mobile planners so both
- * get identical walking. Tunnel transfers keep their straight geometry.
- * Mutates `plans` in place and returns it.
- */
-/**
  * Re-runs the schedule annotations over a plan whose step times changed (the
- * walking-geometry pass), so clock times, waits and window labels stay in sync
- * with the itinerary actually being shown.
+ * walking pass), so clock times, waits and window labels stay in sync with the
+ * itinerary actually being shown.
  */
 function reannotatePlanSchedule(plan: JourneyPlan, schedule: ScheduleContext): void {
   let cursor = schedule.clock.departMinute;
@@ -1654,31 +1988,67 @@ function reannotatePlanSchedule(plan: JourneyPlan, schedule: ScheduleContext): v
   summarizeSchedule(plan, schedule.clock);
 }
 
-export async function enrichWalkingGeometries(
+/**
+ * Turns the candidate pool into the itineraries the rider keeps (§5.6.4).
+ *
+ * Every walk leg — access, transfer, egress — is replaced by a real pedestrian
+ * route from OSRM; the totals, the clock times and the schedule annotations are
+ * recomputed from them; the plans are re-validated against the same limits the
+ * search applied to its estimates; and only then are they ranked and cut to the
+ * four that are shown.
+ *
+ * That ordering is the point. The old pass refined the walking of an itinerary
+ * list that had *already* been cut to four on straight-line distances, so it
+ * could reorder four plans but never recover the one it should have kept, and
+ * the walk-distance limit it re-crossed was never re-checked. Real pavement
+ * runs a median 1.33× the straight line and up to 6× on a short mid-block hop,
+ * which is more than enough to change the answer.
+ *
+ * Mutates `plans` in place — the array is truncated to the display limit — and
+ * returns it, so callers holding the reference keep the itineraries on screen.
+ */
+export async function resolveWalkingLegs(
   plans: JourneyPlan[],
   sortBy?: 'transfers' | 'time' | 'walk',
-  departAt?: PlanTime
+  departAt?: PlanTime,
+  /** Returns false once these itineraries have been superseded, so the pass can
+   *  stop queueing pedestrian lookups instead of racing the search that replaced
+   *  it for the same six connections. Legs already fetched are still applied. */
+  stillWanted?: () => boolean
 ): Promise<JourneyPlan[]> {
-  const jobs: Promise<void>[] = [];
+  const pending: Array<{ step: JourneyStep; from: [number, number]; to: [number, number] }> = [];
   for (const plan of plans) {
     for (const step of plan.steps) {
-      if (step.type !== 'walk' || !step.path || step.path.length !== 2) continue;
+      if (step.type !== 'walk') continue;
+      if (step.walkSource === 'osrm') continue;
       if (isTunnelTransfer(step.fromCode, step.toCode)) {
         step.isTunnel = true;
+        step.walkSource = 'tunnel';
         continue;
       }
-      const [from, to] = step.path;
-      jobs.push(
-        fetchWalkingPath(from, to).then((res) => {
-          step.path = res.coordinates;
-          step.distance = res.distance;
-          step.time = res.time;
-        })
-      );
+      // Endpoints are carried on the step: after a first pass `path` is a real
+      // route and its endpoints are no longer the two points to route between.
+      const ends = step.walkStraightLine ?? (step.path && step.path.length === 2 ? [step.path[0], step.path[1]] as [[number, number], [number, number]] : undefined);
+      if (!ends) continue;
+      pending.push({ step, from: ends[0], to: ends[1] });
     }
   }
-  if (jobs.length === 0) return plans;
-  await Promise.all(jobs);
+
+  if (pending.length > 0) {
+    await runBounded(
+      pending.map(({ step, from, to }) => async () => {
+        const result = await fetchWalkingPath(from, to);
+        step.path = result.coordinates;
+        step.distance = result.distance;
+        step.time = result.time;
+        step.walkStraightLine = [from, to];
+        step.walkSource = result.real ? 'osrm' : 'estimate';
+      }),
+      WALK_FETCH_CONCURRENCY,
+      stillWanted
+    );
+    persistWalkCache();
+  }
 
   // Real walking times shift every downstream boarding, so the schedule
   // annotations are recomputed here (not just the totals) — otherwise a card
@@ -1688,12 +2058,25 @@ export async function enrichWalkingGeometries(
   const schedule = departAt ? createScheduleContext(departAt, false) : null;
   for (const plan of plans) {
     plan.walkDistance = Math.round(plan.steps.reduce((sum, s) => sum + (s.type === 'walk' ? s.distance : 0), 0));
+    plan.walkEstimated = plan.steps.some((s) => s.type === 'walk' && s.walkSource === 'estimate') || undefined;
     if (schedule && plan.departMinute !== undefined) {
       reannotatePlanSchedule(plan, schedule);
     } else {
       plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
     }
   }
+
+  // Re-apply the search's own walking limit now that the metres are real. A plan
+  // whose estimated 2.2 km of walking turned out to be 3.4 km is the itinerary
+  // the limit exists to reject — but only while something else survives, since
+  // "no routes" is a worse answer than a long walk honestly labelled.
+  const walkable = plans.filter((plan) => plan.walkDistance <= WALK_ONLY_FALLBACK_MAX_M);
+  if (walkable.length > 0 && walkable.length < plans.length) {
+    plans.length = 0;
+    plans.push(...walkable);
+  }
+
   sortJourneyPlans(plans, sortBy);
+  plans.splice(PLAN_DISPLAY_LIMIT);
   return plans;
 }
