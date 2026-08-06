@@ -8,11 +8,15 @@
  * a rider who fires the mic twice does not fetch it twice.
  */
 
-import type { VoiceIndex, VoiceRouteGeo } from '@shared/types/voice';
+import type { VoiceIndex, VoiceRouteGeo, VoiceStopIndex } from '@shared/types/voice';
 
 // The index is small enough to go through Vite like the other bundled datasets,
 // so it is fingerprinted and resolved identically in dev and in the APK.
 import voiceIndexUrl from '../generated/voice_index.json?url';
+// The stop → routes index (565 KB) goes through Vite the same way but is fetched
+// only when a stop question is actually asked: it is worth nothing to the route
+// questions, which are the ones on the ~1.5 s budget.
+import voiceStopsUrl from '../generated/voice_stops.json?url';
 
 /**
  * Shards are NOT part of the module graph — 776 files would be 776 build inputs
@@ -24,6 +28,7 @@ import voiceIndexUrl from '../generated/voice_index.json?url';
 const SHARD_BASE = import.meta.env.DEV ? '/src/generated/voice' : '/voice';
 
 let indexPromise: Promise<VoiceIndex> | null = null;
+let stopsPromise: Promise<VoiceStopIndex> | null = null;
 const shards = new Map<string, Promise<VoiceRouteGeo | null>>();
 
 export function loadVoiceIndex(): Promise<VoiceIndex> {
@@ -42,6 +47,22 @@ export function loadVoiceIndex(): Promise<VoiceIndex> {
       });
   }
   return indexPromise;
+}
+
+/** Stop → routes (spec §5.9 `paradas`). Same un-pinned failure rule as the index. */
+export function loadVoiceStops(): Promise<VoiceStopIndex> {
+  if (!stopsPromise) {
+    stopsPromise = fetch(voiceStopsUrl)
+      .then((response) => {
+        if (!response.ok) throw new Error(`voice_stops ${response.status}`);
+        return response.json() as Promise<VoiceStopIndex>;
+      })
+      .catch((error) => {
+        stopsPromise = null;
+        throw error;
+      });
+  }
+  return stopsPromise;
 }
 
 /**

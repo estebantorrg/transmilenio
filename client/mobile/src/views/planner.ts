@@ -124,6 +124,13 @@ async function searchAddresses(query: string): Promise<Endpoint[]> {
 export interface PlannerView extends View {
   /** Fill one endpoint from elsewhere in the app (a place sheet's "Desde aquí"). */
   seedEndpoint: (role: 'origin' | 'destination', ep: Endpoint) => void;
+  /**
+   * Run the search as if "Buscar ruta" were tapped. Exists for the voice flow
+   * (spec §5.9 `viaje`), which arrives with both endpoints already known: the
+   * rider said them, and making them tap the button they just spoke past is the
+   * kind of friction that stops a voice feature being used twice.
+   */
+  search: () => void;
 }
 
 /**
@@ -694,6 +701,12 @@ export function createPlannerView(): PlannerView {
       results.replaceChildren();
       resultsHead.classList.add('hidden');
       renderTrips();
+    },
+    search: () => {
+      // Through the button, not around it: `calc`'s handler owns validation, the
+      // busy state, the router warm-up and the error path. A second entry point
+      // into the search would be a second copy of all of that (spec §1.1 R2).
+      if (!calc.disabled) calc.click();
     },
   };
 }

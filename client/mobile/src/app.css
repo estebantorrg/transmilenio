@@ -800,6 +800,17 @@ input { font-family: inherit; }
 }
 .voz-chip:active { transform: scale(0.96); }
 
+/* The example questions (spec §5.9). Tapping one runs the same pipeline the mic
+   feeds, so this doubles as the feature's documentation and as a way to use it on
+   a device whose recognizer never opens. */
+.voz-examples { display: flex; flex-direction: column; gap: 7px; width: 100%; margin-top: 4px; }
+.voz-examples-head { font-size: 13px; color: var(--muted-2); text-align: left; margin-bottom: 2px; }
+.voz-example {
+  border: 1px solid var(--border); background: var(--surface-2, var(--surface)); color: var(--text);
+  border-radius: var(--radius-sm); padding: 11px 14px; font-size: 14px; text-align: left; line-height: 1.35;
+}
+.voz-example:active { transform: scale(0.99); border-color: var(--red-2); }
+
 .voz-pulse { display: flex; align-items: flex-end; gap: 6px; height: 42px; }
 .voz-pulse span { width: 7px; border-radius: 4px; background: var(--red-2); height: 12px; }
 .voz-pulse.listening span { animation: voz-bounce 0.9s ease-in-out infinite; }

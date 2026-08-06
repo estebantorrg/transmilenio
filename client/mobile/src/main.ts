@@ -200,6 +200,20 @@ async function main(): Promise<void> {
       navigate('planner');
       if (seed) planner.seedEndpoint(seed.role, { coord: seed.coord, code: seed.code, name: seed.name });
     },
+    planTrip: (trip) => {
+      navigate('planner');
+      if (trip.origin) planner.seedEndpoint('origin', { coord: trip.origin.coord, name: trip.origin.name });
+      // Destination last: `seedEndpoint` clears the previous answer, so seeding in
+      // this order leaves the form complete before the search runs.
+      planner.seedEndpoint('destination', {
+        coord: trip.destination.coord,
+        code: trip.destination.code,
+        name: trip.destination.name,
+      });
+      // Only search when both ends are known — with no fix the planner shows the
+      // seeded destination and its own "elige el origen" affordances instead.
+      if (trip.origin) planner.search();
+    },
     openLine: (letter: string) => {
       navigate('rutas');
       rutas.setLine(letter);

@@ -18,6 +18,17 @@ export interface AppContext {
    * endpoint and any previous answer survive the trip.
    */
   openPlanner: (seed?: { role: 'origin' | 'destination'; coord: [number, number]; code?: string; name: string }) => void;
+  /**
+   * Plan a trip the rider described out loud (spec §5.9 `viaje`): seed both
+   * endpoints and run the search, so "¿cómo llego a la Calle 100?" lands on
+   * itineraries instead of on a form with two empty fields. Separate from
+   * {@link openPlanner}, which seeds one endpoint and deliberately waits for the
+   * rider to fill the other.
+   */
+  planTrip: (trip: {
+    destination: { coord: [number, number]; code?: string; name: string };
+    origin?: { coord: [number, number]; name: string } | null;
+  }) => void;
   /** Jump to the Rutas tab filtered to a troncal line (Explora por línea). */
   openLine: (letter: string) => void;
   /** Jump to the Rutas tab filtered to a SITP numeric zone (1–13). */

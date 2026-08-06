@@ -24,7 +24,8 @@ import { openSheet, type SheetHandle } from '../ui/sheet';
 import { bus, state } from '../state';
 import { app } from '../appContext';
 import { cancelListening, installVoiceData, onVoicePartial, onVoiceState, stopSpeaking } from '../voice/bridge';
-import { MIC_FAILURES, runVoiceSession, type VoiceProgress } from '../voice/session';
+import { MIC_FAILURES, runVoiceSession, type VoiceAction, type VoiceProgress } from '../voice/session';
+import { VOICE_EXAMPLES } from '@shared/services/voiceAnswer';
 
 let openHandle: SheetHandle | null = null;
 
@@ -105,10 +106,15 @@ export function openVoice(code: string | null = null): void {
   // the rider also needs the way out of it (spec §4.2), and "búscala en la app"
   // is not an instruction anyone should have to follow by hand.
   const searchInstead = h('button', { class: 'btn btn-ghost hidden', type: 'button', text: 'Buscar la ruta en la app' });
-  // Sub-threshold readings, offered as taps. Nothing here is ever *answered* on
-  // the strength of the reading alone (spec §1) — one tap is what turns "no te
-  // entendí" into the answer the rider asked for.
+  // Route códigos offered as taps: either a reading too weak to answer (nothing is
+  // ever *answered* on the strength of one, spec §1) or the routes serving the stop
+  // the rider just asked about. Either way one tap is what turns a half-answer into
+  // the live ETA they were after.
   const suggestions = h('div', { class: 'voz-chips hidden' });
+  // What this thing can be asked. A voice surface has no menu, so the only way a
+  // rider learns it does more than one thing is being shown — on "¿qué puedes
+  // hacer?" and on anything that resolved to nothing.
+  const examples = h('div', { class: 'voz-examples hidden' });
   const actions = h('div', { class: 'voz-actions' }, [again, openRoute, installVoice, searchInstead]);
 
   // One per question. Closing the overlay (or asking again) abandons the one in
@@ -123,6 +129,16 @@ export function openVoice(code: string | null = null): void {
    * what "the app won't let me talk" looks like from the rider's side.
    */
   let round = 0;
+  /** A question that arrived as text (a tapped example) rather than as speech. */
+  let typed: string | null = null;
+  /**
+   * The stop the last answer was about.
+   *
+   * Handed back with the next question so the two are one conversation: after "¿qué
+   * buses pasan por Banderas?", tapping F19 answers *at Banderas* rather than asking
+   * the rider where they are (spec §5.9).
+   */
+  let anchorStop: string | null = null;
 
   const sheet = openSheet({
     full: true,
@@ -151,6 +167,7 @@ export function openVoice(code: string | null = null): void {
     detail,
     sentence,
     suggestions,
+    examples,
     actions,
   ]);
   panel.setAttribute('role', 'status');
@@ -186,7 +203,7 @@ export function openVoice(code: string | null = null): void {
     sentence.textContent = answer.written;
   };
 
-  /** Offer the weak readings as taps. Tapping one asks that route outright. */
+  /** Offer códigos as taps. Tapping one asks that route outright. */
   const showSuggestions = (codes: string[]): void => {
     suggestions.textContent = '';
     suggestions.classList.toggle('hidden', codes.length === 0);
@@ -198,6 +215,53 @@ export function openVoice(code: string | null = null): void {
       });
       suggestions.append(chip);
     }
+  };
+
+  /**
+   * The example questions.
+   *
+   * Not decoration and not a static list: each one is a real utterance, so tapping
+   * it runs the same pipeline the microphone feeds. That makes the examples both
+   * the documentation and a keyboard-free way to use the feature on a device whose
+   * recognizer will not open at all (spec §4.2, §1.1 R5).
+   */
+  const showExamples = (visible: boolean): void => {
+    examples.textContent = '';
+    examples.classList.toggle('hidden', !visible);
+    if (!visible) return;
+    examples.append(h('div', { class: 'voz-examples-head', text: 'Prueba con:' }));
+    for (const example of VOICE_EXAMPLES) {
+      const item = h('button', { class: 'voz-example', type: 'button', text: example });
+      on(item, 'click', () => askText(example));
+      examples.append(item);
+    }
+  };
+
+  /** Run a typed/tapped question through the same pipeline as a spoken one. */
+  const askText = (utterance: string): void => {
+    typed = utterance;
+    code = null;
+    ask();
+  };
+
+  /**
+   * Perform the command intents. The session computes and composes; navigation
+   * belongs here, where the sheet, the focus and the tab bar are owned.
+   *
+   * The navigation happens **behind** the overlay, as soon as the answer lands, and
+   * the sheet closes only once the sentence has been read (below). Closing first
+   * would stop the speech mid-word — `onClose` owns `stopSpeaking` — and waiting for
+   * the speech first left the rider watching a finished answer for the several
+   * seconds it takes to say. This way the planner is already computing while the
+   * sentence plays, and the rider is looking at it when the words end.
+   */
+  const runAction = (action: VoiceAction | null): void => {
+    if (!action || openHandle !== sheet) return;
+    if (action.kind === 'saldo') {
+      app().navigate('saldo');
+      return;
+    }
+    app().planTrip({ destination: action.destination, origin: action.origin });
   };
 
   /**
@@ -254,6 +318,9 @@ export function openVoice(code: string | null = null): void {
     again.disabled = false;
     if (progress.answer) showAnswer(progress.answer);
     if (progress.suggestions) showSuggestions(progress.suggestions);
+    if (progress.showExamples !== undefined) showExamples(progress.showExamples);
+    if (progress.anchor !== undefined) anchorStop = progress.anchor;
+    runAction(progress.action ?? null);
     // Every affordance that does NOT depend on how the speaking went belongs
     // here too, for the same reason the words do: the session promise only
     // settles once TTS has finished (or given up), and a rider whose mic is
@@ -270,16 +337,19 @@ export function openVoice(code: string | null = null): void {
     headline.textContent = '';
     detail.textContent = '';
     sentence.textContent = '';
-    heard.textContent = '';
+    heard.textContent = typed || '';
     answeredCode = null;
     openRoute.classList.add('hidden');
     installVoice.classList.add('hidden');
     searchInstead.classList.add('hidden');
     showSuggestions([]);
+    showExamples(false);
     again.disabled = true;
-    listening = !code;
-    status.textContent = code ? 'Buscando…' : 'Abriendo el micrófono…';
-    pulse.className = code ? 'voz-pulse working' : 'voz-pulse listening';
+    // A código or a typed question needs no microphone at all.
+    const silentStart = Boolean(code) || Boolean(typed);
+    listening = !silentStart;
+    status.textContent = silentStart ? 'Buscando…' : 'Abriendo el micrófono…';
+    pulse.className = silentStart ? 'voz-pulse working' : 'voz-pulse listening';
 
     // The previous question is abandoned before this one starts, and this one
     // starts behind any outstanding mic release (see `micIdle`).
@@ -287,10 +357,17 @@ export function openVoice(code: string | null = null): void {
     abort = new AbortController();
     const signal = abort.signal;
     const asked = code;
+    const askedText = typed;
+    // The anchor follows a tap, never a fresh spoken question: someone who opens
+    // the mic again may well have walked to another paradero.
+    const askedAnchor = asked || askedText ? anchorStop : null;
+    typed = null; // consumed: "Preguntar otra vez" always means out loud
     void micIdle.then(() => {
       if (openHandle !== sheet || forRound !== round) return;
       return runVoiceSession({
         code: asked,
+        utterance: askedText,
+        stopHint: askedAnchor,
         onProgress: (progress) => onProgress(progress, forRound),
         signal,
       }).then((result) => {
@@ -304,6 +381,10 @@ export function openVoice(code: string | null = null): void {
         // The one thing that genuinely had to wait for the speaker: a device with
         // no Spanish voice is only known once a sentence has been handed to it.
         installVoice.classList.toggle('hidden', result.spoke !== 'sin-voz');
+        // The sentence has been read and the app is already where the rider asked to
+        // go (see `runAction`) — so get out of the way. Nothing is cut off, and
+        // nobody has to dismiss a screen whose job is done.
+        if (result.action) sheet.close();
       });
     });
   };
