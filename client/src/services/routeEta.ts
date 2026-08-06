@@ -93,6 +93,12 @@ export type EtaVerdict =
   | 'alcanzas'
   /** It passes before the rider can walk there. */
   | 'no-alcanzas'
+  /**
+   * A bus is inbound but there is no walk to compare it against — the rider named
+   * the stop instead of being near it ("¿cuánto falta el F19 en Banderas?"), so
+   * the ETA is a fact and "sal ya" would be an invention.
+   */
+  | 'llega'
   /** Route is running but no bus is inbound to this stop on this direction. */
   | 'sin-buses';
 
@@ -102,14 +108,19 @@ export interface RouteEtaDirection {
   destination: string;
   stopCode: string;
   stopName: string;
-  walkMeters: number;
-  walkMinutes: number;
+  /** `null` when the stop was named rather than walked to (no position). */
+  walkMeters: number | null;
+  walkMinutes: number | null;
   /** `null` when no live bus is inbound — never 0 as a stand-in. */
   etaMinutes: number | null;
   /** Along-track metres from the nearest inbound bus to the stop. */
   distanceMeters: number | null;
   busCount: number;
   verdict: EtaVerdict;
+  /** The rider named this direction ("hacia Portal Suba") — it is answered first. */
+  asked: boolean;
+  /** The stop was named by the rider rather than found by proximity. */
+  namedStop: boolean;
 }
 
 export type RouteEtaVerdict =
@@ -120,6 +131,8 @@ export type RouteEtaVerdict =
   | 'lejos'
   /** Route is in the index but shipped no usable trace. */
   | 'sin-geometria'
+  /** No position and no stop named, so "how close" has no anchor at all. */
+  | 'sin-ubicacion'
   | 'fuera-de-servicio'
   | 'cerrado-hoy';
 
@@ -271,6 +284,51 @@ export function checkRouteService(route: VoiceIndexRoute, now: PlanTime): RouteS
   };
 }
 
+/**
+ * The route's day, for the timetable question ("¿a qué hora abre el F19?",
+ * "¿pasa los domingos?").
+ *
+ * Answerable from the index alone — no geometry, no position, no live call — which
+ * is why the voice flow can answer it in milliseconds with the phone in airplane
+ * mode (spec §5.9). `windows` is clipped to the plan day, so a service that runs
+ * past midnight reports today's share of it rather than a range no rider would
+ * recognise.
+ */
+export interface RouteServiceDay extends RouteServiceState {
+  /** Operating windows on the plan day, `[start, end]` minutes from midnight. */
+  windows: Array<[number, number]>;
+  /** First opening today, `null` when it does not run today at all. */
+  firstMinute: number | null;
+  /** Last service today, `null` likewise. */
+  lastMinute: number | null;
+  /** Total operating minutes today — how long a service it is. */
+  minutesToday: number;
+}
+
+export function describeRouteDay(route: VoiceIndexRoute, now: PlanTime): RouteServiceDay {
+  const state = checkRouteService(route, now);
+  const spans = routeSpans(route);
+  if (!spans || spans.length === 0) {
+    return { ...state, windows: [], firstMinute: null, lastMinute: null, minutesToday: 0 };
+  }
+
+  const intervals = serviceIntervals(spans, createServiceClock(now));
+  const windows: Array<[number, number]> = [];
+  for (let i = 0; i < intervals.length; i += 2) {
+    const start = Math.max(intervals[i], 0);
+    const end = Math.min(intervals[i + 1], MINUTES_PER_DAY);
+    if (end > start) windows.push([start, end]);
+  }
+
+  return {
+    ...state,
+    windows,
+    firstMinute: windows.length > 0 ? windows[0][0] : null,
+    lastMinute: windows.length > 0 ? windows[windows.length - 1][1] : null,
+    minutesToday: serviceMinutesOnPlanDay(intervals),
+  };
+}
+
 // ─── ETA ──────────────────────────────────────────────────
 
 function nearestStop(stops: VoiceStop[], userPos: [number, number]): { stop: VoiceStop; meters: number } | null {
@@ -280,6 +338,50 @@ function nearestStop(stops: VoiceStop[], userPos: [number, number]): { stop: Voi
     if (best === null || meters < best.meters) best = { stop, meters };
   }
   return best;
+}
+
+/** Accent/case-folded words of a name, short connectors dropped. */
+function nameTokens(value: string): string[] {
+  return String(value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter((token) => token.length > 2 || /^\d+$/.test(token));
+}
+
+/**
+ * The stop on this direction that the rider named, or null.
+ *
+ * Deliberately strict — **every** word of the hint has to appear in the stop's
+ * name. A hint is a fragment of free-form speech ("en la calle 100"), and a loose
+ * match here would silently answer about a different stop, which is worse than
+ * falling back to the GPS anchor. The score breaks ties toward the shortest name,
+ * so "Calle 100" wins over "Calle 100 - Autopista" for the same hint.
+ */
+export function matchStopByName(stops: VoiceStop[], hint: string): VoiceStop | null {
+  const needle = nameTokens(hint);
+  if (needle.length === 0) return null;
+  let best: { stop: VoiceStop; length: number } | null = null;
+  for (const stop of stops) {
+    const haystack = nameTokens(String(stop[1] ?? ''));
+    if (haystack.length === 0) continue;
+    if (!needle.every((token) => haystack.includes(token))) continue;
+    const length = haystack.length;
+    if (best === null || length < best.length) best = { stop, length };
+  }
+  return best?.stop ?? null;
+}
+
+/** Does this direction head where the rider said ("hacia Portal Suba")? */
+function matchesDirection(meta: { origin?: string; destination?: string } | undefined, hint: string): boolean {
+  const needle = nameTokens(hint);
+  if (needle.length === 0 || !meta) return false;
+  const haystack = nameTokens(String(meta.destination ?? ''));
+  if (haystack.length === 0) return false;
+  return needle.every((token) => haystack.includes(token));
 }
 
 /** Nearest inbound bus to `stopAlong`, or null when none is on-route and before it. */
@@ -312,8 +414,11 @@ function inboundBuses(
   return { remainingMeters: bestRemaining, count: approaching };
 }
 
-function etaVerdict(etaMinutes: number | null, walk: number): EtaVerdict {
+function etaVerdict(etaMinutes: number | null, walk: number | null): EtaVerdict {
   if (etaMinutes === null) return 'sin-buses';
+  // No walk to race: state the arrival and nothing more (spec §1 — the walk
+  // clause is only said when it is known).
+  if (walk === null) return 'llega';
   if (etaMinutes + CATCH_MARGIN_MINUTES < walk) return 'no-alcanzas';
   if (etaMinutes <= walk + SAL_YA_SLACK_MINUTES) return 'sal-ya';
   return 'alcanzas';
@@ -321,15 +426,25 @@ function etaVerdict(etaMinutes: number | null, walk: number): EtaVerdict {
 
 /** Most actionable first: a bus you can catch, soonest; then the one you can't;
  *  then directions with nothing running. */
-const VERDICT_RANK: Record<EtaVerdict, number> = { 'sal-ya': 0, alcanzas: 0, 'no-alcanzas': 1, 'sin-buses': 2 };
+const VERDICT_RANK: Record<EtaVerdict, number> = {
+  'sal-ya': 0,
+  alcanzas: 0,
+  llega: 0,
+  'no-alcanzas': 1,
+  'sin-buses': 2,
+};
 
 function compareDirections(a: RouteEtaDirection, b: RouteEtaDirection): number {
+  // A direction the rider named outranks everything: they told us which way they
+  // are going, so answering the other one first is answering a question nobody
+  // asked.
+  if (a.asked !== b.asked) return a.asked ? -1 : 1;
   const rank = VERDICT_RANK[a.verdict] - VERDICT_RANK[b.verdict];
   if (rank !== 0) return rank;
   if (a.etaMinutes !== null && b.etaMinutes !== null && a.etaMinutes !== b.etaMinutes) {
     return a.etaMinutes - b.etaMinutes;
   }
-  return a.walkMeters - b.walkMeters;
+  return (a.walkMeters ?? Infinity) - (b.walkMeters ?? Infinity);
 }
 
 export interface RouteEtaInput {
@@ -340,11 +455,21 @@ export interface RouteEtaInput {
   geo: VoiceRouteGeo | null;
   /** Live vehicles for this route (any tier's payload shape). */
   buses: unknown[];
-  /** Rider position as `[lng, lat]`. */
-  userPos: [number, number];
+  /**
+   * Rider position as `[lng, lat]`, or null when there is no usable fix.
+   *
+   * Null is a first-class case, not a failure: a rider who named the stop
+   * ({@link stopHint}) does not need one, which is what makes the feature work
+   * indoors, with location denied, or on a phone whose newest fix is hours old.
+   */
+  userPos: [number, number] | null;
   /** Bogotá wall clock — pass `bogotaNow()`; never read here, so this is testable. */
   now: PlanTime;
   maxAccessMeters?: number;
+  /** A stop the rider named ("el F19 en Banderas"). Used only if it matches. */
+  stopHint?: string;
+  /** A direction the rider named ("hacia Portal Suba"). Used only if it matches. */
+  dirHint?: string;
 }
 
 /**
@@ -360,6 +485,8 @@ export interface RouteEtaInput {
  */
 export function computeRouteEta(input: RouteEtaInput): RouteEtaAnswer {
   const { code, index, geo, buses, userPos, now } = input;
+  const stopHint = input.stopHint?.trim() ?? '';
+  const dirHint = input.dirHint?.trim() ?? '';
   const maxAccess = input.maxAccessMeters ?? ACCESS_MAX_M;
   const type: 'troncal' | 'zonal' = index.tipo === 'z' ? 'zonal' : 'troncal';
   const speed = type === 'troncal' ? TRONCAL_SPEED_M_PER_MIN : ZONAL_SPEED_M_PER_MIN;
@@ -381,41 +508,63 @@ export function computeRouteEta(input: RouteEtaInput): RouteEtaAnswer {
   const directions: RouteEtaDirection[] = [];
   let nearest: RouteEtaAnswer['nearest'] = null;
 
+  // A stop the rider named beats a stop we guessed from a fix — they are telling
+  // us where they will board. It also carries the whole answer when there is no
+  // position at all.
+  let anchored = false;
+
   for (const [dir, dirGeo] of Object.entries(geoDirs)) {
     const stops = dirGeo.stops || [];
     if (stops.length === 0) continue;
 
-    const near = nearestStop(stops, userPos);
-    if (!near) continue;
-    if (nearest === null || near.meters < nearest.meters) {
+    const named = stopHint ? matchStopByName(stops, stopHint) : null;
+    const near = userPos ? nearestStop(stops, userPos) : null;
+    if (near && (nearest === null || near.meters < nearest.meters)) {
       nearest = { code: String(near.stop[0]), name: String(near.stop[1]), meters: Math.round(near.meters) };
     }
-    if (near.meters > maxAccess) continue;
+
+    const stop = named ?? near?.stop ?? null;
+    if (!stop) continue;
+    if (named) anchored = true;
+    // Only the proximity anchor has an access radius. A rider who says the stop's
+    // name has answered the "are you near it?" question themselves — refusing
+    // because their phone thinks they are 4 km away (or has no idea) would be the
+    // app overruling them with worse information.
+    else if (near && near.meters > maxAccess) continue;
 
     const meta = index.dirs?.[dir];
     const paths = traceToPaths(dirGeo.trazado);
-    const stopProj = paths.length > 0 ? projectOntoPaths(paths, near.stop[2], near.stop[3]) : null;
+    const stopProj = paths.length > 0 ? projectOntoPaths(paths, stop[2], stop[3]) : null;
     // The stop's own `posicion` is deliberately not used as the along-track
     // anchor: it is the operator's chainage on the FULL trace, while buses are
     // projected onto the shipped simplified one. Mixing the two scales would
     // bias every ETA by the simplification error instead of cancelling it.
     const inbound = stopProj ? inboundBuses(paths, stopProj.along, buses) : null;
 
-    const walk = walkMinutes(near.meters);
+    // The walk is to the stop being answered about, which is the named one when
+    // there is one — a rider standing 200 m from Banderas who asks about Banderas
+    // still gets "estás a 3 minutos caminando". Beyond the access radius it is
+    // dropped rather than reported: "estás a 178 minutos caminando" is not the
+    // walk to a stop, it is a rider asking about somewhere they are not.
+    const rawWalk = userPos ? haversineMeters(userPos, [stop[2], stop[3]]) : null;
+    const walkMeters = rawWalk !== null && rawWalk <= maxAccess ? rawWalk : null;
+    const walk = walkMeters === null ? null : walkMinutes(walkMeters);
     const etaMinutes = inbound ? Math.round(inbound.remainingMeters / speed) : null;
 
     directions.push({
       dir,
       origin: meta?.origin || '',
       destination: meta?.destination || index.nombre || code,
-      stopCode: String(near.stop[0]),
-      stopName: String(near.stop[1]),
-      walkMeters: Math.round(near.meters),
+      stopCode: String(stop[0]),
+      stopName: String(stop[1]),
+      walkMeters: walkMeters === null ? null : Math.round(walkMeters),
       walkMinutes: walk,
       etaMinutes,
       distanceMeters: inbound ? Math.round(inbound.remainingMeters) : null,
       busCount: inbound?.count ?? 0,
       verdict: etaVerdict(etaMinutes, walk),
+      asked: dirHint ? matchesDirection(meta, dirHint) : false,
+      namedStop: named !== null,
     });
   }
 
@@ -427,14 +576,23 @@ export function computeRouteEta(input: RouteEtaInput): RouteEtaAnswer {
   // stop no bus will reach. It also holds when the live feed still shows a
   // vehicle: those are deadheading buses finishing a run, not a boardable
   // service. Any reachable directions ride along so the UI can still draw them.
+  // When the rider named a stop, every answered direction is about that stop.
+  // Letting one direction fall back to a proximity anchor would silently answer
+  // about somewhere else in the same breath.
+  const answered = anchored ? directions.filter((dir) => dir.namedStop) : directions;
+
   if (service.verdict === 'cerrado-hoy' || service.verdict === 'fuera-de-servicio') {
-    return { ...base, verdict: service.verdict, directions, nearest };
+    return { ...base, verdict: service.verdict, directions: answered, nearest };
   }
 
-  if (directions.length === 0) {
-    return { ...base, verdict: 'lejos', directions: [], nearest };
+  if (answered.length === 0) {
+    // No stop within reach is a different answer from no anchor at all: one is
+    // "you are not near this route", the other is "I don't know where you are",
+    // and only the second is fixable by the rider naming a stop or a permission.
+    const verdict: RouteEtaVerdict = userPos === null ? 'sin-ubicacion' : 'lejos';
+    return { ...base, verdict, directions: [], nearest };
   }
 
-  const anyBus = directions.some((d) => d.etaMinutes !== null);
-  return { ...base, verdict: anyBus ? 'ok' : 'sin-buses', directions, nearest };
+  const anyBus = answered.some((d) => d.etaMinutes !== null);
+  return { ...base, verdict: anyBus ? 'ok' : 'sin-buses', directions: answered, nearest };
 }

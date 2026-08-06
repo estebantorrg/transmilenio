@@ -26,7 +26,7 @@
 import { speakClock, speakDistance, speakMinutes, speakPlace, speakRouteCode } from './voiceSpanish';
 import { formatClockMinute, MINUTES_PER_DAY } from './schedule';
 import { formatDistance } from '../utils/geo';
-import type { RouteEtaAnswer, RouteEtaDirection, RouteServiceState } from './routeEta';
+import type { RouteEtaAnswer, RouteEtaDirection, RouteServiceDay, RouteServiceState } from './routeEta';
 
 export interface VoiceAnswer {
   /** Read aloud verbatim. Letter names, spoken clock, no abbreviations. */
@@ -83,8 +83,10 @@ function arrivalPhrase(code: string, dir: RouteEtaDirection, p: Phrasing): strin
   return `${capitalize(subject(code, p))} llega a ${stop} en ${speakMinutes(dir.etaMinutes ?? 0)}`;
 }
 
-function walkPhrase(dir: RouteEtaDirection): string {
-  return `estás a ${speakMinutes(dir.walkMinutes)} caminando`;
+/** `null` when the walk is unknown — the rider named the stop instead of standing
+ *  at it, and inventing a walk would be inventing the actionable half. */
+function walkPhrase(dir: RouteEtaDirection): string | null {
+  return dir.walkMinutes === null ? null : `estás a ${speakMinutes(dir.walkMinutes)} caminando`;
 }
 
 /** "a las 4:30 de la mañana", with the day named when it is not today. */
@@ -111,13 +113,15 @@ function runningSentence(answer: RouteEtaAnswer, p: Phrasing): string {
   const secondary = withBus[1];
 
   // Both sentidos coming through the same stop: one clause each is shorter than
-  // asking the rider which direction they meant.
-  if (primary && secondary && primary.stopName === secondary.stopName) {
+  // asking the rider which direction they meant. Not when the rider already said
+  // which way they are going — that answer leads with their direction.
+  if (primary && secondary && primary.stopName === secondary.stopName && !primary.asked) {
+    const walk = walkPhrase(primary);
     return (
       `${capitalize(subject(answer.code, p))} pasa por ${p.place(primary.stopName)}: ` +
       `hacia ${p.place(primary.destination)} en ${speakMinutes(primary.etaMinutes ?? 0)}, ` +
-      `hacia ${p.place(secondary.destination)} en ${speakMinutes(secondary.etaMinutes ?? 0)}. ` +
-      `${capitalize(walkPhrase(primary))}.`
+      `hacia ${p.place(secondary.destination)} en ${speakMinutes(secondary.etaMinutes ?? 0)}.` +
+      (walk ? ` ${capitalize(walk)}.` : '')
     );
   }
 
@@ -127,15 +131,21 @@ function runningSentence(answer: RouteEtaAnswer, p: Phrasing): string {
     return `No veo buses ${subjectDe(answer.code, p)}${where} en este momento.`;
   }
 
+  const walk = walkPhrase(primary);
   const sentences: string[] = [];
-  if (primary.verdict === 'no-alcanzas') {
-    sentences.push(`${arrivalPhrase(answer.code, primary, p)}, pero ${walkPhrase(primary)}.`);
+  if (primary.verdict === 'no-alcanzas' && walk) {
+    sentences.push(`${arrivalPhrase(answer.code, primary, p)}, pero ${walk}.`);
     // Only ever stated from vehicles actually projected onto the trace.
     if (primary.busCount > 1) sentences.push(`Hay ${primary.busCount} buses en camino.`);
-  } else if (primary.verdict === 'sal-ya') {
-    sentences.push(`${arrivalPhrase(answer.code, primary, p)} y ${walkPhrase(primary)}. Sal ya.`);
+  } else if (primary.verdict === 'sal-ya' && walk) {
+    sentences.push(`${arrivalPhrase(answer.code, primary, p)} y ${walk}. Sal ya.`);
+  } else if (walk) {
+    sentences.push(`${arrivalPhrase(answer.code, primary, p)}. ${capitalize(walk)}.`);
   } else {
-    sentences.push(`${arrivalPhrase(answer.code, primary, p)}. ${capitalize(walkPhrase(primary))}.`);
+    // Named stop, no fix: the arrival is the whole answer, plus the second bus
+    // when there genuinely is one (it is what decides whether to wait).
+    sentences.push(`${arrivalPhrase(answer.code, primary, p)}.`);
+    if (primary.busCount > 1) sentences.push(`Hay ${primary.busCount} buses en camino.`);
   }
 
   if (secondary) {
@@ -145,6 +155,12 @@ function runningSentence(answer: RouteEtaAnswer, p: Phrasing): string {
     );
   }
   return sentences.join(' ');
+}
+
+/** The screen's supporting line for one direction: stop, then the walk if known. */
+function stopDetail(dir: RouteEtaDirection | undefined, fallback: string): string {
+  if (!dir) return fallback;
+  return dir.walkMinutes === null ? dir.stopName : `${dir.stopName} · ${dir.walkMinutes} min caminando`;
 }
 
 function farSentence(answer: RouteEtaAnswer, p: Phrasing): string {
@@ -205,11 +221,16 @@ export function composeRouteAnswer(answer: RouteEtaAnswer): VoiceAnswer {
         detail: answer.nearest ? `${answer.nearest.name} · a ${formatDistance(answer.nearest.meters)}` : '',
       };
 
+    case 'sin-ubicacion':
+      // The schedule half is real and offline; the missing piece is named so the
+      // rider knows what would fix it (spec §4.2).
+      return composeWithoutLocation(answer.code, answer.service);
+
     case 'sin-buses':
       return {
         ...both((p) => runningSentence(answer, p)),
         headline: `${answer.code} · sin buses`,
-        detail: primary ? `${primary.stopName} · ${primary.walkMinutes} min caminando` : answer.service.detail,
+        detail: stopDetail(primary, answer.service.detail),
       };
 
     case 'ok':
@@ -218,7 +239,7 @@ export function composeRouteAnswer(answer: RouteEtaAnswer): VoiceAnswer {
       return {
         ...both((p) => runningSentence(answer, p)),
         headline: eta === 0 ? `${answer.code} · llegando` : `${answer.code} · ${eta} min`,
-        detail: primary ? `${primary.stopName} · ${primary.walkMinutes} min caminando` : '',
+        detail: stopDetail(primary, ''),
       };
     }
   }
@@ -239,6 +260,96 @@ export function composeUnknownRoute(heard: string): VoiceAnswer {
     written: sentence,
     headline: 'No entendí la ruta',
     detail: trimmed ? `Escuché "${trimmed}"` : '',
+  };
+}
+
+/**
+ * What to say when the reading was too weak to answer but strong enough to ask
+ * about.
+ *
+ * The alternative is "no te entendí" and a rider guessing what the app can hear.
+ * Naming the candidates keeps the certainty rule intact — nothing is *answered*
+ * below `MIN_VOICE_CONFIDENCE` (spec §1) — while turning the dead end into one tap
+ * or one word. The códigos are spoken as letter names and written as códigos, same
+ * rule as every other sentence here.
+ */
+export function composeSuggestions(heard: string, codes: string[]): VoiceAnswer {
+  const shortlist = codes.slice(0, 3);
+  const build = (p: Phrasing): string => {
+    const named = shortlist.map((code) => subject(code, p));
+    const list =
+      named.length === 1 ? named[0] : `${named.slice(0, -1).join(', ')} o ${named[named.length - 1]}`;
+    return `No estoy seguro. ¿Preguntas por ${list}?`;
+  };
+  return {
+    ...both(build),
+    headline: '¿Cuál de estas?',
+    detail: heard.trim() ? `Escuché "${heard.trim()}"` : '',
+  };
+}
+
+/** "de 4:30 de la mañana a 10:00 de la noche", or the several turns of a route
+ *  that runs in peaks only. */
+function windowsPhrase(windows: Array<[number, number]>, p: Phrasing): string {
+  const spans = windows.slice(0, 3).map(([start, end]) => `de ${p.clock(start)} a ${p.clock(end)}`);
+  if (spans.length === 0) return '';
+  if (windows.length > 3) {
+    // Naming eight peak windows out loud is not an answer anyone can hold.
+    return `de ${p.clock(windows[0][0])} a ${p.clock(windows[windows.length - 1][1])}, en varios turnos`;
+  }
+  return spans.length === 1 ? spans[0] : `${spans.slice(0, -1).join(', ')} y ${spans[spans.length - 1]}`;
+}
+
+/**
+ * The timetable answer — "¿a qué hora abre el F19?", "¿pasa los domingos?".
+ *
+ * Composed off the index alone: no position, no geometry and no live call, so it
+ * is the one answer this feature can give with the phone in airplane mode and it
+ * lands in milliseconds (spec §5.9). It always states today's window *and* where
+ * the current moment sits in it, because "opera de 4:30 a 10" without "ahora está
+ * en servicio" leaves the rider doing the arithmetic that they asked us for.
+ */
+export function composeSchedule(code: string, day: RouteServiceDay): VoiceAnswer {
+  const build = (p: Phrasing): string => {
+    const who = capitalize(subject(code, p));
+    if (day.verdict === 'sin-horario') {
+      return `No tengo los horarios ${subjectDe(code, p)}, así que no puedo decirte a qué hora abre.`;
+    }
+    if (!day.runsToday || day.windows.length === 0) {
+      const opens = day.boundaryMinute;
+      const head = `${who} no presta servicio hoy.`;
+      return opens === null ? head : `${head} Vuelve a operar ${opensPhrase(opens, p)}.`;
+    }
+
+    const hours = `${who} opera hoy ${windowsPhrase(day.windows, p)}.`;
+    if (day.verdict === 'abierto') {
+      const closes = day.boundaryMinute;
+      // Saying the closing hour again right after the range reads as a stutter;
+      // it only adds something on a route with several windows, where "hasta"
+      // names which one the rider is inside.
+      return closes === null || closes === day.lastMinute
+        ? `${hours} Ahora está en servicio.`
+        : `${hours} Ahora está en servicio, hasta las ${p.clock(closes)}.`;
+    }
+    const opens = day.boundaryMinute;
+    if (day.verdict === 'fuera-de-servicio') {
+      return opens === null ? `${hours} Todavía no está en servicio.` : `${hours} Abre ${opensPhrase(opens, p)}.`;
+    }
+    // Closed for the day, but it did run today: that is a different sentence from
+    // "no opera hoy" and sends the rider to a different plan.
+    return opens === null
+      ? `${hours} Ya terminó su servicio de hoy.`
+      : `${hours} Ya terminó por hoy; abre ${opensPhrase(opens, p)}.`;
+  };
+
+  const range =
+    day.firstMinute !== null && day.lastMinute !== null
+      ? `${formatClockMinute(day.firstMinute)} – ${formatClockMinute(day.lastMinute)}`
+      : day.detail || 'Sin horario publicado';
+  return {
+    ...both(build),
+    headline: `${code} · horario`,
+    detail: day.runsToday ? range : 'No opera hoy',
   };
 }
 
@@ -308,11 +419,17 @@ export function composeWithoutLocation(code: string, service: RouteServiceState)
           ? `${who} está en servicio.`
           : `${who} está en servicio hasta las ${p.clock(closes)}.`
         : closedSentence(code, service, p);
-    return `${schedule} No sé dónde estás, así que no puedo decirte qué tan cerca viene.`;
+    // The second sentence is the way out, not an apology: naming the stop is a
+    // real path to a real ETA (`routeEta` anchors on it), and a rider has no way
+    // to discover that unless the app says so at the moment it matters.
+    return (
+      `${schedule} No sé dónde estás, así que no puedo decirte qué tan cerca viene. ` +
+      'Dime en qué parada estás y te lo calculo.'
+    );
   };
   return {
     ...both(build),
     headline: `${code} · sin ubicación`,
-    detail: service.detail || 'Activa la ubicación para ver qué tan cerca viene',
+    detail: service.detail || 'Dime la parada, o activa la ubicación',
   };
 }

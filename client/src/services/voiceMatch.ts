@@ -28,6 +28,17 @@ import type { VoiceIndex } from '../types/voice';
 /** Below this, the flow must ask rather than answer. */
 export const MIN_VOICE_CONFIDENCE = 0.5;
 
+/**
+ * Below {@link MIN_VOICE_CONFIDENCE} but worth naming out loud.
+ *
+ * "No te entendí" with nothing after it makes the rider guess what the app can
+ * hear. A reading this weak must never be *answered* — that is the certainty rule
+ * (spec §1) — but offering it as a question ("¿el F19 o el F60?") costs one tap
+ * and turns a dead end into an answer, which is the whole difference between a
+ * flow that works and one a rider gives up on.
+ */
+export const SUGGEST_VOICE_CONFIDENCE = 0.3;
+
 export interface VoiceMatch {
   code: string;
   /** 0–1. 1 = the utterance contained this código outright. */
@@ -165,14 +176,36 @@ function codeCandidates(utterance: string): string[] {
   return out;
 }
 
-function scoreByName(needle: string[], route: { nombre: string; dirs: Record<string, { origin: string; destination: string }> }): number {
-  if (needle.length === 0) return 0;
-  const haystack = new Set(
-    contentTokens(
-      [route.nombre, ...Object.values(route.dirs || {}).flatMap((d) => [d.origin, d.destination])].join(' ')
-    )
-  );
-  if (haystack.size === 0) return 0;
+/**
+ * The searchable words of every route, derived once per index.
+ *
+ * Rebuilding these per comparison meant re-tokenising 783 route names for every
+ * reading the recognizer offered — the dominant cost of the whole module, paid
+ * again on every question. The index object is immutable for the life of the app,
+ * so a `WeakMap` keyed on it is exact and costs nothing to invalidate.
+ */
+const haystacks = new WeakMap<VoiceIndex, Map<string, Set<string>>>();
+
+function nameHaystacks(index: VoiceIndex): Map<string, Set<string>> {
+  const cached = haystacks.get(index);
+  if (cached) return cached;
+  const built = new Map<string, Set<string>>();
+  for (const [code, route] of Object.entries(index?.routes || {})) {
+    built.set(
+      code,
+      new Set(
+        contentTokens(
+          [route.nombre, ...Object.values(route.dirs || {}).flatMap((d) => [d.origin, d.destination])].join(' ')
+        )
+      )
+    );
+  }
+  haystacks.set(index, built);
+  return built;
+}
+
+function scoreByName(needle: string[], haystack: Set<string> | undefined): number {
+  if (needle.length === 0 || !haystack || haystack.size === 0) return 0;
 
   const hits = needle.filter((token) => haystack.has(token));
   // A single shared word is a coincidence unless it is long enough to be a place
@@ -190,7 +223,12 @@ function scoreByName(needle: string[], route: { nombre: string; dirs: Record<str
  * {@link MIN_VOICE_CONFIDENCE} — the caller says "no te entendí" and the rider
  * repeats, which costs one second; answering the wrong route costs a bus.
  */
-export function matchRouteCode(utterance: string, index: VoiceIndex, limit = 3): VoiceMatch[] {
+export function matchRouteCode(
+  utterance: string | string[],
+  index: VoiceIndex,
+  limit = 3,
+  minConfidence = MIN_VOICE_CONFIDENCE
+): VoiceMatch[] {
   const routes = index?.routes || {};
   const codes = Object.keys(routes);
   if (codes.length === 0) return [];
@@ -201,7 +239,18 @@ export function matchRouteCode(utterance: string, index: VoiceIndex, limit = 3):
     if (!existing || match.confidence > existing.confidence) byConfidence.set(match.code, match);
   };
 
-  const candidates = codeCandidates(utterance);
+  // Every reading the recognizer offered, not just its favourite. The códigos
+  // table is a much better judge of "efe 19" vs "fe 19" than the recognizer's own
+  // ranking is, and the alternatives are free — they came back in the same result.
+  const readings = (Array.isArray(utterance) ? utterance : [utterance]).map((value) => String(value ?? '')).filter(Boolean);
+  if (readings.length === 0) return [];
+
+  const candidates: string[] = [];
+  for (const reading of readings) {
+    for (const candidate of codeCandidates(reading)) {
+      if (!candidates.includes(candidate)) candidates.push(candidate);
+    }
+  }
   // Normalized/base forms are derived once for the whole index, not per
   // candidate — an utterance yields several candidates and this is the inner
   // loop of the latency budget (spec §1, performance).
@@ -226,14 +275,132 @@ export function matchRouteCode(utterance: string, index: VoiceIndex, limit = 3):
     }
   }
 
-  const needle = contentTokens(utterance);
-  for (const code of codes) {
-    const confidence = scoreByName(needle, routes[code]);
-    if (confidence > 0) offer({ code, confidence, via: 'nombre', matched: routes[code].nombre });
+  const byName = nameHaystacks(index);
+  for (const reading of readings) {
+    const needle = contentTokens(reading);
+    if (needle.length === 0) continue;
+    for (const code of codes) {
+      const confidence = scoreByName(needle, byName.get(code));
+      if (confidence > 0) offer({ code, confidence, via: 'nombre', matched: routes[code].nombre });
+    }
   }
 
   return Array.from(byConfidence.values())
-    .filter((match) => match.confidence >= MIN_VOICE_CONFIDENCE)
+    .filter((match) => match.confidence >= minConfidence)
     .sort((a, b) => b.confidence - a.confidence || a.code.localeCompare(b.code))
     .slice(0, limit);
+}
+
+// ─── What was asked, not only about what ──────────────────
+
+/**
+ * The kind of question, because a rider asks more than one.
+ *
+ * `eta` is the headline ("¿qué tan cerca está el F19?"). `horario` is the other
+ * half of what people actually say out loud — "¿a qué hora abre?", "¿el F19 pasa
+ * los domingos?", "¿hasta qué hora hay servicio?" — and it is answerable from the
+ * index alone: no position, no live call, no geometry, so it lands in milliseconds
+ * even with no network at all (spec §5.9 budget, §4.2).
+ */
+export type VoiceIntent = 'eta' | 'horario';
+
+export interface VoiceRequest {
+  intent: VoiceIntent;
+  /** Confident readings, best first — `matches[0]` is what gets answered. */
+  matches: VoiceMatch[];
+  /** Sub-threshold readings, offered as a question rather than an answer. */
+  suggestions: VoiceMatch[];
+  /**
+   * A stop the rider named ("el F19 **en Banderas**"). Honoured only when it
+   * actually matches a stop on the route, so a false positive costs nothing.
+   */
+  stopHint: string;
+  /** A direction the rider named ("**hacia** Portal Suba"). Same rule. */
+  dirHint: string;
+}
+
+/** Words that make a question about the timetable rather than about a bus now. */
+const SCHEDULE_WORDS = new Set([
+  'horario', 'horarios', 'abre', 'abren', 'cierra', 'cierran', 'opera', 'operan',
+  'funciona', 'funcionan', 'presta', 'servicio', 'domingo', 'domingos', 'sabado',
+  'sabados', 'festivo', 'festivos', 'feriado', 'madrugada', 'ultimo', 'ultima',
+  'primero', 'primer', 'primera', 'trabaja', 'trabajan', 'disponible', 'temprano',
+]);
+
+/**
+ * Tokens that introduce a place. `en`/`por`/`desde` are the ones riders use for
+ * the stop they are standing at; `hacia`/`sentido`/`rumbo` name a direction. Both
+ * are read from the RAW tokens (before stopword filtering), since the markers are
+ * themselves stopwords for name matching.
+ */
+const STOP_MARKERS = new Set(['en', 'por', 'desde', 'estacion', 'parada', 'paradero', 'portal']);
+const DIR_MARKERS = new Set(['hacia', 'sentido', 'rumbo', 'direccion']);
+
+/** Words that end a place phrase — the next clause has started. */
+const PHRASE_END = new Set([...DIR_MARKERS, 'que', 'cuanto', 'cuando', 'y', 'o', 'pero', 'ruta', 'bus']);
+
+function phraseAfter(tokens: string[], markers: Set<string>, keepMarker = false): string {
+  for (let i = 0; i < tokens.length; i++) {
+    if (!markers.has(tokens[i])) continue;
+    const words: string[] = keepMarker ? [tokens[i]] : [];
+    for (let j = i + 1; j < tokens.length && words.length < 6; j++) {
+      const token = tokens[j];
+      if (PHRASE_END.has(token) || STOP_MARKERS.has(token)) break;
+      if (/^\d+$/.test(token)) {
+        // A número right after the marker is part of a código the rider is
+        // spelling ("por la 19"), not a place name — unless a place word came
+        // first ("calle 100", "avenida 68"), where it is the whole point.
+        if (words.length === 0) break;
+        words.push(token);
+        continue;
+      }
+      words.push(token);
+    }
+    const phrase = words.filter((word) => !STOPWORDS.has(word) || /^\d+$/.test(word)).join(' ');
+    if (phrase) return phrase;
+  }
+  return '';
+}
+
+/**
+ * Read one utterance as a request: what kind of question, about which route,
+ * anchored where.
+ *
+ * Everything beyond the código is a *hint*: the ETA engine uses a hint only when
+ * it matches real data on the matched route, so a mis-parse degrades to the plain
+ * "nearest stop to you" answer rather than to a wrong one.
+ */
+export function parseVoiceRequest(utterance: string | string[], index: VoiceIndex): VoiceRequest {
+  const readings = (Array.isArray(utterance) ? utterance : [utterance]).map((value) => String(value ?? '')).filter(Boolean);
+  // ONE sweep of the index, then split by threshold. Matching twice (once for the
+  // answers, once for the shortlist) doubled the hot path for nothing — the
+  // edit-distance sweep over 783 códigos is the whole cost of this module
+  // (spec §1, sub-100 ms).
+  const scored = matchRouteCode(readings, index, 8, SUGGEST_VOICE_CONFIDENCE);
+  let matches = scored.filter((match) => match.confidence >= MIN_VOICE_CONFIDENCE).slice(0, 3);
+  let suggestions = scored.filter((match) => match.confidence < MIN_VOICE_CONFIDENCE).slice(0, 3);
+
+  // A place named with no código behind it ("el bus en la Calle 100") matches every
+  // route whose name contains that place, all with the same score. Answering the
+  // first of them alphabetically would be a coin toss presented as a fact
+  // (spec §1) — the honest move is to ask which one, so the whole shortlist
+  // becomes the question instead.
+  const ambiguousPlace =
+    matches.length >= 3 && matches.every((match) => match.via === 'nombre' && match.confidence === matches[0].confidence);
+  if (ambiguousPlace) {
+    suggestions = matches.slice(0, 3);
+    matches = [];
+  }
+
+  // Hints and intent come from the recognizer's best reading only: the
+  // alternatives exist to rescue a código, and mixing clauses from two different
+  // transcriptions would build a question nobody asked.
+  const tokens = normalizeUtterance(readings[0] ?? '').split(' ').filter(Boolean);
+  const intent: VoiceIntent = tokens.some((token) => SCHEDULE_WORDS.has(token)) ? 'horario' : 'eta';
+  // "portal" keeps its marker: it is part of the name ("en Portal Suba"), unlike
+  // "en"/"por", which are not.
+  const stopHint = phraseAfter(tokens, STOP_MARKERS, true);
+  const dirHint = phraseAfter(tokens, DIR_MARKERS);
+
+  return { intent, matches, suggestions, stopHint, dirHint };
 }
