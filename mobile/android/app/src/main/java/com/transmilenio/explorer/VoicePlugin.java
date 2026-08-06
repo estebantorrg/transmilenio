@@ -19,6 +19,7 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
 import androidx.core.content.ContextCompat;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -105,6 +106,14 @@ public class VoicePlugin extends Plugin {
      * forever and the mic stays open (spec §4.2 — every failure has an answer).
      */
     private static final long LISTEN_TIMEOUT_MS = 12_000L;
+    /**
+     * The ceiling is re-armed from the moment the rider starts talking, because
+     * the watchdog exists for a recognizer that went quiet, not for a rider who
+     * took a while to get to their question. A 12 s window that started while the
+     * splash was still up used to expire *mid-sentence* and hand back "no escuché
+     * nada" over someone who was audibly speaking.
+     */
+    private static final long SPEAKING_TIMEOUT_MS = 15_000L;
     /** How long a transcript captured during boot is still the answer to the
      *  question the rider is asking now. */
     private static final long BUFFER_MAX_AGE_MS = 60_000L;
@@ -115,6 +124,13 @@ public class VoicePlugin extends Plugin {
     // ─── Error codes (contract with voice/bridge.ts) ──────
     /** Heard nothing. NOT terminal: the rider simply has not spoken yet. */
     private static final String ERR_NO_SPEECH = "NO_SPEECH";
+    /**
+     * Heard something and could not transcribe it. NOT terminal either, and
+     * deliberately distinct from {@link #ERR_NO_SPEECH}: the rider DID speak, so
+     * the retry has to say "no te entendí" rather than "no te escuché" — telling
+     * someone who just spoke that they were silent reads as the app not listening.
+     */
+    private static final String ERR_NO_MATCH = "NO_MATCH";
     private static final String ERR_NO_RECOGNIZER = "NO_RECOGNIZER";
     private static final String ERR_PERMISSION = "PERMISSION_DENIED";
     private static final String ERR_NETWORK = "NETWORK";
@@ -143,8 +159,24 @@ public class VoicePlugin extends Plugin {
     private boolean listening = false;
     /** Whether the rider has actually started talking into the open mic. */
     private boolean speechStarted = false;
+    /**
+     * Which recognition attempt is the live one.
+     *
+     * This is the fix for the defect that made the whole feature read as "it
+     * never lets you talk". `SpeechRecognizer.cancel()`/`destroy()` routinely
+     * delivers one last callback — typically `onError(ERROR_CLIENT)` — from the
+     * instance being torn down, and that callback used to run the same
+     * {@link #deliver} path as a real result: it grabbed whichever call was
+     * pending *now* (the brand-new listen the rider is waiting on), rejected it
+     * as a recognition failure, and then destroyed the recognizer that had just
+     * been created for it. The mic closed a few milliseconds after opening and
+     * the overlay showed "no te entendí" before a word was said. Every listener
+     * and watchdog therefore carries the generation it was created for and does
+     * nothing once it is stale.
+     */
+    private int recognitionGeneration = 0;
     /** A transcript that arrived before the web layer asked for one. */
-    private String bufferedText = null;
+    private List<String> bufferedTexts = null;
     private String bufferedErrorCode = null;
     private String bufferedErrorMessage = null;
     private long bufferedAt = 0L;
@@ -197,6 +229,10 @@ public class VoicePlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         main.removeCallbacksAndMessages(null);
+        synchronized (recognitionLock) {
+            recognitionGeneration++; // nothing in flight may fire against a dead plugin
+            listenWatchdog = null;
+        }
         // Nothing may be left un-settled: a Capacitor call that never resolves is
         // a JS promise that never settles, i.e. an overlay stuck on "Escuchando…".
         failPendingListen(ERR_FAILED, "La app se cerró");
@@ -248,7 +284,8 @@ public class VoicePlugin extends Plugin {
         // The mic is not held open for a page that never asks: LISTEN_TIMEOUT_MS
         // ends any recognition nobody claimed, and BUFFER_MAX_AGE_MS ages out
         // what it captured.
-        main.post(() -> startListening(true));
+        int generation = nextGeneration();
+        main.post(() -> startListening(true, generation));
     }
 
     /**
@@ -276,29 +313,74 @@ public class VoicePlugin extends Plugin {
 
     /** Terminal failures answer the caller; everything else re-opens the mic. */
     private static boolean isTerminal(String code) {
-        return !ERR_NO_SPEECH.equals(code);
+        return !ERR_NO_SPEECH.equals(code) && !ERR_NO_MATCH.equals(code);
     }
 
     /** Caller must hold {@link #recognitionLock}. */
     private void clearBuffer() {
-        bufferedText = null;
+        bufferedTexts = null;
         bufferedErrorCode = null;
         bufferedErrorMessage = null;
         bufferedAt = 0L;
     }
 
+    /**
+     * Retire every recognition in flight: their callbacks and watchdogs become
+     * no-ops. Returns the generation the next attempt will run under.
+     */
+    private int nextGeneration() {
+        synchronized (recognitionLock) {
+            return ++recognitionGeneration;
+        }
+    }
+
+    private boolean isCurrent(int generation) {
+        synchronized (recognitionLock) {
+            return generation == recognitionGeneration;
+        }
+    }
+
+    /** Main thread only. */
+    private void clearWatchdog() {
+        Runnable watchdog;
+        synchronized (recognitionLock) {
+            watchdog = listenWatchdog;
+            listenWatchdog = null;
+        }
+        if (watchdog != null) main.removeCallbacks(watchdog);
+    }
+
+    /**
+     * (Re)arm the "this recognition went quiet" ceiling. Main thread only.
+     *
+     * Re-armed on {@link RecognitionListener#onBeginningOfSpeech}: the timer is
+     * there for a recognizer that never answers, and it must not fire over a
+     * rider who is mid-question.
+     */
+    private void armWatchdog(int generation, long delayMs) {
+        clearWatchdog();
+        Runnable watchdog = () -> {
+            if (!isCurrent(generation)) return;
+            deliver(null, ERR_NO_SPEECH, "No escuché nada");
+        };
+        synchronized (recognitionLock) {
+            listenWatchdog = watchdog;
+        }
+        main.postDelayed(watchdog, delayMs);
+    }
+
     @PluginMethod
     public void listen(PluginCall call) {
-        String bufferedResult = null;
+        List<String> bufferedResult = null;
         String errorCode = null;
         String errorMessage = null;
 
         synchronized (recognitionLock) {
             boolean fresh = System.currentTimeMillis() - bufferedAt <= BUFFER_MAX_AGE_MS;
-            if (bufferedText != null && fresh) {
+            if (bufferedTexts != null && fresh) {
                 // A transcript captured during boot is the whole reason this
                 // plugin exists — hand it over rather than listening twice.
-                bufferedResult = bufferedText;
+                bufferedResult = bufferedTexts;
             } else if (bufferedErrorCode != null && fresh && isTerminal(bufferedErrorCode)) {
                 errorCode = bufferedErrorCode;
                 errorMessage = bufferedErrorMessage;
@@ -347,7 +429,14 @@ public class VoicePlugin extends Plugin {
             restart = !(listening && speechStarted);
         }
         if (superseded != null) superseded.reject("Reemplazado por una nueva escucha", "SUPERSEDED");
-        if (restart) main.post(() -> startListening(true));
+        if (restart) {
+            // Retire the pre-warm here, on the caller's thread, rather than
+            // inside the posted restart: its dying callback would otherwise run
+            // against the generation this call is already registered under and
+            // answer for it (see recognitionGeneration).
+            int generation = nextGeneration();
+            main.post(() -> startListening(true, generation));
+        }
     }
 
     /**
@@ -362,7 +451,11 @@ public class VoicePlugin extends Plugin {
      * language pack of required locale" and no fallback is possible. Measured on
      * a Pixel 6 / Android 16 with no es pack installed.
      */
-    private void startListening(boolean preferOffline) {
+    private void startListening(boolean preferOffline, int generation) {
+        // A newer listen (or a cancel) arrived between the post and here: that one
+        // owns the microphone now, and opening a second recognizer would leave two
+        // of them fighting over one mic.
+        if (!isCurrent(generation)) return;
         if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
             deliver(null, ERR_NO_RECOGNIZER, "Reconocimiento de voz no disponible en este dispositivo");
             return;
@@ -370,7 +463,7 @@ public class VoicePlugin extends Plugin {
         releaseRecognizer();
 
         recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
-        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline));
+        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline, generation));
 
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -378,7 +471,9 @@ public class VoicePlugin extends Plugin {
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-CO");
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         if (preferOffline) intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
-        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+        // Alternatives are cheap and the matcher scores all of them (resolveListen):
+        // the correct código is often the recognizer's second or third reading.
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
         // Give the rider room to think and to breathe mid-question.
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, MIN_INPUT_MS);
@@ -388,44 +483,70 @@ public class VoicePlugin extends Plugin {
             POSSIBLY_COMPLETE_SILENCE_MS
         );
 
-        Runnable watchdog = () -> deliver(null, ERR_NO_SPEECH, "No escuché nada");
         synchronized (recognitionLock) {
             listening = true;
             speechStarted = false;
-            if (listenWatchdog != null) main.removeCallbacks(listenWatchdog);
-            listenWatchdog = watchdog;
         }
-        main.postDelayed(watchdog, LISTEN_TIMEOUT_MS);
+        armWatchdog(generation, LISTEN_TIMEOUT_MS);
         recognizer.startListening(intent);
     }
 
     /** Errors that mean "not in this language, offline" rather than "not at all". */
     private static boolean isLanguageUnavailable(int error) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
+            return error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
                 || error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED
-                || error == SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT) {
-                return true;
-            }
+                || error == SpeechRecognizer.ERROR_CANNOT_CHECK_SUPPORT;
         }
-        // Before API 33 a missing offline pack surfaces as a plain server error.
+        // Before API 33 a missing offline pack surfaces as a plain server error and
+        // there is no way to tell the two apart — but from 33 on there are three
+        // codes that say it precisely, and a plain ERROR_SERVER there is a *server*
+        // failure. Reading it as "this phone has no Spanish" sent riders to install
+        // a language pack they already had, over what was usually one bad request.
         return error == SpeechRecognizer.ERROR_SERVER;
     }
 
+    /**
+     * Whether a failed offline attempt is worth one more try over the network.
+     *
+     * Wider than {@link #isLanguageUnavailable} on purpose: `EXTRA_PREFER_OFFLINE`
+     * makes several errors mean "the on-device model could not do it" rather than
+     * "this cannot be done", and a network retry is cheap next to telling the rider
+     * we cannot hear them.
+     */
+    private static boolean isRetryableOffline(int error) {
+        return isLanguageUnavailable(error)
+            || error == SpeechRecognizer.ERROR_SERVER
+            || error == SpeechRecognizer.ERROR_CLIENT
+            || error == SpeechRecognizer.ERROR_NETWORK;
+    }
+
+    /**
+     * Stop listening now.
+     *
+     * The state is taken down **synchronously**, on the caller's thread, and only
+     * the recognizer teardown is posted. Doing the whole thing inside the post
+     * meant a `listen()` issued right behind the cancel (closing the overlay and
+     * immediately re-asking, which is what "Preguntar otra vez" does) could
+     * register its call *first* and then be rejected as CANCELLED by a cancel the
+     * rider had already moved past — a dead microphone under a screen that said
+     * it was listening.
+     */
     @PluginMethod
     public void cancelListening(PluginCall call) {
+        PluginCall pending;
+        synchronized (recognitionLock) {
+            recognitionGeneration++; // every recognition in flight is now stale
+            pending = pendingListen;
+            pendingListen = null;
+            listening = false;
+            speechStarted = false;
+            clearBuffer();
+        }
+        if (pending != null) pending.reject("Escucha cancelada", "CANCELLED");
         main.post(() -> {
+            clearWatchdog();
             releaseRecognizer();
-            synchronized (recognitionLock) {
-                listening = false;
-                speechStarted = false;
-                clearBuffer();
-                if (listenWatchdog != null) {
-                    main.removeCallbacks(listenWatchdog);
-                    listenWatchdog = null;
-                }
-            }
-            failPendingListen("CANCELLED", "Escucha cancelada");
             call.resolve();
         });
     }
@@ -442,32 +563,46 @@ public class VoicePlugin extends Plugin {
     /** Main thread only. */
     private void releaseRecognizer() {
         if (recognizer == null) return;
+        SpeechRecognizer dying = recognizer;
+        recognizer = null;
         try {
-            recognizer.cancel();
-            recognizer.destroy();
+            // Drop the listener first: `cancel()`/`destroy()` still emit one last
+            // callback on several OEM implementations, and with no listener
+            // attached it cannot reach the plugin at all (the generation guard is
+            // the second line of defence, for the ones that keep their own ref).
+            dying.setRecognitionListener(null);
+            dying.cancel();
+        } catch (Exception ignored) {
+            // A recognizer whose service already died throws here; it is being
+            // thrown away regardless.
         } finally {
-            recognizer = null;
+            try {
+                dying.destroy();
+            } catch (Exception ignored) {
+                /* same */
+            }
         }
     }
 
     /** Route a finished recognition to whoever is waiting, or buffer it. */
-    private void deliver(String text, String errorCode, String errorMessage) {
+    private void deliver(List<String> texts, String errorCode, String errorMessage) {
         // Posted, not inline: this runs from inside the recognizer's own callback,
         // and the mic stays open until the instance is destroyed — a watchdog that
         // ended the recognition without this would leave the microphone held.
-        main.post(this::releaseRecognizer);
+        main.post(() -> {
+            clearWatchdog();
+            releaseRecognizer();
+        });
         PluginCall call;
         synchronized (recognitionLock) {
+            // This attempt is over either way, so nothing from it may speak again.
+            recognitionGeneration++;
             listening = false;
             speechStarted = false;
-            if (listenWatchdog != null) {
-                main.removeCallbacks(listenWatchdog);
-                listenWatchdog = null;
-            }
             call = pendingListen;
             pendingListen = null;
             if (call == null) {
-                bufferedText = text;
+                bufferedTexts = texts;
                 bufferedErrorCode = errorCode;
                 bufferedErrorMessage = errorMessage;
                 bufferedAt = System.currentTimeMillis();
@@ -475,12 +610,24 @@ public class VoicePlugin extends Plugin {
         }
         if (call == null) return;
         if (errorCode != null) call.reject(errorMessage, errorCode);
-        else resolveListen(call, text);
+        else resolveListen(call, texts);
     }
 
-    private void resolveListen(PluginCall call, String text) {
+    /**
+     * Hand back what was heard — **every** alternative the recognizer offered, not
+     * just its top one.
+     *
+     * The matcher is a códigos table, not a language model, so it can tell a
+     * plausible reading from an implausible one far better than the recognizer's
+     * own ranking can: "efe 19" routinely comes back as `["fe 19", "F19",
+     * "efe diecinueve"]`, and only reading the first of those threw away the
+     * exact match sitting behind it (`voiceMatch.matchRouteCode`).
+     */
+    private void resolveListen(PluginCall call, List<String> texts) {
         JSObject result = new JSObject();
-        result.put("text", text == null ? "" : text);
+        List<String> heard = texts == null ? new ArrayList<>() : texts;
+        result.put("text", heard.isEmpty() ? "" : heard.get(0));
+        result.put("alternatives", new JSArray(heard));
         call.resolve(result);
     }
 
@@ -506,6 +653,7 @@ public class VoicePlugin extends Plugin {
     private static String errorCodeFor(int code) {
         switch (code) {
             case SpeechRecognizer.ERROR_NO_MATCH:
+                return ERR_NO_MATCH;
             case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
                 return ERR_NO_SPEECH;
             case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
@@ -518,37 +666,66 @@ public class VoicePlugin extends Plugin {
         }
     }
 
+    /**
+     * One recognition attempt's callbacks.
+     *
+     * Every method is gated on {@link #generation}: a recognizer being destroyed
+     * gets one last callback in, and answering the rider's *current* question with
+     * it is the bug that made the mic look dead (see recognitionGeneration).
+     */
     private class VoiceRecognitionListener implements RecognitionListener {
         /** Whether this attempt asked for the offline model — decides if a
          *  language failure is worth one retry over the network. */
         private final boolean preferredOffline;
+        private final int generation;
 
-        VoiceRecognitionListener(boolean preferredOffline) {
+        VoiceRecognitionListener(boolean preferredOffline, int generation) {
             this.preferredOffline = preferredOffline;
+            this.generation = generation;
         }
 
-        @Override public void onReadyForSpeech(Bundle params) { notifyListeners("voiceReady", new JSObject()); }
+        private boolean stale() {
+            return !isCurrent(generation);
+        }
+
+        @Override
+        public void onReadyForSpeech(Bundle params) {
+            if (stale()) return;
+            notifyListeners("voiceReady", new JSObject());
+        }
 
         @Override
         public void onBeginningOfSpeech() {
+            if (stale()) return;
             synchronized (recognitionLock) {
                 speechStarted = true;
             }
+            // The rider is talking: the "went quiet" ceiling restarts from here so
+            // it cannot expire over a question in progress.
+            armWatchdog(generation, SPEAKING_TIMEOUT_MS);
             notifyListeners("voiceSpeaking", new JSObject());
         }
 
         @Override public void onRmsChanged(float rmsdB) { }
         @Override public void onBufferReceived(byte[] buffer) { }
-        @Override public void onEndOfSpeech() { notifyListeners("voiceEnd", new JSObject()); }
+
+        @Override
+        public void onEndOfSpeech() {
+            if (stale()) return;
+            notifyListeners("voiceEnd", new JSObject());
+        }
+
         @Override public void onEvent(int eventType, Bundle params) { }
 
         @Override
         public void onError(int error) {
+            if (stale()) return;
             // A phone with no Spanish language pack fails instantly and offline.
             // Retry once over the network before telling the rider we cannot
             // hear them — most devices can, they just have nothing downloaded.
-            if (preferredOffline && isLanguageUnavailable(error)) {
-                main.post(() -> startListening(false));
+            if (preferredOffline && isRetryableOffline(error)) {
+                int retry = nextGeneration();
+                main.post(() -> startListening(false, retry));
                 return;
             }
             deliver(null, errorCodeFor(error), describeError(error));
@@ -556,31 +733,39 @@ public class VoicePlugin extends Plugin {
 
         @Override
         public void onPartialResults(Bundle partialResults) {
-            String text = firstResult(partialResults);
-            if (text == null) return;
+            if (stale()) return;
+            List<String> heard = results(partialResults);
+            if (heard.isEmpty()) return;
             // Streamed so the overlay can echo what it is hearing; the rider
             // seeing their own words is what makes a wrong reading obvious.
             JSObject event = new JSObject();
-            event.put("text", text);
+            event.put("text", heard.get(0));
             notifyListeners("voicePartial", event);
         }
 
         @Override
         public void onResults(Bundle results) {
-            String text = firstResult(results);
-            if (text == null) {
-                deliver(null, ERR_NO_SPEECH, describeError(SpeechRecognizer.ERROR_NO_MATCH));
+            if (stale()) return;
+            List<String> heard = results(results);
+            if (heard.isEmpty()) {
+                deliver(null, ERR_NO_MATCH, describeError(SpeechRecognizer.ERROR_NO_MATCH));
             } else {
-                deliver(text, null, null);
+                deliver(heard, null, null);
             }
         }
 
-        private String firstResult(Bundle bundle) {
-            if (bundle == null) return null;
+        /** Every non-empty alternative, best-ranked first (see resolveListen). */
+        private List<String> results(Bundle bundle) {
+            List<String> out = new ArrayList<>();
+            if (bundle == null) return out;
             ArrayList<String> matches = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-            if (matches == null || matches.isEmpty()) return null;
-            String text = matches.get(0);
-            return text == null || text.trim().isEmpty() ? null : text.trim();
+            if (matches == null) return out;
+            for (String match : matches) {
+                if (match == null) continue;
+                String text = match.trim();
+                if (!text.isEmpty() && !out.contains(text)) out.add(text);
+            }
+            return out;
         }
     }
 
