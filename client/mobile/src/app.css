@@ -789,6 +789,17 @@ input { font-family: inherit; }
 .voz-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 8px; }
 .voz-actions .btn:disabled { opacity: 0.5; }
 
+/* The "¿cuál de estas?" shortlist (spec §5.9). A reading too weak to answer is
+   still strong enough to ask about: one tap here beats a rider repeating
+   themselves into a mic that already half-heard them. */
+.voz-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.voz-chip {
+  border: 1px solid var(--border-2); background: var(--surface); color: var(--text);
+  border-radius: 999px; padding: 9px 18px; font-size: 15px; font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.voz-chip:active { transform: scale(0.96); }
+
 .voz-pulse { display: flex; align-items: flex-end; gap: 6px; height: 42px; }
 .voz-pulse span { width: 7px; border-radius: 4px; background: var(--red-2); height: 12px; }
 .voz-pulse.listening span { animation: voz-bounce 0.9s ease-in-out infinite; }

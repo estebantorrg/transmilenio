@@ -24,9 +24,33 @@ import { openSheet, type SheetHandle } from '../ui/sheet';
 import { bus, state } from '../state';
 import { app } from '../appContext';
 import { cancelListening, installVoiceData, onVoicePartial, onVoiceState, stopSpeaking } from '../voice/bridge';
-import { runVoiceSession, type VoiceProgress } from '../voice/session';
+import { MIC_FAILURES, runVoiceSession, type VoiceProgress } from '../voice/session';
 
 let openHandle: SheetHandle | null = null;
+
+/**
+ * Serialises microphone teardown against the next question.
+ *
+ * `cancelListening()` and `listen()` cross the Capacitor bridge on a thread pool,
+ * so firing them back to back — closing the overlay and immediately re-opening it,
+ * which is what a re-fired shortcut does — raced: the cancel could land on the
+ * *new* listen and reject it as CANCELLED, leaving a dead mic under a screen that
+ * said "Escuchando…". Asks queue behind whatever release is outstanding; when
+ * there is none, that is a single microtask.
+ *
+ * Nothing here cancels on the way IN. A voice launch arrives with a transcript
+ * already buffered by the plugin (spec §5.9) and `cancelListening` clears it — a
+ * pre-emptive release would throw away the entire point of the hot mic. Asking
+ * again needs no cancel either: `listen()` supersedes the previous call inside the
+ * plugin, under a fresh recognition generation.
+ */
+let micIdle: Promise<void> = Promise.resolve();
+
+/** Queue a release (the overlay is closing) and return the queue. */
+function releaseMic(): Promise<void> {
+  micIdle = micIdle.then(() => cancelListening()).catch(() => undefined);
+  return micIdle;
+}
 
 export function isVoiceOpen(): boolean {
   return openHandle !== null;
@@ -47,9 +71,9 @@ export function closeVoice(): boolean {
  */
 export function openVoice(code: string | null = null): void {
   // Re-firing the shortcut while a question is in flight restarts it rather than
-  // stacking two overlays fighting over one microphone.
+  // stacking two overlays fighting over one microphone. Closing runs the sheet's
+  // own teardown (which releases the mic), so the new question queues behind it.
   if (openHandle) {
-    void cancelListening();
     openHandle.close(true);
     openHandle = null;
   }
@@ -76,20 +100,38 @@ export function openVoice(code: string | null = null): void {
     type: 'button',
     text: 'Instalar voz en español',
   });
-  const actions = h('div', { class: 'voz-actions' }, [again, openRoute, installVoice]);
+  // Shown when the microphone itself is the problem (no permission, no
+  // recognizer, no Spanish, no network). Naming the failure is half an answer;
+  // the rider also needs the way out of it (spec §4.2), and "búscala en la app"
+  // is not an instruction anyone should have to follow by hand.
+  const searchInstead = h('button', { class: 'btn btn-ghost hidden', type: 'button', text: 'Buscar la ruta en la app' });
+  // Sub-threshold readings, offered as taps. Nothing here is ever *answered* on
+  // the strength of the reading alone (spec §1) — one tap is what turns "no te
+  // entendí" into the answer the rider asked for.
+  const suggestions = h('div', { class: 'voz-chips hidden' });
+  const actions = h('div', { class: 'voz-actions' }, [again, openRoute, installVoice, searchInstead]);
 
   // One per question. Closing the overlay (or asking again) abandons the one in
   // flight, so the answer to a question the rider walked away from is never read
   // out to an empty screen.
   let abort = new AbortController();
 
+  /**
+   * Which question is on screen. Every callback carries the round it belongs to,
+   * because a superseded session settles *after* the new one has started listening,
+   * and its "no te entendí" landing on top of the live "Escuchando…" is exactly
+   * what "the app won't let me talk" looks like from the rider's side.
+   */
+  let round = 0;
+
   const sheet = openSheet({
     full: true,
     ariaLabel: 'Pregunta por una ruta',
     onClose: () => {
       openHandle = null;
+      round++; // nothing from the question in flight may repaint this panel
       abort.abort();
-      void cancelListening();
+      void releaseMic();
       void stopSpeaking();
       offPartial();
       offState();
@@ -101,7 +143,16 @@ export function openVoice(code: string | null = null): void {
   // The answer replaces itself as the question progresses, so the region is
   // polite-live: a screen reader announces the result without interrupting the
   // rider mid-sentence.
-  const panel = h('div', { class: 'voz' }, [pulse, status, heard, headline, detail, sentence, actions]);
+  const panel = h('div', { class: 'voz' }, [
+    pulse,
+    status,
+    heard,
+    headline,
+    detail,
+    sentence,
+    suggestions,
+    actions,
+  ]);
   panel.setAttribute('role', 'status');
   panel.setAttribute('aria-live', 'polite');
   sheet.body.append(panel);
@@ -129,10 +180,24 @@ export function openVoice(code: string | null = null): void {
     }
   });
 
-  const showAnswer = (answer: { headline: string; detail: string; written: string }): void => {
+  const showAnswer =(answer: { headline: string; detail: string; written: string }): void => {
     headline.textContent = answer.headline;
     detail.textContent = answer.detail;
     sentence.textContent = answer.written;
+  };
+
+  /** Offer the weak readings as taps. Tapping one asks that route outright. */
+  const showSuggestions = (codes: string[]): void => {
+    suggestions.textContent = '';
+    suggestions.classList.toggle('hidden', codes.length === 0);
+    for (const suggestion of codes) {
+      const chip = h('button', { class: 'voz-chip', type: 'button', text: suggestion });
+      on(chip, 'click', () => {
+        code = suggestion;
+        ask();
+      });
+      suggestions.append(chip);
+    }
   };
 
   /**
@@ -155,13 +220,19 @@ export function openVoice(code: string | null = null): void {
   };
   const offRoutes = bus.on('routes:ready', syncOpenRoute);
 
-  const onProgress = (progress: VoiceProgress): void => {
-    if (openHandle !== sheet) return;
+  const onProgress = (progress: VoiceProgress, forRound: number): void => {
+    if (openHandle !== sheet || forRound !== round) return;
     if (progress.stage === 'escuchando') {
       listening = true;
-      // A second window after a silent first one — say so, or it reads as the
-      // app having ignored the rider entirely.
-      status.textContent = progress.listen === 'silencio' ? 'No te escuché. Dilo otra vez…' : 'Abriendo el micrófono…';
+      // A second window after a first one that produced nothing — say which of the
+      // two happened, or it reads as the app having ignored the rider entirely.
+      // "No te escuché" to someone who just spoke is the wrong accusation.
+      status.textContent =
+        progress.listen === 'no-entendi'
+          ? 'No te entendí. Dime la ruta otra vez…'
+          : progress.listen === 'silencio'
+            ? 'No te escuché. Dilo otra vez…'
+            : 'Abriendo el micrófono…';
       pulse.className = 'voz-pulse listening';
       return;
     }
@@ -182,9 +253,20 @@ export function openVoice(code: string | null = null): void {
     // for the whole of them.
     again.disabled = false;
     if (progress.answer) showAnswer(progress.answer);
+    if (progress.suggestions) showSuggestions(progress.suggestions);
+    // Every affordance that does NOT depend on how the speaking went belongs
+    // here too, for the same reason the words do: the session promise only
+    // settles once TTS has finished (or given up), and a rider whose mic is
+    // denied should not have to wait out a sentence being read to them before
+    // the way out of that appears. Only `installVoice` waits, because only it
+    // needs the speak outcome.
+    if (progress.listen) searchInstead.classList.toggle('hidden', !MIC_FAILURES.has(progress.listen));
+    answeredCode = progress.code ?? null;
+    syncOpenRoute();
   };
 
   const ask = (): void => {
+    const forRound = ++round;
     headline.textContent = '';
     detail.textContent = '';
     sentence.textContent = '';
@@ -192,33 +274,51 @@ export function openVoice(code: string | null = null): void {
     answeredCode = null;
     openRoute.classList.add('hidden');
     installVoice.classList.add('hidden');
+    searchInstead.classList.add('hidden');
+    showSuggestions([]);
     again.disabled = true;
     listening = !code;
     status.textContent = code ? 'Buscando…' : 'Abriendo el micrófono…';
     pulse.className = code ? 'voz-pulse working' : 'voz-pulse listening';
 
+    // The previous question is abandoned before this one starts, and this one
+    // starts behind any outstanding mic release (see `micIdle`).
     abort.abort();
     abort = new AbortController();
-    void runVoiceSession({ code, onProgress, signal: abort.signal }).then((result) => {
-      // The rider may have closed the overlay while the live call was in flight;
-      // writing into a detached panel would also speak over a closed screen.
-      if (openHandle !== sheet) return;
-      again.disabled = false;
-      showAnswer(result);
-
-      installVoice.classList.toggle('hidden', result.spoke !== 'sin-voz');
-
-      answeredCode = result.code;
-      syncOpenRoute();
+    const signal = abort.signal;
+    const asked = code;
+    void micIdle.then(() => {
+      if (openHandle !== sheet || forRound !== round) return;
+      return runVoiceSession({
+        code: asked,
+        onProgress: (progress) => onProgress(progress, forRound),
+        signal,
+      }).then((result) => {
+        // The rider may have closed the overlay, or asked again, while the live
+        // call was in flight; writing into a detached panel would also speak over
+        // a screen showing something else.
+        if (openHandle !== sheet || forRound !== round) return;
+        again.disabled = false;
+        showAnswer(result);
+        showSuggestions(result.suggestions);
+        // The one thing that genuinely had to wait for the speaker: a device with
+        // no Spanish voice is only known once a sentence has been handed to it.
+        installVoice.classList.toggle('hidden', result.spoke !== 'sin-voz');
+      });
     });
   };
 
   on(installVoice, 'click', () => void installVoiceData());
 
+  on(searchInstead, 'click', () => {
+    sheet.close();
+    app().navigate('rutas');
+  });
+
   on(again, 'click', () => {
     void stopSpeaking();
     // "Otra vez" always means ask again out loud, even when this overlay was
-    // opened with a código from a shortcut.
+    // opened with a código from a shortcut or a suggestion chip.
     code = null;
     ask();
   });
