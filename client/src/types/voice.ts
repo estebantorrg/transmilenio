@@ -48,3 +48,19 @@ export interface VoiceIndexRoute {
 export interface VoiceIndex {
   routes: Record<string, VoiceIndexRoute>;
 }
+
+/**
+ * `[codigo, nombre, lng, lat, "F19,B12,…"]` — one stop and every route that
+ * serves it.
+ *
+ * The inverse of the route index, and the other half of what a rider asks out
+ * loud: standing at a paradero, the question is not "where is the F19" but "what
+ * comes through here". Built in the same bundler pass as the shards so the two
+ * cannot disagree, and loaded **lazily** — 565 KB is worth nothing to the route
+ * questions, which are the ones on the ~1.5 s budget.
+ */
+export type VoiceStopRecord = [string, string, number, number, string];
+
+export interface VoiceStopIndex {
+  stops: VoiceStopRecord[];
+}

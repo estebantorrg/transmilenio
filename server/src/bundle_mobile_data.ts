@@ -15,6 +15,7 @@
  *   transmibici.json             ← server/src/data/transmibici.json             (spec §5.3 bike parking)
  *   station_demand.json          ← server/src/data/station_demand.json          (spec §5.8 Salidas demand)
  *   voice_index.json             ← catalog routes, geometry stripped            (spec §5.9 voice)
+ *   voice_stops.json             ← stop → routes, for "¿qué me sirve aquí?"     (spec §5.9 voice)
  *   voice/<CODE>.json            ← per-route stops + trazado                    (spec §5.9 voice)
  *
  * Run `npm run bundle:mobile` (server) whenever the catalog/POI data is refreshed
@@ -135,6 +136,9 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
   await mkdir(VOICE_GEO_DIR, { recursive: true });
 
   const index: Record<string, unknown> = {};
+  // The inverse index: which routes serve each stop. Built from the same pass, so
+  // it cannot disagree with the shards (spec §1.1 R2).
+  const stops = new Map<string, { nombre: string; lng: number; lat: number; routes: Set<string> }>();
   let shards = 0;
   let shardBytes = 0;
 
@@ -153,15 +157,27 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
         live: liveNameCandidates(variant),
       };
 
-      const stops = (variant.stops || [])
+      const dirStops = (variant.stops || [])
         .map((stop) => {
           const coord = parseCoordenada(stop.coordenada);
-          return coord ? [stop.codigo, stop.nombre, coord[0], coord[1], stop.posicion] : null;
+          if (!coord) return null;
+          const key = String(stop.codigo || '').trim();
+          if (key) {
+            const entry = stops.get(key) ?? {
+              nombre: String(stop.nombre || key),
+              lng: round5(coord[0]),
+              lat: round5(coord[1]),
+              routes: new Set<string>(),
+            };
+            entry.routes.add(code);
+            stops.set(key, entry);
+          }
+          return [stop.codigo, stop.nombre, coord[0], coord[1], stop.posicion];
         })
         .filter((stop): stop is (string | number)[] => stop !== null);
       const trazado = roundTrace(variant.trazado);
-      if (stops.length > 0 && trazado) {
-        geoDirs[dir] = { stops, trazado };
+      if (dirStops.length > 0 && trazado) {
+        geoDirs[dir] = { stops: dirStops, trazado };
       }
     });
 
@@ -179,6 +195,24 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
     shards++;
     shardBytes += body.length;
   }
+
+  // Stop → routes, sorted by code so the file is stable across rebuilds (a
+  // gitignored artifact still gets diffed by hand when something looks wrong).
+  // Compact tuples, not objects: the field names would be ~40% of the payload.
+  const stopRows = Array.from(stops.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, entry]) => [
+      code,
+      entry.nombre,
+      entry.lng,
+      entry.lat,
+      Array.from(entry.routes).sort().join(','),
+    ]);
+  const stopsJson = JSON.stringify({ stops: stopRows });
+  await writeFile(path.join(OUT_DIR, 'voice_stops.json'), stopsJson);
+  console.log(
+    `[bundle] voice_stops.json — ${stopRows.length} stops, ${(stopsJson.length / 1024).toFixed(0)} KB`
+  );
 
   const indexJson = JSON.stringify({ routes: index });
   await writeFile(path.join(OUT_DIR, 'voice_index.json'), indexJson);
