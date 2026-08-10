@@ -742,7 +742,11 @@ function serializePlannerState(): string | null {
 function syncPlannerHash(): void {
   if (!isPlannerVisible()) return;
   const state = serializePlannerState();
-  const base = location.pathname + location.search;
+  // Prerendered pages live at real paths (`/ruta/g47/`, spec §5.5.4). Keeping one
+  // as the base would mint planner links like `/ruta/g47/#/plan?…`, where the path
+  // still names a route the plan has nothing to do with — and that is what gets
+  // shared. The planner always anchors to the root.
+  const base = (location.pathname === '/' ? location.pathname : '/') + location.search;
   if (state) {
     const want = `#/plan?${state}`;
     if (location.hash !== want) history.replaceState(null, '', base + want);

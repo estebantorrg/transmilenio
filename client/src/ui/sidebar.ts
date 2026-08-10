@@ -188,6 +188,19 @@ function parseRouteHash(): { code: string; slug?: string } | null {
   };
 }
 
+/**
+ * Prerendered route pages are served at a real path (`/ruta/g47/`, spec §5.5.4)
+ * because crawlers drop fragments. They carry no hash, so a visitor arriving from
+ * a search result is resolved from the pathname instead — the código is matched
+ * case-insensitively since the URL form is lowercased.
+ */
+function parseRoutePath(): { code: string } | null {
+  const match = location.pathname.match(/^\/ruta\/([^/]+)\/?$/);
+  if (!match) return null;
+  const code = decodeURIComponent(match[1]).trim();
+  return code ? { code } : null;
+}
+
 /** Resolve a hash back to a specific route, picking the right direction. */
 function resolveRouteFromHash(code: string, slug?: string): RouteListItem | undefined {
   const matches = routesWithCode(code);
@@ -202,6 +215,18 @@ function resolveRouteFromHash(code: string, slug?: string): RouteListItem | unde
 function pushRouteHash(route: RouteListItem): void {
   const want = routeHashFor(route);
   if (location.hash === want) return;
+  // A visitor from a prerendered `/ruta/<code>/` page is already at a URL that
+  // names this exact route — and it is the one Google indexed and the one worth
+  // sharing. Leave it alone rather than trading it for the hash form.
+  const path = parseRoutePath();
+  if (path && resolveRouteFromHash(path.code)?.id === route.id) return;
+  // Selecting a *different* route from such a page would otherwise mint
+  // `/ruta/g47/#/r/B12`, where the path and the hash disagree. Drop back to the
+  // root first so in-app deep links stay unambiguous (and match the planner's
+  // `#/plan?…` base).
+  if (location.pathname !== '/') {
+    history.replaceState(null, '', '/' + location.search);
+  }
   suppressHashChange = true;
   location.hash = want;
 }
@@ -989,10 +1014,17 @@ export function setRoutes(routes: RouteListItem[]): void {
   syncLineChips();
   applyFilters();
 
-  // First time routes are available, restore any shared deep link (#/r/<code>).
+  // First time routes are available, restore any shared deep link (#/r/<code>)
+  // or the prerendered path a search result landed on (/ruta/<code>/).
   if (!deepLinkApplied) {
     deepLinkApplied = true;
-    if (parseRouteHash()) applyRouteHash();
+    if (parseRouteHash()) {
+      applyRouteHash();
+    } else {
+      const path = parseRoutePath();
+      const target = path ? resolveRouteFromHash(path.code) : undefined;
+      if (target && target.id !== selectedRouteId) selectRoute(target);
+    }
   }
 }
 

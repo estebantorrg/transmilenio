@@ -74,6 +74,12 @@ function setLoadingStatus(text: string): void {
  * user has to diagnose as "reload the page".
  */
 function showBootRetry(): void {
+  // Prerendered pages (spec §5.5.4) suppress the boot overlay so a visitor from
+  // a search result reads the stops immediately instead of a progress bar. That
+  // overlay is also the only surface a boot failure has, so a failure takes the
+  // suppression back off — otherwise the error would be invisible on exactly the
+  // pages strangers land on.
+  document.body.classList.remove('seo-static');
   const btn = document.getElementById('loading-retry');
   if (!btn) return;
   btn.classList.remove('hidden');
@@ -87,6 +93,11 @@ function hideLoading(): void {
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.remove(), 700);
   }
+  // Prerendered pages (/ruta/…, /estacion/…) ship their content as real HTML so
+  // crawlers — and anyone whose bundle hasn't run — see the stops and horarios
+  // without JS (spec §5.5.4). Once the map is live it is the page, so the static
+  // panel is dropped rather than left stacked under the UI.
+  document.getElementById('seo-prerender')?.remove();
 }
 
 function getErrorMessage(error: unknown): string {
@@ -1038,6 +1049,41 @@ async function main(): Promise<void> {
 
   setRoutes(routeList);
   refreshLayerCounts();
+
+  // A visitor from a prerendered estación page (`/estacion/<slug>-<codigo>/`,
+  // spec §5.5.4) arrives with no hash, so nothing in the hash router fires. The
+  // código is the last hyphen-delimited segment of the slug.
+  //
+  // The coordinate comes from the *catalog*, not `getStationDisplayPoints()`:
+  // a display point's `codigo` is ArcGIS's `numero_estacion`, which is a
+  // different identifier space from the catalog's `TM####` — matching one
+  // against the other never succeeds. `showStationPopupByCode` does accept the
+  // TM code, since it also matches on a resolved station's `sourceStops`.
+  const stationPath = location.pathname.match(/^\/estacion\/(?:.*-)?(tm\d+)\/?$/i);
+  if (stationPath) {
+    const code = stationPath[1].toUpperCase();
+    const station = catalog.stations[code] ?? Object.values(catalog.stations).find(
+      (s) => String(s.codigo).toUpperCase() === code
+    );
+    const [lat, lon] = String(station?.coordenada ?? '').split(',').map((n) => Number(n.trim()));
+    if (station && Number.isFinite(lat) && Number.isFinite(lon)) {
+      const coordinate: [number, number] = [lon, lat];
+      // Deferred to the map's first idle: boot is still settling the initial
+      // camera at this point, and a camera move issued into that window is
+      // discarded — the popup opened on the right station while the view stayed
+      // at the city-wide default.
+      //
+      // `jumpTo`, not `flyTo`: opening a popup runs its own `easeTo` to clear the
+      // sidebar (`layers/popup.ts`), and that ease carries no zoom — an animated
+      // zoom started here is cancelled by it mid-flight, which left the map
+      // centred on the station but still at city zoom. Setting the zoom
+      // instantly first means the popup's recentre inherits it.
+      map.once('idle', () => {
+        map.jumpTo({ center: coordinate, zoom: 15 });
+        showStationPopupByCode(map, station.codigo, coordinate);
+      });
+    }
+  }
 
   // 4. Done with initial render!
   console.log('🎉 TransMilenio Explorer initial render ready!');
