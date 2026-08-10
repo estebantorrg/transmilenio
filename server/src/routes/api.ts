@@ -626,6 +626,7 @@ router.get('/walking-route', async (req: Request, res: Response) => {
         duration?: number;
         geometry?: { coordinates?: number[][] };
       }>;
+      waypoints?: Array<{ distance?: number }>;
     };
     const route = data.routes?.[0];
     const coordinates = route?.geometry?.coordinates;
@@ -639,14 +640,30 @@ router.get('/walking-route', async (req: Request, res: Response) => {
       res.status(502).json({ success: false, error: 'Walking route upstream returned no usable route' });
       return;
     }
-    const distance = Number(route.distance);
     const normalizedCoordinates = coordinates.map(([lng, lat]) => [Number(lng), Number(lat)] as LngLat);
     if (normalizedCoordinates.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
       res.status(502).json({ success: false, error: 'Walking route upstream returned invalid coordinates' });
       return;
     }
+    // OSRM routes between the points it *snapped* the request to, and reports
+    // neither the snap legs in `distance` nor the requested points in the
+    // geometry. A stop set back from the kerb — or an origin dropped inside a
+    // block — is routinely 20–90 m off the pedestrian network, so taking the
+    // route at face value under-charges every leg (measured over this graph:
+    // mean 24 m, p90 42 m, max 94 m per leg, always in the same direction) and
+    // draws a walk that starts short of where the rider is standing. Both parts
+    // are reported: `distance` is the honest walked total, and the two snap legs
+    // are broken out so the client can stitch the drawn path back onto the
+    // endpoints it belongs to (spec §5.6.4).
+    const snapFrom = Number(data.waypoints?.[0]?.distance);
+    const snapTo = Number(data.waypoints?.[1]?.distance);
+    const snapped = (Number.isFinite(snapFrom) ? snapFrom : 0) + (Number.isFinite(snapTo) ? snapTo : 0);
+    const distance = Number(route.distance) + snapped;
 
-    res.setHeader('Cache-Control', 'no-store');
+    // A walk between two fixed points never changes, so the answer is worth
+    // caching for anyone between here and the rider — the previous `no-store`
+    // sent every repeat of an identical leg back to the public router.
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.json({
       success: true,
       data: {
@@ -655,6 +672,8 @@ router.get('/walking-route', async (req: Request, res: Response) => {
         // Derive from distance, not OSRM's duration (driving-speed on the demo
         // server — see WALK_SPEED_M_PER_MINUTE note above).
         time: distance / WALK_SPEED_M_PER_MINUTE,
+        snapFrom: Number.isFinite(snapFrom) ? snapFrom : 0,
+        snapTo: Number.isFinite(snapTo) ? snapTo : 0,
         source: 'osrm',
       },
     });

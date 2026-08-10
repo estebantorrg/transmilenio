@@ -298,12 +298,18 @@ const WALK_SPEED_M_PER_MINUTE = 75;
  * real), and every itinerary's walking was under-reported by 25%.
  *
  * Fitted against the same OSRM foot router the planner then refines with, over
- * 125 stop pairs in this graph stratified across the 120 m–1.5 km range the
- * planner produces: `1.25 × straight + 40 m`, which is unbiased (mean error
- * 0 m, mean |error| 74 m, 11.7% relative) where the raw straight line is short
- * by 193 m on average.
+ * 150 stop pairs in this graph stratified across the 120 m–1.5 km range the
+ * planner produces: `1.25 × straight + 50 m`, unbiased (mean error −1 m, mean
+ * |error| 77 m, 10.7% relative) where the raw straight line is short by 227 m
+ * on average.
  *
- * The fixed 40 m is the part a pure ratio cannot express and the part that
+ * The crossing term was 40 m while the target it was fitted to dropped OSRM's
+ * snap legs — the walk from the point asked about to the pedestrian network,
+ * which the router now charges (`fetchWalkingPath`). Against the honest
+ * distance the old constant left the estimate 11 m short **per leg**, always in
+ * the same direction, which is exactly the bias the fit exists to remove.
+ *
+ * The fixed term is the part a pure ratio cannot express and the part that
  * matters for ranking: **every** walk leg costs a crossing, so an itinerary
  * that breaks the same total into three little walks really is worse than one
  * that walks it in a single leg. Under a pure multiplier those two rank
@@ -314,7 +320,7 @@ const WALK_SPEED_M_PER_MINUTE = 75;
  * anything is ranked for display (`resolveWalkingLegs`).
  */
 const WALK_DETOUR_SCALE = 1.25;
-const WALK_DETOUR_CROSSING_M = 40;
+const WALK_DETOUR_CROSSING_M = 50;
 
 /** Straight-line metres → the metres a rider actually walks. */
 function walkMeters(straightLine: number): number {
@@ -1810,7 +1816,12 @@ export interface WalkingPathResult {
 const walkingCache = new Map<string, WalkingPathResult>();
 const walkingInFlight = new Map<string, Promise<WalkingPathResult>>();
 
-const WALK_CACHE_STORAGE_KEY = 'tm.walkroutes.v1';
+// v2: v1 entries were keyed by ordered pair and held the raw OSRM route — snap
+// legs uncharged, geometry stopping short of both endpoints. Reading them back
+// would have kept both defects alive for exactly the riders who use the planner
+// most, so the old store is dropped rather than migrated.
+const WALK_CACHE_STORAGE_KEY = 'tm.walkroutes.v2';
+const WALK_CACHE_STORAGE_KEY_LEGACY = 'tm.walkroutes.v1';
 /**
  * Cap on persisted entries. The store is rewritten whole after a search that
  * added anything, on the main thread, so the cap is a write-cost budget, not a
@@ -1822,8 +1833,53 @@ const WALK_CACHE_PERSIST_MAX = 250;
 let walkingCacheLoaded = false;
 let walkingCacheDirty = false;
 
-function walkCacheKey(from: [number, number], to: [number, number]): string {
-  return `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+/**
+ * Cache key for a walk, canonical in direction: a foot route is the same walk
+ * both ways (measured against this router over the graph's own legs — worst
+ * asymmetry 4.1 m, 0.48%), so keying on the ordered pair made the return trip,
+ * and every transfer leg a later search happens to traverse backwards, pay for
+ * a lookup it already had. `flipped` says the cached geometry has to be
+ * reversed before it is handed back.
+ */
+function walkCacheKey(from: [number, number], to: [number, number]): { key: string; flipped: boolean } {
+  const a = `${from[0].toFixed(5)},${from[1].toFixed(5)}`;
+  const b = `${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+  return a <= b ? { key: `${a}|${b}`, flipped: false } : { key: `${b}|${a}`, flipped: true };
+}
+
+/** Same walk, walked the other way. */
+function reverseWalk(result: WalkingPathResult): WalkingPathResult {
+  return { ...result, coordinates: [...result.coordinates].reverse() };
+}
+
+/**
+ * Distance below which the routed geometry is already touching the endpoint and
+ * needs no stitch vertex — just above the ~1 m the cache key rounds coordinates
+ * to, so a snap inside that rounding never adds a duplicate vertex.
+ */
+const WALK_STITCH_MIN_M = 2;
+
+/**
+ * Joins the routed path back onto the two points it was asked about.
+ *
+ * OSRM returns the route between the points it **snapped** onto the pedestrian
+ * network, so the geometry starts and ends short of the rider's origin and of
+ * the station the next leg boards at — measured over this graph's own walk legs:
+ * a mean 19 m at the worse end, p90 35 m, worst 91 m. Drawn verbatim
+ * (`layers/journeyLayer.ts` renders `step.path` as one `LineString`) that leaves
+ * the dashed walk floating away from the origin pin and detached from the bus
+ * leg, which is the same disconnected-pieces defect §5.6.3 fixed for rides.
+ */
+function stitchWalkGeometry(
+  from: [number, number],
+  to: [number, number],
+  coordinates: [number, number][]
+): [number, number][] {
+  const stitched = coordinates.slice();
+  if (getDistance(from, stitched[0]) > WALK_STITCH_MIN_M) stitched.unshift(from);
+  const last = stitched[stitched.length - 1];
+  if (getDistance(to, last) > WALK_STITCH_MIN_M) stitched.push(to);
+  return stitched;
 }
 
 function storage(): Storage | null {
@@ -1840,13 +1896,21 @@ function loadPersistedWalkCache(): void {
   walkingCacheLoaded = true;
   const store = storage();
   if (!store) return;
+  try { store.removeItem(WALK_CACHE_STORAGE_KEY_LEGACY); } catch { /* ignore */ }
   try {
     const raw = store.getItem(WALK_CACHE_STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, [number, number, number[][]]>;
     for (const [key, value] of Object.entries(parsed)) {
       if (!Array.isArray(value) || value.length !== 3 || !Array.isArray(value[2])) continue;
-      const coordinates = value[2].filter((c) => Array.isArray(c) && c.length >= 2) as [number, number][];
+      // Distance and time are read back into arithmetic that has no other guard:
+      // one `null` or `"812"` in a hand-edited or half-written store turns a
+      // plan's `walkDistance` into NaN, which then sorts arbitrarily and prints
+      // as "NaN m" on the card. A bad entry is dropped, not repaired.
+      if (!Number.isFinite(value[0]) || !Number.isFinite(value[1]) || value[0] < 0 || value[1] < 0) continue;
+      const coordinates = value[2].filter(
+        (c) => Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1])
+      ) as [number, number][];
       if (coordinates.length < 2) continue;
       walkingCache.set(key, { distance: value[0], time: value[1], coordinates, real: true });
     }
@@ -1886,24 +1950,37 @@ function persistWalkCache(): void {
  */
 export async function fetchWalkingPath(from: [number, number], to: [number, number]): Promise<WalkingPathResult> {
   loadPersistedWalkCache();
-  const key = walkCacheKey(from, to);
+  const { key, flipped } = walkCacheKey(from, to);
+  // The cache is keyed on the unordered pair, so everything in it is stored in
+  // the canonical direction and turned around here for the caller.
+  const orient = (result: WalkingPathResult): WalkingPathResult => (flipped ? reverseWalk(result) : result);
+
   const cached = walkingCache.get(key);
-  if (cached) return cached;
+  if (cached) return orient(cached);
   const pending = walkingInFlight.get(key);
-  if (pending) return pending;
+  if (pending) return pending.then(orient);
+
+  // Canonical endpoints: what a cache entry under this key means, whichever way
+  // the caller asked for it.
+  const [canonFrom, canonTo] = flipped ? [to, from] : [from, to];
 
   const request = (async (): Promise<WalkingPathResult> => {
     try {
       // Lazy import keeps this module free of api.ts's Vite-only globals
       // (import.meta.env), so the router stays importable from Node test harnesses.
       const { api } = await import('./api');
-      const data = await api.getWalkingRoute(from, to);
+      const data = await api.getWalkingRoute(canonFrom, canonTo);
       const route = data.data;
-      if (data.success && route && route.coordinates.length >= 2) {
+      if (data.success && route && route.coordinates.length >= 2 && Number.isFinite(route.distance)) {
+        // `route.distance` already carries the two snap legs (the transports add
+        // them, §5.6.4) — the floor is for the pathological case where a snap
+        // put both endpoints on the same way and the "route" came back shorter
+        // than the straight line, which no rider can walk.
+        const distance = Math.max(route.distance, getDistance(canonFrom, canonTo));
         const result: WalkingPathResult = {
-          coordinates: route.coordinates,
-          distance: route.distance,
-          time: route.time,
+          coordinates: stitchWalkGeometry(canonFrom, canonTo, route.coordinates),
+          distance,
+          time: distance / WALK_SPEED_M_PER_MINUTE,
           real: true,
         };
         walkingCache.set(key, result);
@@ -1918,9 +1995,9 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
     // failed lookup leaves the itinerary consistent instead of shrinking one leg
     // back to a distance nobody can walk. Not cached — the next search should
     // try again rather than inherit the failure.
-    const distance = walkMeters(getDistance(from, to));
+    const distance = walkMeters(getDistance(canonFrom, canonTo));
     return {
-      coordinates: [from, to],
+      coordinates: [canonFrom, canonTo],
       distance,
       time: distance / WALK_SPEED_M_PER_MINUTE,
       real: false,
@@ -1930,7 +2007,7 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
   });
 
   walkingInFlight.set(key, request);
-  return request;
+  return request.then(orient);
 }
 
 /**

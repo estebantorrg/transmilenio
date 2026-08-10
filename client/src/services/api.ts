@@ -617,9 +617,17 @@ export interface GeoIpResponse {
 }
 
 export interface WalkingRouteResult {
+  /** Routed pedestrian geometry, between the points OSRM *snapped* to — it does
+   *  not reach the requested endpoints. `snapFrom`/`snapTo` are how far short it
+   *  falls at each end; `fetchWalkingPath` stitches them closed (§5.6.4). */
   coordinates: [number, number][];
+  /** Honest walked metres: the routed path plus both snap legs. */
   distance: number;
   time: number;
+  /** Metres from the requested origin to the first routed coordinate. */
+  snapFrom?: number;
+  /** Metres from the last routed coordinate to the requested destination. */
+  snapTo?: number;
   source: 'osrm';
 }
 

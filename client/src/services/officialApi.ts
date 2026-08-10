@@ -22,6 +22,7 @@
  */
 
 import type { ApiResponse } from '../types/transmilenio';
+import { BOGOTA_BOUNDS, isWithinBogota } from '../utils/geo';
 import { LIVE_HOST, APPID, nativeHttpRequest } from './nativeLive';
 import type {
   ArrivalItem,
@@ -301,20 +302,17 @@ async function readCardBalance(numeroTarjeta: string, consultar: 'true' | 'false
 // ─── Walking route (public OSRM foot profile, spec §5.6) ───────────────────
 const OSRM_TIMEOUT_MS = 9_000;
 const WALK_SPEED_M_PER_MINUTE = 75; // must match server + router.ts
-const BOGOTA_WALKING_BOUNDS = { west: -74.25, south: 4.4, east: -73.95, north: 4.85 };
-
-function isWithinWalkingBounds([lng, lat]: [number, number]): boolean {
-  return lng >= BOGOTA_WALKING_BOUNDS.west && lng <= BOGOTA_WALKING_BOUNDS.east &&
-    lat >= BOGOTA_WALKING_BOUNDS.south && lat <= BOGOTA_WALKING_BOUNDS.north;
-}
 
 /**
  * Real pedestrian geometry from the public OSRM foot router (the same instance
- * the server proxies, spec §5.6). Time is derived from distance so totals match
- * the router's straight-line estimate before enrichment.
+ * the server proxies, spec §5.6). Byte-for-byte the same contract as
+ * `GET /api/walking-route`: `distance` is the honest walked total (route +
+ * both snap legs) and the snap legs are broken out so the caller can stitch the
+ * drawn path back onto the endpoints it belongs to. Time is derived from
+ * distance so totals match the router's estimate before enrichment.
  */
 async function getWalkingRoute(from: [number, number], to: [number, number]): Promise<WalkingRouteResponse> {
-  if (!isWithinWalkingBounds(from) || !isWithinWalkingBounds(to)) {
+  if (!isWithinBogota(from[0], from[1]) || !isWithinBogota(to[0], to[1])) {
     return { success: false, error: 'Walking route coordinates must be within Bogota bounds' };
   }
   const url =
@@ -338,8 +336,18 @@ async function getWalkingRoute(from: [number, number], to: [number, number]): Pr
     if (normalized.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
       return { success: false, error: 'Walking route upstream returned invalid coordinates' };
     }
-    const distance = Number(route.distance);
-    return { success: true, data: { coordinates: normalized, distance, time: distance / WALK_SPEED_M_PER_MINUTE, source: 'osrm' } };
+    // See the server twin: OSRM routes between the points it snapped to, and
+    // reports neither the snap legs in `distance` nor the requested points in
+    // the geometry.
+    const rawFrom = Number(data?.waypoints?.[0]?.distance);
+    const rawTo = Number(data?.waypoints?.[1]?.distance);
+    const snapFrom = Number.isFinite(rawFrom) ? rawFrom : 0;
+    const snapTo = Number.isFinite(rawTo) ? rawTo : 0;
+    const distance = Number(route.distance) + snapFrom + snapTo;
+    return {
+      success: true,
+      data: { coordinates: normalized, distance, time: distance / WALK_SPEED_M_PER_MINUTE, snapFrom, snapTo, source: 'osrm' },
+    };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Walking route lookup failed' };
   }
@@ -348,9 +356,11 @@ async function getWalkingRoute(from: [number, number], to: [number, number]): Pr
 // ─── Address/place geocoding (public Photon, spec §5.5.1) ──────────────────
 const GEOCODE_TIMEOUT_MS = 6_000;
 const GEOCODE_LIMIT = 8;
-// Same window as the server's single Bogotá box (`services/bogota.ts`) and the
-// client's own gate (`utils/geo.ts`) — a city boundary has one definition.
-const BOGOTA_BBOX = `${BOGOTA_WALKING_BOUNDS.west},${BOGOTA_WALKING_BOUNDS.south},${BOGOTA_WALKING_BOUNDS.east},${BOGOTA_WALKING_BOUNDS.north}`;
+// Same window as the server's single Bogotá box (`services/bogota.ts`), read
+// from the client's own gate rather than re-typed — a city boundary has one
+// definition (spec §1.1 R2), and the copy that used to live in this file was
+// the fifth.
+const BOGOTA_BBOX = `${BOGOTA_BOUNDS.minLng},${BOGOTA_BOUNDS.minLat},${BOGOTA_BOUNDS.maxLng},${BOGOTA_BOUNDS.maxLat}`;
 
 export interface GeocodeCandidate {
   name: string;
@@ -401,7 +411,7 @@ async function geocode(query: string): Promise<GeocodeResponse> {
         const lon = Number(coords?.[0]);
         const lat = Number(coords?.[1]);
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
-        if (!isWithinWalkingBounds([lon, lat])) return null;
+        if (!isWithinBogota(lon, lat)) return null;
         const p = feature.properties ?? {};
         // Photon's bbox is a rectangle, so a neighbouring municipality can slip
         // in — drop anything not tagged Bogotá.
