@@ -8,7 +8,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP</title>
   <meta name="description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
+  <!-- Google's favicon pipeline wants a raster at a multiple of 48px and is
+       unreliable on SVG-only sites, which is why the search result rendered a
+       generic globe. The SVG stays for browsers that prefer it; the 48px PNG and
+       the .ico are what the crawler and legacy tabs actually consume. -->
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="48x48" href="/icon-48.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icon-16.png" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="apple-touch-icon" href="/icon-180.png" />
 
   <!-- Indexing. Every in-app deep link is a hash fragment (#/r/<code>, #/plan?…),
        which crawlers drop, and the SPA fallback answers unknown paths with this
@@ -21,11 +30,14 @@
   <meta property="og:url" content="https://transmilenio.onrender.com/" />
   <meta property="og:title" content="TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP" />
   <meta property="og:description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
-  <meta property="og:image" content="https://transmilenio.onrender.com/transmiLogo.png" />
-  <meta name="twitter:card" content="summary" />
+  <meta property="og:image" content="https://transmilenio.onrender.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="TransMilenio Explorer — rutas, estaciones y mapa de TransMilenio y SITP en Bogotá" />
+  <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="TransMilenio Explorer — Rutas y mapa de TransMilenio y SITP" />
   <meta name="twitter:description" content="Explora todas las rutas de TransMilenio y SITP en Bogotá. Visualiza estaciones, paraderos y trazados en un mapa interactivo." />
-  <meta name="twitter:image" content="https://transmilenio.onrender.com/transmiLogo.png" />
+  <meta name="twitter:image" content="https://transmilenio.onrender.com/og-card.png" />
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -60,7 +72,7 @@
   <!-- Loading Overlay -->
   <div id="loading-overlay" class="loading-overlay">
     <div class="loading-content">
-      <img class="loading-logo" src="/transmiLogo.png" alt="TransMilenio" width="72" height="72" />
+      <img class="loading-logo" src="/icon-192.png" alt="TransMilenio Explorer" width="72" height="72" />
       <h2 class="loading-title">TransMilenio Explorer</h2>
       <div class="loading-bar">
         <div id="loading-bar-fill" class="loading-bar-fill"></div>
@@ -94,7 +106,7 @@
     </button>
     <div class="sidebar-header">
       <div class="brand">
-        <img class="brand-logo" src="/transmiLogo.png" alt="TransMilenio" width="48" height="48" />
+        <img class="brand-logo" src="/icon-192.png" alt="TransMilenio Explorer" width="48" height="48" />
         <div class="brand-text">
           <span class="brand-title">TransMilenio</span>
           <span class="brand-subtitle">Explorer</span>
