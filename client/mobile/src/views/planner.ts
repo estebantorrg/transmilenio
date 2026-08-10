@@ -844,6 +844,10 @@ function renderPlans(
       // Some leg's pedestrian route could not be fetched, so its distance is an
       // estimate — said out loud rather than passed off as measured (§5.6.4).
       if (plan.walkEstimated) clock.append(h('span', { class: 'plan-chip', text: 'Caminata estimada' }));
+      // The same for the ride: a leg the route's `trazado` does not cover is
+      // drawn as a straight line between stops, and "Ver en el mapa" must not
+      // present that as the shape of the ride (§5.6.3, spec §5.7 #8).
+      if (plan.traceEstimated) clock.append(h('span', { class: 'plan-chip', text: 'Trazado aproximado' }));
       card.append(clock);
     }
     const legs = h('div', { class: 'plan-legs' });
@@ -894,6 +898,13 @@ function renderPlans(
           parts.push(`Opera ${formatServiceDuration(step.serviceDayMinutes)} ese día`);
         }
         if (parts.length > 0) detail.append(h('div', { class: 'plan-service', text: parts.join(' · ') }));
+      }
+      // Per step, because the drawing is per leg: a ride can be part real trace,
+      // part straight line (§5.6.3).
+      if (step.traceSource === 'partial') {
+        detail.append(h('div', { class: 'plan-trace', text: 'Trazado parcial · algunos tramos se dibujan en línea recta' }));
+      } else if (step.traceSource === 'estimate') {
+        detail.append(h('div', { class: 'plan-trace', text: 'Sin trazado oficial · se dibuja en línea recta entre paradas' }));
       }
     }
     card.append(detail);

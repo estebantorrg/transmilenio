@@ -1581,6 +1581,12 @@ function renderPlanClockRow(plan: JourneyPlan): string {
   if (plan.walkEstimated) {
     chips.push('<span class="journey-chip" title="No se pudo consultar el trazado peatonal de algún tramo; esa distancia es una estimación.">Caminata estimada</span>');
   }
+  // The same honesty for the ride: where the route's own `trazado` does not
+  // cover a leg it is drawn as a straight line between stops, and the map must
+  // not pass that off as the shape of the ride (§5.6.3, §5.7 #8).
+  if (plan.traceEstimated) {
+    chips.push('<span class="journey-chip" title="El recorrido oficial de algún tramo no está disponible; en el mapa se dibuja como línea recta entre paradas.">Trazado aproximado</span>');
+  }
 
   return `
     <div class="journey-clock">
@@ -1690,6 +1696,22 @@ function renderStepServiceLine(step: JourneyStep): string {
   const isTight =
     step.serviceEndMinute !== undefined && step.boardMinute !== undefined && step.serviceEndMinute - step.boardMinute <= 20;
   return `<div class="journey-step-service${isTight ? ' warn' : ''}">${escapeHTML(parts.join(' · '))}</div>`;
+}
+
+/**
+ * Note under a ride step whose drawn shape is not (entirely) the route's own
+ * `trazado` — the ride analogue of the "Caminata estimada" label, and per step
+ * because the drawing is per leg: a ride can be part real trace, part straight
+ * line (§5.6.3, spec §5.7 #8).
+ */
+function renderStepTraceLine(step: JourneyStep): string {
+  if (step.traceSource === 'partial') {
+    return '<div class="journey-step-trace">Trazado parcial · algunos tramos se dibujan en línea recta entre paradas</div>';
+  }
+  if (step.traceSource === 'estimate') {
+    return '<div class="journey-step-trace">Sin trazado oficial · el recorrido se dibuja en línea recta entre paradas</div>';
+  }
+  return '';
 }
 
 /**
@@ -1987,6 +2009,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
                 Viajar <strong>${step.stopCount} ${rideStopsNoun(step.routeType, step.stopCount ?? 0)}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
               ${renderStepServiceLine(step)}
+              ${renderStepTraceLine(step)}
               ${stopsToggleHtml}
             </div>
           </div>

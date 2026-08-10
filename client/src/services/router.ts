@@ -24,18 +24,18 @@ export interface GraphEdge {
   distance: number;
   time: number;
   /**
-   * Position of this edge's endpoints in the route's own stop list. Carried on
-   * the edge (not looked up by code) because a loop route visits the same code
+   * Position of this edge's first stop in the route's own stop list (its second
+   * is `fromOrd + 1` — transit edges join consecutive stops). Carried on the
+   * edge (not looked up by code) because a loop route visits the same code
    * twice, and slicing its trace by code would then pick an arbitrary pass —
    * `-1` on walking edges, which have no route of their own.
    */
   fromOrd: number;
-  toOrd: number;
   /**
-   * True when `distance` was measured along the route's trace (§5.6.3). A ride
-   * step is only drawn from the trace when **every** leg it spans is traced:
-   * where a leg was refused the trace there is wrong, so drawing through it
-   * would put metres on the map that the itinerary does not charge.
+   * True when `distance` was measured along the route's trace (§5.6.3). It also
+   * decides how the leg is drawn: a traced leg contributes its slice of the
+   * trace to the ride's polyline, an untraced one the straight line it was
+   * charged as — so the drawn metres are always the charged ones.
    */
   traced: boolean;
 }
@@ -86,6 +86,18 @@ export interface JourneyStep {
    * and the endpoints could not be recovered from it.
    */
   walkStraightLine?: [[number, number], [number, number]];
+  /**
+   * Ride steps: where the drawn shape comes from (§5.6.3), the exact analogue of
+   * `walkSource`. `trace` = every leg cut from the route's own `trazado`;
+   * `partial` = some legs fell back to the straight line between their stops;
+   * `estimate` = the route has no usable trace and the whole ride is the stop
+   * chain. Since the drawing is per leg a ride can genuinely be part real and
+   * part straight, so this is per step, not per plan — and it is said out loud
+   * rather than letting a ruler line across the city pass for the route's shape
+   * (spec §1 certainty, §5.7 #8). Absent on the cable, whose straight span
+   * between stations *is* its real shape.
+   */
+  traceSource?: 'trace' | 'partial' | 'estimate';
   // ── Schedule annotations (§5.6.2). Present only on schedule-aware searches;
   // minutes are counted from the plan day's midnight in Bogotá, so a value
   // above 1440 means the step happens after midnight.
@@ -130,6 +142,15 @@ export interface JourneyPlan {
    * presents a straight-line guess as a measured walk (spec §1 certainty).
    */
   walkEstimated?: boolean;
+  /**
+   * True when some ride is drawn, in whole or in part, as the straight chain
+   * between its stops because the route's `trazado` does not cover it
+   * (`JourneyStep.traceSource`). The card says so, exactly as it does for an
+   * unrouted walk — 58 of the catalog's 1031 routes ship a trace that belongs to
+   * their sibling variant or disagrees with their own stops, and a straight line
+   * across the city must not read as the shape of the ride (spec §5.7 #8).
+   */
+  traceEstimated?: boolean;
 }
 
 export interface RouteSearchParams {
@@ -232,10 +253,6 @@ const ZONAL_DWELL_MINUTES = 0.35;
 // to check against.
 const TRACE_EDGE_MAX_DETOUR_M = 5000;
 const TRACE_EDGE_MAX_RATIO = 12;
-// Whole-ride sanity for the drawn polyline: a slice several times longer than
-// the ride's own stop chain means the projection wrapped, and a legible straight
-// chain beats a confidently wrong detour (spec §1).
-const TRACE_SLICE_MAX_RATIO = 4;
 
 // Expected wait when boarding a service (≈ half a typical route headway).
 // Charged in BOTH time and cost on every boarding — first ride and transfers —
@@ -578,7 +595,6 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         distance,
         time,
         fromOrd: i,
-        toOrd: i + 1,
         traced: usable,
       });
       transitEdgesCount++;
@@ -603,7 +619,6 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         distance,
         time,
         fromOrd: -1,
-        toOrd: -1,
         traced: false,
       });
       transitEdgesCount++;
@@ -631,7 +646,6 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       distance,
       time: distance / WALK_SPEED_M_PER_MINUTE,
       fromOrd: -1,
-      toOrd: -1,
       traced: false,
     });
     walkingEdgesCount++;
@@ -790,7 +804,6 @@ interface RawLeg {
   time: number;
   /** Position in the route's own stop list (`-1` for walks and the cable). */
   fromOrd: number;
-  toOrd: number;
   /** Whether this leg's distance came from the trace (§5.6.3). */
   traced: boolean;
 }
@@ -976,39 +989,65 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
  * The drawn path of one ride: the route's own trace between the boarding and
  * alighting stops, cut at their exact projections (§5.6.3).
  *
- * `fromOrd`/`toOrd` are positions in the route's stop list, carried on the graph
- * edges. The previous implementation matched by *coordinate*, scanning every
- * vertex of every path for the nearest one to each stop — which cost a full scan
- * per step, picked an arbitrary pass on a loop route, and then forced direction
- * by comparing vertex indexes and reversing the slice. On the browser's
- * transport-capped traces that landed the drawn line a mean 305 m (up to 1.4 km)
- * from the station the rider boards at, so the walking leg and the bus leg were
- * drawn as two disconnected pieces.
+ * `fromOrd` is the boarding stop's position in the route's stop list, carried on
+ * the graph edges, and `legTraced[k]` says whether the ride's k-th leg — stops
+ * `fromOrd + k` → `fromOrd + k + 1` — was measured from the trace. The previous
+ * implementation matched by *coordinate*, scanning every vertex of every path
+ * for the nearest one to each stop — which cost a full scan per step, picked an
+ * arbitrary pass on a loop route, and then forced direction by comparing vertex
+ * indexes and reversing the slice. On the browser's transport-capped traces that
+ * landed the drawn line a mean 305 m (up to 1.4 km) from the station the rider
+ * boards at, so the walking leg and the bus leg were drawn as two disconnected
+ * pieces.
  *
- * `fallback` is the stop-to-stop chain of the ride, kept for routes with no
- * usable trace.
+ * **Drawn leg by leg, because the trace is refused leg by leg.** A ride used to
+ * be drawn from the trace only when *every* leg it spanned was traced, on the
+ * grounds that drawing across a refused leg puts metres on the map the itinerary
+ * did not charge. One ordinary catalog blemish then cost the whole ride its
+ * shape: measured over 260 planned trips, 11.7% of ride steps (11.6% of all ride
+ * metres) were drawn as a straight chain between stations, and the median one of
+ * those had 71% of its own legs individually traced — a trunk ride down a curved
+ * busway rendered as a ruler line across the city. Composing the path per leg
+ * keeps the original guarantee exactly: each leg is drawn the way it was
+ * charged — its trace slice when the trace measured it, its straight line when
+ * it did not — so the drawn metres still match the itinerary's, and the ride
+ * only loses its shape where the trace is genuinely wrong.
+ *
+ * `fallback` is the stop-to-stop chain of the ride (`legTraced.length + 1`
+ * points), used as-is for routes with no usable trace and for the individual
+ * legs the trace could not measure.
  */
-function sliceRouteGeometry(
+function rideGeometry(
   routeId: string,
   fromOrd: number,
-  toOrd: number,
+  legTraced: boolean[],
   fallback: [number, number][]
 ): [number, number][] {
-  const index = traceIndexById.get(routeId);
-  if (!index) return fallback;
-  const sliced = traceSliceBetween(index, fromOrd, toOrd);
-  if (!sliced || sliced.length < 2) return fallback;
+  const index = fromOrd < 0 ? undefined : traceIndexById.get(routeId);
+  if (!index || !legTraced.some(Boolean)) return fallback;
 
-  // The trace can only be trusted as far as the stop chain agrees with it — a
-  // slice several times longer than the ride means the projection wrapped, and a
-  // legible straight chain beats a confidently wrong detour (spec §1).
-  let chain = 0;
-  for (let k = 0; k < fallback.length - 1; k++) chain += getDistance(fallback[k], fallback[k + 1]);
-  let drawn = 0;
-  for (let k = 0; k < sliced.length - 1; k++) drawn += getDistance(sliced[k], sliced[k + 1]);
-  if (chain > 100 && drawn > chain * TRACE_SLICE_MAX_RATIO) return fallback;
+  const path: [number, number][] = [];
+  const append = (point: [number, number]): void => {
+    const last = path[path.length - 1];
+    if (last && last[0] === point[0] && last[1] === point[1]) return;
+    path.push(point);
+  };
 
-  return sliced;
+  for (let k = 0; k < legTraced.length; k++) {
+    const sliced = legTraced[k] ? traceSliceBetween(index, fromOrd + k, fromOrd + k + 1) : null;
+    if (sliced && sliced.length > 1) {
+      for (const point of sliced) append(point);
+      continue;
+    }
+    // Untraced leg: the straight line between its two stops, which is exactly
+    // what the search charged for it. Appending from wherever the previous leg
+    // ended keeps the ride one continuous polyline — the projection of a stop
+    // sits within `MAX_SNAP_ERROR_M` of the stop itself (p99 17 m).
+    append(fallback[k]);
+    append(fallback[k + 1]);
+  }
+
+  return path.length > 1 ? path : fallback;
 }
 
 /**
@@ -1028,13 +1067,11 @@ function buildJourneySteps(
   let currentStep: JourneyStep | null = null;
   let currentRouteId: string | null = null;
   let currentChain: [number, number][] = [];
-  // Positions of the ride's boarding / alighting stop inside the route's own
-  // stop list — what the trace is sliced by (§5.6.3).
+  // Position of the ride's boarding stop inside the route's own stop list, and
+  // whether each of its legs was measured from the trace — what the drawn path
+  // is composed from, leg by leg (§5.6.3).
   let currentFromOrd = -1;
-  let currentToOrd = -1;
-  // Cleared by any leg the trace could not measure: the drawn path must not
-  // cross ground the itinerary did not charge for (§5.6.3).
-  let currentAllTraced = true;
+  let currentLegTraced: boolean[] = [];
   // Wall-clock cursor: the moment the step being built starts. Advanced only on
   // commit, so a ride's boarding annotations use the same cumulative time the
   // search charged for that path.
@@ -1042,17 +1079,24 @@ function buildJourneySteps(
 
   const commitCurrent = (): void => {
     if (!currentStep) return;
-    currentStep.path = currentAllTraced
-      ? sliceRouteGeometry(currentRouteId!, currentFromOrd, currentToOrd, currentChain)
-      : currentChain;
+    currentStep.path = rideGeometry(currentRouteId!, currentFromOrd, currentLegTraced, currentChain);
+    // What the rider is looking at, per step. Reading the same `traced` flags
+    // `rideGeometry` just drew from is exact, not an approximation of it:
+    // `traceSliceBetween` refuses on precisely the condition `traceDistanceBetween`
+    // does, so a leg is drawn from the trace iff it was measured from it.
+    // The cable's straight span between stations is its real shape, so it is not
+    // an estimate of anything.
+    if (currentStep.routeType !== 'cable') {
+      const traced = currentLegTraced.filter(Boolean).length;
+      currentStep.traceSource = traced === currentLegTraced.length ? 'trace' : traced > 0 ? 'partial' : 'estimate';
+    }
     cursor += currentStep.time;
     steps.push(currentStep);
     currentStep = null;
     currentRouteId = null;
     currentChain = [];
     currentFromOrd = -1;
-    currentToOrd = -1;
-    currentAllTraced = true;
+    currentLegTraced = [];
   };
 
   for (const leg of legs) {
@@ -1112,8 +1156,7 @@ function buildJourneySteps(
       currentStep.time += leg.time;
       if (currentStep.stopCount !== undefined) currentStep.stopCount++;
       currentChain.push(toStop.coordinate);
-      currentToOrd = leg.toOrd;
-      if (!leg.traced) currentAllTraced = false;
+      currentLegTraced.push(leg.traced);
     } else {
       // New ride step (first boarding or a transfer)
       commitCurrent();
@@ -1138,8 +1181,7 @@ function buildJourneySteps(
       currentRouteId = leg.routeId;
       currentChain = [fromStop.coordinate, toStop.coordinate];
       currentFromOrd = leg.fromOrd;
-      currentToOrd = leg.toOrd;
-      currentAllTraced = leg.traced;
+      currentLegTraced = [leg.traced];
     }
   }
 
@@ -1520,7 +1562,6 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         distance: egressDistance,
         time: egressDistance / WALK_SPEED_M_PER_MINUTE,
         fromOrd: -1,
-        toOrd: -1,
         traced: false,
       });
 
@@ -1552,7 +1593,6 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           distance: edge.distance,
           time: edge.time,
           fromOrd: edge.fromOrd,
-          toOrd: edge.toOrd,
           traced: edge.traced,
         });
       }
@@ -1574,7 +1614,6 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         distance: startWalk.walk,
         time: startWalk.walk / WALK_SPEED_M_PER_MINUTE,
         fromOrd: -1,
-        toOrd: -1,
         traced: false,
       });
 
@@ -1598,6 +1637,10 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       walkDistance: Math.round(totalWalkDistance),
       transfers: targetState.transfers,
       steps: journeySteps,
+      // Known the moment the steps are drawn — unlike `walkEstimated`, which
+      // only settles after the pedestrian pass — so the first card the rider
+      // sees already says whether it is showing a real trace (§5.7 #8).
+      traceEstimated: journeySteps.some((s) => s.traceSource && s.traceSource !== 'trace') || undefined,
     };
     summarizeSchedule(plan, schedule.clock);
     plans.push(plan);

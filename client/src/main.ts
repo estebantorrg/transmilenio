@@ -763,11 +763,13 @@ async function main(): Promise<void> {
       await stopLiveBusTracking();
 
       // Upgrade the selected route to its FULL official trace + stops. The
-      // overview list carries the light (160-pt, spec §5.1.4) trace — and for
-      // troncal routes an ArcGIS geometry, not the app's own trazado — so the
-      // highlighted route must be re-hydrated from the route-detail endpoint
+      // overview list carries the light (320-pt, spec §5.1.4) trace, so the
+      // highlighted route is re-hydrated from the route-detail endpoint
       // (full-resolution `variant.trazado`, straight from the catalog) to be
       // displayed 100% as the TransMi app provides it. Done once per route.
+      // It is a resolution upgrade only: since ArcGIS stopped overwriting the
+      // catalog trace (`routeCatalog.ts`, spec §4.2/§5.6.3) the list already
+      // carries the same `trazado`, just simplified for transport.
       if (route.source === 'catalog' && !fullTraceLoaded.has(route.id)) {
         try {
           const detailRes = await api.getRouteDetail(route.code);

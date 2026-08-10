@@ -3881,6 +3881,15 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--tm-red-light);
 }
 
+/* Where the drawn shape of a ride is not the route's own trazado (§5.6.3). */
+.journey-step-trace {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-tertiary);
+  font-style: italic;
+}
+
 /* ─── "Nothing runs at that hour" notice ─────────────── */
 
 .planner-notice {

@@ -693,6 +693,8 @@ input { font-family: inherit; }
 .plan-chip.danger { color: var(--red-2); background: rgba(227, 52, 47, 0.16); }
 .plan-service { font-size: 11.5px; color: var(--muted-2); padding-left: 2px; }
 .plan-service.danger { color: var(--red-2); }
+/* Where the drawn shape of a ride is not the route's own trazado (§5.6.3). */
+.plan-trace { font-size: 11.5px; color: var(--muted-2); padding-left: 2px; font-style: italic; }
 .rd-service { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; padding: 9px 12px; border-radius: 10px; margin-bottom: 8px; background: var(--surface-3); border: 1px solid var(--border); font-size: 12.5px; }
 .rd-service-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted-2); flex: none; }
 .rd-service-label { font-weight: 700; color: var(--muted); }

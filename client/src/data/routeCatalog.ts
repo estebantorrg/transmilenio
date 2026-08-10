@@ -416,7 +416,16 @@ export function buildRouteList(
 
     const existing = mergedRoutes.get(key) ?? findCatalogRouteForArcgis(baseCode, 'troncal', normOrigin, normDest);
     if (existing) {
-      if (r.geometry) existing.geometry = r.geometry;
+      // ArcGIS **enriches** a troncal route, it does not re-draw it (spec §4.2).
+      // Its geometry is a survey centreline from a different source than the
+      // variant that supplied the stops, and the planner projects those stops
+      // onto this line to charge and draw every ride (§5.6.3) — the same
+      // same-variant rule that §5.6.3 fixed inside the catalog. Adopting the
+      // centreline cost 13 troncal ride legs their trace (96.2% → 95.4% of
+      // 1599) and forced the route panel to re-hydrate the real `trazado`
+      // behind the user's back on every selection. It is used only where the
+      // catalog variant shipped no trace at all.
+      if (r.geometry && !existing.geometry) existing.geometry = r.geometry;
       if (!existing.length && r.attributes.longitud_ruta_troncal) {
         existing.length = r.attributes.longitud_ruta_troncal;
       }
