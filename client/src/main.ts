@@ -737,10 +737,18 @@ async function main(): Promise<void> {
     { troncal: 0, zonal: 0 }
   );
 
-  // Shared point-focus flow: fly to the point and open its popup. Used by the
+  // Shared point-focus flow: move to the point and open its popup. Used by the
   // Cerca rows and the Explore search's station/paradero hits (spec §1.1 R2).
+  //
+  // `jumpTo`, not `flyTo`: every popup here ends up in `showPopup`
+  // (layers/popup.ts), which runs its own `easeTo` to slide the point clear of
+  // the sidebar — and that ease carries no zoom, so it cancelled the animated
+  // zoom started here a frame earlier. The result was that tapping a Cerca or
+  // Explore result recentred the map but never actually zoomed in, for every
+  // point kind. Setting the zoom instantly means the popup's recentre inherits
+  // it and still animates the pan.
   const focusNearbyPoint = (point: NearbyPoint): void => {
-    map.flyTo({ center: point.coordinate, zoom: 15, duration: 900 });
+    map.jumpTo({ center: point.coordinate, zoom: 15 });
     if (point.kind === 'recharge' || point.kind === 'personalizacion' || point.kind === 'transmibici') {
       showPoiPopup(map, point);
     } else if (point.kind === 'cable') {
