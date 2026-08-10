@@ -418,5 +418,18 @@
   </aside>
 
   <script type="module" src="./src/main.ts"></script>
+
+  <!-- Cloudflare Web Analytics. Cookieless and no cross-site identifiers, so it
+       needs no consent banner — the one third-party script the site loads, and
+       the reason it is tolerated is that there is otherwise no way to tell
+       whether the prerendered pages (spec §5.5.4) are reaching anyone. Deferred
+       so it never competes with the map for the critical path. Website only: the
+       APK shell (client/mobile/index.html) is offline-first and must not depend
+       on a third-party host. -->
+  <script
+    defer
+    src="https://static.cloudflareinsights.com/beacon.min.js"
+    data-cf-beacon='{"token": "efde7d251a0d410ba193408213bfcc04"}'
+  ></script>
 </body>
 </html>
