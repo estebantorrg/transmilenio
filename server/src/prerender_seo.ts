@@ -141,6 +141,23 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/**
+ * A `<title>` under the ~65 characters Google renders before it truncates.
+ *
+ * The subject of these pages is a name the rider searched for, so the name is
+ * the one part that may never be cut — which means the *suffix* has to give. It
+ * is not decoration either: "qué rutas pasan y en qué vagón" is the phrasing of
+ * the query the page answers, and a truncated title drops exactly that tail,
+ * off the longest names — Estación El Tiempo - Cámara De Comercio De Bogotá ran
+ * to 82 characters, so everything after the station name was lost. Long names
+ * therefore get a shorter suffix rather than a cut one: 16 estación titles and
+ * 1 ruta title were over the limit, and all of them fit with the short form.
+ */
+function pageTitle(subject: string, suffix: string, shortSuffix: string, max = 65): string {
+  const full = `${subject}${suffix}`;
+  return full.length <= max ? full : `${subject}${shortSuffix}`;
+}
+
 /** Meta descriptions are truncated by search engines past ~160 chars; do it ourselves so we control where. */
 function clamp(text: string, max = 158): string {
   const clean = text.replace(/\s+/g, ' ').trim();
@@ -315,7 +332,7 @@ function renderRoute(codigo: string, variants: LightRoute[], stationByCode: Map<
   const stopCount = Math.max(...variants.map((v) => v.stops?.length ?? 0));
   const horarios = horariosText(primary);
 
-  const title = `Ruta ${codigo} ${name} — paradas, recorrido y horarios`;
+  const title = pageTitle(`Ruta ${codigo} ${name}`, ' — paradas, recorrido y horarios', ' — paradas y horarios');
   const description = clamp(
     `Recorrido completo de la ruta ${codigo} (${name}) de TransMilenio en Bogotá: ` +
       `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}.` +
@@ -571,7 +588,7 @@ function renderStation(
     countServices(platform.unassigned) +
     platform.feeders.length;
 
-  const title = `Estación ${nombre} — qué rutas pasan y en qué vagón`;
+  const title = pageTitle(`Estación ${nombre}`, ' — qué rutas pasan y en qué vagón', ' — rutas y vagones');
   const description = clamp(
     `Rutas que paran en la estación ${nombre} de TransMilenio` +
       `${direccion ? ` (${direccion})` : ''}, Bogotá: ` +
