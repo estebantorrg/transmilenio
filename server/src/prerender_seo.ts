@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
+import { stopTagColor } from './services/route_colors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -464,10 +465,23 @@ interface PlatformService {
   destino: string;
   color?: string;
   href?: string;
+  /** Drives the chip colour: the ruta fácil / corridor rules are network-aware. */
+  zonal?: boolean;
 }
 interface PlatformDirection {
   /** Spanish cardinal for the way these services leave, when derivable. */
   sentido: string | null;
+  /**
+   * These services END at this station. They are filed on the platform and do
+   * arrive at it, but a rider cannot board them toward anywhere — so they are
+   * never given a cardinal. Falling back to the bearing of the leg *into* the
+   * station (what a route's last stop otherwise gets) printed "sentido sur" at
+   * Portal Usme over a list of services whose destination *is* Portal Usme:
+   * southbound service advertised at the point where southbound service ends.
+   * 177 of 1 755 wagon-filed services across 33 of the 139 stations, nearly all
+   * of them at portals.
+   */
+  arrival?: boolean;
   services: PlatformService[];
 }
 interface PlatformVagon {
@@ -545,10 +559,20 @@ function meanCardinal(bearings: number[]): string | null {
  * Verified against the official planos for General Santander and Calle 40 Sur —
  * the catalog's wagon groups reproduce the printed vagones exactly.
  */
-function splitDirections(entries: Array<{ svc: PlatformService; deg: number | null }>): PlatformDirection[] {
+function splitDirections(
+  all: Array<{ svc: PlatformService; deg: number | null; terminates?: boolean }>
+): PlatformDirection[] {
+  // Terminating services are pulled out before the split: they have no outbound
+  // heading to be grouped by, and giving them one is the defect described on
+  // `PlatformDirection.arrival`.
+  const arrivals = all.filter((e) => e.terminates).map((e) => e.svc);
+  const entries = all.filter((e) => !e.terminates);
+  const tail = (dirs: PlatformDirection[]): PlatformDirection[] =>
+    arrivals.length ? [...dirs, { sentido: null, arrival: true, services: arrivals }] : dirs;
+
   const known = entries.filter((e) => e.deg !== null) as Array<{ svc: PlatformService; deg: number }>;
   const unknown = entries.filter((e) => e.deg === null).map((e) => e.svc);
-  if (known.length === 0) return entries.length ? [{ sentido: null, services: entries.map((e) => e.svc) }] : [];
+  if (known.length === 0) return tail(entries.length ? [{ sentido: null, services: entries.map((e) => e.svc) }] : []);
 
   // Principal axis of travel via doubled angles, so opposite headings reinforce
   // instead of cancelling; then split by which side of that axis each service runs.
@@ -574,7 +598,7 @@ function splitDirections(entries: Array<{ svc: PlatformService; deg: number | nu
   // Services whose heading cannot be derived are listed plainly rather than
   // guessed into a direction.
   if (unknown.length) directions.push({ sentido: null, services: unknown });
-  return directions;
+  return tail(directions);
 }
 
 function buildPlatform(
@@ -600,29 +624,33 @@ function buildPlatform(
   for (const [wagon, routes] of entries) {
     // Each service keeps its OWN heading, so the vagón can be split by direction
     // rather than averaged into one — see splitDirections().
-    const scored: Array<{ svc: PlatformService; deg: number | null; zonal: boolean }> = [];
+    const scored: Array<{ svc: PlatformService; deg: number | null; terminates: boolean; zonal: boolean }> = [];
 
     for (const route of routes) {
       const codigo = tidy(route.codigo);
       if (!codigo) continue;
       const variant = variantById.get(String(route.id));
+      const zonal = isZonalService(route.sistema, route.tipoServicio);
       const svc: PlatformService = {
         codigo,
         destino: tidy(route.nombre),
         color: route.color,
         href: routeIndex.get(codigo.toUpperCase()),
+        zonal,
       };
 
       let deg: number | null = null;
       const stops = variant?.stops ?? [];
       const at = here && stops.length ? stops.findIndex((s) => String(s.codigo).toUpperCase() === code) : -1;
-      if (here && at >= 0) {
-        // Next stop gives the heading; at the last stop, reuse the leg into it.
-        const from = at < stops.length - 1 ? parseCoordinate(stops[at].coordenada) : parseCoordinate(stops[at - 1]?.coordenada ?? '');
-        const to = at < stops.length - 1 ? parseCoordinate(stops[at + 1].coordenada) : here;
+      // This station is the variant's last stop: the service ends here and there
+      // is no onward heading to report (see `PlatformDirection.arrival`).
+      const terminates = at >= 0 && at === stops.length - 1;
+      if (here && at >= 0 && !terminates) {
+        const from = parseCoordinate(stops[at].coordenada);
+        const to = parseCoordinate(stops[at + 1].coordenada);
         if (from && to) deg = bearing(from, to);
       }
-      scored.push({ svc, deg, zonal: isZonalService(route.sistema, route.tipoServicio) });
+      scored.push({ svc, deg, terminates, zonal });
     }
 
     // Wagon "0" is the pool the catalog files without a platform letter — and it
@@ -676,14 +704,16 @@ function renderStation(
   ];
 
   const serviceRow = (svc: PlatformService): string => {
-    const fill = /^#[0-9a-f]{6}$/i.test(String(svc.color ?? '')) ? String(svc.color) : '#D8102D';
+    // The app's palette, not the catalog's — see `stopTagColor`. Drawing the raw
+    // catalog colour here let one código appear in two colours on one page.
+    const fill = stopTagColor(svc.codigo, svc.color, svc.zonal === true);
     const chip = `<span class="chip" style="background:${fill};color:${readableOn(fill)}">${escapeHtml(svc.codigo)}</span>`;
     const label = escapeHtml(svc.destino);
     return `<li>${chip}${svc.href ? `<a href="${svc.href}">${label}</a>` : label}</li>`;
   };
 
   const directionHtml = (d: PlatformDirection): string => `    <div class="dir">
-      ${d.sentido ? `<div class="sentido">sentido ${escapeHtml(d.sentido)}</div>` : ''}
+      ${d.arrival ? '<div class="sentido">fin de recorrido</div>' : d.sentido ? `<div class="sentido">sentido ${escapeHtml(d.sentido)}</div>` : ''}
       <ul class="svc">
 ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
       </ul>
@@ -696,9 +726,11 @@ ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
   // entrances, which physical side of the street a vagón sits on) is known here,
   // so nothing about it is drawn, and the note under the plan says so.
   const sideHtml = (d: PlatformDirection, side: 'a' | 'b'): string => {
-    const label = d.sentido
-      ? `<span class="arw arw-${side === 'a' ? 'up' : 'down'}"></span>sentido ${escapeHtml(d.sentido)}`
-      : 'sentido sin determinar';
+    const label = d.arrival
+      ? 'fin de recorrido'
+      : d.sentido
+        ? `<span class="arw arw-${side === 'a' ? 'up' : 'down'}"></span>sentido ${escapeHtml(d.sentido)}`
+        : 'sentido sin determinar';
     return `      <p class="sentido">${label}</p>
       <ul class="svc">
 ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
@@ -903,6 +935,12 @@ async function main(): Promise<void> {
     stationUrls.push(page.url);
 
     const { vagones, unassigned, feeders } = page.platform;
+    // Same palette as the page and the app (stopTagColor), so a card and the
+    // page it previews cannot paint one código two different colours.
+    const cardChip = (s: { codigo: string; color?: string; zonal?: boolean }) => ({
+      codigo: s.codigo,
+      color: stopTagColor(s.codigo, s.color, s.zonal === true),
+    });
     const unassignedServices = unassigned.flatMap((d) => d.services);
     await writeFile(
       path.join(CLIENT_DIST, stationCardUrl(station).replace(/^\//, '')),
@@ -918,10 +956,10 @@ async function main(): Promise<void> {
           // A vagón usually serves both directions, so the card shows none rather
           // than picking one; the page carries the full per-direction split.
           sentido: v.directions.length === 1 ? v.directions[0].sentido : null,
-          codigos: v.directions.flatMap((d) => d.services).map((s) => ({ codigo: s.codigo, color: s.color })),
+          codigos: v.directions.flatMap((d) => d.services).map(cardChip),
         })),
-        unassigned: unassignedServices.map((s) => ({ codigo: s.codigo, color: s.color })),
-        feeders: feeders.map((s) => ({ codigo: s.codigo, color: s.color })),
+        unassigned: unassignedServices.map(cardChip),
+        feeders: feeders.map(cardChip),
         point: (() => {
           const c = parseCoordinate(station.coordenada);
           return c ? ([c.lon, c.lat] as LonLat) : null;
