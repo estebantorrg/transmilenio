@@ -74,12 +74,6 @@ function setLoadingStatus(text: string): void {
  * user has to diagnose as "reload the page".
  */
 function showBootRetry(): void {
-  // Prerendered pages (spec §5.5.4) suppress the boot overlay so a visitor from
-  // a search result reads the stops immediately instead of a progress bar. That
-  // overlay is also the only surface a boot failure has, so a failure takes the
-  // suppression back off — otherwise the error would be invisible on exactly the
-  // pages strangers land on.
-  document.body.classList.remove('seo-static');
   const btn = document.getElementById('loading-retry');
   if (!btn) return;
   btn.classList.remove('hidden');
@@ -719,6 +713,13 @@ async function main(): Promise<void> {
     bringCableLayersToFront(map);
   } catch (error) {
     console.error('❌ Error loading data:', error);
+    // Prerendered pages (spec §5.5.4) suppress the boot overlay so a visitor from
+    // a search result reads the stops immediately instead of a progress bar. The
+    // overlay is also the only surface an error has, so a *real* failure takes
+    // the suppression off. Deliberately not wired to `showBootRetry()`: that also
+    // fires as a 12 s "this is slow" hint, which would cover perfectly good
+    // prerendered content with a spinner whenever the tab was merely backgrounded.
+    document.body.classList.remove('seo-static');
     const overlay = document.getElementById('loading-overlay');
     if (overlay) {
       overlay.classList.add('error-state');

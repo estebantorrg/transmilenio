@@ -26,10 +26,12 @@
  */
 
 import zlib from 'node:zlib';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
+import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -58,6 +60,25 @@ interface LightRoute {
   origin?: string;
   destination?: string;
   stops?: LightStop[];
+  /** Simplified trace (spec §5.1.4). Shape varies — see {@link toPaths}. */
+  trazado?: unknown;
+}
+
+/**
+ * Normalises a catalog `trazado` into a list of polylines.
+ *
+ * The light catalog stores a **flat** polyline (`[[lon, lat], …]`) while the full
+ * catalog can carry multiple paths (`[[[lon, lat], …], …]`). Assuming the latter
+ * silently produced empty cards — `.flat()` yielded bare numbers and every trace
+ * was dropped — so both shapes are detected rather than assumed.
+ */
+function toPaths(trazado: unknown): Array<Array<[number, number]>> {
+  if (!Array.isArray(trazado) || trazado.length === 0) return [];
+  const first = trazado[0];
+  if (Array.isArray(first) && typeof first[0] === 'number') {
+    return [trazado as Array<[number, number]>];
+  }
+  return (trazado as Array<Array<[number, number]>>).filter((p) => Array.isArray(p) && p.length > 1);
 }
 interface LightStation {
   id?: string;
@@ -108,6 +129,14 @@ function parseCoordinate(value: string): { lat: number; lon: number } | null {
   return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
 }
 
+/** A route's stops as [lon, lat], for the card's beads and its fallback trace. */
+function stopPoints(route: LightRoute): LonLat[] {
+  return (route.stops ?? [])
+    .map((s) => parseCoordinate(s.coordenada))
+    .filter((c): c is { lat: number; lon: number } => c !== null)
+    .map((c) => [c.lon, c.lat] as LonLat);
+}
+
 function formatDistance(meters: number): string {
   if (!Number.isFinite(meters) || meters <= 0) return '';
   return meters >= 1000 ? `${(meters / 1000).toFixed(1)} km` : `${Math.round(meters)} m`;
@@ -124,6 +153,8 @@ function horariosText(route: LightRoute): string {
 // ─── URL builders ─────────────────────────────────────────
 const routeUrl = (codigo: string) => `/ruta/${slugify(codigo)}/`;
 const stationUrl = (st: LightStation) => `/estacion/${slugify(st.nombre)}-${slugify(st.codigo)}/`;
+const routeCardUrl = (codigo: string) => `/og/ruta/${slugify(codigo)}.png`;
+const stationCardUrl = (st: LightStation) => `/og/estacion/${slugify(st.nombre)}-${slugify(st.codigo)}.png`;
 
 // ─── Page shell ───────────────────────────────────────────
 /**
@@ -136,7 +167,7 @@ const stationUrl = (st: LightStation) => `/estacion/${slugify(st.nombre)}-${slug
  */
 function renderPage(
   shell: string,
-  page: { url: string; title: string; description: string; jsonLd: object[]; body: string }
+  page: { url: string; title: string; description: string; jsonLd: object[]; body: string; ogImage?: string }
 ): string {
   const absolute = `${ORIGIN}${page.url}`;
   const title = escapeHtml(page.title);
@@ -168,6 +199,18 @@ function renderPage(
       `<meta ${attr}="${key}" content="${description}" />`
     );
   }
+  // Per-page social card. A WhatsApp forward is how these pages actually spread
+  // (spec §5.5.4), and every page sharing one generic logo reads as spam.
+  if (page.ogImage) {
+    const card = `${ORIGIN}${page.ogImage}`;
+    html = html.replace(/<meta property="og:image" content="[^"]*"\s*\/?>/, `<meta property="og:image" content="${card}" />`);
+    html = html.replace(/<meta name="twitter:image" content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${card}" />`);
+    html = html.replace(
+      /<meta property="og:image:alt" content="[^"]*"\s*\/?>/,
+      `<meta property="og:image:alt" content="${escapeHtml(page.title)}" />`
+    );
+  }
+
   // Replace the shell's site-wide WebApplication block with this page's graph.
   html = html.replace(
     /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
@@ -189,7 +232,11 @@ const PRERENDER_STYLE = `<style>
    drops the body class if boot fails, which brings the overlay — the only error
    surface there is — straight back. */
 body.seo-static #loading-overlay{display:none}
-#seo-prerender{position:absolute;inset:0;z-index:1;overflow-y:auto;background:#0C0C0C;color:#fff;
+/* Above the shell's sidebar (z-index 100) and its sheets (110): while this panel
+   exists it IS the page, and the sidebar rendering over it hid half the diagram
+   for exactly the no-JS / slow-boot visitor it is there to serve. Still below the
+   loading overlay (9999) so a real boot error can surface over it. */
+#seo-prerender{position:absolute;inset:0;z-index:200;overflow-y:auto;background:#0C0C0C;color:#fff;
 font-family:Inter,system-ui,sans-serif;padding:32px 24px 64px;line-height:1.55}
 #seo-prerender .wrap{max-width:760px;margin:0 auto}
 #seo-prerender a{color:#38BDF8}
@@ -199,6 +246,15 @@ font-family:Inter,system-ui,sans-serif;padding:32px 24px 64px;line-height:1.55}
 #seo-prerender ol,#seo-prerender ul{padding-left:1.25rem;margin:0}
 #seo-prerender li{margin:4px 0}
 #seo-prerender .meta{color:rgba(255,255,255,.45);font-size:.85rem}
+#seo-prerender .platform{display:grid;gap:14px;margin:14px 0 4px}
+#seo-prerender .vagon{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px 16px;background:rgba(255,255,255,.03)}
+#seo-prerender .vagon-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+#seo-prerender .vagon-name{font-size:1.02rem}
+#seo-prerender .sentido{color:#38BDF8;font-size:.82rem;letter-spacing:.02em;margin-bottom:6px}
+#seo-prerender .dir{margin:10px 0 0;padding-left:10px;border-left:2px solid rgba(56,189,248,.35)}
+#seo-prerender .svc{list-style:none;padding:0;display:grid;gap:6px}
+#seo-prerender .svc li{margin:0}
+#seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
 #seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
 </style>`;
 
@@ -291,17 +347,226 @@ ${directions}
     },
   ];
 
-  return { url, title, description, jsonLd, body };
+  return { url, title, description, jsonLd, body, ogImage: routeCardUrl(codigo) };
+}
+
+// ─── Platform model ───────────────────────────────────────
+/**
+ * What an official "plano de ubicación" actually encodes: which services board
+ * from which vagón, and **which way each vagón faces**. The first half is in the
+ * catalog already (`station.wagons`); the second is not, but it is derivable —
+ * a service's direction of travel *at this station* is the bearing from here to
+ * its next stop, so averaging that across a vagón's services orients the vagón.
+ *
+ * Derived rather than scraped on purpose: the published planos are raster JPGs
+ * stamped "versión noviembre de 2024", while this recomputes from whatever the
+ * catalog last synced (spec §4.3) — the diagram cannot go stale on its own.
+ */
+interface PlatformService {
+  codigo: string;
+  destino: string;
+  color?: string;
+  href?: string;
+}
+interface PlatformDirection {
+  /** Spanish cardinal for the way these services leave, when derivable. */
+  sentido: string | null;
+  services: PlatformService[];
+}
+interface PlatformVagon {
+  /** The number printed on the platform sign, or null when it can't be trusted. */
+  label: string | null;
+  directions: PlatformDirection[];
+}
+
+const CARDINALS = [
+  'norte', 'nororiente', 'oriente', 'suroriente',
+  'sur', 'suroccidente', 'occidente', 'noroccidente',
+];
+
+/** Compass bearing from a to b, in degrees clockwise from north. */
+function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
+  // Equirectangular is ample at city scale and avoids trig-heavy great circles.
+  const x = (b.lon - a.lon) * Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180));
+  const y = b.lat - a.lat;
+  return (Math.atan2(x, y) * 180) / Math.PI;
+}
+
+/**
+ * Averages bearings as unit vectors — the mean of 350° and 10° is 0°, not 180°.
+ *
+ * Returns null unless the services in a vagón genuinely agree. Many stations
+ * board both directions from the same vagón (21 Ángeles: two services leaving at
+ * 156° and two at 300°), and a plain average of those is a confident, meaningless
+ * answer. The test is on the **mean** resultant length, not the sum: summing grew
+ * with the number of services, so a four-service vagón split two-and-two cleared
+ * the bar and printed a direction that was simply wrong.
+ */
+function meanCardinal(bearings: number[]): string | null {
+  if (bearings.length === 0) return null;
+  let sx = 0;
+  let sy = 0;
+  for (const deg of bearings) {
+    sx += Math.sin((deg * Math.PI) / 180);
+    sy += Math.cos((deg * Math.PI) / 180);
+  }
+  // 1.0 = perfect agreement, 0 = evenly opposed. Applied per direction group, so
+  // it now only rejects genuinely incoherent sets.
+  if (Math.hypot(sx, sy) / bearings.length < 0.6) return null;
+  const mean = (Math.atan2(sx, sy) * 180) / Math.PI;
+  return CARDINALS[Math.round(((mean + 360) % 360) / 45) % 8];
+}
+
+/**
+ * Splits a vagón's services into the two directions it serves — what an official
+ * plano draws as badges above and below the platform.
+ *
+ * An earlier version *averaged* a vagón's bearings into one label, found they
+ * cancelled at most stations, and concluded vagones had no direction. That was
+ * backwards: a TransMilenio vagón is usually an island platform serving **both**
+ * ways, so the bearings are supposed to disagree. Split on them, don't average.
+ *
+ * Verified against the official planos for General Santander and Calle 40 Sur —
+ * the catalog's wagon groups reproduce the printed vagones exactly.
+ */
+function splitDirections(entries: Array<{ svc: PlatformService; deg: number | null }>): PlatformDirection[] {
+  const known = entries.filter((e) => e.deg !== null) as Array<{ svc: PlatformService; deg: number }>;
+  const unknown = entries.filter((e) => e.deg === null).map((e) => e.svc);
+  if (known.length === 0) return entries.length ? [{ sentido: null, services: entries.map((e) => e.svc) }] : [];
+
+  // Principal axis of travel via doubled angles, so opposite headings reinforce
+  // instead of cancelling; then split by which side of that axis each service runs.
+  let sx = 0;
+  let sy = 0;
+  for (const e of known) {
+    sx += Math.sin((2 * e.deg * Math.PI) / 180);
+    sy += Math.cos((2 * e.deg * Math.PI) / 180);
+  }
+  const axis = Math.atan2(sx, sy) / 2;
+  const ax = Math.sin(axis);
+  const ay = Math.cos(axis);
+
+  const groups: Array<Array<{ svc: PlatformService; deg: number }>> = [[], []];
+  for (const e of known) {
+    const dot = Math.sin((e.deg * Math.PI) / 180) * ax + Math.cos((e.deg * Math.PI) / 180) * ay;
+    groups[dot >= 0 ? 0 : 1].push(e);
+  }
+
+  const directions = groups
+    .filter((g) => g.length > 0)
+    .map((g) => ({ sentido: meanCardinal(g.map((e) => e.deg)), services: g.map((e) => e.svc) }));
+  // Services whose heading cannot be derived are listed plainly rather than
+  // guessed into a direction.
+  if (unknown.length) directions.push({ sentido: null, services: unknown });
+  return directions;
+}
+
+/** Vagón plates counted on each official plano (`data/plano_vagones.json`). */
+const PLANO_VAGONES: Record<string, number> = (() => {
+  try {
+    return JSON.parse(readFileSync(path.resolve(__dirname, 'data', 'plano_vagones.json'), 'utf-8')).counts ?? {};
+  } catch {
+    // Missing dataset must not break the build — it only costs vagón numbering.
+    console.warn('[seo] plano_vagones.json unreadable; vagón numbers will be omitted.');
+    return {};
+  }
+})();
+
+/**
+ * The number printed on the platform sign, or null when it can't be trusted.
+ *
+ * The catalog keys wagons `A`, `B`, `C` (128 of 139 stations) while signage reads
+ * "Vagón 1/2/3", and A→1, B→2, C→3 was verified against the official planos for
+ * Sevillana, León XIII, Bosa, General Santander, Calle 40 Sur, San Mateo and —
+ * on four vagones each — Granja-Carrera 77 and Suba-TV 91.
+ *
+ * It is NOT universal. It fails exactly where the catalog groups platforms
+ * differently from the signage: Calle 161 (catalog 2 wagons, plano prints 4, so
+ * catalog `A` mixes printed vagones 1 and 3) and Av. Jiménez (catalog 5, plano
+ * prints 3). Both are caught by comparing the catalog's wagon count with the
+ * plate count on the plano — a predicate that agreed with ground truth on 9 of
+ * the 10 stations checked, and whose one miss errs toward silence.
+ *
+ * Sending a rider to "Vagón 1" when the sign says 3 is a real wrong answer, so
+ * where the counts disagree the platform is rendered without a number at all.
+ */
+function vagonLabel(key: string, stationCode: string, wagonCount: number): string | null {
+  const k = key.trim().toUpperCase();
+  if (!/^[A-Z]$/.test(k)) return key; // `T3` and numerics are already as-printed
+  const plates = PLANO_VAGONES[stationCode.toUpperCase()];
+  if (!plates || plates !== wagonCount) return null;
+  return String(k.charCodeAt(0) - 64);
+}
+
+function buildPlatform(
+  station: LightStation,
+  variantById: Map<string, LightRoute>,
+  routeIndex: Map<string, string>
+): { vagones: PlatformVagon[]; feeders: PlatformService[] } {
+  const here = parseCoordinate(station.coordenada);
+  const code = String(station.codigo).toUpperCase();
+  const vagones: PlatformVagon[] = [];
+  let feeders: PlatformService[] = [];
+
+  const entries = Object.entries(station.wagons ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b, 'es', { numeric: true })
+  );
+  // Platform count as the catalog sees it — compared against the plano's plate
+  // count to decide whether the printed vagón number can be trusted.
+  const wagonCount = entries.filter(([w, routes]) => w !== '0' && routes.length > 0).length;
+
+  for (const [wagon, routes] of entries) {
+    // Each service keeps its OWN heading, so the vagón can be split by direction
+    // rather than averaged into one — see splitDirections().
+    const scored: Array<{ svc: PlatformService; deg: number | null }> = [];
+
+    for (const route of routes) {
+      const codigo = tidy(route.codigo);
+      if (!codigo) continue;
+      const variant = variantById.get(String((route as any).id));
+      const svc: PlatformService = {
+        codigo,
+        destino: tidy(route.nombre),
+        color: route.color,
+        href: routeIndex.get(codigo.toUpperCase()),
+      };
+
+      let deg: number | null = null;
+      const stops = variant?.stops ?? [];
+      const at = here && stops.length ? stops.findIndex((s) => String(s.codigo).toUpperCase() === code) : -1;
+      if (here && at >= 0) {
+        // Next stop gives the heading; at the last stop, reuse the leg into it.
+        const from = at < stops.length - 1 ? parseCoordinate(stops[at].coordenada) : parseCoordinate(stops[at - 1]?.coordenada ?? '');
+        const to = at < stops.length - 1 ? parseCoordinate(stops[at + 1].coordenada) : here;
+        if (from && to) deg = bearing(from, to);
+      }
+      scored.push({ svc, deg });
+    }
+
+    // Wagon "0" is the alimentador/zonal pool, not a numbered troncal platform.
+    if (wagon === '0') feeders = scored.map((s) => s.svc);
+    else if (scored.length) {
+      vagones.push({ label: vagonLabel(wagon, code, wagonCount), directions: splitDirections(scored) });
+    }
+  }
+
+  return { vagones, feeders };
 }
 
 // ─── Estación pages ───────────────────────────────────────
-function renderStation(station: LightStation, routeIndex: Map<string, string>) {
+function renderStation(
+  station: LightStation,
+  routeIndex: Map<string, string>,
+  variantById: Map<string, LightRoute>
+) {
   const url = stationUrl(station);
   const nombre = tidy(station.nombre);
   const direccion = tidy(station.direccion);
   const coord = parseCoordinate(station.coordenada);
-  const wagons = Object.entries(station.wagons ?? {}).sort(([a], [b]) => a.localeCompare(b, 'es', { numeric: true }));
-  const serviceCount = wagons.reduce((total, [, routes]) => total + routes.length, 0);
+  const platform = buildPlatform(station, variantById, routeIndex);
+  const serviceCount =
+    platform.vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
+    platform.feeders.length;
 
   const title = `Estación ${nombre} — qué rutas pasan y en qué vagón`;
   const description = clamp(
@@ -315,19 +580,50 @@ function renderStation(station: LightStation, routeIndex: Map<string, string>) {
     { name: `Estación ${nombre}`, url },
   ];
 
-  const wagonSections = wagons
-    .map(([wagon, routes]) => {
-      const items = routes
-        .map((route) => {
-          const code = String(route.codigo || '').trim();
-          const target = routeIndex.get(code.toUpperCase());
-          const label = `${escapeHtml(code)} &mdash; ${escapeHtml(tidy(route.nombre))}`;
-          return `<li>${target ? `<a href="${target}">${label}</a>` : label}</li>`;
-        })
-        .join('\n');
-      return `<h2>Vagón ${escapeHtml(wagon)}</h2>\n<ul>\n${items}\n</ul>`;
-    })
-    .join('\n');
+  const serviceRow = (svc: PlatformService): string => {
+    const fill = /^#[0-9a-f]{6}$/i.test(String(svc.color ?? '')) ? String(svc.color) : '#D8102D';
+    const chip = `<span class="chip" style="background:${fill};color:${readableOn(fill)}">${escapeHtml(svc.codigo)}</span>`;
+    const label = escapeHtml(svc.destino);
+    return `<li>${chip}${svc.href ? `<a href="${svc.href}">${label}</a>` : label}</li>`;
+  };
+
+  const platformSection = platform.vagones.length
+    ? `<h2>Plano de la estación</h2>
+<p class="meta">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
+<div class="platform">
+${platform.vagones
+  .map(
+    // No number when the catalog's platform grouping doesn't line up with the
+    // signage — "Plataforma" is vague but true, whereas a wrong vagón number
+    // sends a rider to the wrong side of the station.
+    (v, i) => `  <div class="vagon">
+    <div class="vagon-head"><span class="vagon-name">${
+      v.label ? `Vagón ${escapeHtml(v.label)}` : `Plataforma ${i + 1}`
+    }</span></div>
+${v.directions
+  .map(
+    (d) => `    <div class="dir">
+      ${d.sentido ? `<div class="sentido">sentido ${escapeHtml(d.sentido)}</div>` : ''}
+      <ul class="svc">
+${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
+      </ul>
+    </div>`
+  )
+  .join('\n')}
+  </div>`
+  )
+  .join('\n')}
+</div>`
+    : '';
+
+  const feederSection = platform.feeders.length
+    ? `<h2>Alimentadores y servicios zonales</h2>
+<ul class="svc">
+${platform.feeders.map((s) => `  ${serviceRow(s)}`).join('\n')}
+</ul>`
+    : '';
+
+  const wagonSections = `${platformSection}\n${feederSection}`.trim();
 
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender"><div class="wrap">
@@ -358,7 +654,9 @@ ${wagonSections || '<p>Sin servicios registrados.</p>'}
     },
   ];
 
-  return { url, title, description, jsonLd, body };
+  // `platform` rides along so the social card renders the same model the page
+  // does, computed once.
+  return { url, title, description, jsonLd, body, ogImage: stationCardUrl(station), platform };
 }
 
 // ─── Sitemaps ─────────────────────────────────────────────
@@ -405,9 +703,36 @@ async function main(): Promise<void> {
   // routes. Without both directions the pages are discovered but orphaned.
   const stationByCode = new Map(stations.map((st) => [st.codigo.toUpperCase(), st]));
   const routeIndex = new Map(routeCodes.map(([codigo]) => [codigo.toUpperCase(), routeUrl(codigo)]));
+  // A station's wagon entries carry the route *variant* id, which is what pins
+  // down the direction — the same código runs both ways through a station.
+  const variantById = new Map<string, LightRoute>();
+  for (const variants of Object.values(catalog.routes)) {
+    for (const variant of variants) variantById.set(String(variant.id), variant);
+  }
 
   await rm(path.join(CLIENT_DIST, 'ruta'), { recursive: true, force: true });
   await rm(path.join(CLIENT_DIST, 'estacion'), { recursive: true, force: true });
+  await rm(path.join(CLIENT_DIST, 'og'), { recursive: true, force: true });
+  await mkdir(path.join(CLIENT_DIST, 'og', 'ruta'), { recursive: true });
+  await mkdir(path.join(CLIENT_DIST, 'og', 'estacion'), { recursive: true });
+
+  // The site's Inter is a woff2 and the build image may carry no system font at
+  // all — see `seo_og.ts` for why this has to happen before any card renders.
+  await prepareFont(path.resolve(__dirname, '..', '..', 'client', 'public', 'fonts', 'inter-latin-var.woff2'));
+
+  // The card backdrop is the troncal spine, not a basemap (see `seo_og.ts`).
+  // Only `TRONCAL` services — including the 100+ alimentadores would draw a
+  // hairball instead of a recognisable city — and every other point is dropped,
+  // which is invisible at 540px wide but roughly halves the SVG each card parses.
+  const backdrop: LonLat[][] = [];
+  for (const [, variants] of routeCodes) {
+    if (variants[0].tipoServicio !== 'TRONCAL') continue;
+    for (const line of toPaths(variants[0].trazado)) {
+      const thinned = line.filter((_, i) => i % 2 === 0);
+      if (thinned.length > 1) backdrop.push(thinned);
+    }
+  }
+  console.log(`[seo] backdrop     — ${backdrop.length} troncal traces`);
 
   const routeUrls: string[] = [];
   for (const [codigo, variants] of routeCodes) {
@@ -416,15 +741,59 @@ async function main(): Promise<void> {
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     routeUrls.push(page.url);
+
+    const primary = variants[0];
+    await writeFile(
+      path.join(CLIENT_DIST, routeCardUrl(codigo).replace(/^\//, '')),
+      renderRouteCard({
+        codigo,
+        nombre: tidy(primary.nombre) || codigo,
+        color: primary.color,
+        origin: tidy(primary.origin),
+        destination: tidy(primary.destination),
+        stopCount: Math.max(...variants.map((v) => v.stops?.length ?? 0)),
+        // One convention only — the card has room for "L-S 4:30 AM–11:00 PM",
+        // not for that plus a truncated "D-F…" tail.
+        horarios: horariosText(primary).split(' · ')[0],
+        // Prefer the real trace; a route without one still gets its stop line.
+        paths: toPaths(primary.trazado).length ? toPaths(primary.trazado) : [stopPoints(primary)],
+        stops: stopPoints(primary),
+        backdrop,
+      })
+    );
   }
 
   const stationUrls: string[] = [];
   for (const station of stations) {
-    const page = renderStation(station, routeIndex);
+    const page = renderStation(station, routeIndex, variantById);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     stationUrls.push(page.url);
+
+    const { vagones, feeders } = page.platform;
+    await writeFile(
+      path.join(CLIENT_DIST, stationCardUrl(station).replace(/^\//, '')),
+      renderStationCard({
+        nombre: tidy(station.nombre),
+        direccion: tidy(station.direccion),
+        serviceCount:
+          vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) + feeders.length,
+        vagones: vagones.map((v) => ({
+          label: v.label,
+          // A vagón usually serves both directions, so the card shows none rather
+          // than picking one; the page carries the full per-direction split.
+          sentido: v.directions.length === 1 ? v.directions[0].sentido : null,
+          codigos: v.directions.flatMap((d) => d.services).map((s) => ({ codigo: s.codigo, color: s.color })),
+        })),
+        feeders: feeders.map((s) => ({ codigo: s.codigo, color: s.color })),
+        point: (() => {
+          const c = parseCoordinate(station.coordenada);
+          return c ? ([c.lon, c.lat] as LonLat) : null;
+        })(),
+        backdrop,
+      })
+    );
   }
 
   // Split by type so Search Console reports an indexed-ratio per type — the only
@@ -443,6 +812,7 @@ async function main(): Promise<void> {
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
   console.log(`[seo] /estacion/*  — ${stationUrls.length} pages`);
+  console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
   console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + 1} URLs)`);
 }
 
