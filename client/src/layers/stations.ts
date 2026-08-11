@@ -118,50 +118,79 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
 }
 
 /**
- * Keeps only the routes that genuinely board at a given wagon.
+ * Renders the wagon → route-tag sections shown inside a station popup.
  *
- * Troncal/dual routes board lettered troncal platforms. Feeder and integrating
- * zonal routes are only real in the station's feeder/integration zone — the app
- * files those under wagon "0". When the TransMi data mismaps a zonal route onto
- * a lettered troncal platform (e.g. A537 "Palermo", which merely parallels the
- * corridor), it is a phantom stop and is dropped. Real feeders/zonales filed in
- * wagon "0" (e.g. Banderas F423/F424, San Mateo CSM) are kept.
+ * Sections are keyed on what each route IS, never on the wagon key it is filed
+ * under (spec §5.5.4):
+ *
+ * - **Lettered wagons** are troncal platforms, headed by the number printed on
+ *   the station's own signs (`vagonLabels`, resolved server-side against the
+ *   plano plate counts) and by a neutral "Plataforma N" where that evidence is
+ *   missing. The catalog's raw `A`/`B` keys are never shown: they appear on no
+ *   sign in any station, so a rider sent to "Vagón A" has nothing to look for.
+ *   When the TransMi data mismaps a zonal route onto one (e.g. A537 "Palermo",
+ *   which merely parallels the corridor) it is a phantom stop, and it is
+ *   dropped rather than repooled — the route does not board there at all.
+ * - **Wagon "0"** is the pool the catalog files without a platform letter, and
+ *   it is *mixed*: real feeders/zonales (Banderas F423/F424, San Mateo CSM) sit
+ *   beside 61 troncal services across 22 stations (P85/M85 at Centro Memoria,
+ *   L81/D81 along Avenida 68). Labelling the whole key from its dominant
+ *   content printed "Vagón único" next to a Vagón A and a Vagón B, so each half
+ *   gets its own true heading.
+ *
+ * Sections left empty are omitted.
  */
-function routesBoardingWagon(wagonLabel: string, routes: CatalogRoute[]): CatalogRoute[] {
-  if (wagonLabel === '0') return routes;
-  return routes.filter((r) => !isZonalService(r.sistema, r.tipoServicio));
-}
+function buildWagonSectionsHtml(
+  wagons: ResolvedCatalogWagons,
+  vagonLabels: Record<string, string> = {}
+): string {
+  const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
+  const unlettered: CatalogRoute[] = [];
+  const feeders: CatalogRoute[] = [];
 
-/** A wagon "0" holding any feeder/zonal route is the integration zone, not a
- *  single troncal platform — label it for what it is. */
-function wagonSectionLabel(wagonLabel: string, routes: CatalogRoute[]): string {
-  if (wagonLabel !== '0') return `Vagón ${escapeHTML(wagonLabel)}`;
-  const hasFeederOrZonal = routes.some((r) => isZonalService(r.sistema, r.tipoServicio));
-  return hasFeederOrZonal ? 'Alimentadores y zonales' : 'Vagón único';
-}
+  for (const [wagonKey, entries] of Object.entries(wagons)) {
+    const routes = entries as CatalogRoute[];
+    if (wagonKey === '0') {
+      for (const route of routes) {
+        (isZonalService(route.sistema, route.tipoServicio) ? feeders : unlettered).push(route);
+      }
+      continue;
+    }
+    const troncal = routes.filter((r) => !isZonalService(r.sistema, r.tipoServicio));
+    if (troncal.length) lettered.push({ key: wagonKey, routes: troncal });
+  }
 
-/**
- * Renders the wagon → route-tag sections shown inside a station popup, after
- * dropping routes that don't actually board each wagon (see
- * `routesBoardingWagon`). Wagons left empty are omitted.
- */
-function buildWagonSectionsHtml(wagons: ResolvedCatalogWagons): string {
-  const sections = Object.entries(wagons)
-    .map(([label, routes]) => [label, routesBoardingWagon(label, routes as CatalogRoute[])] as const)
-    .filter(([, routes]) => routes.length > 0)
-    .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
-    .map(([label, routes]) => {
+  lettered.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
+
+  const sections = [
+    // "Plataforma N" counts the platforms in catalog order, which is the same
+    // fallback the prerendered estación page prints for the same station.
+    ...lettered.map(({ key, routes }, i) => ({
+      label: vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${i + 1}`,
+      routes,
+    })),
+    // "Vagón único" is only true where there is no lettered platform to sit
+    // beside; otherwise these are simply the services the catalog gives no
+    // platform for, and only the station's signage can say which.
+    ...(unlettered.length
+      ? [{ label: lettered.length ? 'Otros servicios troncales' : 'Vagón único', routes: unlettered }]
+      : []),
+    ...(feeders.length ? [{ label: 'Alimentadores y zonales', routes: feeders }] : []),
+  ];
+
+  const html = sections
+    .map(({ label, routes }) => {
       const count = groupCatalogRoutesByDirection(routes).length;
       return `
           <div class="popup-wagon-section">
-            <div class="popup-wagon-label">${wagonSectionLabel(label, routes)}<span class="popup-count">${count}</span></div>
+            <div class="popup-wagon-label">${label}<span class="popup-count">${count}</span></div>
             <div class="popup-route-tags">${formatRouteTags(routes)}</div>
           </div>
         `;
     })
     .join('');
 
-  return sections || '<div class="popup-empty">Sin rutas disponibles</div>';
+  return html || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
 // ─── Catalog Lookup ─────────────────────────────────────
@@ -223,7 +252,7 @@ function showStationPopup(
 
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
-      ? buildWagonSectionsHtml(resolvedStation.wagons)
+      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels)
       // Not "no routes serve this station" — the catalog simply files no wagon
       // assignment for it, and saying which is the difference between a data gap
       // and a claim about the network (spec §1).
@@ -497,7 +526,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons);
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels);
 
   const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||

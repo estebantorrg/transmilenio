@@ -75,6 +75,10 @@ export interface OgStation {
   /** Troncal platforms in order. `label` is null when the printed vagón number
    *  can't be trusted (see `vagonLabel` in prerender_seo.ts). */
   vagones: Array<{ label: string | null; sentido: string | null; codigos: Array<{ codigo: string; color?: string }> }>;
+  /** Troncal services the catalog files under wagon "0", i.e. with no platform
+   *  letter at all — listed apart from the vagones so they take no number, and
+   *  apart from the feeders so they aren't called alimentadores (spec §5.5.4). */
+  unassigned: Array<{ codigo: string; color?: string }>;
   /** Alimentadores / zonales, which board outside the numbered vagones. */
   feeders: Array<{ codigo: string; color?: string }>;
   /** Where the pin goes. */
@@ -365,6 +369,18 @@ function stationCardSvg(station: OgStation): string {
     omitted += row.overflow;
     cy = row.endY + 62;
   });
+
+  if (station.unassigned.length) {
+    if (cy > BOTTOM) {
+      omitted += station.unassigned.length;
+    } else {
+      chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="21" fill="${BLUE}">Otros servicios troncales</text>`);
+      const row = chipRow(station.unassigned, 64, cy + 10);
+      chips.push(row.svg);
+      omitted += row.overflow;
+      cy = row.endY + 62;
+    }
+  }
 
   if (station.feeders.length) {
     if (cy > BOTTOM) {

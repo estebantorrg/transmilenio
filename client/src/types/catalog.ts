@@ -22,6 +22,12 @@ export interface CatalogStation {
   coordenada: string;
   sistema?: string;
   tipoServicio?: string;
+  /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
+   *  platforms where the official plano's plate count backs the catalog's own
+   *  A/B/C grouping. Resolved server-side in `printedVagonLabels` and shipped on
+   *  the light catalog, so this popup and the prerendered estación page name a
+   *  platform identically; a key absent here gets no number anywhere (§5.5.4). */
+  vagonLabels?: Record<string, string>;
   wagons: CatalogWagons;
 }
 

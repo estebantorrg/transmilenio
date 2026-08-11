@@ -83,6 +83,13 @@ export interface ResolvedCatalogStation {
   stationNode: string;
   matchMethod: string;
   wagons: ResolvedCatalogWagons;
+  /** The source stop's `vagonLabels` (§5.5.4), carried through only when this
+   *  station resolves to exactly ONE catalog stop. The plate count that gates
+   *  those numbers is counted per catalog stop, so a station assembled from
+   *  several of them — a platform cluster, or a verified split that takes a
+   *  subset of the wagons — no longer satisfies the evidence and is numbered by
+   *  nobody rather than numbered by guess. */
+  vagonLabels?: Record<string, string>;
   sourceStops: ResolvedSourceStop[];
   audit: StationCatalogAudit;
 }
@@ -354,6 +361,40 @@ function nearbyUnusedAppStops(
     .slice(0, 6);
 }
 
+/**
+ * The printed vagón numbers to publish for a resolved station, or `undefined`.
+ *
+ * The server gates those numbers on the plano's plate count matching the wagon
+ * count of ONE catalog stop (`printedVagonLabels`, spec §5.5.4), and this map
+ * assembles its stations from a different set: several catalog stops merge into
+ * one platform cluster, and one catalog stop splits into two stations. So the
+ * evidence is re-checked against what is actually on screen — the platforms
+ * shown must be exactly the platforms one labelled stop was measured on.
+ *
+ * That keeps the numbers on Terminal (four ArcGIS fragments cluster onto TM0031
+ * and contribute no wagons of their own, so its two platforms are still the two
+ * that were counted) and withholds them from a verified split, which shows three
+ * of the stop's five platforms and cannot inherit a plate count taken over all
+ * five. A neutral "Plataforma N" is the cost of being wrong-proof here: sending
+ * a rider to a vagón number the sign doesn't carry is a real wrong answer.
+ */
+function resolveVagonLabels(
+  selections: SourceSelection[],
+  wagons: ResolvedCatalogWagons
+): Record<string, string> | undefined {
+  const lettered = Object.keys(wagons).filter((key) => key !== '0' && wagons[key].length > 0);
+  if (lettered.length === 0) return undefined;
+
+  const labelled = selections
+    .map((selection) => selection.station.vagonLabels)
+    .filter((labels): labels is Record<string, string> => Boolean(labels));
+  if (labelled.length !== 1) return undefined;
+
+  const labels = labelled[0];
+  if (Object.keys(labels).length !== lettered.length) return undefined;
+  return lettered.every((key) => labels[key]) ? labels : undefined;
+}
+
 function makeResolvedStation(
   feature: TroncalStationFeature,
   matchMethod: string,
@@ -400,6 +441,7 @@ function makeResolvedStation(
     stationNode: audit.stationNode,
     matchMethod,
     wagons,
+    vagonLabels: resolveVagonLabels(selections, wagons),
     sourceStops,
     audit,
   };

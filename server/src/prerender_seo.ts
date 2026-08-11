@@ -26,7 +26,6 @@
  */
 
 import zlib from 'node:zlib';
-import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -80,6 +79,16 @@ function toPaths(trazado: unknown): Array<Array<[number, number]>> {
   }
   return (trazado as Array<Array<[number, number]>>).filter((p) => Array.isArray(p) && p.length > 1);
 }
+interface LightWagonEntry {
+  id?: string;
+  codigo: string;
+  nombre: string;
+  color?: string;
+  /** Carried through `buildCatalogLight` for troncal stations — the only way to
+   *  tell a feeder from a padrón troncal filed under the same wagon key. */
+  sistema?: string;
+  tipoServicio?: string;
+}
 interface LightStation {
   id?: string;
   codigo: string;
@@ -88,7 +97,22 @@ interface LightStation {
   coordenada: string;
   sistema?: string;
   tipoServicio?: string;
-  wagons?: Record<string, Array<{ codigo: string; nombre: string; color?: string }>>;
+  /** Wagon key → the number printed on that platform's sign, where the plano
+   *  plate count backs it (`printedVagonLabels`). Absent keys get no number. */
+  vagonLabels?: Record<string, string>;
+  wagons?: Record<string, LightWagonEntry[]>;
+}
+
+/**
+ * A service belongs to the zonal network if its system or service type names the
+ * zonal network or the feeder buses. Mirrors `isZonalService` in
+ * `client/src/utils/routeType.ts`, which the server cannot import: the two
+ * packages compile separately (`rootDir: ./src`), so this is a deliberate copy
+ * of a pure three-line predicate — change both together.
+ */
+function isZonalService(sistema?: string | null, tipoServicio?: string | null): boolean {
+  const service = `${sistema ?? ''} ${tipoServicio ?? ''}`.toUpperCase();
+  return service.includes('ZONAL') || service.includes('ALIMENTADOR');
 }
 
 // ─── Text helpers ─────────────────────────────────────────
@@ -461,69 +485,35 @@ function splitDirections(entries: Array<{ svc: PlatformService; deg: number | nu
   return directions;
 }
 
-/** Vagón plates counted on each official plano (`data/plano_vagones.json`). */
-const PLANO_VAGONES: Record<string, number> = (() => {
-  try {
-    return JSON.parse(readFileSync(path.resolve(__dirname, 'data', 'plano_vagones.json'), 'utf-8')).counts ?? {};
-  } catch {
-    // Missing dataset must not break the build — it only costs vagón numbering.
-    console.warn('[seo] plano_vagones.json unreadable; vagón numbers will be omitted.');
-    return {};
-  }
-})();
-
-/**
- * The number printed on the platform sign, or null when it can't be trusted.
- *
- * The catalog keys wagons `A`, `B`, `C` (128 of 139 stations) while signage reads
- * "Vagón 1/2/3", and A→1, B→2, C→3 was verified against the official planos for
- * Sevillana, León XIII, Bosa, General Santander, Calle 40 Sur, San Mateo and —
- * on four vagones each — Granja-Carrera 77 and Suba-TV 91.
- *
- * It is NOT universal. It fails exactly where the catalog groups platforms
- * differently from the signage: Calle 161 (catalog 2 wagons, plano prints 4, so
- * catalog `A` mixes printed vagones 1 and 3) and Av. Jiménez (catalog 5, plano
- * prints 3). Both are caught by comparing the catalog's wagon count with the
- * plate count on the plano — a predicate that agreed with ground truth on 9 of
- * the 10 stations checked, and whose one miss errs toward silence.
- *
- * Sending a rider to "Vagón 1" when the sign says 3 is a real wrong answer, so
- * where the counts disagree the platform is rendered without a number at all.
- */
-function vagonLabel(key: string, stationCode: string, wagonCount: number): string | null {
-  const k = key.trim().toUpperCase();
-  if (!/^[A-Z]$/.test(k)) return key; // `T3` and numerics are already as-printed
-  const plates = PLANO_VAGONES[stationCode.toUpperCase()];
-  if (!plates || plates !== wagonCount) return null;
-  return String(k.charCodeAt(0) - 64);
-}
-
 function buildPlatform(
   station: LightStation,
   variantById: Map<string, LightRoute>,
   routeIndex: Map<string, string>
-): { vagones: PlatformVagon[]; feeders: PlatformService[] } {
+): { vagones: PlatformVagon[]; unassigned: PlatformDirection[]; feeders: PlatformService[] } {
   const here = parseCoordinate(station.coordenada);
   const code = String(station.codigo).toUpperCase();
   const vagones: PlatformVagon[] = [];
+  let unassigned: PlatformDirection[] = [];
   let feeders: PlatformService[] = [];
 
   const entries = Object.entries(station.wagons ?? {}).sort(([a], [b]) =>
     a.localeCompare(b, 'es', { numeric: true })
   );
-  // Platform count as the catalog sees it — compared against the plano's plate
-  // count to decide whether the printed vagón number can be trusted.
-  const wagonCount = entries.filter(([w, routes]) => w !== '0' && routes.length > 0).length;
+  // The printed vagón number, already resolved against the plano plate counts in
+  // `printedVagonLabels` and shipped on the station (spec §5.5.4). Read, not
+  // re-derived: the app popup reads this same field, and a platform that two
+  // surfaces number differently is worse than one neither numbers.
+  const labels = station.vagonLabels ?? {};
 
   for (const [wagon, routes] of entries) {
     // Each service keeps its OWN heading, so the vagón can be split by direction
     // rather than averaged into one — see splitDirections().
-    const scored: Array<{ svc: PlatformService; deg: number | null }> = [];
+    const scored: Array<{ svc: PlatformService; deg: number | null; zonal: boolean }> = [];
 
     for (const route of routes) {
       const codigo = tidy(route.codigo);
       if (!codigo) continue;
-      const variant = variantById.get(String((route as any).id));
+      const variant = variantById.get(String(route.id));
       const svc: PlatformService = {
         codigo,
         destino: tidy(route.nombre),
@@ -540,17 +530,27 @@ function buildPlatform(
         const to = at < stops.length - 1 ? parseCoordinate(stops[at + 1].coordenada) : here;
         if (from && to) deg = bearing(from, to);
       }
-      scored.push({ svc, deg });
+      scored.push({ svc, deg, zonal: isZonalService(route.sistema, route.tipoServicio) });
     }
 
-    // Wagon "0" is the alimentador/zonal pool, not a numbered troncal platform.
-    if (wagon === '0') feeders = scored.map((s) => s.svc);
-    else if (scored.length) {
-      vagones.push({ label: vagonLabel(wagon, code, wagonCount), directions: splitDirections(scored) });
+    // Wagon "0" is the pool the catalog files without a platform letter — and it
+    // is NOT purely alimentadores: it holds P85/M85 at Centro Memoria, L81/D81
+    // along Avenida 68, 61 troncal services across 22 stations. Sending all of
+    // them to the feeder list told a rider a troncal padrón was an alimentador,
+    // so the split is on `tipoServicio`, never on the wagon key (spec §5.5.4).
+    if (wagon === '0') {
+      feeders = scored.filter((s) => s.zonal).map((s) => s.svc);
+      const troncal = scored.filter((s) => !s.zonal);
+      // Kept out of `vagones` so it takes no vagón number and no "Plataforma N"
+      // ordinal: the catalog gives these no letter, and `wagonCount` (the plate
+      // comparison behind `vagonLabel`) must keep counting lettered platforms only.
+      if (troncal.length) unassigned = splitDirections(troncal);
+    } else if (scored.length) {
+      vagones.push({ label: labels[wagon] ?? null, directions: splitDirections(scored) });
     }
   }
 
-  return { vagones, feeders };
+  return { vagones, unassigned, feeders };
 }
 
 // ─── Estación pages ───────────────────────────────────────
@@ -564,8 +564,11 @@ function renderStation(
   const direccion = tidy(station.direccion);
   const coord = parseCoordinate(station.coordenada);
   const platform = buildPlatform(station, variantById, routeIndex);
+  const countServices = (directions: PlatformDirection[]): number =>
+    directions.reduce((n, d) => n + d.services.length, 0);
   const serviceCount =
-    platform.vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
+    platform.vagones.reduce((n, v) => n + countServices(v.directions), 0) +
+    countServices(platform.unassigned) +
     platform.feeders.length;
 
   const title = `Estación ${nombre} — qué rutas pasan y en qué vagón`;
@@ -587,6 +590,13 @@ function renderStation(
     return `<li>${chip}${svc.href ? `<a href="${svc.href}">${label}</a>` : label}</li>`;
   };
 
+  const directionHtml = (d: PlatformDirection): string => `    <div class="dir">
+      ${d.sentido ? `<div class="sentido">sentido ${escapeHtml(d.sentido)}</div>` : ''}
+      <ul class="svc">
+${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
+      </ul>
+    </div>`;
+
   const platformSection = platform.vagones.length
     ? `<h2>Plano de la estación</h2>
 <p class="meta">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
@@ -600,19 +610,23 @@ ${platform.vagones
     <div class="vagon-head"><span class="vagon-name">${
       v.label ? `Vagón ${escapeHtml(v.label)}` : `Plataforma ${i + 1}`
     }</span></div>
-${v.directions
-  .map(
-    (d) => `    <div class="dir">
-      ${d.sentido ? `<div class="sentido">sentido ${escapeHtml(d.sentido)}</div>` : ''}
-      <ul class="svc">
-${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
-      </ul>
-    </div>`
-  )
-  .join('\n')}
+${v.directions.map(directionHtml).join('\n')}
   </div>`
   )
   .join('\n')}
+</div>`
+    : '';
+
+  // Troncal services the catalog files under wagon "0". Their own block, with no
+  // number of any kind: the catalog names no platform for them, and the plano is
+  // the only thing that can (spec §5.5.4).
+  const unassignedSection = platform.unassigned.length
+    ? `<h2>${platform.vagones.length ? 'Otros servicios troncales' : 'Servicios troncales'}</h2>
+<p class="meta">El catálogo no asigna vagón a estos servicios; confirma la plataforma en la señalización de la estación.</p>
+<div class="platform">
+  <div class="vagon">
+${platform.unassigned.map(directionHtml).join('\n')}
+  </div>
 </div>`
     : '';
 
@@ -623,7 +637,7 @@ ${platform.feeders.map((s) => `  ${serviceRow(s)}`).join('\n')}
 </ul>`
     : '';
 
-  const wagonSections = `${platformSection}\n${feederSection}`.trim();
+  const wagonSections = `${platformSection}\n${unassignedSection}\n${feederSection}`.trim();
 
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender"><div class="wrap">
@@ -771,14 +785,17 @@ async function main(): Promise<void> {
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     stationUrls.push(page.url);
 
-    const { vagones, feeders } = page.platform;
+    const { vagones, unassigned, feeders } = page.platform;
+    const unassignedServices = unassigned.flatMap((d) => d.services);
     await writeFile(
       path.join(CLIENT_DIST, stationCardUrl(station).replace(/^\//, '')),
       renderStationCard({
         nombre: tidy(station.nombre),
         direccion: tidy(station.direccion),
         serviceCount:
-          vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) + feeders.length,
+          vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
+          unassignedServices.length +
+          feeders.length,
         vagones: vagones.map((v) => ({
           label: v.label,
           // A vagón usually serves both directions, so the card shows none rather
@@ -786,6 +803,7 @@ async function main(): Promise<void> {
           sentido: v.directions.length === 1 ? v.directions[0].sentido : null,
           codigos: v.directions.flatMap((d) => d.services).map((s) => ({ codigo: s.codigo, color: s.color })),
         })),
+        unassigned: unassignedServices.map((s) => ({ codigo: s.codigo, color: s.color })),
         feeders: feeders.map((s) => ({ codigo: s.codigo, color: s.color })),
         point: (() => {
           const c = parseCoordinate(station.coordenada);

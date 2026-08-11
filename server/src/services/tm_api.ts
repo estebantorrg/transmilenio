@@ -14,6 +14,7 @@ import zlib from 'zlib';
 import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
+import { printedVagonLabels } from './plano_vagones.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -506,6 +507,14 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
     }
 
     if (isTroncal) {
+      // The printed vagón number, resolved once here so the app popup and the
+      // prerendered estación page name the same platform the same way — the
+      // catalog's own `A`/`B` keys appear on no sign in any station (§5.5.4).
+      const letteredWagons = Object.entries(cleanWagons).filter(
+        ([wagon, routes]) => wagon !== '0' && routes.length > 0
+      ).length;
+      const vagonLabels = printedVagonLabels(station.codigo, Object.keys(cleanWagons), letteredWagons);
+
       cleanStations[code] = {
         id: station.id,
         codigo: station.codigo,
@@ -514,6 +523,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         coordenada: station.coordenada,
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
+        ...(vagonLabels ? { vagonLabels } : {}),
         wagons: cleanWagons,
       };
     } else {
