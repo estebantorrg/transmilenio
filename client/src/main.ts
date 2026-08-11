@@ -87,11 +87,38 @@ function hideLoading(): void {
     overlay.classList.add('fade-out');
     setTimeout(() => overlay.remove(), 700);
   }
-  // Prerendered pages (/ruta/…, /estacion/…) ship their content as real HTML so
-  // crawlers — and anyone whose bundle hasn't run — see the stops and horarios
-  // without JS (spec §5.5.4). Once the map is live it is the page, so the static
-  // panel is dropped rather than left stacked under the UI.
-  document.getElementById('seo-prerender')?.remove();
+  revealPrerenderedPanel();
+}
+
+/**
+ * Hands the prerendered panel (spec §5.5.4) to the reader instead of deleting it.
+ *
+ * These pages ship their content as real HTML so crawlers — and anyone whose
+ * bundle has not run — get the stops, horarios and the estación plan without JS.
+ * It used to be removed the moment the map went live, which meant a visitor
+ * arriving from a search result read for about four seconds and then had the
+ * page replaced under them by the map. That is the wrong trade now: the plan
+ * answers "which vagón do I stand on", split by sentido and marking the services
+ * that terminate at the station, and the map popup answers none of that.
+ *
+ * So the panel stays until the reader dismisses it. The map boots behind it
+ * either way, so nothing is delayed — only the decision to leave moves from a
+ * timer to the person reading. The button is injected here rather than emitted
+ * in the static HTML on purpose: without JS there is no map to switch to, and a
+ * dead control is worse than none.
+ */
+function revealPrerenderedPanel(): void {
+  const panel = document.getElementById('seo-prerender');
+  if (!panel || panel.querySelector('.seo-dismiss')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'seo-dismiss';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = 'Ver en el mapa';
+  button.addEventListener('click', () => panel.remove(), { once: true });
+  bar.appendChild(button);
+  panel.querySelector('.wrap')?.prepend(bar);
 }
 
 function getErrorMessage(error: unknown): string {

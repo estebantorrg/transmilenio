@@ -354,6 +354,16 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 @media (max-width:560px){#seo-prerender .vg{flex-basis:170px;min-width:170px}}
 #seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
 #seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
+/* Injected by the client once the map is live (revealPrerenderedPanel in
+   main.ts) — never present without JS, because without JS there is no map to
+   switch to. Sticky so the way out is on screen wherever the reader has
+   scrolled to. */
+#seo-prerender .seo-dismiss{position:sticky;top:-32px;z-index:1;display:flex;justify-content:flex-end;
+margin:-32px -24px 10px;padding:10px 24px;background:linear-gradient(#0C0C0C 70%,rgba(12,12,12,0))}
+#seo-prerender .seo-dismiss button{font:inherit;font-size:.85rem;color:#0C0C0C;background:#38BDF8;
+border:0;border-radius:999px;padding:7px 16px;cursor:pointer}
+#seo-prerender .seo-dismiss button:hover{background:#7DD3FC}
+#seo-prerender .seo-dismiss button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 </style>`;
 
 function breadcrumb(trail: Array<{ name: string; url: string }>): object {
