@@ -295,6 +295,62 @@ font-family:Inter,system-ui,sans-serif;padding:32px 24px 64px;line-height:1.55}
 #seo-prerender .dir{margin:10px 0 0;padding-left:10px;border-left:2px solid rgba(56,189,248,.35)}
 #seo-prerender .svc{list-style:none;padding:0;display:grid;gap:6px}
 #seo-prerender .svc li{margin:0}
+/* ── Station plan view ──────────────────────────────────────────────────────
+   A drawn plan of the platforms, from the same catalog data the list below it
+   carries. Wide stations scroll inside this box rather than pushing the page
+   sideways; the vagón strip is one continuous bar split by separators, which is
+   how the printed planos read. */
+/* Scroll shadows: a plano is wide by nature, and on a phone only two vagones fit.
+   The cue that there is more has to be visible without JS, so it rides on the
+   scroll container's own background — the "local" layers move with the content
+   and uncover the "scroll" ones only while there is something off that edge.
+   (No backticks in here: this stylesheet lives in a TS template literal.) */
+#seo-prerender .plano{overflow-x:auto;margin:16px 0 6px;padding-bottom:6px;
+background-image:linear-gradient(to right,#0C0C0C 40%,rgba(12,12,12,0)),
+linear-gradient(to left,#0C0C0C 40%,rgba(12,12,12,0)),
+radial-gradient(farthest-side at 0 50%,rgba(56,189,248,.32),rgba(56,189,248,0)),
+radial-gradient(farthest-side at 100% 50%,rgba(56,189,248,.32),rgba(56,189,248,0));
+background-position:left center,right center,left center,right center;
+background-repeat:no-repeat;background-size:36px 100%,36px 100%,14px 100%,14px 100%;
+background-attachment:local,local,scroll,scroll}
+#seo-prerender .plano:focus-visible{outline:2px solid #38BDF8;outline-offset:3px}
+/* Three shared rows — approach chips, the platform, departure chips — so every
+   plate lands on ONE line and the vagones read as one segmented platform. Each
+   vagón keeps its <section> (grouping a screen reader can announce) and borrows
+   the parent's rows with subgrid; laying the columns out with flex instead let
+   a vagón with fewer services float its plate above its neighbours', which read
+   as a broken drawing rather than a station. */
+#seo-prerender .plano-cols{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(200px,1fr);
+grid-template-rows:auto auto auto;min-width:min-content}
+#seo-prerender .vg{display:grid;grid-row:span 3;grid-template-rows:subgrid}
+#seo-prerender .vg-side{padding:0 12px}
+#seo-prerender .vg-side-a{display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:10px}
+#seo-prerender .vg-side-b{padding-top:10px}
+/* Without subgrid the three parts cannot share rows; keep the plates on a line
+   by reserving the tallest column's approach area instead of letting them drift. */
+@supports not (grid-template-rows:subgrid){
+  #seo-prerender .plano-cols{align-items:stretch}
+  #seo-prerender .vg{display:flex;flex-direction:column}
+  #seo-prerender .vg-side-a{flex:1 0 auto}
+}
+/* The platform itself: one bar across the station, segmented per vagón. */
+#seo-prerender .vg-plate{background:rgba(56,189,248,.14);border-top:2px solid rgba(56,189,248,.55);
+border-bottom:2px solid rgba(56,189,248,.55);padding:11px 10px;text-align:center;
+box-shadow:inset -2px 0 0 rgba(12,12,12,.9)}
+#seo-prerender .vg:last-child .vg-plate{box-shadow:none}
+#seo-prerender .vg-plate .vg-name{font-size:.95rem;letter-spacing:.01em}
+#seo-prerender .vg-plate .vg-sub{display:block;font-size:.72rem;color:rgba(255,255,255,.45);margin-top:2px}
+/* Direction marker: a CSS triangle, so no glyph outside the shipped subset can
+   turn into tofu the way U+2192 does on the social cards. */
+#seo-prerender .arw{display:inline-block;width:0;height:0;margin-right:6px;
+border-left:5px solid transparent;border-right:5px solid transparent;vertical-align:middle}
+#seo-prerender .arw-up{border-bottom:7px solid #38BDF8}
+#seo-prerender .arw-down{border-top:7px solid #38BDF8}
+#seo-prerender .vg-side .sentido{margin:0 0 6px}
+#seo-prerender .vg-side .svc{gap:5px}
+#seo-prerender .vg-side .svc li{font-size:.85rem;color:rgba(255,255,255,.8)}
+#seo-prerender .plano-note{color:rgba(255,255,255,.45);font-size:.8rem;margin:2px 0 0}
+@media (max-width:560px){#seo-prerender .vg{flex-basis:170px;min-width:170px}}
 #seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
 #seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
 </style>`;
@@ -614,24 +670,49 @@ ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
       </ul>
     </div>`;
 
+  // A drawn plan of the platforms rather than a list of them: "which side do I
+  // stand on" is a spatial question, and the printed planos answer it spatially.
+  // Everything drawn is catalog-derived — the vagón order, the split by sentido
+  // and the services on each side. Nothing about the real geometry (distances,
+  // entrances, which physical side of the street a vagón sits on) is known here,
+  // so nothing about it is drawn, and the note under the plan says so.
+  const sideHtml = (d: PlatformDirection, side: 'a' | 'b'): string => {
+    const label = d.sentido
+      ? `<span class="arw arw-${side === 'a' ? 'up' : 'down'}"></span>sentido ${escapeHtml(d.sentido)}`
+      : 'sentido sin determinar';
+    return `      <p class="sentido">${label}</p>
+      <ul class="svc">
+${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
+      </ul>`;
+  };
+
   const platformSection = platform.vagones.length
     ? `<h2>Plano de la estación</h2>
 <p class="meta">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
-<div class="platform">
+<div class="plano" role="group" aria-label="Plano de la estación" tabindex="0">
+  <div class="plano-cols">
 ${platform.vagones
-  .map(
+  .map((v, i) => {
     // No number when the catalog's platform grouping doesn't line up with the
     // signage — "Plataforma" is vague but true, whereas a wrong vagón number
     // sends a rider to the wrong side of the station.
-    (v, i) => `  <div class="vagon">
-    <div class="vagon-head"><span class="vagon-name">${
-      v.label ? `Vagón ${escapeHtml(v.label)}` : `Plataforma ${i + 1}`
-    }</span></div>
-${v.directions.map(directionHtml).join('\n')}
-  </div>`
-  )
+    const name = v.label ? `Vagón ${escapeHtml(v.label)}` : `Plataforma ${i + 1}`;
+    const count = v.directions.reduce((n, d) => n + d.services.length, 0);
+    const [first, ...rest] = v.directions;
+    return `    <section class="vg" aria-label="${escapeHtml(name)}">
+    <div class="vg-side vg-side-a">
+${first ? sideHtml(first, 'a') : ''}
+    </div>
+    <div class="vg-plate"><span class="vg-name">${name}</span><span class="vg-sub">${count} servicio${count === 1 ? '' : 's'}</span></div>
+    <div class="vg-side vg-side-b">
+${rest.map((d) => sideHtml(d, 'b')).join('\n')}
+    </div>
+    </section>`;
+  })
   .join('\n')}
-</div>`
+  </div>
+</div>
+<p class="plano-note">Esquema propio, derivado del catálogo oficial: el orden de los vagones y los servicios de cada sentido son los que el catálogo registra. No representa distancias, accesos ni la posición real de los andenes en la calle.</p>`
     : '';
 
   // Troncal services the catalog files under wagon "0". Their own block, with no
