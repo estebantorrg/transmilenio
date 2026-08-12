@@ -2196,6 +2196,42 @@ body.sidebar-collapsed .sidebar-fab {
   margin-top: 0;
 }
 
+/* ─── Popup platform plan (spec §5.5.4) ──────────────────
+   The same model the prerendered estación page draws: a vagón's services split
+   by the side they board from. A flat tag row answers "which routes serve this
+   station"; only the split answers "which side do I stand on". */
+.popup-dir + .popup-dir {
+  margin-top: calc(7px * var(--tm-scale, 1));
+  padding-top: calc(6px * var(--tm-scale, 1));
+  border-top: 1px solid var(--border-subtle);
+}
+
+.popup-dir-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: calc(5px * var(--tm-scale, 1));
+}
+
+/* Drawn, not a glyph: the shipped font subset is latin-only and an arrow
+   character renders as tofu wherever it is missing. */
+.popup-dir-arrow {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid currentColor;
+}
+
+/* A terminating service is not a direction — it is the absence of one. */
+.popup-dir-end {
+  color: var(--text-tertiary);
+}
+
 /* ─── Popup TransMiCable Info ────────────────────────── */
 
 .popup-cable-info {

@@ -15,6 +15,7 @@ import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
+import { buildWagonPlan } from './station_plan.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -475,6 +476,14 @@ function simplifyTraceForLight(trace: RouteTrace | undefined): RouteTrace | unde
 
 function buildCatalogLight(): { stations: Record<string, any>; routes: Record<string, any[]> } {
   console.log('[TM API] Generating lightweight master catalog...');
+  // Variant id → the full-resolution variant, for the platform plan below. Built
+  // from the FULL catalog on purpose: the plan reads stop coordinates, and the
+  // light catalog's simplified traces are not what a stop sits on (§5.1.4).
+  const variantById = new Map<string, any>();
+  for (const variants of Object.values(masterCatalog.routes || {})) {
+    for (const variant of variants as any[]) if (variant?.id) variantById.set(String(variant.id), variant);
+  }
+
   const cleanStations: Record<string, any> = {};
   for (const [code, station] of Object.entries(masterCatalog.stations || {})) {
     const isTroncal = /^TM\d+$/i.test(station.codigo);
@@ -514,6 +523,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ([wagon, routes]) => wagon !== '0' && routes.length > 0
       ).length;
       const vagonLabels = printedVagonLabels(station.codigo, Object.keys(cleanWagons), letteredWagons);
+      // Which services board which side of each vagón, and which way that side
+      // faces. Resolved here so the estación page and the app's station popup
+      // read one answer instead of deriving it twice (spec §5.5.4).
+      const wagonPlan = buildWagonPlan(station.codigo, station.coordenada, cleanWagons, variantById);
 
       cleanStations[code] = {
         id: station.id,
@@ -524,6 +537,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
         ...(vagonLabels ? { vagonLabels } : {}),
+        ...(wagonPlan ? { wagonPlan } : {}),
         wagons: cleanWagons,
       };
     } else {

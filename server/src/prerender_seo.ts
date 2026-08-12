@@ -32,6 +32,8 @@ import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor } from './services/route_colors.js';
+import type { PlanGroup } from './services/station_plan.js';
+import { isZonalService } from './services/route_type.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -101,20 +103,12 @@ interface LightStation {
   /** Wagon key → the number printed on that platform's sign, where the plano
    *  plate count backs it (`printedVagonLabels`). Absent keys get no number. */
   vagonLabels?: Record<string, string>;
+  /** Wagon key → its direction groups (`buildWagonPlan`). The app's station
+   *  popup reads this same field, so both surfaces face a platform one way. */
+  wagonPlan?: Record<string, PlanGroup[]>;
   wagons?: Record<string, LightWagonEntry[]>;
 }
 
-/**
- * A service belongs to the zonal network if its system or service type names the
- * zonal network or the feeder buses. Mirrors `isZonalService` in
- * `client/src/utils/routeType.ts`, which the server cannot import: the two
- * packages compile separately (`rootDir: ./src`), so this is a deliberate copy
- * of a pure three-line predicate — change both together.
- */
-function isZonalService(sistema?: string | null, tipoServicio?: string | null): boolean {
-  const service = `${sistema ?? ''} ${tipoServicio ?? ''}`.toUpperCase();
-  return service.includes('ZONAL') || service.includes('ALIMENTADOR');
-}
 
 // ─── Text helpers ─────────────────────────────────────────
 function escapeHtml(value: unknown): string {
@@ -501,167 +495,51 @@ interface PlatformVagon {
 }
 
 /**
- * Four points, not eight — because Bogotá's grid is not square to true north.
- *
- * These bearings are true compass bearings, but the corridors they describe run
- * along a street grid tilted off it: the Autopista Norte climbs at **9.4°** and
- * Caracas northbound out of Usme at **23.8°**, and every rider and sign calls
- * both of those *norte*. On an eight-point rose the second one crosses the 22.5°
- * boundary and printed "nororiente" — a word nobody uses for it.
- *
- * Measured over all 1 599 consecutive troncal hops in the catalog, the share of
- * bearings sitting within 10° of a boundary — i.e. where a slight street bend or
- * a coordinate wobble flips the label — is **35.7% on eight points and 19.7% on
- * four**. Four also matches the vocabulary: "sentido norte" is what a station
- * says, "sentido nororiente" is not. The resulting split across the network is
- * 32.7% norte / 31.8% sur / 18.6% occidente / 16.9% oriente, which is the
- * north–south trunk network you would expect.
- *
- * Do not "improve" this back to eight points for precision: the precision is not
- * there to have. And do not rotate the rose to match a zone map drawn with north
- * to the left — Portal Norte is the northernmost station in the catalog
- * (lat 4.7555 against Portal Usme's 4.5318), so north here really is north.
+ * The platform plan the light catalog ships for this station (`buildWagonPlan`,
+ * spec §5.5.4): wagon key → its direction groups, each carrying the route
+ * variant ids that board it. Read, never re-derived — the app's station popup
+ * reads the same field, and a platform the two surfaces face different ways is
+ * worse than one neither labels. The bearings, the axis split and the terminus
+ * rule all live in `services/station_plan.ts`.
  */
-const CARDINALS = ['norte', 'oriente', 'sur', 'occidente'];
-
-/** Compass bearing from a to b, in degrees clockwise from north. */
-function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number }): number {
-  // Equirectangular is ample at city scale and avoids trig-heavy great circles.
-  const x = (b.lon - a.lon) * Math.cos(((a.lat + b.lat) / 2) * (Math.PI / 180));
-  const y = b.lat - a.lat;
-  return (Math.atan2(x, y) * 180) / Math.PI;
-}
-
-/**
- * Averages bearings as unit vectors — the mean of 350° and 10° is 0°, not 180°.
- *
- * Returns null unless the services in a vagón genuinely agree. Many stations
- * board both directions from the same vagón (21 Ángeles: two services leaving at
- * 156° and two at 300°), and a plain average of those is a confident, meaningless
- * answer. The test is on the **mean** resultant length, not the sum: summing grew
- * with the number of services, so a four-service vagón split two-and-two cleared
- * the bar and printed a direction that was simply wrong.
- */
-function meanCardinal(bearings: number[]): string | null {
-  if (bearings.length === 0) return null;
-  let sx = 0;
-  let sy = 0;
-  for (const deg of bearings) {
-    sx += Math.sin((deg * Math.PI) / 180);
-    sy += Math.cos((deg * Math.PI) / 180);
-  }
-  // 1.0 = perfect agreement, 0 = evenly opposed. Applied per direction group, so
-  // it now only rejects genuinely incoherent sets.
-  if (Math.hypot(sx, sy) / bearings.length < 0.6) return null;
-  const mean = (Math.atan2(sx, sy) * 180) / Math.PI;
-  return CARDINALS[Math.round(((mean + 360) % 360) / 90) % 4];
-}
-
-/**
- * Splits a vagón's services into the two directions it serves — what an official
- * plano draws as badges above and below the platform.
- *
- * An earlier version *averaged* a vagón's bearings into one label, found they
- * cancelled at most stations, and concluded vagones had no direction. That was
- * backwards: a TransMilenio vagón is usually an island platform serving **both**
- * ways, so the bearings are supposed to disagree. Split on them, don't average.
- *
- * Verified against the official planos for General Santander and Calle 40 Sur —
- * the catalog's wagon groups reproduce the printed vagones exactly.
- */
-function splitDirections(
-  all: Array<{ svc: PlatformService; deg: number | null; terminates?: boolean }>
-): PlatformDirection[] {
-  // Terminating services are pulled out before the split: they have no outbound
-  // heading to be grouped by, and giving them one is the defect described on
-  // `PlatformDirection.arrival`.
-  const arrivals = all.filter((e) => e.terminates).map((e) => e.svc);
-  const entries = all.filter((e) => !e.terminates);
-  const tail = (dirs: PlatformDirection[]): PlatformDirection[] =>
-    arrivals.length ? [...dirs, { sentido: null, arrival: true, services: arrivals }] : dirs;
-
-  const known = entries.filter((e) => e.deg !== null) as Array<{ svc: PlatformService; deg: number }>;
-  const unknown = entries.filter((e) => e.deg === null).map((e) => e.svc);
-  if (known.length === 0) return tail(entries.length ? [{ sentido: null, services: entries.map((e) => e.svc) }] : []);
-
-  // Principal axis of travel via doubled angles, so opposite headings reinforce
-  // instead of cancelling; then split by which side of that axis each service runs.
-  let sx = 0;
-  let sy = 0;
-  for (const e of known) {
-    sx += Math.sin((2 * e.deg * Math.PI) / 180);
-    sy += Math.cos((2 * e.deg * Math.PI) / 180);
-  }
-  const axis = Math.atan2(sx, sy) / 2;
-  const ax = Math.sin(axis);
-  const ay = Math.cos(axis);
-
-  const groups: Array<Array<{ svc: PlatformService; deg: number }>> = [[], []];
-  for (const e of known) {
-    const dot = Math.sin((e.deg * Math.PI) / 180) * ax + Math.cos((e.deg * Math.PI) / 180) * ay;
-    groups[dot >= 0 ? 0 : 1].push(e);
-  }
-
-  const directions = groups
-    .filter((g) => g.length > 0)
-    .map((g) => ({ sentido: meanCardinal(g.map((e) => e.deg)), services: g.map((e) => e.svc) }));
-  // Services whose heading cannot be derived are listed plainly rather than
-  // guessed into a direction.
-  if (unknown.length) directions.push({ sentido: null, services: unknown });
-  return tail(directions);
-}
-
 function buildPlatform(
   station: LightStation,
-  variantById: Map<string, LightRoute>,
   routeIndex: Map<string, string>
 ): { vagones: PlatformVagon[]; unassigned: PlatformDirection[]; feeders: PlatformService[] } {
-  const here = parseCoordinate(station.coordenada);
-  const code = String(station.codigo).toUpperCase();
   const vagones: PlatformVagon[] = [];
   let unassigned: PlatformDirection[] = [];
-  let feeders: PlatformService[] = [];
+  const feeders: PlatformService[] = [];
 
   const entries = Object.entries(station.wagons ?? {}).sort(([a], [b]) =>
     a.localeCompare(b, 'es', { numeric: true })
   );
-  // The printed vagón number, already resolved against the plano plate counts in
-  // `printedVagonLabels` and shipped on the station (spec §5.5.4). Read, not
-  // re-derived: the app popup reads this same field, and a platform that two
-  // surfaces number differently is worse than one neither numbers.
+  // The printed vagón number, resolved against the plano plate counts in
+  // `printedVagonLabels` and shipped on the station (spec §5.5.4).
   const labels = station.vagonLabels ?? {};
+  const plan = station.wagonPlan ?? {};
 
   for (const [wagon, routes] of entries) {
-    // Each service keeps its OWN heading, so the vagón can be split by direction
-    // rather than averaged into one — see splitDirections().
-    const scored: Array<{ svc: PlatformService; deg: number | null; terminates: boolean; zonal: boolean }> = [];
+    const byId = new Map<string, LightWagonEntry>();
+    for (const route of routes) if (route?.id) byId.set(String(route.id), route);
 
-    for (const route of routes) {
-      const codigo = tidy(route.codigo);
-      if (!codigo) continue;
-      const variant = variantById.get(String(route.id));
-      const zonal = isZonalService(route.sistema, route.tipoServicio);
-      const svc: PlatformService = {
+    const toService = (id: string): PlatformService | null => {
+      const route = byId.get(id);
+      const codigo = tidy(route?.codigo);
+      if (!route || !codigo) return null;
+      return {
         codigo,
         destino: tidy(route.nombre),
         color: route.color,
         href: routeIndex.get(codigo.toUpperCase()),
-        zonal,
+        zonal: isZonalService(route.sistema, route.tipoServicio),
       };
+    };
 
-      let deg: number | null = null;
-      const stops = variant?.stops ?? [];
-      const at = here && stops.length ? stops.findIndex((s) => String(s.codigo).toUpperCase() === code) : -1;
-      // This station is the variant's last stop: the service ends here and there
-      // is no onward heading to report (see `PlatformDirection.arrival`).
-      const terminates = at >= 0 && at === stops.length - 1;
-      if (here && at >= 0 && !terminates) {
-        const from = parseCoordinate(stops[at].coordenada);
-        const to = parseCoordinate(stops[at + 1].coordenada);
-        if (from && to) deg = bearing(from, to);
-      }
-      scored.push({ svc, deg, terminates, zonal });
-    }
+    const groups = (plan[wagon] ?? []).map((g) => ({
+      sentido: g.sentido,
+      arrival: g.arrival,
+      services: g.ids.map(toService).filter((s): s is PlatformService => s !== null),
+    }));
 
     // Wagon "0" is the pool the catalog files without a platform letter — and it
     // is NOT purely alimentadores: it holds P85/M85 at Centro Memoria, L81/D81
@@ -669,14 +547,19 @@ function buildPlatform(
     // them to the feeder list told a rider a troncal padrón was an alimentador,
     // so the split is on `tipoServicio`, never on the wagon key (spec §5.5.4).
     if (wagon === '0') {
-      feeders = scored.filter((s) => s.zonal).map((s) => s.svc);
-      const troncal = scored.filter((s) => !s.zonal);
+      const troncal: PlatformDirection[] = [];
+      for (const g of groups) {
+        for (const svc of g.services) if (svc.zonal) feeders.push(svc);
+        const kept = g.services.filter((s) => !s.zonal);
+        if (kept.length) troncal.push({ sentido: g.sentido, arrival: g.arrival, services: kept });
+      }
       // Kept out of `vagones` so it takes no vagón number and no "Plataforma N"
-      // ordinal: the catalog gives these no letter, and `wagonCount` (the plate
-      // comparison behind `vagonLabel`) must keep counting lettered platforms only.
-      if (troncal.length) unassigned = splitDirections(troncal);
-    } else if (scored.length) {
-      vagones.push({ label: labels[wagon] ?? null, directions: splitDirections(scored) });
+      // ordinal: the catalog gives these no letter, and the plate comparison
+      // behind `printedVagonLabels` counts lettered platforms only.
+      if (troncal.length) unassigned = troncal;
+    } else {
+      const directions = groups.filter((g) => g.services.length > 0);
+      if (directions.length) vagones.push({ label: labels[wagon] ?? null, directions });
     }
   }
 
@@ -686,14 +569,13 @@ function buildPlatform(
 // ─── Estación pages ───────────────────────────────────────
 function renderStation(
   station: LightStation,
-  routeIndex: Map<string, string>,
-  variantById: Map<string, LightRoute>
+  routeIndex: Map<string, string>
 ) {
   const url = stationUrl(station);
   const nombre = tidy(station.nombre);
   const direccion = tidy(station.direccion);
   const coord = parseCoordinate(station.coordenada);
-  const platform = buildPlatform(station, variantById, routeIndex);
+  const platform = buildPlatform(station, routeIndex);
   const countServices = (directions: PlatformDirection[]): number =>
     directions.reduce((n, d) => n + d.services.length, 0);
   const serviceCount =
@@ -876,13 +758,6 @@ async function main(): Promise<void> {
   // routes. Without both directions the pages are discovered but orphaned.
   const stationByCode = new Map(stations.map((st) => [st.codigo.toUpperCase(), st]));
   const routeIndex = new Map(routeCodes.map(([codigo]) => [codigo.toUpperCase(), routeUrl(codigo)]));
-  // A station's wagon entries carry the route *variant* id, which is what pins
-  // down the direction — the same código runs both ways through a station.
-  const variantById = new Map<string, LightRoute>();
-  for (const variants of Object.values(catalog.routes)) {
-    for (const variant of variants) variantById.set(String(variant.id), variant);
-  }
-
   await rm(path.join(CLIENT_DIST, 'ruta'), { recursive: true, force: true });
   await rm(path.join(CLIENT_DIST, 'estacion'), { recursive: true, force: true });
   await rm(path.join(CLIENT_DIST, 'og'), { recursive: true, force: true });
@@ -938,7 +813,7 @@ async function main(): Promise<void> {
 
   const stationUrls: string[] = [];
   for (const station of stations) {
-    const page = renderStation(station, routeIndex, variantById);
+    const page = renderStation(station, routeIndex);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));

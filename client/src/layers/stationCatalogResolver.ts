@@ -1,4 +1,4 @@
-import type { CatalogRoute, CatalogStation, MasterCatalog } from '../types/catalog';
+import type { CatalogPlanGroup, CatalogRoute, CatalogStation, MasterCatalog } from '../types/catalog';
 import type { TroncalStationFeature } from '../types/transmilenio';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
@@ -90,6 +90,12 @@ export interface ResolvedCatalogStation {
    *  subset of the wagons — no longer satisfies the evidence and is numbered by
    *  nobody rather than numbered by guess. */
   vagonLabels?: Record<string, string>;
+  /** The source stop's `wagonPlan` (§5.5.4) — which services board which side of
+   *  each vagón, and which way that side faces. Carried through only when a
+   *  single catalog stop supplies it, for the same reason as `vagonLabels`: a
+   *  station assembled from several stops can merge two stops' wagon `A`, and
+   *  the groups would then describe a platform that isn't the one on screen. */
+  wagonPlan?: Record<string, CatalogPlanGroup[]>;
   sourceStops: ResolvedSourceStop[];
   audit: StationCatalogAudit;
 }
@@ -442,6 +448,13 @@ function makeResolvedStation(
     matchMethod,
     wagons,
     vagonLabels: resolveVagonLabels(selections, wagons),
+    // One contributing plan only — see `ResolvedCatalogStation.wagonPlan`. The
+    // platform clusters that merge several stops (Terminal) take theirs from the
+    // single stop that has one; the fragments carry none.
+    wagonPlan: (() => {
+      const plans = selections.map((s) => s.station.wagonPlan).filter(Boolean);
+      return plans.length === 1 ? plans[0] : undefined;
+    })(),
     sourceStops,
     audit,
   };

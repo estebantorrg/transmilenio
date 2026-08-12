@@ -13,7 +13,7 @@ import { showPopup } from './popup';
 import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
-import type { MasterCatalog, CatalogRoute } from '../types/catalog';
+import type { MasterCatalog, CatalogRoute, CatalogPlanGroup } from '../types/catalog';
 import {
   buildStationKey,
   normalizeStationName,
@@ -118,6 +118,44 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
 }
 
 /**
+ * A vagón's services split by the side they board from, when the catalog's plan
+ * covers them (`wagonPlan`, spec §5.5.4). Returns null when it doesn't, and the
+ * caller falls back to one undifferentiated row of tags.
+ *
+ * The split is the whole point of a plano: "which routes serve this station" is
+ * answered by a list, but "which side do I stand on" is not, and that is the
+ * question a rider standing on the platform actually has. `arrival` groups are
+ * the services that END here — they are shown, because they do use the platform,
+ * but never under a direction, since there is nothing to board them towards.
+ */
+function buildDirectionRowsHtml(
+  routes: CatalogRoute[],
+  groups: CatalogPlanGroup[] | undefined
+): string | null {
+  if (!groups?.length) return null;
+  const byId = new Map(routes.map((r) => [String(r.id ?? ''), r]));
+  const rows: string[] = [];
+
+  for (const group of groups) {
+    const members = group.ids.map((id) => byId.get(String(id))).filter((r): r is CatalogRoute => Boolean(r));
+    if (members.length === 0) continue;
+    const label = group.arrival
+      ? '<span class="popup-dir-end">fin de recorrido</span>'
+      : group.sentido
+        ? `<span class="popup-dir-arrow"></span>${escapeHTML(group.sentido)}`
+        : 'sentido sin determinar';
+    rows.push(
+      `<div class="popup-dir"><div class="popup-dir-label">${label}</div>` +
+        `<div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+    );
+  }
+
+  // Every service filtered out (ids that don't match this platform's routes) —
+  // better to fall back than to render a vagón with nothing under it.
+  return rows.length > 0 ? rows.join('') : null;
+}
+
+/**
  * Renders the wagon → route-tag sections shown inside a station popup.
  *
  * Sections are keyed on what each route IS, never on the wagon key it is filed
@@ -142,7 +180,8 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
  */
 function buildWagonSectionsHtml(
   wagons: ResolvedCatalogWagons,
-  vagonLabels: Record<string, string> = {}
+  vagonLabels: Record<string, string> = {},
+  wagonPlan: Record<string, CatalogPlanGroup[]> = {}
 ): string {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -168,23 +207,32 @@ function buildWagonSectionsHtml(
     ...lettered.map(({ key, routes }, i) => ({
       label: vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${i + 1}`,
       routes,
+      plan: wagonPlan[key],
     })),
     // "Vagón único" is only true where there is no lettered platform to sit
     // beside; otherwise these are simply the services the catalog gives no
     // platform for, and only the station's signage can say which.
     ...(unlettered.length
-      ? [{ label: lettered.length ? 'Otros servicios troncales' : 'Vagón único', routes: unlettered }]
+      ? [{
+          label: lettered.length ? 'Otros servicios troncales' : 'Vagón único',
+          routes: unlettered,
+          plan: wagonPlan['0'],
+        }]
       : []),
-    ...(feeders.length ? [{ label: 'Alimentadores y zonales', routes: feeders }] : []),
+    // Feeders stay one flat list: the plan gives them no direction (they are
+    // excluded from it upstream), and the estación page lists them the same way.
+    ...(feeders.length ? [{ label: 'Alimentadores y zonales', routes: feeders, plan: undefined }] : []),
   ];
 
   const html = sections
-    .map(({ label, routes }) => {
+    .map(({ label, routes, plan }) => {
       const count = groupCatalogRoutesByDirection(routes).length;
+      const body =
+        buildDirectionRowsHtml(routes, plan) ?? `<div class="popup-route-tags">${formatRouteTags(routes)}</div>`;
       return `
           <div class="popup-wagon-section">
             <div class="popup-wagon-label">${label}<span class="popup-count">${count}</span></div>
-            <div class="popup-route-tags">${formatRouteTags(routes)}</div>
+            ${body}
           </div>
         `;
     })
@@ -252,7 +300,7 @@ function showStationPopup(
 
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
-      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels)
+      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan)
       // Not "no routes serve this station" — the catalog simply files no wagon
       // assignment for it, and saying which is the difference between a data gap
       // and a claim about the network (spec §1).
@@ -526,7 +574,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels);
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan);
 
   const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||

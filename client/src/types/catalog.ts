@@ -28,7 +28,21 @@ export interface CatalogStation {
    *  the light catalog, so this popup and the prerendered estación page name a
    *  platform identically; a key absent here gets no number anywhere (§5.5.4). */
   vagonLabels?: Record<string, string>;
+  /** Wagon key → the directions it serves, each listing the route **variant**
+   *  ids that board it (`buildWagonPlan`, spec §5.5.4). Resolved server-side
+   *  from the stop coordinates so this popup and the prerendered estación page
+   *  face a platform the same way; the código alone cannot say which side a
+   *  service boards from, since the same código runs both ways. */
+  wagonPlan?: Record<string, CatalogPlanGroup[]>;
   wagons: CatalogWagons;
+}
+
+export interface CatalogPlanGroup {
+  /** Cardinal these services leave towards, or null when it can't be derived. */
+  sentido: string | null;
+  /** These services END here — they arrive and are never boarded onward. */
+  arrival?: boolean;
+  ids: string[];
 }
 
 export interface CatalogRouteDetail {
