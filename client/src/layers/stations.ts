@@ -156,6 +156,79 @@ function buildDirectionRowsHtml(
 }
 
 /**
+ * The station drawn as a plan — the same view the prerendered `/estacion/` page
+ * carries (spec §5.5.4): one continuous platform bar segmented per vagón, the
+ * services that board each side above and below it.
+ *
+ * A list can say which routes serve a station; only a plan says which side to
+ * stand on, which is the question a rider on the platform actually has. The
+ * three parts of each vagón are laid out on shared grid rows so every plate
+ * lands on one line and the bar reads as one platform — with a flex fallback
+ * where `subgrid` is unsupported, since a bar that steps up and down mid-station
+ * reads as a rendering fault rather than as a station.
+ *
+ * Wide stations scroll sideways inside the plan rather than stretching the
+ * popup: a portal has six vagones and the popup is 320 px.
+ */
+function buildStationPlanoHtml(
+  lettered: Array<{ key: string; routes: CatalogRoute[] }>,
+  vagonLabels: Record<string, string>,
+  wagonPlan: Record<string, CatalogPlanGroup[]>
+): string | null {
+  const columns: string[] = [];
+
+  lettered.forEach(({ key, routes }, index) => {
+    const groups = wagonPlan[key] ?? [];
+    const byId = new Map(routes.map((r) => [String(r.id ?? ''), r]));
+    const resolved = groups
+      .map((g) => ({
+        group: g,
+        members: g.ids.map((id) => byId.get(String(id))).filter((r): r is CatalogRoute => Boolean(r)),
+      }))
+      .filter((g) => g.members.length > 0);
+    if (resolved.length === 0) return;
+
+    // One group's label + tags. The wrappers are emitted once per side below:
+    // a vagón can serve three groups (both directions plus terminating
+    // services), and giving each its own side element pushed the extras outside
+    // the three shared grid rows, where they drew on top of one another.
+    const groupBlock = (entry: (typeof resolved)[number], which: 'a' | 'b'): string => {
+      const { group, members } = entry;
+      const label = group.arrival
+        ? '<span class="popup-dir-end">fin de recorrido</span>'
+        : group.sentido
+          ? `<span class="popup-dir-arrow popup-dir-arrow-${which === 'a' ? 'up' : 'down'}"></span>${escapeHTML(group.sentido)}`
+          : 'sin determinar';
+      return (
+        `<div class="pvg-group"><div class="popup-dir-label">${label}</div>` +
+        `<div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+      );
+    };
+
+    // No number where the plate count doesn't back the catalog's grouping —
+    // "Plataforma N" is vague but true, a wrong vagón number sends a rider to
+    // the wrong side of the station.
+    const name = vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${index + 1}`;
+    const count = resolved.reduce((n, g) => n + groupCatalogRoutesByDirection(g.members).length, 0);
+    const [first, ...rest] = resolved;
+
+    columns.push(
+      `<section class="pvg" aria-label="${name}">` +
+        `<div class="pvg-side pvg-side-a">${first ? groupBlock(first, 'a') : ''}</div>` +
+        `<div class="pvg-plate"><span class="pvg-name">${name}</span><span class="pvg-sub">${count}</span></div>` +
+        `<div class="pvg-side pvg-side-b">${rest.map((entry) => groupBlock(entry, 'b')).join('')}</div>` +
+        `</section>`
+    );
+  });
+
+  if (columns.length === 0) return null;
+  return (
+    `<div class="popup-plano" role="group" aria-label="Plano de la estación" tabindex="0">` +
+    `<div class="popup-plano-cols">${columns.join('')}</div></div>`
+  );
+}
+
+/**
  * Renders the wagon → route-tag sections shown inside a station popup.
  *
  * Sections are keyed on what each route IS, never on the wagon key it is filed
@@ -201,14 +274,19 @@ function buildWagonSectionsHtml(
 
   lettered.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
 
+  // The lettered platforms are drawn as the station's plan — the same view the
+  // /estacion/ page carries. Where the catalog ships no plan for them, they fall
+  // back to the labelled sections below, so a station is never left blank.
+  const plano = buildStationPlanoHtml(lettered, vagonLabels, wagonPlan);
+
   const sections = [
-    // "Plataforma N" counts the platforms in catalog order, which is the same
-    // fallback the prerendered estación page prints for the same station.
-    ...lettered.map(({ key, routes }, i) => ({
-      label: vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${i + 1}`,
-      routes,
-      plan: wagonPlan[key],
-    })),
+    ...(plano
+      ? []
+      : lettered.map(({ key, routes }, i) => ({
+          label: vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${i + 1}`,
+          routes,
+          plan: wagonPlan[key],
+        }))),
     // "Vagón único" is only true where there is no lettered platform to sit
     // beside; otherwise these are simply the services the catalog gives no
     // platform for, and only the station's signage can say which.
@@ -238,7 +316,7 @@ function buildWagonSectionsHtml(
     })
     .join('');
 
-  return html || '<div class="popup-empty">Sin rutas disponibles</div>';
+  return (plano ?? '') + html || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
 // ─── Catalog Lookup ─────────────────────────────────────

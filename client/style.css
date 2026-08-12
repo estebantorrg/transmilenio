@@ -2252,6 +2252,126 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-tertiary);
 }
 
+.popup-dir-arrow-down {
+  border-bottom: 0;
+  border-top: 6px solid currentColor;
+}
+
+/* ─── Popup station plan ─────────────────────────────────
+   The station drawn as a plan, the same view the /estacion/ page carries: one
+   platform bar segmented per vagón, with the services boarding each side above
+   and below it. A list says which routes serve the station; only this says
+   which side to stand on. */
+.popup-plano {
+  margin: calc(4px * var(--tm-scale, 1)) 0 calc(8px * var(--tm-scale, 1));
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  /* Scroll cue: a portal has six vagones and the popup is 320px, so the bar is
+     wider than the box more often than not. The "local" layers ride with the
+     content and uncover the "scroll" ones only while there is more off an edge,
+     so a two-vagón station shows no cue at all. */
+  background-image:
+    linear-gradient(to right, #121212 40%, rgba(18, 18, 18, 0)),
+    linear-gradient(to left, #121212 40%, rgba(18, 18, 18, 0)),
+    radial-gradient(farthest-side at 0 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 28px 100%, 28px 100%, 10px 100%, 10px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+
+.popup-plano:focus-visible {
+  outline: 2px solid var(--text-secondary);
+  outline-offset: 2px;
+}
+
+/* Three shared rows — approach, platform, departure — so every plate lands on
+   one line and the vagones read as one segmented platform rather than as boxes
+   drifting against each other. */
+.popup-plano-cols {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(calc(136px * var(--tm-scale, 1)), 1fr);
+  grid-template-rows: auto auto auto;
+  min-width: min-content;
+}
+
+.pvg {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+}
+
+.pvg-side {
+  padding: 0 calc(7px * var(--tm-scale, 1));
+}
+
+.pvg-side-a {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding-bottom: calc(6px * var(--tm-scale, 1));
+}
+
+.pvg-side-b {
+  padding-top: calc(6px * var(--tm-scale, 1));
+}
+
+@supports not (grid-template-rows: subgrid) {
+  .popup-plano-cols { align-items: stretch; }
+  .pvg { display: flex; flex-direction: column; }
+  .pvg-side-a { flex: 1 0 auto; }
+}
+
+.pvg-plate {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: calc(7px * var(--tm-scale, 1)) calc(6px * var(--tm-scale, 1));
+  background: rgba(255, 255, 255, 0.07);
+  border-top: 2px solid var(--border-medium);
+  border-bottom: 2px solid var(--border-medium);
+  /* Segment separator, drawn inside so adjacent plates still form one bar. */
+  box-shadow: inset -2px 0 0 #121212;
+}
+
+.pvg:last-child .pvg-plate {
+  box-shadow: none;
+}
+
+.pvg-name {
+  font-size: calc(10.5px * var(--tm-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.pvg-sub {
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Second and later groups on a side (the other direction, or the terminating
+   services) sit under the first rather than on top of it. */
+.pvg-group + .pvg-group {
+  margin-top: calc(6px * var(--tm-scale, 1));
+}
+
+.popup-plano .popup-dir-label {
+  margin-bottom: calc(4px * var(--tm-scale, 1));
+  /* A cardinal is short; truncating it to "OCCIDEN…" reads as a different word.
+     Let it wrap instead — the column is narrow by necessity, not by choice. */
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.popup-plano .popup-route-tags {
+  margin-top: 0;
+}
+
 /* ─── Popup TransMiCable Info ────────────────────────── */
 
 .popup-cable-info {
