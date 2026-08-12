@@ -16,7 +16,12 @@
  * service boards from.
  */
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 import { isZonalService } from './route_type.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export interface PlanGroup {
   /** Cardinal these services leave towards, or null when it can't be derived. */
@@ -42,19 +47,66 @@ interface PlanWagonEntry {
 }
 
 /**
- * Four points, not eight — Bogotá's grid is not square to true north.
+ * What riders call each direction, per corridor — answered by the maintainer,
+ * not computed (`data/corridor_directions.json`, `data/station_corridors.json`).
  *
- * The bearings are true, but the corridors run along a tilted grid: the
- * Autopista Norte climbs at 9.4° and Caracas northbound out of Usme at 23.8°,
- * and every rider and every sign calls both of those *norte*. On eight points
- * the second crosses the 22.5° boundary and reads "nororiente", a word nobody
- * uses. Over all 1 599 consecutive troncal hops, the share of bearings within
- * 10° of a boundary — where a street bend flips the label — is 35.7% on eight
- * points against 19.7% on four. Do not restore eight points for precision that
- * is not there, and do not rotate the rose: Portal Norte is the northernmost
- * station in the catalog (lat 4.7555 against Portal Usme's 4.5318).
+ * A bearing cannot name a direction here. Bogotá's grid is not square to true
+ * north, and a corridor keeps ONE name for its axis along its whole length even
+ * where the road bends: Calle 26 is oriente/occidente even where its bearing
+ * swings north, and the NQS stays norte/sur through the Soacha stretch that
+ * physically runs east-west. Naming from the compass disagreed with the street
+ * on eight of the twelve corridors, so the compass no longer gets a vote — it
+ * only decides WHICH END of a corridor a platform serves, never what that end
+ * is called.
  */
-const CARDINALS = ['norte', 'oriente', 'sur', 'occidente'];
+const CORRIDOR_DIRECTIONS: Record<string, { axisBearing: number; positive: string; negative: string }> = (() => {
+  try {
+    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'corridor_directions.json'), 'utf-8')).corridors ?? {};
+  } catch {
+    console.warn('[TM API] corridor_directions.json unreadable; platform directions will be omitted.');
+    return {};
+  }
+})();
+
+const STATION_CORRIDORS: Record<string, string> = (() => {
+  try {
+    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'station_corridors.json'), 'utf-8')).corridors ?? {};
+  } catch {
+    console.warn('[TM API] station_corridors.json unreadable; platform directions will be omitted.');
+    return {};
+  }
+})();
+
+/** Smallest angle between two bearings, 0–180. */
+function angleBetween(a: number, b: number): number {
+  return Math.abs((((a - b) % 360) + 540) % 360 - 180);
+}
+
+/**
+ * The name for a heading at a station, from the corridor it sits on.
+ *
+ * Along the corridor's axis it takes that corridor's own pair. Perpendicular to
+ * it, the bus has left the corridor — at Museo Nacional one service turns off
+ * Carrera 7 onto Calle 26 — so it takes the crossing pair instead, oriented by
+ * the compass, which is the one case where east/west and north/south are not in
+ * dispute. Returns null when there is no corridor on file: withholding the
+ * label is better than inventing one (§5.5.4).
+ */
+function labelFor(stationCode: string, bearing: number): string | null {
+  const corridor = CORRIDOR_DIRECTIONS[STATION_CORRIDORS[String(stationCode).toUpperCase()] ?? ''];
+  if (!corridor) return null;
+
+  const along = angleBetween(bearing, corridor.axisBearing);
+  if (along <= 60) return corridor.positive;
+  if (along >= 120) return corridor.negative;
+
+  // Off-axis: name it on the crossing pair. A corridor running north–south is
+  // crossed by oriente/occidente and vice versa.
+  const northSouth = corridor.positive === 'norte' || corridor.positive === 'sur';
+  const east = Math.sin((bearing * Math.PI) / 180) > 0;
+  const north = Math.cos((bearing * Math.PI) / 180) > 0;
+  return northSouth ? (east ? 'oriente' : 'occidente') : north ? 'norte' : 'sur';
+}
 
 function parseCoordinate(value: string | undefined): { lat: number; lon: number } | null {
   const [lat, lon] = String(value || '').split(',').map((n) => Number(n.trim()));
@@ -77,7 +129,7 @@ function bearing(a: { lat: number; lon: number }, b: { lat: number; lon: number 
  * four-service vagón split two-and-two cleared the bar and printed a direction
  * that was simply wrong.
  */
-function meanCardinal(bearings: number[]): string | null {
+function meanCardinal(stationCode: string, bearings: number[]): string | null {
   if (bearings.length === 0) return null;
   let sx = 0;
   let sy = 0;
@@ -87,7 +139,7 @@ function meanCardinal(bearings: number[]): string | null {
   }
   if (Math.hypot(sx, sy) / bearings.length < 0.6) return null;
   const mean = (Math.atan2(sx, sy) * 180) / Math.PI;
-  return CARDINALS[Math.round(((mean + 360) % 360) / 90) % 4];
+  return labelFor(stationCode, (mean + 360) % 360);
 }
 
 /**
@@ -102,7 +154,7 @@ function meanCardinal(bearings: number[]): string | null {
  * group from its own mean. Verified against the planos for General Santander and
  * Calle 40 Sur: every vagón, both directions, identical to the printed diagram.
  */
-function splitDirections(all: Array<{ id: string; deg: number | null; terminates: boolean }>): PlanGroup[] {
+function splitDirections(stationCode: string, all: Array<{ id: string; deg: number | null; terminates: boolean }>): PlanGroup[] {
   const arrivals = all.filter((e) => e.terminates).map((e) => e.id);
   const entries = all.filter((e) => !e.terminates);
   const tail = (groups: PlanGroup[]): PlanGroup[] =>
@@ -112,25 +164,20 @@ function splitDirections(all: Array<{ id: string; deg: number | null; terminates
   const unknown = entries.filter((e) => e.deg === null).map((e) => e.id);
   if (known.length === 0) return tail(entries.length ? [{ sentido: null, ids: entries.map((e) => e.id) }] : []);
 
-  let sx = 0;
-  let sy = 0;
+  // Group by the NAME each service's heading earns, not by geometry. An earlier
+  // version split the vagón on its principal axis and then named each half from
+  // its mean, which forced every service on a platform into one of two buckets —
+  // so at Museo Nacional the bus that turns west onto Calle 26 was averaged in
+  // with the ones climbing Carrera 7 and inherited their "norte". A platform can
+  // genuinely send buses three ways, and the name is what a rider reads.
+  const byLabel = new Map<string, string[]>();
   for (const e of known) {
-    sx += Math.sin((2 * e.deg * Math.PI) / 180);
-    sy += Math.cos((2 * e.deg * Math.PI) / 180);
-  }
-  const axis = Math.atan2(sx, sy) / 2;
-  const ax = Math.sin(axis);
-  const ay = Math.cos(axis);
-
-  const groups: Array<Array<{ id: string; deg: number }>> = [[], []];
-  for (const e of known) {
-    const dot = Math.sin((e.deg * Math.PI) / 180) * ax + Math.cos((e.deg * Math.PI) / 180) * ay;
-    groups[dot >= 0 ? 0 : 1].push(e);
+    const label = labelFor(stationCode, e.deg) ?? '';
+    if (!byLabel.has(label)) byLabel.set(label, []);
+    byLabel.get(label)!.push(e.id);
   }
 
-  const out: PlanGroup[] = groups
-    .filter((g) => g.length > 0)
-    .map((g) => ({ sentido: meanCardinal(g.map((e) => e.deg)), ids: g.map((e) => e.id) }));
+  const out: PlanGroup[] = [...byLabel.entries()].map(([label, ids]) => ({ sentido: label || null, ids }));
   // Services whose heading cannot be derived are listed plainly, never guessed.
   if (unknown.length) out.push({ sentido: null, ids: unknown });
   return tail(out);
@@ -180,7 +227,7 @@ export function buildWagonPlan(
       scored.push({ id, deg, terminates });
     }
 
-    const groups = splitDirections(scored);
+    const groups = splitDirections(code, scored);
     if (groups.length > 0) plan[wagon] = groups;
   }
 
