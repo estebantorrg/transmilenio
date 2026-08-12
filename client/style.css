@@ -316,6 +316,26 @@ body {
   transform: translateZ(0); /* Hardware accelerate to stop subpixel text reflow */
 }
 
+/* Scroll cue for that same scroller. Splitting each vagón by sentido (§5.5.4)
+   made station popups roughly 2.5× taller — Portal Usme now holds ~940px of
+   content in a ~340px box — so `max-height` engages on every portal and the
+   list would otherwise stop mid-chip with nothing to say more follows. The
+   "local" layers travel with the content and uncover the "scroll" ones only
+   while something is off that edge, so a short popup shows no cue at all.
+   Longhands, and !important, because the rule above sets the `background`
+   shorthand that way and would reset every one of them. */
+.maplibregl-popup-content {
+  background-image:
+    linear-gradient(var(--bg-card), rgba(18, 18, 18, 0)),
+    linear-gradient(rgba(18, 18, 18, 0), var(--bg-card)),
+    radial-gradient(farthest-side at 50% 0, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)),
+    radial-gradient(farthest-side at 50% 100%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0)) !important;
+  background-position: 0 0, 0 100%, 0 0, 0 100% !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% 20px, 100% 20px, 100% 7px, 100% 7px !important;
+  background-attachment: local, local, scroll, scroll !important;
+}
+
 .maplibregl-popup-content::-webkit-scrollbar {
   width: 8px;
 }
@@ -4198,6 +4218,18 @@ body.sidebar-collapsed .sidebar-fab {
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--border-subtle);
+  /* Pinned to the bottom of the popup's scroller. The platform plan (§5.5.4)
+     made station popups roughly 2.5× taller, which pushed "Desde aquí" and
+     "Hasta aquí" below the fold at every portal — they had been visible without
+     scrolling. Planning a trip from the station you just tapped is the popup's
+     primary action and must not be something you have to scroll to find. */
+  position: sticky;
+  bottom: calc(-12px * var(--tm-scale, 1));
+  z-index: 1;
+  /* Opaque, not var(--bg-card): that token is rgba(18,18,18,.78) and the route
+     chips scrolling underneath showed straight through the buttons. */
+  background: #121212;
+  padding-bottom: calc(12px * var(--tm-scale, 1));
 }
 
 .popup-plan-btn {
