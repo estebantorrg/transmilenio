@@ -1,11 +1,12 @@
 {
   "_meta": {
-    "what": "Number of \"Vagón N\" plates printed on each official station plano.",
+    "what": "Number of DISTINCT \"Vagón N\" numbers printed on each official station plano.",
     "why": "The catalog keys wagons A/B/C but signage reads Vagón 1/2/3. The letter->number mapping is only safe when the catalog wagon count equals the printed plate count; where they differ the catalog groups platforms differently from the signage (Calle 161: catalog 2 vs printed 4; Av. Jiménez: catalog 5 vs printed 3). See spec 5.5.4.",
     "source": "Counted from the plano images published at tramites.transmilenio.gov.co/station-maps/api/map. Only this count is stored - no image is copied or redistributed.",
     "regenerate": "Re-run the plate counter over a fresh download of the planos; see spec 5.5.4.",
     "generated": "2026-08-11",
-    "stations": 153
+    "stations": 153,
+    "distinct_not_occurrences": "Count distinct numbers, not plate images. An island platform is drawn as two rows with its OWN number repeated above and below: Terminal (TM0031) prints \"Vagón 1\" twice for one vagón. Counting occurrences gave 2, which matched the catalog's 2 wagons, so the gate trusted the mapping and published a \"Vagón 2\" that exists nowhere in the station — the exact wrong answer this dataset exists to prevent. Verified against the published plano 2026-08-11."
   },
   "counts": {
     "TM0001": 3,
@@ -38,7 +39,7 @@
     "TM0028": 4,
     "TM0029": 3,
     "TM0030": 3,
-    "TM0031": 2,
+    "TM0031": 1,
     "TM0032": 2,
     "TM0033": 2,
     "TM0034": 2,
