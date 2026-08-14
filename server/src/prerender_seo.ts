@@ -32,6 +32,7 @@ import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor } from './services/route_colors.js';
+import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 
@@ -346,6 +347,18 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .vg-side .svc li{font-size:.85rem;color:rgba(255,255,255,.8)}
 #seo-prerender .plano-note{color:rgba(255,255,255,.45);font-size:.8rem;margin:2px 0 0}
 @media (max-width:560px){#seo-prerender .vg{flex-basis:170px;min-width:170px}}
+/* ── El rutero ──────────────────────────────────────────────────────────────
+   The bus's own LED destination sign. The frame is its black bezel; the sign
+   inside is a dot grid (shared/rutero.js), so it scales as one image and can
+   never reflow into text. Duplicated from the app's stylesheet on purpose —
+   this panel ships before any stylesheet of ours is guaranteed to have loaded,
+   and the four rules are the frame, not the drawing. */
+#seo-prerender .rutero{margin:0 0 14px}
+#seo-prerender .rutero-frame{border-radius:7px;padding:5px;overflow:hidden;
+background:linear-gradient(180deg,#23262b,#0d0f12);
+box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 6px 18px rgba(0,0,0,.55)}
+#seo-prerender .rutero-svg{display:block;width:100%;height:auto;border-radius:3px}
+#seo-prerender .rutero figcaption{margin-top:7px;font-size:.8rem;color:rgba(255,255,255,.45)}
 #seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
 #seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
 /* Injected by the client once the map is live (revealPrerenderedPanel in
@@ -428,11 +441,47 @@ ${items}
     })
     .join('\n');
 
+  // El rutero — the LED sign the bus carries — drawn from the same dot-matrix
+  // font the app uses (`shared/rutero.js`, spec §5.5.5). It is the first thing
+  // on the page because it is the thing a rider standing at the andén is trying
+  // to match, and it is *content*, not decoration: the destination is spelled
+  // exactly as the panel spells it, which is often not how the catalog does.
+  //
+  // Gated per variant, never on `variants[0]`: a código can exist in both
+  // networks at once — `7` is a ruta fácil *and* a zonal service — and which of
+  // them lands first in the catalog is not a fact about the fleet.
+  const signVariants = variants.filter((variant) => carriesRutero(variant.tipoServicio));
+  // One panel width for every sign on the page: a rutero is fixed hardware, the
+  // same number of LEDs whichever way the bus points, so per-direction sizing
+  // drew the two sentidos of ruta 1 at visibly different scales.
+  const panelChars = signVariants.reduce(
+    (max, variant) =>
+      Math.max(max, ruteroLayout(codigo, tidy(variant.destination) || tidy(variant.nombre)).columns),
+    PANEL_CHARS
+  );
+  const ruteros = signVariants
+        .map(
+          (variant, i) => `<figure class="rutero">
+<div class="rutero-frame">${ruteroSvg({
+            code: codigo,
+            destination: tidy(variant.destination) || tidy(variant.nombre),
+            panelChars,
+            uid: `${slugify(codigo)}-${i}`,
+            label: `Rutero de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
+          })}</div>
+<figcaption>Sentido ${escapeHtml(tidy(variant.origin) || '?')} &rarr; ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
+</figure>`
+        )
+        .join('\n');
+
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender"><div class="wrap">
 ${breadcrumbHtml(trail)}
 <h1>Ruta ${escapeHtml(codigo)} · ${escapeHtml(name)}</h1>
 <p class="sub">Servicio troncal de TransMilenio en Bogotá. Recorrido, paradas y horarios en ambos sentidos.</p>
+${ruteros ? `<h2>Rutero</h2>
+<p class="meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas, un sentido por letrero.</p>
+${ruteros}` : ''}
 ${directions}
 </div></main>`;
 

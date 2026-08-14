@@ -8,8 +8,18 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { de } from '../utils/text';
 import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
-import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
 import { closedWindowNotice } from '../services/liveWindow';
+import {
+  formatSchedule,
+  parseRoutePathname,
+  renderLiveCard,
+  renderServiceStatus,
+  renderStopsTimeline,
+  routePagePath,
+  routeSystemLabel,
+  routeTypeLabel,
+  slugifyRoute,
+} from './routeDetail';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
 import { nearRowHtml, type NearbyPoint } from './cerca';
 import {
@@ -53,13 +63,6 @@ function formatAgo(ms: number): string {
   return mins < 60 ? `hace ${mins} min` : `hace ${Math.round(mins / 60)} h`;
 }
 
-/** Short uppercase family label shown under the route name (TRONCAL / ZONAL / …). */
-function routeTypeLabel(route: RouteListItem): string {
-  if (route.subType === 'dual') return 'PADRÓN';
-  if (isAlimentadorRoute(route) || route.subType === 'alimentador') return 'ALIMENTADOR';
-  return route.type === 'troncal' ? 'TRONCAL' : 'ZONAL';
-}
-
 let allRoutes: RouteListItem[] = [];
 let selectedRouteId: string | null = null;
 let onRouteSelect: ((route: RouteListItem) => void) | null = null;
@@ -67,6 +70,7 @@ let onRouteDeselect: (() => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 let onPointSelect: ((point: NearbyPoint) => void) | null = null;
+let onRouteOpenPage: ((route: RouteListItem) => void) | null = null;
 
 // The whole point universe the search can reach: troncal estaciones, zonal
 // paraderos, tullave recharge POIs and TransMiBici cicloparqueaderos (fed by
@@ -156,16 +160,8 @@ function pushRecent(id: string): void {
 let suppressHashChange = false;
 let deepLinkApplied = false;
 
-function slugifyRoute(value: string): string {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
-
-function routesWithCode(code: string): RouteListItem[] {
+/** Every variant filed under one c\u00f3digo \u2014 usually the two directions. */
+export function routesWithCode(code: string): RouteListItem[] {
   const normalized = code.toUpperCase();
   return allRoutes.filter((r) => r.code.toUpperCase() === normalized);
 }
@@ -188,21 +184,8 @@ function parseRouteHash(): { code: string; slug?: string } | null {
   };
 }
 
-/**
- * Prerendered route pages are served at a real path (`/ruta/g47/`, spec §5.5.4)
- * because crawlers drop fragments. They carry no hash, so a visitor arriving from
- * a search result is resolved from the pathname instead — the código is matched
- * case-insensitively since the URL form is lowercased.
- */
-function parseRoutePath(): { code: string } | null {
-  const match = location.pathname.match(/^\/ruta\/([^/]+)\/?$/);
-  if (!match) return null;
-  const code = decodeURIComponent(match[1]).trim();
-  return code ? { code } : null;
-}
-
 /** Resolve a hash back to a specific route, picking the right direction. */
-function resolveRouteFromHash(code: string, slug?: string): RouteListItem | undefined {
+export function resolveRouteFromHash(code: string, slug?: string): RouteListItem | undefined {
   const matches = routesWithCode(code);
   if (matches.length <= 1) return matches[0];
   if (slug) {
@@ -218,8 +201,8 @@ function pushRouteHash(route: RouteListItem): void {
   // A visitor from a prerendered `/ruta/<code>/` page is already at a URL that
   // names this exact route — and it is the one Google indexed and the one worth
   // sharing. Leave it alone rather than trading it for the hash form.
-  const path = parseRoutePath();
-  if (path && resolveRouteFromHash(path.code)?.id === route.id) return;
+  const path = parseRoutePathname();
+  if (path && resolveRouteFromHash(path)?.id === route.id) return;
   // Selecting a *different* route from such a page would otherwise mint
   // `/ruta/g47/#/r/B12`, where the path and the hash disagree. Drop back to the
   // root first so in-app deep links stay unambiguous (and match the planner's
@@ -312,10 +295,15 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/** Copy a link to the clipboard and say whether it worked. Shared with the
+ *  route page's own share button, so both report the outcome the same way. */
+export async function shareLink(url: string): Promise<void> {
+  showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
+}
+
 /** Copy a deep link to the given route to the clipboard. */
 async function shareRoute(route: RouteListItem): Promise<void> {
-  const url = `${location.origin}${location.pathname}${routeHashFor(route)}`;
-  showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
+  await shareLink(`${location.origin}${location.pathname}${routeHashFor(route)}`);
 }
 
 /** Apply a route filter and reflect it across both control surfaces. */
@@ -702,12 +690,14 @@ export function initSidebar(options: {
   onLayerToggle: (layer: string, visible: boolean) => void;
   onStopSelect?: (stop: any, routeType: 'troncal' | 'zonal') => void;
   onPointSelect?: (point: NearbyPoint) => void;
+  onRouteOpenPage?: (route: RouteListItem) => void;
 }): void {
   onRouteSelect = options.onRouteSelect;
   onRouteDeselect = options.onRouteDeselect;
   onLayerToggle = options.onLayerToggle;
   onStopSelect = options.onStopSelect || null;
   onPointSelect = options.onPointSelect || null;
+  onRouteOpenPage = options.onRouteOpenPage || null;
 
   const toggleBtn = document.getElementById('sidebar-toggle')!;
   const sidebar = document.getElementById('sidebar')!;
@@ -1021,8 +1011,8 @@ export function setRoutes(routes: RouteListItem[]): void {
     if (parseRouteHash()) {
       applyRouteHash();
     } else {
-      const path = parseRoutePath();
-      const target = path ? resolveRouteFromHash(path.code) : undefined;
+      const path = parseRoutePathname();
+      const target = path ? resolveRouteFromHash(path) : undefined;
       if (target && target.id !== selectedRouteId) selectRoute(target);
     }
   }
@@ -1537,126 +1527,16 @@ function selectRoute(route: RouteListItem): void {
   });
 }
 
-/**
- * Schedule table for the route detail. Parsed windows (§5.6.2) are the source of
- * truth — the same data the planner enforces — so the panel can never disagree
- * with the itineraries. The legacy string parsing below stays only for routes
- * whose hours could not be parsed at all.
- */
-function formatSchedule(route: RouteListItem): string {
-  const spans = route.serviceSpans;
-  if (spans && spans.length > 0) {
-    const rows = describeServiceSpans(spans)
-      .map(
-        (row) => `<tr>
-      <td class="schedule-day">${escapeHTML(row.days)}</td>
-      <td class="schedule-time">${escapeHTML(row.hours)}</td>
-    </tr>`
-      )
-      .join('');
-    return `<table class="schedule-table"><tbody>${rows}</tbody></table>`;
-  }
-  return formatScheduleText(route.schedule);
-}
-
-/** "Now" chip: is this route running at this moment, and until/from when. */
-function renderServiceStatus(route: RouteListItem): string {
-  const status = serviceStatus(route.serviceSpans, bogotaNow());
-  if (status.state === 'unknown') return '';
-  return `
-    <div class="detail-service ${status.state}">
-      <span class="detail-service-dot"></span>
-      <span class="detail-service-label">${escapeHTML(status.label)}</span>
-      ${status.detail ? `<span class="detail-service-detail">${escapeHTML(status.detail)}</span>` : ''}
-    </div>
-  `;
-}
-
-function formatScheduleText(scheduleRaw: string | undefined): string {
-  if (!scheduleRaw) return '';
-
-  // Format string by splitting on "/" or "|"
-  const parts = scheduleRaw.split(/[/|]/).map(p => p.trim()).filter(Boolean);
-  if (parts.length === 0) return '';
-
-  let html = '<table class="schedule-table"><tbody>';
-  
-  parts.forEach(part => {
-    // Basic heuristic: separate text (day) and time (e.g. 05:00-22:00)
-    const match = part.match(/^(.*?)\s+((?:\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}.*))$/i);
-    let day = part;
-    let time = '';
-    
-    if (match) {
-      day = match[1].trim();
-      time = match[2].trim();
-    } else {
-      // Also try to capture things like "Lunes a Viernes 4:00 am - 11:00 pm"
-      const parts2 = part.split(/(\d{1,2}:\d{2}.*)/i);
-      if (parts2.length > 1) {
-        day = parts2[0].trim();
-        time = parts2[1].trim();
-      }
-    }
-    
-    // Normalize common abbreviations
-    const normalizedDay = day
-      .replace(/^L-V$/i, 'Lunes a Viernes')
-      .replace(/^S$/i, 'Sábados')
-      .replace(/^D-F$/i, 'Dom. y Festivos')
-      .replace(/^D-F-A$/i, 'Dom. y Festivos')
-      .replace(/^L-S$/i, 'Lunes a Sábado')
-      .replace(/^L-D$/i, 'Lunes a Domingo');
-
-    html += `<tr>
-      <td class="schedule-day">${escapeHTML(normalizedDay)}</td>
-      <td class="schedule-time">${escapeHTML(time)}</td>
-    </tr>`;
-  });
-  
-  html += '</tbody></table>';
-  return html;
-}
-
-function renderStopsTimeline(route: RouteListItem): string {
-  const stops = route.stops;
-  if (!stops || stops.length === 0) {
-    return '<div class="stops-empty">Cargando paradas…</div>';
-  }
-
-  let html = '<div class="stops-timeline">';
-  stops.forEach((stop, i) => {
-    const isFirst = i === 0;
-    const isLast = i === stops.length - 1;
-    const dotClass = isFirst ? 'origin' : isLast ? 'destination' : 'intermediate';
-    const label = isFirst ? 'Origen' : isLast ? 'Destino' : '';
-
-    html += `
-      <div class="timeline-stop ${dotClass}" data-index="${i}">
-        <div class="timeline-dot-col">
-          <div class="timeline-dot ${dotClass}"></div>
-          ${!isLast ? '<div class="timeline-line"></div>' : ''}
-        </div>
-        <div class="timeline-stop-info">
-          <div class="timeline-stop-name">${escapeHTML(stop.nombre)}</div>
-          ${label ? `<div class="timeline-stop-label">${label}</div>` : ''}
-          ${stop.direccion ? `<div class="timeline-stop-code">${escapeHTML(stop.direccion)}</div>` : (stop.codigo ? `<div class="timeline-stop-code"># ${escapeHTML(stop.codigo)}</div>` : '')}
-        </div>
-      </div>
-    `;
-  });
-  html += '</div>';
-  return html;
-}
-
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
   const sidebar = document.getElementById('sidebar')!;
   const wasHidden = panel.classList.contains('hidden');
   setSidebarCollapsed(false);
-  const isTroncal = route.type === 'troncal';
-  const routeKindLabel = route.subType === 'dual' ? 'Ruta Dual' : isTroncal ? 'Ruta Troncal' : 'Ruta Zonal SITP';
+  // One naming authority for both surfaces (`routeDetail.ts`): the panel used to
+  // print "Ruta Dual" for any route whose stops mixed estaciones and paraderos,
+  // which is how alimentador 1-1 was advertised as a padrón.
+  const routeKindLabel = routeSystemLabel(route);
   const badgeColor = safeColor(getRouteAccentColor(route));
   const scheduleHtml = formatSchedule(route);
 
@@ -1671,21 +1551,15 @@ function showRouteDetail(route: RouteListItem): void {
       </div>
       <div class="detail-name">${escapeHTML(route.origin)} → ${escapeHTML(route.destination)}</div>
       <div class="detail-subtitle">${routeKindLabel}</div>
-      <div id="live-tracking-status" class="live-tracking-status loading">
-        <div class="live-card-main">
-          <span class="live-status-dot pulse loading"></span>
-          <div class="live-status-textcol">
-            <span class="live-status-text">Conectando con buses en vivo…</span>
-            <span class="live-status-sub"></span>
-          </div>
-        </div>
-        <div class="live-card-side">
-          <span class="live-status-chip loading">Buscando…</span>
-          <button id="live-status-refresh" class="live-status-refresh" type="button" aria-label="Actualizar ahora" title="Actualizar ahora">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
-          </button>
-        </div>
-      </div>
+      <!-- The panel is a companion to the map; the page at /ruta/<code>/ is the
+           route itself — the rutero, both sentidos and every parada (spec
+           §5.5.5). A real <a href> so it can be middle-clicked, copied and
+           crawled; the click is intercepted for a pushState navigation. -->
+      <a id="route-detail-page" class="detail-page-link" href="${routePagePath(route.code)}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h7"/><path d="M7 16.5h4"/></svg>
+        <span>Ver página de la ruta</span>
+      </a>
+      ${renderLiveCard()}
     </div>
 
     <div class="detail-section">
@@ -1698,7 +1572,7 @@ function showRouteDetail(route: RouteListItem): void {
       ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
       ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
       ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
-      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${route.subType === 'dual' ? 'TransMilenio Dual' : isTroncal ? 'TransMilenio Troncal' : 'SITP Zonal'}</span></div>
+      <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${escapeHTML(routeSystemLabel(route))}</span></div>
     </div>
     
     ${scheduleHtml ? `
@@ -1723,9 +1597,17 @@ function showRouteDetail(route: RouteListItem): void {
     void shareRoute(route);
   });
 
-  content.querySelector('#live-status-refresh')?.addEventListener('click', () => {
-    const card = document.getElementById('live-tracking-status');
-    card?.querySelector('.live-status-refresh')?.classList.add('spinning');
+  content.querySelector('#route-detail-page')?.addEventListener('click', (event) => {
+    // Modified clicks (new tab, download, middle button) belong to the browser —
+    // intercepting them would break the one thing a real <a> is here to allow.
+    const e = event as MouseEvent;
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    e.preventDefault();
+    onRouteOpenPage?.(route);
+  });
+
+  content.querySelector('.live-status-refresh')?.addEventListener('click', () => {
+    document.querySelectorAll('.live-status-refresh').forEach((btn) => btn.classList.add('spinning'));
     liveRefreshHandler?.();
   });
 
@@ -1758,20 +1640,37 @@ function showRouteDetail(route: RouteListItem): void {
  * shown as "señal limitada / reintentando", never as a confident absence.
  */
 export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?: number): void {
-  const card = document.getElementById('live-tracking-status');
+  // Every live card on the page, not one by id: the sidebar panel and the route
+  // page (spec §5.5.5) can both be mounted, and they must report the same fix.
+  // A second update path is a second chance to claim "sin buses" on one surface
+  // while the other says "rastreando 4" — see this function's own contract.
+  const cards = Array.from(document.querySelectorAll<HTMLElement>('.live-tracking-status'));
+  if (cards.length === 0) return;
+
+  stopFreshTicker();
+  const wantsTicker = cards.map((card) => paintLiveCard(card, count, status, asOf)).some(Boolean);
+  if (wantsTicker) startFreshTicker(cards, 'Actualizado', asOf);
+}
+
+/** Paints one live card. Returns whether it wants the freshness ticker running. */
+function paintLiveCard(
+  card: HTMLElement,
+  count: number,
+  status: TrackingStatus,
+  asOf?: number
+): boolean {
   const dotEl = card?.querySelector('.live-status-dot');
   const textEl = card?.querySelector('.live-status-text');
   const subEl = card?.querySelector('.live-status-sub');
   const chipEl = card?.querySelector('.live-status-chip');
   const refreshEl = card?.querySelector('.live-status-refresh');
 
-  if (!card || !dotEl || !textEl || !chipEl) return;
+  if (!dotEl || !textEl || !chipEl) return false;
 
   refreshEl?.classList.remove('spinning');
   card.className = `live-tracking-status ${status}`;
   dotEl.className = 'live-status-dot';
   chipEl.className = 'live-status-chip';
-  stopFreshTicker();
   if (subEl) subEl.textContent = '';
 
   const plural = count === 1 ? '' : 'es';
@@ -1791,8 +1690,7 @@ export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?
       chipEl.classList.add('success');
       textEl.textContent = `Rastreando ${count} bus${plural} en vivo`;
       chipEl.textContent = `${count} en vivo`;
-      startFreshTicker(card, 'Actualizado', asOf);
-      break;
+      return true;
 
     case 'no-buses': {
       // Verified absence from a CO egress — safe to state plainly, EXCEPT
@@ -1853,15 +1751,20 @@ export function updateLiveBusStatus(count: number, status: TrackingStatus, asOf?
       }
       break;
   }
+  return false;
 }
 
 /** Tick the "Actualizado hace Xs" sub-line every few seconds between 15s polls. */
-function startFreshTicker(card: Element, prefix: string, asOf?: number): void {
+function startFreshTicker(cards: Element[], prefix: string, asOf?: number): void {
   liveFreshAt = typeof asOf === 'number' ? asOf : Date.now();
   const render = () => {
-    const sub = card.querySelector('.live-status-sub');
-    if (!sub || !document.body.contains(card)) { stopFreshTicker(); return; }
-    sub.textContent = `${prefix} ${formatAgo(liveFreshAt)}`;
+    const mounted = cards.filter((card) => document.body.contains(card));
+    if (mounted.length === 0) { stopFreshTicker(); return; }
+    const text = `${prefix} ${formatAgo(liveFreshAt)}`;
+    for (const card of mounted) {
+      const sub = card.querySelector('.live-status-sub');
+      if (sub) sub.textContent = text;
+    }
   };
   render();
   liveFreshTimer = window.setInterval(render, 5000);

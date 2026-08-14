@@ -4491,3 +4491,263 @@ body.native-app .route-detail-close:active {
     bottom: 110px !important;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ROUTE PAGE (spec §5.5.5) — /ruta/<code>/
+   A route's own page, rendered over the map. The map keeps the trace drawn
+   behind it, so leaving is a dismissal rather than a reload.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.route-page {
+  position: fixed;
+  inset: 0;
+  /* Above the sidebar (100) and its sheets (110), below the loading overlay
+     (9999) so a boot error can still surface over it. */
+  z-index: 300;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  padding: 20px 20px calc(48px + env(safe-area-inset-bottom, 0px));
+  /* The pane is scrolled by the reader, so its own focus ring on open would sit
+     on a container nobody clicked. Focus is moved here for screen readers only. */
+  outline: none;
+}
+
+.route-page-inner {
+  max-width: 780px;
+  margin: 0 auto;
+}
+
+/* Sticky, because the way out of a 60-parada page must be on screen wherever
+   the reader has got to — the same reason the prerendered panel's dismiss bar
+   is sticky. */
+.route-page-bar {
+  position: sticky;
+  top: -20px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: -20px -20px 12px;
+  padding: 12px 20px;
+  background: linear-gradient(var(--bg-primary) 72%, rgba(12, 12, 12, 0));
+}
+
+.route-page-back,
+.route-page-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 8px 15px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.route-page-back {
+  color: var(--bg-primary);
+  background: var(--tm-blue);
+  border: 0;
+}
+
+.route-page-back:hover {
+  background: var(--tm-blue-light);
+}
+
+.route-page-share {
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-medium);
+}
+
+.route-page-share:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.route-page-back:focus-visible,
+.route-page-share:focus-visible {
+  outline: 2px solid var(--tm-blue-light);
+  outline-offset: 2px;
+}
+
+.route-page-crumbs {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  margin-bottom: 14px;
+}
+
+.route-page-crumbs a {
+  color: var(--tm-blue);
+  text-decoration: none;
+}
+
+.route-page-crumbs a:hover {
+  text-decoration: underline;
+}
+
+.route-page-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 26px;
+}
+
+.route-page-badge {
+  flex-shrink: 0;
+  min-width: 62px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  /* Rutas fáciles are officially black (`RUTA_FACIL_COLOR`), which on this page's
+     own black is an invisible badge. The ring is what keeps the código a shape. */
+  border: 1px solid var(--border-medium);
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  text-align: center;
+  color: #fff;
+  letter-spacing: 0.02em;
+}
+
+.route-page-h1 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 4px;
+}
+
+.route-page-kind {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.route-page-section {
+  margin-bottom: 30px;
+}
+
+.route-page-h2 {
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  margin: 0 0 6px;
+}
+
+.route-page-meta {
+  margin: 0 0 12px;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+/* The stop list is a sidebar component at heart; on a wide page it gets to
+   breathe and its estación links have to look like links. */
+.route-page .stops-timeline {
+  padding-left: 2px;
+}
+
+.route-page .timeline-stop-name a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid var(--border-medium);
+}
+
+.route-page .timeline-stop-name a:hover {
+  color: var(--tm-blue-light);
+  border-bottom-color: currentColor;
+}
+
+/* ── El rutero ────────────────────────────────────────────────────────────
+   The LED destination sign as the bus carries it. The frame is the bus's own
+   black bezel; the sign inside is a dot grid, never text in a font, so it must
+   scale as one image and never reflow (shared/rutero.js). */
+.rutero {
+  margin: 0 0 14px;
+}
+
+.rutero-frame {
+  border-radius: 7px;
+  padding: 5px;
+  background: linear-gradient(180deg, #23262b, #0d0f12);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+  /* A panel of ~123 dot columns is wider than a phone. Scrolling it would hide
+     half the destination behind a gesture; letting it scale down keeps the whole
+     sign readable, which is the entire point of showing it. */
+  overflow: hidden;
+}
+
+.rutero-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 3px;
+}
+
+.rutero-caption {
+  margin-top: 7px;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.rutero-sentido {
+  letter-spacing: 0.02em;
+}
+
+/* The map underneath must not scroll while the page is on top of it. */
+body.route-page-open {
+  overflow: hidden;
+}
+
+@media (max-width: 560px) {
+  .route-page {
+    padding: 14px 14px calc(40px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .route-page-bar {
+    top: -14px;
+    margin: -14px -14px 10px;
+    padding: 10px 14px;
+  }
+
+  .route-page-h1 {
+    font-size: 1.3rem;
+  }
+
+  .route-page-share span {
+    display: none;
+  }
+}
+
+/* Panel link to the route's own page. Sits under the origin → destination line
+   in the sidebar detail, above the live card. */
+.detail-page-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin: 10px 0 12px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--border-medium);
+  background: rgba(56, 189, 248, 0.08);
+  color: var(--tm-blue);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.detail-page-link:hover {
+  background: rgba(56, 189, 248, 0.16);
+  color: var(--tm-blue-light);
+}
+
+.detail-page-link:focus-visible {
+  outline: 2px solid var(--tm-blue-light);
+  outline-offset: 2px;
+}

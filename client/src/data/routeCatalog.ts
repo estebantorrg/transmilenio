@@ -141,7 +141,15 @@ export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
       const isAlimentador = service.includes('ALIMENTADOR');
       const isDual = service.includes('PADRON') || routeHasDualStops(route.stops);
       const type = service.includes('ZONAL') || service.includes('TRANSMIZONAL') || isAlimentador ? 'zonal' : 'troncal';
-      const subType = isDual ? 'dual' : isAlimentador ? 'alimentador' : type;
+      // Alimentador wins over the dual test, not the other way round. `isDual`
+      // is partly a *heuristic* — a route that touches both estaciones and
+      // paraderos (`routeHasDualStops`) — and a feeder that runs to a portal
+      // trips it. Ordered the old way, alimentador 1-1 came out `subType:
+      // 'dual'` and every surface that reads it called the feeder a padrón:
+      // "Ruta Dual" in the panel, "TransMilenio Dual · PADRÓN" on the route
+      // page. A service the catalog *names* ALIMENTADOR is one, whatever stops
+      // it happens to serve.
+      const subType = isAlimentador ? 'alimentador' : isDual ? 'dual' : type;
 
       const rawStops = route.stops || [];
       const stops = dedupeStops(rawStops.map((stop) => parseCatalogStop(stop, route, catalog)).filter((stop): stop is RouteStop => Boolean(stop)));

@@ -25,7 +25,9 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
+import { initRoutePage, openRoutePage, isRoutePageOpen, refreshRoutePage } from './ui/routePage';
+import { parseRoutePathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
@@ -110,6 +112,9 @@ function hideLoading(): void {
 function revealPrerenderedPanel(): void {
   const panel = document.getElementById('seo-prerender');
   if (!panel || panel.querySelector('.seo-dismiss')) return;
+  // A route page has already taken this panel's place with a live, richer copy
+  // of the same content (spec §5.5.5) — there is nothing left to hand over.
+  if (isRoutePageOpen()) return;
 
   const bar = document.createElement('div');
   bar.className = 'seo-dismiss';
@@ -231,8 +236,23 @@ async function stopLiveBusTracking(): Promise<void> {
 }
 
 // Manual-refresh button in the live card forces an immediate poll.
-setLiveRefreshHandler(() => {
+/** Manual "actualizar ahora" — shared by the sidebar card and the route page. */
+function refreshLiveNow(): void {
   void getBusesModule().then((buses) => buses.refreshLiveBusesNow()).catch(() => {});
+}
+
+setLiveRefreshHandler(refreshLiveNow);
+
+// The route page is a URL-driven view over the same map, so it is wired once at
+// module scope: its Back/Forward listener has to exist before the first
+// navigation, not after the catalog resolves (spec §5.5.5).
+initRoutePage({
+  onShowOnMap: (route) => {
+    openSidebar();
+    selectRouteByIdOrCode(route.id, route.code);
+  },
+  onShare: (_route, url) => void shareLink(url),
+  onLiveRefresh: refreshLiveNow,
 });
 
 function getPlannerModule(): Promise<PlannerModule> {
@@ -838,7 +858,13 @@ async function main(): Promise<void> {
                 const { refreshRouteTrace } = await import('./services/router');
                 refreshRouteTrace(route.id);
               }
-              if (routeHasDualStops(vStops)) route.subType = 'dual';
+              // Same precedence as `buildCatalogRouteList`: the dual test is a
+              // heuristic over the stop mix, and a feeder that reaches a portal
+              // trips it — promoting alimentador 1-1 to "padrón" the moment its
+              // detail arrived, undoing the classification the list got right.
+              if (routeHasDualStops(vStops) && route.subType !== 'alimentador') {
+                route.subType = 'dual';
+              }
               if (!route.stops || route.stops.length === 0) {
                 route.stops = dedupeStops(vStops.map((stop: any) => parseCatalogStop(stop, variant, catalog)).filter((stop: RouteStop | null): stop is RouteStop => Boolean(stop)));
               }
@@ -852,6 +878,9 @@ async function main(): Promise<void> {
       }
 
       refreshRouteDetail(route);
+      // The paradas and the full trace land here, after selection — a route page
+      // opened from a search result would otherwise sit on "Cargando paradas…".
+      refreshRoutePage(route);
       highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
       route.liveNameCandidates = getLiveNameCandidates(route);
@@ -907,6 +936,7 @@ async function main(): Promise<void> {
       }
     },
     onPointSelect: focusNearbyPoint,
+    onRouteOpenPage: (route: RouteListItem) => openRoutePage(route),
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
         case 'troncal':
@@ -1085,6 +1115,18 @@ async function main(): Promise<void> {
 
   setRoutes(routeList);
   refreshLayerCounts();
+
+  // A visitor from a prerendered route page (`/ruta/<code>/`, spec §5.5.4) gets
+  // the interactive version of the page they landed on (§5.5.5). `setRoutes`
+  // has already selected the route from the same path, so the map behind is
+  // drawing it and live tracking is running — "Ver en el mapa" is a dismissal,
+  // not a load. `push: false` because the URL is already this page: pushing
+  // would wedge a duplicate entry in front of the Back that should leave.
+  const routePath = parseRoutePathname();
+  if (routePath) {
+    const target = routesWithCode(routePath)[0];
+    if (target) openRoutePage(target, { push: false });
+  }
 
   // A visitor from a prerendered estación page (`/estacion/<slug>-<codigo>/`,
   // spec §5.5.4) arrives with no hash, so nothing in the hash router fires. The
