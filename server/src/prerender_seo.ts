@@ -290,6 +290,15 @@ body.seo-static #loading-overlay{display:none}
    loading overlay (9999) so a real boot error can surface over it. */
 #seo-prerender{--accent:#D8102D;position:absolute;inset:0;z-index:200;overflow-y:auto;background:#0C0C0C;color:#fff;
 font-family:Inter,system-ui,sans-serif;padding:0 0 64px;line-height:1.55}
+/* The subject's colour bleeding into the top of the page, the same two-layer
+   wash the bundle draws (client/style.css): a short stronger band so the dark
+   corridors register at all, then a long soft tail. Attached "local" so it rides
+   with the content instead of staying pinned while the page scrolls under it.
+   (No backticks in this stylesheet: it lives in a TS template literal.) */
+#seo-prerender{background-image:
+linear-gradient(180deg,color-mix(in srgb,var(--accent) 36%,transparent),transparent 200px),
+linear-gradient(180deg,color-mix(in srgb,var(--accent) 16%,transparent),transparent 470px);
+background-repeat:no-repeat;background-attachment:local,local}
 #seo-prerender .rail{height:3px;background:var(--accent)}
 #seo-prerender .wrap{max-width:760px;margin:0 auto;padding:0 24px}
 #seo-prerender a{color:inherit}

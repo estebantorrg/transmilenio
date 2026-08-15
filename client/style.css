@@ -4538,18 +4538,33 @@ body.native-app .route-detail-close:active {
 /* The accent bleeding into the top of the page. A gradient rather than a block:
    the colour has to say whose page this is without becoming a banner the reader
    has to scroll past. Browsers without `color-mix` drop the declaration and get
-   the flat background, which is the same page minus one flourish. */
+   the flat background, which is the same page minus one flourish.
+
+   **Two layers, because half this palette is dark.** One long ramp at a single
+   alpha reads fine for the bright líneas (cyan `#00B0E8`, green `#75C347`) and
+   all but disappears for the dark ones: over this page's `#0C0C0C`, navy
+   `#0C3A95` at 20% composites to `rgb(12,21,39)` — nine points of green and
+   twenty-seven of blue away from the background, which is a smudge nobody sees.
+   So a short, stronger band under the masthead gives every corridor a colour
+   that registers, and a long soft tail carries it into the page without turning
+   the top of it into a banner. */
 .overlay-page::before {
   content: '';
   position: absolute;
   inset: 0 0 auto;
-  height: 420px;
+  height: 470px;
   pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--page-accent, var(--tm-red)) 20%, transparent),
-    transparent 78%
-  );
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--page-accent, var(--tm-red)) 36%, transparent),
+      transparent 200px
+    ),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--page-accent, var(--tm-red)) 16%, transparent),
+      transparent 100%
+    );
 }
 
 .page-inner {
