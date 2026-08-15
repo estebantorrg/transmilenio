@@ -38,6 +38,7 @@ import {
   isOverlayPageOpen,
   mastheadHtml,
   openOverlayPage,
+  refreshOverlayPage,
   registerPageResolver,
   type OverlayPage,
 } from './pageShell';
@@ -359,6 +360,22 @@ export function initStationPage(options: StationPageHandlers): void {
 
 export function isStationPageOpen(): boolean {
   return isOverlayPageOpen(PAGE_ID);
+}
+
+/**
+ * Re-renders the open page against freshly resolved station data.
+ *
+ * A page deep-linked from a search result opens the moment the catalog lands,
+ * which is well before the ArcGIS station layer exists — so it opens without the
+ * three facts that layer carries: WiFi, biciestación, and the node id the
+ * ridership dataset is keyed on (`getStationPageData`). This is called once
+ * those resolve, and is a no-op when nothing is open or the data has not
+ * improved. Cheap: one `innerHTML` on a page that is already on screen.
+ */
+export function refreshStationPage(): void {
+  if (!openCode || !isStationPageOpen()) return;
+  const station = getStationPageData(openCode);
+  if (station) refreshOverlayPage(descriptor(station));
 }
 
 /**

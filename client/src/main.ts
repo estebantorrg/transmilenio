@@ -27,7 +27,7 @@ import {
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
 import { initRoutePage, openRoutePage, refreshRoutePage } from './ui/routePage';
-import { initStationPage, openStationPage } from './ui/stationPage';
+import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
@@ -578,6 +578,16 @@ async function main(): Promise<void> {
     console.warn('[Startup] Backend wake-up ping failed:', error);
   });
 
+  // The master catalog is asked for **before** the map is waited on, and its
+  // promise is reused by the parallel fetch below.
+  //
+  // Boot used to await the map style, then start every request. For a visitor
+  // arriving on `/ruta/…` or `/estacion/…` from a search result that ordering is
+  // backwards twice over: the page they came for is drawn from the catalog and
+  // covers the map entirely, so they were made to wait for a style they cannot
+  // see before the download they need was even issued (spec §1 priority 2).
+  const catalogPromise = api.getMasterCatalog();
+
   // 1. Initialize map
   updateProgress(5, 'Cargando mapa...');
   const map = createMap('map');
@@ -585,6 +595,63 @@ async function main(): Promise<void> {
   // rationale as window.__tmStationAudit) — e.g. inspecting layer/source state
   // inside the Android webview via chrome://inspect.
   (window as Window & { __tmMap?: maplibregl.Map }).__tmMap = map;
+
+  // The estación page (spec §5.5.6). Wired here rather than at module scope
+  // because every one of its exits goes back to *this* map — the popup it came
+  // from, the planner seeded with its coordinate — and the map does not exist
+  // until boot. The URL resolver it registers is only consulted by a navigation,
+  // which cannot happen before the page it navigates from is on screen.
+  initStationPage({
+    onShowOnMap: (station) => {
+      if (!showStationPopupByCode(map, station.code, station.coordinate)) {
+        // No rendered station to open a popup on (ArcGIS degraded, §4.2) — put
+        // the reader over the place anyway rather than leaving them at the
+        // city-wide view with nothing to show for the dismissal.
+        map.easeTo({ center: station.coordinate, zoom: Math.max(map.getZoom(), 15) });
+      }
+    },
+    onPlan: (role, station) => {
+      // Dismiss without handing the station back to the map: re-opening its
+      // popup here would fight the planner panel the reader just asked for.
+      dismissOverlayPage();
+      openSidebar();
+      getPlannerModule()
+        .then((planner) => planner.planFromPopup(role, station.name, station.coordinate, station.code))
+        .catch((error) => console.error('[Planner] plan-from-station-page failed:', error));
+    },
+    onOpenRoute: (code) => {
+      const route = routesWithCode(code)[0];
+      if (!route) return;
+      // Page first, then the map: `pushRouteHash` leaves a `/ruta/<code>/` path
+      // that already names the selected route alone, so selecting afterwards
+      // costs no second history entry — and it starts the live tracking whose
+      // card this page is about to show.
+      openRoutePage(route);
+      selectRouteByIdOrCode(route.id, route.code);
+    },
+  });
+
+  // A visitor from a prerendered estación page (`/estacion/<slug>-<codigo>/`,
+  // spec §5.5.4) gets the interactive page as soon as the **catalog** lands —
+  // not at the end of boot. Everything that page draws is catalog data, so
+  // making it wait for the ArcGIS layers, the route list and four GeoJSON
+  // sources the reader cannot see behind it cost about ten seconds of staring
+  // at the static copy on a free-tier instance (§5.5.6). The ArcGIS extras it
+  // *can* use — WiFi, biciestación, the node id the ridership dataset is keyed
+  // on — arrive later and are patched in by `refreshStationPage` below.
+  const deepStationCode = parseStationPathname();
+  if (deepStationCode) {
+    void catalogPromise
+      .then((res) => {
+        const deepCatalog = res.data;
+        if (!deepCatalog?.stations) return;
+        setCatalog(deepCatalog);
+        // `push: false` — the URL is already this page; pushing would wedge a
+        // duplicate entry in front of the Back that should leave the site.
+        openStationPage(deepStationCode, { push: false });
+      })
+      .catch((error) => console.warn('[Deep link] Estación page could not open early:', error));
+  }
 
   // Wait for map to load (handle case where it might already be loaded).
   //
@@ -664,7 +731,7 @@ async function main(): Promise<void> {
       api.getTroncalStations().then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
       api.getCableStations().then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
       api.getCableTrazado().then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
-      api.getMasterCatalog().then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
+      catalogPromise.then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
     const catalogRes = requireLoaded<MasterCatalogResponse>('Master catalog', catalogResult);
@@ -731,6 +798,12 @@ async function main(): Promise<void> {
     updateProgress(95, 'Renderizando estaciones...');
     addStationsLayer(map, stations);
     stationCount = stations.length;
+
+    // The resolved ArcGIS stations are what carry a station's WiFi, its
+    // biciestación and — the one that matters — the node id the open ridership
+    // dataset is keyed on (§5.5.6). A page opened early off the catalog has none
+    // of that yet, so it is re-rendered here now that it does.
+    refreshStationPage();
 
     // Seed the Cerca point universe with troncal estaciones (zonal paraderos
     // are appended once the background load resolves them). Names come from the
@@ -979,41 +1052,6 @@ async function main(): Promise<void> {
     },
   });
 
-  // The estación page (spec §5.5.6). Wired here rather than at module scope
-  // because every one of its exits goes back to *this* map — the popup it came
-  // from, the planner seeded with its coordinate — and the map does not exist
-  // until boot. The URL resolver it registers is only consulted by a navigation,
-  // which cannot happen before the page it navigates from is on screen.
-  initStationPage({
-    onShowOnMap: (station) => {
-      if (!showStationPopupByCode(map, station.code, station.coordinate)) {
-        // No rendered station to open a popup on (ArcGIS degraded, §4.2) — put
-        // the reader over the place anyway rather than leaving them at the
-        // city-wide view with nothing to show for the dismissal.
-        map.easeTo({ center: station.coordinate, zoom: Math.max(map.getZoom(), 15) });
-      }
-    },
-    onPlan: (role, station) => {
-      // Dismiss without handing the station back to the map: re-opening its
-      // popup here would fight the planner panel the reader just asked for.
-      dismissOverlayPage();
-      openSidebar();
-      getPlannerModule()
-        .then((planner) => planner.planFromPopup(role, station.name, station.coordinate, station.code))
-        .catch((error) => console.error('[Planner] plan-from-station-page failed:', error));
-    },
-    onOpenRoute: (code) => {
-      const route = routesWithCode(code)[0];
-      if (!route) return;
-      // Page first, then the map: `pushRouteHash` leaves a `/ruta/<code>/` path
-      // that already names the selected route alone, so selecting afterwards
-      // costs no second history entry — and it starts the live tracking whose
-      // card this page is about to show.
-      openRoutePage(route);
-      selectRouteByIdOrCode(route.id, route.code);
-    },
-  });
-
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     const clickableTag = target.closest('.route-tag.clickable');
@@ -1168,28 +1206,19 @@ async function main(): Promise<void> {
     if (target) openRoutePage(target, { push: false });
   }
 
-  // A visitor from a prerendered estación page (`/estacion/<slug>-<codigo>/`,
-  // spec §5.5.4) arrives with no hash, so nothing in the hash router fires. They
-  // get the interactive version of the page they landed on (§5.5.6) — the same
-  // platform plan plus the live arrivals board and the ridership figures the
-  // static copy cannot carry. `push: false` because the URL is already this
-  // page: pushing would wedge a duplicate entry in front of the Back that should
-  // leave the site.
-  //
-  // The map is centred on the station underneath it, so dismissing the page is
-  // an arrival, not a search. Deferred to the map's first idle: boot is still
-  // settling the initial camera at this point and a move issued into that window
-  // is discarded, which used to leave the reader at the city-wide default.
-  const stationPath = parseStationPathname();
-  if (stationPath) {
-    const station = catalog.stations[stationPath] ?? Object.values(catalog.stations).find(
-      (s) => String(s.codigo).toUpperCase() === stationPath
+  // The estación page itself opened as soon as the catalog landed (above); what
+  // is left is the map *underneath* it, so that dismissing the page is an
+  // arrival rather than a search. Deferred to the map's first idle: boot is
+  // still settling the initial camera at this point and a move issued into that
+  // window is discarded, which used to leave the reader at the city-wide
+  // default.
+  if (deepStationCode) {
+    const station = catalog.stations[deepStationCode] ?? Object.values(catalog.stations).find(
+      (s) => String(s.codigo).toUpperCase() === deepStationCode
     );
     const [lat, lon] = String(station?.coordenada ?? '').split(',').map((n) => Number(n.trim()));
-    if (station && Number.isFinite(lat) && Number.isFinite(lon)) {
-      const coordinate: [number, number] = [lon, lat];
-      map.once('idle', () => map.jumpTo({ center: coordinate, zoom: 15 }));
-      openStationPage(station.codigo, { push: false });
+    if (Number.isFinite(lat) && Number.isFinite(lon)) {
+      map.once('idle', () => map.jumpTo({ center: [lon, lat], zoom: 15 }));
     }
   }
 
