@@ -26,6 +26,7 @@ import {
 import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref } from '../ui/routeDetail';
+import { initChipRowScroll } from '../ui/chipRow';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
 
@@ -554,14 +555,32 @@ function showStationPopup(
         ${wagonSections}
       </div>
       ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
-      ${stationPageLinkHtml(resolvedStation)}
-      ${planActionsHtml(stationName, coords as [number, number], stationCode)}
+      ${planActionsHtml(stationName, coords as [number, number], stationCode, {
+        lead: stationPageLinkHtml(resolvedStation),
+      })}
     </div>
   `;
 
   showPopup(map, coords as [number, number], html, { offset: 12, maxWidth: '340px' });
+  wirePlanoScroll();
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
   if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
+}
+
+/**
+ * Gives the plan inside the open popup the app's horizontal-row affordance —
+ * wheel, mouse drag and the edge fades (`initChipRowScroll`, §5.4.2b).
+ *
+ * The popup's markup is a string handed to MapLibre, so there is no element to
+ * wire until it is on the page; this runs straight after `showPopup`, where the
+ * popup content is already in the DOM. A plan narrower than its box wires the
+ * same way and simply never shows a fade.
+ */
+export function wirePlanoScroll(root: ParentNode = document): void {
+  root.querySelectorAll<HTMLElement>('.popup-plano').forEach((plano) => {
+    if (plano.classList.contains('chip-scroll')) return;
+    initChipRowScroll(plano);
+  });
 }
 
 // ─── Layer Setup ────────────────────────────────────────
@@ -828,12 +847,14 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
         ${wagonSections}
       </div>
       ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
-      ${stationPageLinkHtml(resolvedStation)}
-      ${planActionsHtml(resolvedStation.stationName, coordinate, stationCode)}
+      ${planActionsHtml(resolvedStation.stationName, coordinate, stationCode, {
+        lead: stationPageLinkHtml(resolvedStation),
+      })}
     </div>
   `;
 
   showPopup(map, coordinate, html, { offset: 12, maxWidth: '340px' });
+  wirePlanoScroll();
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
   if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
   return true;
