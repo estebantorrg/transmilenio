@@ -15,7 +15,7 @@ import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
-import { buildWagonPlan } from './station_plan.js';
+import { buildWagonPlan, stationCorridor } from './station_plan.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -527,6 +527,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // faces. Resolved here so the estación page and the app's station popup
       // read one answer instead of deriving it twice (spec §5.5.4).
       const wagonPlan = buildWagonPlan(station.codigo, station.coordenada, cleanWagons, variantById);
+      // The troncal this station sits on, and its letter. Shipped rather than
+      // derived for the same reason as the plan above: it is an answered fact
+      // (§5.5.6), and it is what names and colours the estación page.
+      const corridor = stationCorridor(station.codigo);
 
       cleanStations[code] = {
         id: station.id,
@@ -536,6 +540,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         coordenada: station.coordenada,
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
+        ...(corridor ? { corridor } : {}),
         ...(vagonLabels ? { vagonLabels } : {}),
         ...(wagonPlan ? { wagonPlan } : {}),
         wagons: cleanWagons,

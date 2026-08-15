@@ -4492,18 +4492,26 @@ body.native-app .route-detail-close:active {
   }
 }
 /* ══════════════════════════════════════════════════════════════════════════
-   ROUTE PAGE (spec §5.5.5) — /ruta/<code>/
-   A route's own page, rendered over the map. The map keeps the trace drawn
-   behind it, so leaving is a dismissal rather than a reload.
+   FULL PAGES — /ruta/<code>/ (spec §5.5.5) and /estacion/<slug>-<codigo>/
+   (§5.5.6). Both render over the live map, which keeps drawing behind them, so
+   leaving one is a dismissal rather than a reload.
 
-   It is a page, but it is a page *of this site*: it borrows the shell's own
-   parts rather than inventing a second visual language — the sidebar's brand
-   lockup and hairline for its masthead, the panel's badge, its uppercase
-   section titles, its `--bg-secondary` + `--border-card` boxes and its red
-   hover. Nothing here is centred or tinted differently from the app behind it.
+   They are pages *of this site*, built from the shell's own parts — the
+   sidebar's brand lockup and hairline, its uppercase section labels, its
+   `--bg-card` boxes on `--border-subtle`, its red hover — and from one extra
+   idea the panel has no room for: **the subject's own colour carries the page**.
+   `--page-accent` is a route's línea or an estación's red, set on the page root
+   by `pageShell.ts`, and it paints the rail under the masthead, the código
+   plate, the tick beside every section title and the spine of the stop list. It
+   is why the L-línea's page does not look like the H-línea's.
+
+   Structure, rather than a stack of identical cards: a hero, a hairline-divided
+   ficha técnica read across, then sections separated by rules. A card is used
+   only where something really is a box on its own (the trip rail, the live
+   card, a vagón's services).
    ══════════════════════════════════════════════════════════════════════════ */
 
-.route-page {
+.overlay-page {
   position: fixed;
   inset: 0;
   /* Above the sidebar (100) and its sheets (110), below the loading overlay
@@ -4519,31 +4527,46 @@ body.native-app .route-detail-close:active {
   outline: none;
 }
 
-.route-page-inner {
-  max-width: 720px;
+/* The accent bleeding into the top of the page. A gradient rather than a block:
+   the colour has to say whose page this is without becoming a banner the reader
+   has to scroll past. Browsers without `color-mix` drop the declaration and get
+   the flat background, which is the same page minus one flourish. */
+.overlay-page::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 420px;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--page-accent, var(--tm-red)) 20%, transparent),
+    transparent 78%
+  );
+}
+
+.page-inner {
+  position: relative;
+  max-width: 760px;
   margin: 0 auto;
   padding: 0 20px;
 }
 
 /* ── Masthead ─────────────────────────────────────────────────────────────
-   The site's header, not a toolbar this page invented: the same brand lockup
-   and the same hairline the sidebar carries, over the same glass. Full-bleed
-   background with the content on the page's own column, so it reads as the top
-   of the site rather than the top of a card. Sticky, because the way out of a
-   60-parada page must be on screen wherever the reader has got to — the same
-   reason the prerendered panel's dismiss bar is sticky. */
-.route-page-bar {
+   The site's header, not a toolbar a page invented: the same brand lockup the
+   sidebar carries, over the same glass, with the way out on the left and the
+   share action on the right. Sticky, because the way out of a 60-parada page
+   has to be on screen wherever the reader has got to. */
+.page-bar {
   position: sticky;
   top: 0;
   z-index: 2;
   background: rgba(12, 12, 12, 0.92);
   backdrop-filter: blur(24px) saturate(1.2);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  border-bottom: 1px solid var(--border-subtle);
 }
 
-.route-page-bar-inner {
-  max-width: 720px;
+.page-bar-inner {
+  max-width: 760px;
   margin: 0 auto;
   padding: 10px 20px;
   display: grid;
@@ -4552,7 +4575,15 @@ body.native-app .route-detail-close:active {
   gap: 12px;
 }
 
-.route-page-brand {
+/* The subject's colour, full bleed, where a hairline used to be. It is the one
+   element that tells two pages of the same shape apart at a glance. */
+.page-rail {
+  height: 3px;
+  background: var(--page-accent, var(--tm-red));
+  box-shadow: 0 1px 12px color-mix(in srgb, var(--page-accent, var(--tm-red)) 45%, transparent);
+}
+
+.page-brand {
   justify-self: center;
   display: flex;
   align-items: center;
@@ -4561,36 +4592,36 @@ body.native-app .route-detail-close:active {
   color: var(--text-primary);
 }
 
-.route-page-logo {
+.page-logo {
   width: 34px;
   height: 34px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
-.route-page-brand-text {
+.page-brand-text {
   display: flex;
   flex-direction: column;
   line-height: 1.14;
 }
 
-.route-page-brand-title {
+.page-brand-title {
   font-size: var(--font-size-sm);
   font-weight: 900;
   letter-spacing: -0.02em;
 }
 
-.route-page-brand-sub {
+.page-brand-sub {
   font-size: var(--font-size-sm);
   font-weight: 400;
   letter-spacing: -0.01em;
 }
 
 /* The shell's action idiom (`.footer-action`): dark box, hairline, red on
-   hover. The page used to answer with a solid cyan pill, a fill that appears
-   nowhere else in the app. */
-.route-page-back,
-.route-page-share {
+   hover. Never a solid fill — that button appears nowhere else in the app. */
+.page-back,
+.page-share,
+.page-action {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -4606,31 +4637,33 @@ body.native-app .route-detail-close:active {
   transition: all var(--transition-fast);
 }
 
-.route-page-back {
+.page-back {
   justify-self: start;
 }
 
-.route-page-share {
+.page-share {
   justify-self: end;
   color: var(--text-secondary);
 }
 
-.route-page-back:hover,
-.route-page-share:hover {
+.page-back:hover,
+.page-share:hover,
+.page-action:hover {
   color: var(--text-primary);
   border-color: var(--tm-red);
   background: var(--bg-active);
 }
 
-.route-page-back:focus-visible,
-.route-page-share:focus-visible,
-.route-page-brand:focus-visible {
+.page-back:focus-visible,
+.page-share:focus-visible,
+.page-action:focus-visible,
+.page-brand:focus-visible {
   outline: 2px solid var(--tm-blue-light);
   outline-offset: 2px;
 }
 
-.route-page-crumbs {
-  padding: 14px 0 0;
+.page-crumbs {
+  padding: 16px 0 0;
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   white-space: nowrap;
@@ -4638,115 +4671,62 @@ body.native-app .route-detail-close:active {
   scrollbar-width: none;
 }
 
-.route-page-crumbs::-webkit-scrollbar {
+.page-crumbs::-webkit-scrollbar {
   display: none;
 }
 
-.route-page-crumbs a {
-  color: var(--tm-blue);
+.page-crumbs a {
+  color: var(--text-secondary);
   text-decoration: none;
 }
 
-.route-page-crumbs a:hover {
+.page-crumbs a:hover {
+  color: var(--text-primary);
   text-decoration: underline;
 }
 
-/* ── Hero ─────────────────────────────────────────────────────────────────
-   The sidebar's `.detail-header` at page scale: badge, name, trip, sistema,
-   all ranged left like every other surface here. `--route-accent` carries the
-   route colour, set inline by the renderer. */
-.route-page-hero {
-  padding: 14px 0 22px;
+.page-crumb-sep {
+  margin: 0 2px;
+  opacity: 0.6;
 }
 
-.route-page-badge {
-  display: inline-block;
-  padding: 6px 14px;
-  border-radius: var(--radius-sm);
-  background: var(--route-accent, var(--tm-red));
-  /* Rutas fáciles are officially black (`RUTA_FACIL_COLOR`), which on this
-     page's own black is an invisible badge. The ring keeps the código a shape. */
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  font-size: var(--font-size-md);
-  font-weight: 800;
-  letter-spacing: 0.01em;
-  color: #fff;
+/* ── Sections ─────────────────────────────────────────────────────────────
+   A rule and a label, not a card. Four identical rounded boxes down a page give
+   every block the same weight and read as a template; a hairline says "next
+   thing" for the price of one pixel, and lets the things that ARE boxes (the
+   live card, a vagón, the trip rail) stand out for being boxed. */
+.page-section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-.route-page-h1 {
-  font-size: var(--font-size-xl);
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  margin: 12px 0 0;
-}
-
-.route-page-trip {
+/* The panel's `.detail-section-title` with the page's accent tick in front of
+   it — the site labels a block with a small uppercase line, never with a bold
+   sentence-case heading. */
+.page-section-title {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin: 8px 0 0;
-  font-size: var(--font-size-base);
-  font-weight: 500;
-  color: var(--text-primary);
-}
-
-.route-page-kind {
-  margin: 6px 0 0;
-  font-size: var(--font-size-sm);
+  gap: 9px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
   color: var(--text-secondary);
+  margin: 0 0 12px;
 }
 
-/* Drawn, not typed: the social cards learned the hard way that an arrow glyph
-   outside the shipped Inter subset renders as tofu (spec §5.5.4). */
-.route-page-arrow {
-  width: 26px;
-  height: 2px;
-  background: var(--border-card);
-  position: relative;
+.page-section-title::before {
+  content: '';
+  width: 3px;
+  height: 13px;
+  border-radius: 2px;
+  background: var(--page-accent, var(--tm-red));
   flex: none;
 }
 
-.route-page-arrow::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: -3px;
-  border-left: 7px solid var(--border-card);
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-}
-
-/* ── Cards ────────────────────────────────────────────────────────────────
-   One treatment for every block on the page, so the rhythm down the page stays
-   even whichever sections a given route happens to have. Same surface and same
-   12 px corner as the sidebar itself; the boxes *inside* them (live card,
-   stat tiles) stay a step lighter, which is the panel's own relationship. */
-.route-page-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  margin-bottom: 12px;
-}
-
-/* The panel's `.detail-section-title`, verbatim — the site labels a block with
-   a small uppercase line, never with a bold sentence-case heading. */
-.route-page-h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-  margin: 0 0 10px;
-}
-
 /* Matches `.route-list-count`, the same count-beside-a-title the panel uses. */
-.route-page-count {
+.page-count {
   font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0;
@@ -4756,55 +4736,44 @@ body.native-app .route-detail-close:active {
   padding: 2px 8px;
 }
 
-.route-page-meta {
-  margin: 0 0 14px;
+.page-note {
+  margin: 10px 0 0;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   line-height: 1.5;
 }
 
-.route-page-card .detail-service {
+.overlay-page .detail-service {
   margin-bottom: 12px;
 }
 
-.route-page-card .schedule-table {
+.overlay-page .schedule-table {
   margin: 0;
 }
 
-/* ── Stat row ─────────────────────────────────────────────────────────────
-   Auto-fit rather than a fixed column count: routes carry different subsets of
-   these facts (many have no operator, zonal ones no length), and a fixed grid
-   would leave holes in the row. */
-/* The upper bound matters as much as the lower one: a zonal route carries two
-   of these facts, and a plain `1fr` stretched two tiles across the whole column
-   so "ZONAL" sat alone in a 340 px box. */
-.route-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(132px, 220px));
-  justify-content: start;
-  gap: 10px;
-  margin-bottom: 12px;
-}
-
-/* The shell's box: `--bg-secondary` on a `--border-card` hairline, the same
-   one the live card and the footer actions sit in. */
-.route-stat {
+/* ── Ficha técnica ────────────────────────────────────────────────────────
+   The facts you read *across*: one strip, hairline-divided, tabular figures.
+   The dividers are the container's own background showing through a 1px gap, so
+   a row that wraps on a narrow screen still divides cleanly instead of leaving
+   a border hanging on the first cell of the second row. */
+.page-facts {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-card);
+  flex-wrap: wrap;
+  gap: 1px;
+  margin: 18px 0 0;
+  background: var(--border-subtle);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
-.route-stat-value {
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  line-height: 1.15;
+.page-fact {
+  flex: 1 1 128px;
+  padding: 12px 16px;
+  background: var(--bg-card);
 }
 
-.route-stat-label {
+.page-fact-label {
   font-size: var(--font-size-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -4812,60 +4781,185 @@ body.native-app .route-detail-close:active {
   color: var(--text-tertiary);
 }
 
-/* The stop list is a sidebar component at heart; on a wide page it gets to
-   breathe and its estación links have to look like links. The 320 px cap it
-   carries is there so a 60-parada route cannot push the sidebar's own controls
-   off screen — this page has no controls below it, and a scroll box nested in a
-   scrolling page is a trap on a trackpad. */
-.route-page .stops-timeline {
-  padding-left: 2px;
-  max-height: none;
-  overflow-y: visible;
+.page-fact-value {
+  margin: 3px 0 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Nothing on this page opens a popup beside a map, so the rows are not
-   clickable and must not pretend to be — the estación links inside them are. */
-.route-page .timeline-stop {
-  cursor: default;
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
 }
 
-/* Underlined by decoration, not by a border: a border-bottom on an inline box
-   lands on a device pixel or between two, so the same list drew a rule under
-   some stops and nothing under others. */
-.route-page .timeline-stop-name a {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-color: var(--border-medium);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
+/* ══ Route page ═══════════════════════════════════════════════════════════ */
+
+.route-hero {
+  padding: 16px 0 4px;
 }
 
-.route-page .timeline-stop-name a:hover {
-  color: var(--tm-blue-light);
-  text-decoration-color: currentColor;
+.route-hero-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* The código the size it is on the bus: a solid plate in the route's own colour
+   rather than a chip beside a headline. Rutas fáciles are officially black
+   (`RUTA_FACIL_COLOR`), which on this page's own black is an invisible badge —
+   the inner hairline keeps the código a shape whatever colour it carries. */
+.route-plate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--page-accent, var(--tm-red));
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.route-hero-titles {
+  min-width: 0;
+}
+
+.route-hero-name {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.route-hero-kind {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.route-kind-tag {
+  padding: 2px 9px;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-primary);
+}
+
+/* ── Origen → destino ─────────────────────────────────────────────────────
+   Drawn as the line it is, with the route's colour running between the two
+   ends. The page used to set this as a sentence with an arrow in the middle,
+   which said the same words and showed nothing. */
+.route-trip {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0 0;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.route-trip-end {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.route-trip-end-to {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.route-trip-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.route-trip-name {
+  font-size: var(--font-size-base);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* Drawn, never typed: the shipped Inter subset has no U+2192, and the social
+   cards learned what that renders as (spec §5.5.4). */
+.route-trip-rail {
+  position: relative;
+  width: clamp(48px, 14vw, 130px);
+  height: 2px;
+  background: var(--page-accent, var(--tm-red));
+  flex: none;
+}
+
+.route-trip-rail::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--bg-primary);
+  border: 2px solid var(--page-accent, var(--tm-red));
+  box-sizing: border-box;
+}
+
+.route-trip-head {
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  width: 0;
+  height: 0;
+  border-left: 9px solid var(--page-accent, var(--tm-red));
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
 }
 
 /* ── El rutero ────────────────────────────────────────────────────────────
-   The LED sign over the windscreen, in the bus's own black bezel. It is a dot
-   grid (shared/rutero.js), never text in a font, so it must scale as one image
-   and can never reflow. */
+   The LED sign over the windscreen, in the bus's own black bezel, at the top of
+   the page because it is the object a rider on the andén is trying to match. It
+   is a dot grid (shared/rutero.js), never text in a font, so it must scale as
+   one image and can never reflow. */
 .rutero {
-  margin: 0;
+  margin: 22px 0 0;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
 }
 
 .rutero-frame {
   width: 100%;
-  border-radius: 8px;
-  padding: 5px;
+  border-radius: 10px;
+  padding: 6px;
   background: linear-gradient(180deg, #23262b, #0d0f12);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.09),
-    0 8px 22px rgba(0, 0, 0, 0.55);
+    0 10px 26px rgba(0, 0, 0, 0.55);
   /* A panel of ~143 dot columns is wider than a phone. Scrolling it would hide
      half the destination behind a gesture; letting it scale down keeps the whole
      sign readable, which is the entire point of showing it. */
@@ -4880,57 +4974,318 @@ body.native-app .route-detail-close:active {
 }
 
 .rutero-caption {
-  order: -1;
+  margin: 9px 0 0;
   font-size: var(--font-size-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-tertiary);
-  text-align: center;
 }
 
-/* The map underneath must not scroll while the page is on top of it. */
-body.route-page-open {
+/* ── Paradas ──────────────────────────────────────────────────────────────
+   The sidebar's timeline, given the room to read as a line diagram: numbered
+   down the margin, its spine in the route's own colour. The 320 px cap the
+   component carries exists so a 60-parada route cannot push the sidebar's own
+   controls off screen — this page has no controls below it, and a scroll box
+   nested in a scrolling page is a trap on a trackpad. */
+.route-page .stops-timeline {
+  max-height: none;
+  overflow-y: visible;
+  padding: 0;
+  counter-reset: parada;
+}
+
+/* Nothing on this page opens a popup beside a map, so the rows are not
+   clickable and must not pretend to be — the estación links inside them are. */
+.route-page .timeline-stop {
+  position: relative;
+  cursor: default;
+  padding: 5px 8px 5px 36px;
+}
+
+.route-page .timeline-stop::before {
+  counter-increment: parada;
+  content: counter(parada);
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 24px;
+  text-align: right;
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-tertiary);
+}
+
+.route-page .timeline-line {
+  width: 3px;
+  background: var(--page-accent, var(--tm-red));
+  opacity: 0.5;
+}
+
+.route-page .timeline-dot.intermediate {
+  border-color: var(--page-accent, var(--tm-red));
+}
+
+.route-page .timeline-stop-name {
+  font-size: var(--font-size-base);
+}
+
+/* Underlined by decoration, not by a border: a border-bottom on an inline box
+   lands on a device pixel or between two, so the same list drew a rule under
+   some stops and nothing under others. */
+.route-page .timeline-stop-name a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.3);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.route-page .timeline-stop-name a:hover {
+  color: var(--tm-blue-light);
+  text-decoration-color: currentColor;
+}
+
+/* ══ Estación page ════════════════════════════════════════════════════════ */
+
+.station-hero {
+  padding: 16px 0 4px;
+}
+
+/* The corridor's name, marked with the corridor's own colour rather than set in
+   it: half this palette is dark (Caracas navy `#0C3A95`, Carrera 7 purple), and
+   a corridor name printed in navy on this page's near-black is a name nobody can
+   read. The dot carries the colour, the text keeps its contrast. */
+.station-hero-corridor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: var(--text-secondary);
+}
+
+.station-hero-corridor::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--page-accent, var(--tm-red));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+  flex: none;
+}
+
+.station-hero-name {
+  margin: 7px 0 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.station-hero-address {
+  margin: 7px 0 0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.station-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.station-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* The código is the station's identifier, not one fact among five. */
+.station-chip:first-child {
+  color: var(--text-primary);
+  border-color: var(--page-accent, var(--tm-red));
+  font-variant-numeric: tabular-nums;
+}
+
+/* The plan, at page scale. The popup's plan is drawn in a 340 px card and every
+   dimension in it is a multiple of `--tm-scale` (the map's own popup scale), so
+   the page raises that one variable instead of restating the drawing — one
+   renderer, one set of rules, two sizes (spec §1.1 R2). */
+.station-plano {
+  --tm-scale: 1.3;
+  margin-top: 4px;
+}
+
+/* The scroll cue and the vagón separators are painted with the popup's own
+   background; on the page the ground is the page's, so they are re-pointed at
+   it rather than left as pale seams over the wrong colour. */
+.station-plano .popup-plano {
+  background-image:
+    linear-gradient(to right, var(--bg-primary) 40%, rgba(12, 12, 12, 0)),
+    linear-gradient(to left, var(--bg-primary) 40%, rgba(12, 12, 12, 0)),
+    radial-gradient(farthest-side at 0 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
+    radial-gradient(farthest-side at 100% 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
+}
+
+.station-plano .pvg-plate {
+  box-shadow: inset -2px 0 0 var(--bg-primary);
+}
+
+/* In the popup the plate's sub-label is a bare number for want of room; on the
+   page "Vagón 1 · 5" has to say what the 5 counts — as the prerendered plan
+   already does. */
+.station-plano .pvg-sub::after {
+  content: ' servicios';
+}
+
+.station-plano .pvg:last-child .pvg-plate {
+  box-shadow: none;
+}
+
+.station-services {
+  --tm-scale: 1.12;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.station-services .popup-wagon-section {
+  background: var(--bg-card);
+  border-color: var(--border-subtle);
+}
+
+.station-arrivals {
+  --tm-scale: 1.1;
+}
+
+/* The shared arrivals renderer prints its own "Próximos a llegar" label for the
+   popup, where there is no section heading above it. Here there is. */
+.station-arrivals .popup-routes-label {
+  display: none;
+}
+
+.station-arrivals .popup-arrivals {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ── The popup's link to this page ────────────────────────────────────────
+   Sits under the arrivals board, above the planner actions: the last thing in
+   the card is "there is more of this station than fits here". */
+.popup-page-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: calc(10px * var(--tm-scale, 1));
+  padding: calc(8px * var(--tm-scale, 1)) calc(10px * var(--tm-scale, 1));
+  border: 1px solid var(--border-medium);
+  border-radius: calc(var(--radius-sm) * var(--tm-scale, 1));
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-primary);
+  font-size: calc(12px * var(--tm-scale, 1));
+  font-weight: 700;
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.popup-page-link:hover {
+  border-color: var(--tm-red);
+  background: var(--bg-active);
+}
+
+.popup-page-link:focus-visible {
+  outline: 2px solid var(--tm-blue-light);
+  outline-offset: 2px;
+}
+
+/* The map underneath must not scroll while a page is on top of it. */
+body.overlay-page-open {
   overflow: hidden;
 }
 
 @media (max-width: 560px) {
-  .route-page {
+  .overlay-page {
     padding: 0 0 calc(40px + env(safe-area-inset-bottom, 0px));
   }
 
-  .route-page-inner {
+  .page-inner {
     padding: 0 14px;
   }
 
-  .route-page-bar-inner {
+  .page-bar-inner {
     padding: 8px 14px;
   }
 
   /* The wordmark is the first thing to go: the two actions have to stay
      reachable, and the logo alone still says whose site this is. */
-  .route-page-brand-text,
-  .route-page-share span {
+  .page-brand-text,
+  .page-share span {
     display: none;
   }
 
-  .route-page-hero {
-    padding: 12px 0 18px;
+  .route-hero-head {
+    gap: 12px;
   }
 
-  .route-page-h1 {
+  .route-plate {
+    min-width: 62px;
+    padding: 10px 12px;
+    font-size: 1.25rem;
+  }
+
+  .route-hero-name,
+  .station-hero-name {
     font-size: var(--font-size-lg);
   }
 
-  .route-page-card {
-    padding: 14px;
+  /* The trip reads top-to-bottom on a phone, with the rail turned to match —
+     three columns at this width gave each end about six characters. */
+  .route-trip {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px 14px;
   }
 
-  /* `auto-fit` counts its repetitions off the *max* when that max is definite,
-     so the 220 px cap that keeps two stats from stretching on a wide page fits
-     only one tile per row on a phone. Here the column is narrow enough that
-     stretching is what we want anyway. */
-  .route-stats {
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  .route-trip-end-to {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .route-trip-rail {
+    width: 2px;
+    height: 26px;
+    margin-left: 5px;
+  }
+
+  .route-trip-rail::before {
+    left: -4px;
+    top: -6px;
+  }
+
+  .route-trip-head {
+    right: -4px;
+    top: auto;
+    bottom: -1px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 9px solid var(--page-accent, var(--tm-red));
+    border-bottom: 0;
+  }
+
+  /* A plan drawn 30% larger is a plan a phone scrolls twice as far through. */
+  .station-plano {
+    --tm-scale: 1.05;
   }
 }
 

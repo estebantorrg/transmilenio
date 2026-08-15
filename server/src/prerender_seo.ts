@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
-import { stopTagColor } from './services/route_colors.js';
+import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
@@ -101,6 +101,9 @@ interface LightStation {
   coordenada: string;
   sistema?: string;
   tipoServicio?: string;
+  /** The troncal this station sits on and its letter (`stationCorridor`),
+   *  which is what colours this page and names its corridor. */
+  corridor?: { nombre: string; letra?: string };
   /** Wagon key → the number printed on that platform's sign, where the plano
    *  plate count backs it (`printedVagonLabels`). Absent keys get no number. */
   vagonLabels?: Record<string, string>;
@@ -261,7 +264,19 @@ function renderPage(
   return html.replace('</body>', `${page.body}\n</body>`);
 }
 
-/** Scoped styling for the prerendered panel. Inlined so it costs no extra request. */
+/**
+ * Scoped styling for the prerendered panel. Inlined so it costs no extra
+ * request — and because this body ships before any stylesheet of ours is
+ * guaranteed to have loaded, which is the whole point of prerendering it.
+ *
+ * It is deliberately the *same page* the bundle draws (`client/style.css`, spec
+ * §5.5.5/§5.5.6): an accent rail under the masthead, a hero whose plate carries
+ * the route's own colour, a hairline ficha strip read across, and sections
+ * separated by rules rather than a stack of identical cards. The values are
+ * literals rather than the app's `:root` tokens because nothing guarantees those
+ * exist yet; where the two must agree — the accent, the surfaces, the rutero
+ * bezel — they are the same numbers on purpose.
+ */
 const PRERENDER_STYLE = `<style>
 /* Content-first: the shell's boot overlay is markup, not something JS adds, so a
    visitor landing here from a search result would otherwise stare at a progress
@@ -273,22 +288,78 @@ body.seo-static #loading-overlay{display:none}
    exists it IS the page, and the sidebar rendering over it hid half the diagram
    for exactly the no-JS / slow-boot visitor it is there to serve. Still below the
    loading overlay (9999) so a real boot error can surface over it. */
-#seo-prerender{position:absolute;inset:0;z-index:200;overflow-y:auto;background:#0C0C0C;color:#fff;
-font-family:Inter,system-ui,sans-serif;padding:32px 24px 64px;line-height:1.55}
-#seo-prerender .wrap{max-width:760px;margin:0 auto}
-#seo-prerender a{color:#38BDF8}
-#seo-prerender h1{font-size:1.9rem;margin:0 0 6px}
-#seo-prerender h2{font-size:1.15rem;margin:28px 0 10px}
-#seo-prerender .sub{color:rgba(255,255,255,.6);margin:0 0 20px}
-#seo-prerender ol,#seo-prerender ul{padding-left:1.25rem;margin:0}
-#seo-prerender li{margin:4px 0}
-#seo-prerender .meta{color:rgba(255,255,255,.45);font-size:.85rem}
+#seo-prerender{--accent:#D8102D;position:absolute;inset:0;z-index:200;overflow-y:auto;background:#0C0C0C;color:#fff;
+font-family:Inter,system-ui,sans-serif;padding:0 0 64px;line-height:1.55}
+#seo-prerender .rail{height:3px;background:var(--accent)}
+#seo-prerender .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+#seo-prerender a{color:inherit}
+#seo-prerender .crumbs{padding:16px 0 0;font-size:.75rem;color:rgba(255,255,255,.38)}
+#seo-prerender .crumbs a{color:rgba(255,255,255,.6);text-decoration:none}
+#seo-prerender .crumbs a:hover{color:#fff;text-decoration:underline}
+/* ── Hero ───────────────────────────────────────────────────────────────────
+   The código at the size it is on the bus, in the route's own colour, beside the
+   name — not a pill above a centred headline. The inner hairline keeps a black
+   RF badge a shape against this page's own black. */
+#seo-prerender .hero{display:flex;align-items:flex-start;gap:16px;padding:18px 0 4px}
+#seo-prerender .plate{display:inline-flex;align-items:center;justify-content:center;min-width:74px;
+padding:12px 14px;border-radius:8px;background:var(--accent);color:#fff;font-size:1.5rem;font-weight:800;
+line-height:1;font-variant-numeric:tabular-nums;flex:none;
+box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 6px 18px rgba(0,0,0,.45)}
+#seo-prerender h1{font-size:1.6rem;font-weight:700;line-height:1.15;letter-spacing:-.02em;margin:0}
+#seo-prerender .kind{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 0;
+font-size:.8rem;color:rgba(255,255,255,.6)}
+#seo-prerender .tag{padding:2px 9px;border:1px solid rgba(255,255,255,.14);border-radius:999px;
+font-size:.7rem;font-weight:700;letter-spacing:.08em;color:#fff}
+/* The corridor is marked with its colour, never set in it: half this palette is
+   dark (Caracas navy, Carrera 7 purple) and would be unreadable on this page. */
+#seo-prerender .kind::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent);
+box-shadow:0 0 0 1px rgba(255,255,255,.18);flex:none}
+#seo-prerender .sub{margin:7px 0 0;color:rgba(255,255,255,.6)}
+#seo-prerender .chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0;list-style:none}
+#seo-prerender .chips li{padding:3px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;
+font-size:.7rem;font-weight:600;color:rgba(255,255,255,.6)}
+#seo-prerender .chips li:first-child{color:#fff;border-color:var(--accent);font-variant-numeric:tabular-nums}
+/* ── Ficha técnica ──────────────────────────────────────────────────────────
+   The facts read across, divided by the container's own background showing
+   through a 1px gap, so a row that wraps still divides cleanly. */
+#seo-prerender .facts{display:flex;flex-wrap:wrap;gap:1px;margin:18px 0 0;background:rgba(255,255,255,.08);
+border:1px solid rgba(255,255,255,.08);border-radius:12px;overflow:hidden}
+#seo-prerender .fact{flex:1 1 128px;padding:12px 16px;background:rgba(18,18,18,.78)}
+#seo-prerender .fact dt{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+color:rgba(255,255,255,.38)}
+#seo-prerender .fact dd{margin:3px 0 0;font-size:1rem;font-weight:700;font-variant-numeric:tabular-nums}
+/* ── Sections ───────────────────────────────────────────────────────────────
+   A rule and a small uppercase label with the page's accent tick in front of
+   it. Four identical rounded cards down a page read as a template. */
+#seo-prerender .sec{margin-top:24px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08)}
+#seo-prerender h2{display:flex;align-items:center;gap:9px;font-size:.7rem;font-weight:700;
+text-transform:uppercase;letter-spacing:.1em;color:rgba(255,255,255,.6);margin:0 0 12px}
+#seo-prerender h2::before{content:"";width:3px;height:13px;border-radius:2px;background:var(--accent);flex:none}
+#seo-prerender .count{font-size:.7rem;font-weight:700;letter-spacing:0;color:rgba(255,255,255,.6);
+background:rgba(255,255,255,.06);border-radius:99px;padding:2px 8px}
+#seo-prerender .meta{color:rgba(255,255,255,.38);font-size:.85rem;margin:10px 0 0}
+/* ── Stop list ──────────────────────────────────────────────────────────────
+   Numbered down the margin with the route's colour as the spine: a line
+   diagram, which is what an ordered list of paradas actually is. */
+#seo-prerender ol.stops{list-style:none;padding:0;margin:0;counter-reset:parada}
+#seo-prerender ol.stops li{position:relative;counter-increment:parada;margin:0;padding:6px 0 6px 46px;
+border-left:3px solid var(--accent);margin-left:22px}
+#seo-prerender ol.stops li::before{content:counter(parada);position:absolute;left:-46px;top:6px;width:24px;
+text-align:right;font-size:.75rem;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.38)}
+#seo-prerender ol.stops li::after{content:"";position:absolute;left:-8px;top:12px;width:10px;height:10px;
+border-radius:50%;border:2px solid var(--accent);background:#0C0C0C;box-sizing:border-box}
+#seo-prerender ol.stops li:first-child,#seo-prerender ol.stops li:last-child{font-weight:600}
+#seo-prerender ol.stops li:last-child{border-left-color:transparent}
+#seo-prerender ol.stops a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.24);
+text-underline-offset:3px}
+#seo-prerender ol.stops a:hover{text-decoration-color:currentColor}
+#seo-prerender ul{padding-left:1.25rem;margin:0}
 #seo-prerender .platform{display:grid;gap:14px;margin:14px 0 4px}
-#seo-prerender .vagon{border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:14px 16px;background:rgba(255,255,255,.03)}
-#seo-prerender .vagon-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
-#seo-prerender .vagon-name{font-size:1.02rem}
-#seo-prerender .sentido{color:#38BDF8;font-size:.82rem;letter-spacing:.02em;margin-bottom:6px}
-#seo-prerender .dir{margin:10px 0 0;padding-left:10px;border-left:2px solid rgba(56,189,248,.35)}
+#seo-prerender .vagon{border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px 16px;background:rgba(18,18,18,.78)}
+#seo-prerender .sentido{color:rgba(255,255,255,.6);font-size:.72rem;letter-spacing:.04em;
+text-transform:uppercase;margin-bottom:6px}
+#seo-prerender .dir{margin:10px 0 0}
+#seo-prerender .dir+.dir{padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
 #seo-prerender .svc{list-style:none;padding:0;display:grid;gap:6px}
 #seo-prerender .svc li{margin:0}
 /* ── Station plan view ──────────────────────────────────────────────────────
@@ -301,15 +372,15 @@ font-family:Inter,system-ui,sans-serif;padding:32px 24px 64px;line-height:1.55}
    scroll container's own background — the "local" layers move with the content
    and uncover the "scroll" ones only while there is something off that edge.
    (No backticks in here: this stylesheet lives in a TS template literal.) */
-#seo-prerender .plano{overflow-x:auto;margin:16px 0 6px;padding-bottom:6px;
+#seo-prerender .plano{overflow-x:auto;margin:6px 0;padding-bottom:6px;
 background-image:linear-gradient(to right,#0C0C0C 40%,rgba(12,12,12,0)),
 linear-gradient(to left,#0C0C0C 40%,rgba(12,12,12,0)),
-radial-gradient(farthest-side at 0 50%,rgba(56,189,248,.32),rgba(56,189,248,0)),
-radial-gradient(farthest-side at 100% 50%,rgba(56,189,248,.32),rgba(56,189,248,0));
+radial-gradient(farthest-side at 0 50%,rgba(255,255,255,.22),rgba(255,255,255,0)),
+radial-gradient(farthest-side at 100% 50%,rgba(255,255,255,.22),rgba(255,255,255,0));
 background-position:left center,right center,left center,right center;
 background-repeat:no-repeat;background-size:36px 100%,36px 100%,14px 100%,14px 100%;
 background-attachment:local,local,scroll,scroll}
-#seo-prerender .plano:focus-visible{outline:2px solid #38BDF8;outline-offset:3px}
+#seo-prerender .plano:focus-visible{outline:2px solid rgba(255,255,255,.6);outline-offset:3px}
 /* Three shared rows — approach chips, the platform, departure chips — so every
    plate lands on ONE line and the vagones read as one segmented platform. Each
    vagón keeps its <section> (grouping a screen reader can announce) and borrows
@@ -329,19 +400,21 @@ grid-template-rows:auto auto auto;min-width:min-content}
   #seo-prerender .vg{display:flex;flex-direction:column}
   #seo-prerender .vg-side-a{flex:1 0 auto}
 }
-/* The platform itself: one bar across the station, segmented per vagón. */
-#seo-prerender .vg-plate{background:rgba(56,189,248,.14);border-top:2px solid rgba(56,189,248,.55);
-border-bottom:2px solid rgba(56,189,248,.55);padding:11px 10px;text-align:center;
-box-shadow:inset -2px 0 0 rgba(12,12,12,.9)}
+/* The platform itself: one bar across the station, segmented per vagón. Drawn in
+   the app's own neutral (the popup plan uses the same values, client/style.css)
+   so the static page and the interactive one are one diagram, not two. */
+#seo-prerender .vg-plate{background:rgba(255,255,255,.07);border-top:2px solid rgba(255,255,255,.14);
+border-bottom:2px solid rgba(255,255,255,.14);padding:11px 10px;text-align:center;
+box-shadow:inset -2px 0 0 #0C0C0C}
 #seo-prerender .vg:last-child .vg-plate{box-shadow:none}
-#seo-prerender .vg-plate .vg-name{font-size:.95rem;letter-spacing:.01em}
-#seo-prerender .vg-plate .vg-sub{display:block;font-size:.72rem;color:rgba(255,255,255,.45);margin-top:2px}
+#seo-prerender .vg-plate .vg-name{font-size:.95rem;font-weight:700;letter-spacing:.01em}
+#seo-prerender .vg-plate .vg-sub{display:block;font-size:.72rem;color:rgba(255,255,255,.38);margin-top:2px}
 /* Direction marker: a CSS triangle, so no glyph outside the shipped subset can
    turn into tofu the way U+2192 does on the social cards. */
 #seo-prerender .arw{display:inline-block;width:0;height:0;margin-right:6px;
 border-left:5px solid transparent;border-right:5px solid transparent;vertical-align:middle}
-#seo-prerender .arw-up{border-bottom:7px solid #38BDF8}
-#seo-prerender .arw-down{border-top:7px solid #38BDF8}
+#seo-prerender .arw-up{border-bottom:7px solid var(--accent)}
+#seo-prerender .arw-down{border-top:7px solid var(--accent)}
 #seo-prerender .vg-side .sentido{margin:0 0 6px}
 #seo-prerender .vg-side .svc{gap:5px}
 #seo-prerender .vg-side .svc li{font-size:.85rem;color:rgba(255,255,255,.8)}
@@ -353,25 +426,32 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
    never reflow into text. Duplicated from the app's stylesheet on purpose —
    this panel ships before any stylesheet of ours is guaranteed to have loaded,
    and the four rules are the frame, not the drawing. */
-#seo-prerender .rutero{margin:0 0 18px}
-#seo-prerender .rutero-frame{border-radius:8px;padding:5px;overflow:hidden;
+#seo-prerender .rutero{margin:22px 0 0}
+#seo-prerender .rutero-frame{border-radius:10px;padding:6px;overflow:hidden;
 background:linear-gradient(180deg,#23262b,#0d0f12);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 8px 22px rgba(0,0,0,.55)}
+box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 10px 26px rgba(0,0,0,.55)}
 #seo-prerender .rutero-svg{display:block;width:100%;height:auto;border-radius:3px}
-#seo-prerender .rutero figcaption{margin:0 0 7px;font-size:.72rem;letter-spacing:.06em;
-text-transform:uppercase;color:rgba(255,255,255,.45)}
-#seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
-#seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
+#seo-prerender .rutero figcaption{margin:9px 0 0;font-size:.72rem;letter-spacing:.06em;
+text-transform:uppercase;color:rgba(255,255,255,.38)}
+#seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;
+font-size:.82rem;font-weight:700;margin-right:8px}
+@media (max-width:560px){
+  #seo-prerender .wrap{padding:0 14px}
+  #seo-prerender .hero{gap:12px}
+  #seo-prerender .plate{min-width:62px;padding:10px 12px;font-size:1.25rem}
+  #seo-prerender h1{font-size:1.3rem}
+}
 /* Injected by the client once the map is live (revealPrerenderedPanel in
    main.ts) — never present without JS, because without JS there is no map to
    switch to. Sticky so the way out is on screen wherever the reader has
-   scrolled to. */
-#seo-prerender .seo-dismiss{position:sticky;top:-32px;z-index:1;display:flex;justify-content:flex-end;
-margin:-32px -24px 10px;padding:10px 24px;background:linear-gradient(#0C0C0C 70%,rgba(12,12,12,0))}
-#seo-prerender .seo-dismiss button{font:inherit;font-size:.85rem;color:#0C0C0C;background:#38BDF8;
-border:0;border-radius:999px;padding:7px 16px;cursor:pointer}
-#seo-prerender .seo-dismiss button:hover{background:#7DD3FC}
-#seo-prerender .seo-dismiss button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+   scrolled to; it sits in the masthead's place, over the same glass. */
+#seo-prerender .seo-dismiss{position:sticky;top:0;z-index:1;display:flex;justify-content:flex-end;
+margin:0 -24px;padding:10px 24px;background:rgba(12,12,12,.92);
+backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) saturate(1.2)}
+#seo-prerender .seo-dismiss button{font:inherit;font-size:.8rem;font-weight:600;color:#fff;
+background:#202329;border:1px solid #4D5059;border-radius:12px;padding:8px 13px;cursor:pointer}
+#seo-prerender .seo-dismiss button:hover{border-color:#D8102D;background:rgba(216,16,45,.14)}
+#seo-prerender .seo-dismiss button:focus-visible{outline:2px solid #7DD3FC;outline-offset:2px}
 </style>`;
 
 function breadcrumb(trail: Array<{ name: string; url: string }>): object {
@@ -388,13 +468,33 @@ function breadcrumb(trail: Array<{ name: string; url: string }>): object {
 }
 
 function breadcrumbHtml(trail: Array<{ name: string; url: string }>): string {
-  return `<nav aria-label="Ruta de navegación">${trail
+  return `<nav class="crumbs" aria-label="Ruta de navegación">${trail
     .map((item, i) =>
       i === trail.length - 1
-        ? escapeHtml(item.name)
-        : `<a href="${item.url}">${escapeHtml(item.name)}</a> ›`
+        ? `<span>${escapeHtml(item.name)}</span>`
+        : `<a href="${item.url}">${escapeHtml(item.name)}</a> <span aria-hidden="true">›</span>`
     )
     .join(' ')}</nav>`;
+}
+
+/** The ficha técnica strip both page kinds carry (spec §5.5.5, §5.5.6). */
+function factsHtml(items: Array<{ label: string; value: string | null | undefined }>): string {
+  const cells = items
+    .filter((item) => item.value)
+    .map(
+      (item) =>
+        `  <div class="fact"><dt>${escapeHtml(item.label)}</dt><dd>${escapeHtml(String(item.value))}</dd></div>`
+    )
+    .join('\n');
+  return cells ? `<dl class="facts">\n${cells}\n</dl>` : '';
+}
+
+/** Long-form system name, matching the app's `routeSystemLabel`. */
+function systemLabel(route: LightRoute): string {
+  const tipo = String(route.tipoServicio ?? '').toUpperCase();
+  if (tipo === 'ALIMENTADOR') return 'TransMilenio Alimentador';
+  if (tipo === 'PADRON') return 'TransMilenio Dual';
+  return route.sistema === 'TransMilenio' ? 'TransMilenio Troncal' : 'SITP Zonal';
 }
 
 // ─── Route pages ──────────────────────────────────────────
@@ -419,6 +519,9 @@ function renderRoute(codigo: string, variants: LightRoute[], stationByCode: Map<
     { name: `Ruta ${codigo}`, url },
   ];
 
+  // One section per sentido, each headed by the trip it makes and numbered down
+  // the margin: an ordered list of paradas IS a line diagram, and drawing it as
+  // one is the difference between a page about a route and a page listing rows.
   const directions = variants
     .map((variant) => {
       const stops = variant.stops ?? [];
@@ -433,12 +536,13 @@ function renderRoute(codigo: string, variants: LightRoute[], stationByCode: Map<
         })
         .join('\n');
 
-      return `<h2>${escapeHtml(tidy(variant.origin) || '?')} &rarr; ${escapeHtml(tidy(variant.destination) || '?')}</h2>
-${schedule ? `<p class="meta">Horarios: ${escapeHtml(schedule)}</p>` : ''}
-<p class="meta">${stops.length} paradas</p>
-<ol>
+      return `<section class="sec">
+<h2>Hacia ${escapeHtml(tidy(variant.destination) || '?')}${stops.length ? ` <span class="count">${stops.length}</span>` : ''}</h2>
+<p class="sub">Desde ${escapeHtml(tidy(variant.origin) || '?')}${schedule ? ` · ${escapeHtml(schedule)}` : ''}</p>
+<ol class="stops">
 ${items}
-</ol>`;
+</ol>
+</section>`;
     })
     .join('\n');
 
@@ -463,7 +567,6 @@ ${items}
   const ruteros = signVariants
         .map(
           (variant, i) => `<figure class="rutero">
-<figcaption>Hacia ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
 <div class="rutero-frame">${ruteroSvg({
             code: codigo,
             destination: tidy(variant.destination) || tidy(variant.nombre),
@@ -471,18 +574,37 @@ ${items}
             uid: `${slugify(codigo)}-${i}`,
             label: `Rutero de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
           })}</div>
+<figcaption>Rutero · hacia ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
 </figure>`
         )
         .join('\n');
 
+  // The route's own colour carries the page (spec §5.5.5): the plate, the rail
+  // under the masthead, the spine of every stop list. Resolved through the same
+  // palette the app and the social cards use, so one código is never two colours
+  // across the three surfaces (`stopTagColor`, §5.4.3).
+  const accent = stopTagColor(codigo, primary.color, isZonalService(primary.sistema, primary.tipoServicio));
+
+  const facts = factsHtml([
+    { label: 'Paradas', value: stopCount ? String(stopCount) : null },
+    { label: 'Sentidos', value: variants.length > 1 ? String(variants.length) : null },
+    { label: 'Servicio', value: tidy(primary.tipoServicio) || null },
+    { label: 'Horario', value: horarios.split(' · ')[0] || null },
+  ]);
+
   const body = `${PRERENDER_STYLE}
-<main id="seo-prerender"><div class="wrap">
+<main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
 ${breadcrumbHtml(trail)}
-<h1>Ruta ${escapeHtml(codigo)} · ${escapeHtml(name)}</h1>
-<p class="sub">Servicio troncal de TransMilenio en Bogotá. Recorrido, paradas y horarios en ambos sentidos.</p>
-${ruteros ? `<h2>Rutero</h2>
-<p class="meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas, un sentido por letrero.</p>
-${ruteros}` : ''}
+<header class="hero">
+  <span class="plate">${escapeHtml(codigo)}</span>
+  <div>
+    <h1>${escapeHtml(name)}</h1>
+    <p class="kind"><span class="tag">${escapeHtml(tidy(primary.tipoServicio) || 'TRONCAL')}</span><span>${escapeHtml(systemLabel(primary))}</span></p>
+  </div>
+</header>
+${ruteros}
+${ruteros ? `<p class="meta">El letrero LED sobre el parabrisas del bus, un sentido por letrero: con él se reconoce en el andén qué bus es cuál.</p>` : ''}
+${facts}
 ${directions}
 </div></main>`;
 
@@ -680,8 +802,9 @@ ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
   };
 
   const platformSection = platform.vagones.length
-    ? `<h2>Plano de la estación</h2>
-<p class="meta">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
+    ? `<section class="sec">
+<h2>Plano de la estación</h2>
+<p class="sub">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
 <div class="plano" role="group" aria-label="Plano de la estación" tabindex="0">
   <div class="plano-cols">
 ${platform.vagones
@@ -705,37 +828,68 @@ ${rest.map((d) => sideHtml(d, 'b')).join('\n')}
   .join('\n')}
   </div>
 </div>
-<p class="plano-note">Esquema propio, derivado del catálogo oficial: el orden de los vagones y los servicios de cada sentido son los que el catálogo registra. No representa distancias, accesos ni la posición real de los andenes en la calle.</p>`
+<p class="plano-note meta">Esquema propio, derivado del catálogo oficial: el orden de los vagones y los servicios de cada sentido son los que el catálogo registra. No representa distancias, accesos ni la posición real de los andenes en la calle.</p>
+</section>`
     : '';
 
   // Troncal services the catalog files under wagon "0". Their own block, with no
   // number of any kind: the catalog names no platform for them, and the plano is
   // the only thing that can (spec §5.5.4).
   const unassignedSection = platform.unassigned.length
-    ? `<h2>${platform.vagones.length ? 'Otros servicios troncales' : 'Servicios troncales'}</h2>
-<p class="meta">El catálogo no asigna vagón a estos servicios; confirma la plataforma en la señalización de la estación.</p>
+    ? `<section class="sec">
+<h2>${platform.vagones.length ? 'Otros servicios troncales' : 'Servicios troncales'} <span class="count">${countServices(platform.unassigned)}</span></h2>
+<p class="sub">El catálogo no asigna vagón a estos servicios; confirma la plataforma en la señalización de la estación.</p>
 <div class="platform">
   <div class="vagon">
 ${platform.unassigned.map(directionHtml).join('\n')}
   </div>
-</div>`
+</div>
+</section>`
     : '';
 
   const feederSection = platform.feeders.length
-    ? `<h2>Alimentadores y servicios zonales</h2>
-<ul class="svc">
-${platform.feeders.map((s) => `  ${serviceRow(s)}`).join('\n')}
-</ul>`
+    ? `<section class="sec">
+<h2>Alimentadores y servicios zonales <span class="count">${platform.feeders.length}</span></h2>
+<div class="platform">
+  <div class="vagon">
+    <ul class="svc">
+${platform.feeders.map((s) => `      ${serviceRow(s)}`).join('\n')}
+    </ul>
+  </div>
+</div>
+</section>`
     : '';
 
   const wagonSections = `${platformSection}\n${unassignedSection}\n${feederSection}`.trim();
 
+  // The page is keyed to the **troncal the station sits on** — Autonorte green,
+  // Caracas blue, Carrera 7 purple (§5.4.3) — which is the colour a rider
+  // already reads off the corridor's signage and off every código serving it.
+  // The corridor is an answered fact shipped on the catalog (`stationCorridor`,
+  // §5.5.6); without one the page falls back to the red the station layer is
+  // drawn in rather than picking a corridor for it.
+  const accent = TRONCAL_COLORS[String(station.corridor?.letra ?? '').toUpperCase()] ?? '#D8102D';
+
+  const chips = [
+    station.codigo,
+    platform.vagones.length
+      ? `${platform.vagones.length} ${platform.vagones.length === 1 ? 'vagón' : 'vagones'}`
+      : '',
+    `${serviceCount} servicios`,
+  ].filter(Boolean);
+
   const body = `${PRERENDER_STYLE}
-<main id="seo-prerender"><div class="wrap">
+<main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
 ${breadcrumbHtml(trail)}
-<h1>Estación ${escapeHtml(nombre)}</h1>
-<p class="sub">${escapeHtml(direccion || 'Bogotá, Colombia')} · ${serviceCount} servicios de TransMilenio</p>
-${wagonSections || '<p>Sin servicios registrados.</p>'}
+<header class="hero">
+  <div>
+    <p class="kind"><span class="tag">ESTACIÓN</span><span>${escapeHtml(station.corridor?.nombre ? `Troncal ${station.corridor.nombre}` : 'TransMilenio Troncal')}</span></p>
+    <h1>${escapeHtml(nombre)}</h1>
+    <p class="sub">${escapeHtml(direccion || 'Bogotá, Colombia')}</p>
+    <ul class="chips">${chips.map((chip) => `<li>${escapeHtml(chip)}</li>`).join('')}</ul>
+  </div>
+</header>
+${wagonSections || '<section class="sec"><p class="meta">El catálogo oficial no asigna vagones a esta estación.</p></section>'}
 </div></main>`;
 
   const jsonLd: object[] = [

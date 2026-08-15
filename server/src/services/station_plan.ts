@@ -68,14 +68,45 @@ const CORRIDOR_DIRECTIONS: Record<string, { axisBearing: number; positive: strin
   }
 })();
 
-const STATION_CORRIDORS: Record<string, string> = (() => {
+const STATION_CORRIDOR_FILE: { corridors?: Record<string, string>; letters?: Record<string, string> } = (() => {
   try {
-    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'station_corridors.json'), 'utf-8')).corridors ?? {};
+    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'station_corridors.json'), 'utf-8'));
   } catch {
     console.warn('[TM API] station_corridors.json unreadable; platform directions will be omitted.');
     return {};
   }
 })();
+
+const STATION_CORRIDORS: Record<string, string> = STATION_CORRIDOR_FILE.corridors ?? {};
+
+/** Corridor name → its troncal letter (`Autonorte` → `B`), the key both clients
+ *  colour a corridor by (§5.4.3). Joined from ArcGIS `letra_trazado_troncal`,
+ *  see the file's `_meta`. TransMiCable is not a troncal and has none. */
+const CORRIDOR_LETTERS: Record<string, string> = STATION_CORRIDOR_FILE.letters ?? {};
+
+export interface StationCorridor {
+  /** The corridor as the official station maps name it ("Autonorte"). */
+  nombre: string;
+  /** Its troncal letter, absent where the corridor has none (TransMiCable). */
+  letra?: string;
+}
+
+/**
+ * The troncal corridor a station physically sits on, shipped on the light
+ * catalog so both clients can key a station's colour off it (spec §5.5.6).
+ *
+ * Answered, not derived: ArcGIS's own `troncal_estacion` is a station-level
+ * label that does not always name one corridor ("CR 7-10" is two of them), and
+ * the nearest corridor centreline is exactly wrong where it matters most — at
+ * Av. Jiménez three of them pass within metres. `station_corridors.json` is the
+ * official station-maps answer, station by station.
+ */
+export function stationCorridor(stationCode: string): StationCorridor | null {
+  const nombre = STATION_CORRIDORS[String(stationCode).toUpperCase()];
+  if (!nombre) return null;
+  const letra = CORRIDOR_LETTERS[nombre];
+  return letra ? { nombre, letra } : { nombre };
+}
 
 /** Smallest angle between two bearings, 0–180. */
 function angleBetween(a: number, b: number): number {

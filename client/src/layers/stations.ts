@@ -25,6 +25,7 @@ import {
 } from './stationCatalogResolver';
 import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
+import { stationPageHref } from '../ui/routeDetail';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
 
@@ -229,7 +230,14 @@ function buildStationPlanoHtml(
 }
 
 /**
- * Renders the wagon → route-tag sections shown inside a station popup.
+ * The station's services, as the popup and the estación page both show them: the
+ * platform plan, then the labelled sections under it, then the count.
+ *
+ * Returned in parts rather than as one string because the two surfaces frame
+ * them differently — the popup stacks them inside one card, the page gives the
+ * plan and the service list a section each (spec §5.5.6) — while the *content*
+ * is built once here. Two renderers would be two answers to which vagón a
+ * service boards from (spec §1.1 R2).
  *
  * Sections are keyed on what each route IS, never on the wagon key it is filed
  * under (spec §5.5.4):
@@ -251,11 +259,27 @@ function buildStationPlanoHtml(
  *
  * Sections left empty are omitted.
  */
-function buildWagonSectionsHtml(
+export interface StationWagonView {
+  /** The drawn platform plan, or null where the catalog ships no plan for it. */
+  plano: string | null;
+  /** The labelled service sections (the lettered platforms only appear here when
+   *  there is no plan to draw them in). */
+  sections: string;
+  /** Distinct services at the station, counted the way the tags are grouped
+   *  (código + destino) — the number the hero chip carries. */
+  serviceCount: number;
+  /** Distinct services inside {@link sections} alone. Counted separately because
+   *  a station whose lettered platforms are drawn in the plan leaves only the
+   *  unassigned pool below it, and heading that block with the station's total
+   *  says thirteen services over a list of five. */
+  sectionCount: number;
+}
+
+export function buildStationWagonView(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
   wagonPlan: Record<string, CatalogPlanGroup[]> = {}
-): string {
+): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
   const feeders: CatalogRoute[] = [];
@@ -316,7 +340,26 @@ function buildWagonSectionsHtml(
     })
     .join('');
 
-  return (plano ?? '') + html || '<div class="popup-empty">Sin rutas disponibles</div>';
+  const serviceCount = groupCatalogRoutesByDirection([
+    ...lettered.flatMap(({ routes }) => routes),
+    ...unlettered,
+    ...feeders,
+  ]).length;
+  const sectionCount = groupCatalogRoutesByDirection(
+    sections.flatMap(({ routes }) => routes)
+  ).length;
+
+  return { plano, sections: html, serviceCount, sectionCount };
+}
+
+/** The popup's flavour of {@link buildStationWagonView}: one stacked block. */
+function buildWagonSectionsHtml(
+  wagons: ResolvedCatalogWagons,
+  vagonLabels: Record<string, string> = {},
+  wagonPlan: Record<string, CatalogPlanGroup[]> = {}
+): string {
+  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan);
+  return (view.plano ?? '') + view.sections || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
 // ─── Catalog Lookup ─────────────────────────────────────
@@ -349,6 +392,116 @@ function publishStationAudit(): void {
 }
 
 // ─── Station Popup ──────────────────────────────────────
+
+/**
+ * The popup's link to the estación's own page (spec §5.5.6).
+ *
+ * A popup is a card over a map: it is 340 px wide, it sits on top of the thing
+ * the reader is looking at, and it closes when they click away — so it shows the
+ * plan small and the services abbreviated. The page is the same station with
+ * room for it, plus the live arrivals board and the ridership figures, at a URL
+ * that can be sent to somebody. This is how a rider gets there from the map.
+ *
+ * Built from the **catalog** stop, never from the rendered station: the URL is
+ * the one the prerender publishes (`/estacion/<slug>-<codigo>/`, §5.5.4), and
+ * that slug is the catalog's own name and code. A verified-split platform
+ * (Av. Jiménez, Ricaurte) therefore links to the page for the stop both of its
+ * platforms belong to, which is the page that exists.
+ *
+ * A real `<a href>` so it middle-clicks, copies and crawls; `pageShell.ts`
+ * intercepts the plain left click into a `pushState` navigation.
+ */
+function stationPageLinkHtml(resolved: ResolvedCatalogStation | undefined): string {
+  const stop = resolved?.sourceStops?.[0];
+  const href = stop ? stationPageHref({ nombre: stop.nombre, codigo: stop.codigo }) : null;
+  if (!href) return '';
+  return `
+    <a class="popup-page-link" href="${href}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h7"/><path d="M7 16.5h4"/></svg>
+      <span>Ver página de la estación</span>
+    </a>
+  `;
+}
+
+/**
+ * Everything the estación page needs about one station (spec §5.5.6).
+ *
+ * Assembled **catalog-first**, exactly like the prerendered page: the wagons,
+ * the plan and the plate numbers all come from the catalog stop, so the page a
+ * crawler reads and the page the bundle draws describe the same platform. The
+ * rendered ArcGIS station only *enriches* it (corridor name, WiFi, biciestación)
+ * and cannot subtract from it — a station whose ArcGIS point failed to load
+ * still has a complete page (spec §4.2).
+ */
+export interface StationPageData {
+  /** Catalog code (`TM0025`) — the id every other surface here files it under. */
+  code: string;
+  name: string;
+  direccion: string;
+  /** The troncal this station sits on ("Autonorte"), as the official station
+   *  maps name it, falling back to ArcGIS's own station label. */
+  corridor: string;
+  /** That corridor's troncal letter, when it has one — the key its colour is
+   *  drawn from (`TRONCAL_COLORS`, §5.4.3). */
+  corridorLetter: string;
+  coordinate: [number, number];
+  wagons: ResolvedCatalogWagons;
+  vagonLabels: Record<string, string>;
+  wagonPlan: Record<string, CatalogPlanGroup[]>;
+  /** Lettered platforms the catalog files for this stop. */
+  platformCount: number;
+  /** Station node ids (`codigo_nodo_estacion`) of the rendered platforms — the
+   *  only id the open ridership dataset shares with this app (spec §5.8). */
+  nodes: string[];
+  wifi: boolean;
+  bikeCapacity: number | null;
+}
+
+export function getStationPageData(code: string): StationPageData | null {
+  const wanted = String(code || '').trim().toUpperCase();
+  if (!wanted) return null;
+
+  const station =
+    _catalog.stations[wanted] ??
+    Object.values(_catalog.stations).find((s) => String(s.codigo).toUpperCase() === wanted);
+  if (!station) return null;
+
+  const [lat, lng] = String(station.coordenada || '').split(',').map((n) => Number(n.trim()));
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+  // The catalog's TM code and ArcGIS's `numero_estacion` are different id spaces
+  // (spec §5.4.1); the resolver is the only bridge between them.
+  const platforms = Object.values(_resolvedStations).filter((resolved) =>
+    resolved.sourceStops.some((stop) => stop.codigo.toUpperCase() === wanted)
+  );
+  const feature = platforms.length
+    ? globalStations.find((s) => s.attributes.numero_estacion === platforms[0].stationCode)
+    : undefined;
+
+  const wagons = (station.wagons ?? {}) as ResolvedCatalogWagons;
+
+  return {
+    code: String(station.codigo || wanted).toUpperCase(),
+    name: station.nombre,
+    direccion: station.direccion || '',
+    // The catalog's corridor is the answered one and names exactly one troncal;
+    // ArcGIS's `troncal_estacion` is the fallback for a station the station-maps
+    // source doesn't cover, where a label is still better than a blank line.
+    corridor: station.corridor?.nombre || feature?.attributes.troncal_estacion || '',
+    corridorLetter: station.corridor?.letra || '',
+    coordinate: [lng, lat],
+    wagons,
+    vagonLabels: station.vagonLabels ?? {},
+    wagonPlan: station.wagonPlan ?? {},
+    platformCount: Object.keys(wagons).filter((key) => key !== '0').length,
+    nodes: platforms.map((p) => p.stationNode).filter(Boolean),
+    wifi: feature?.attributes.componente_wifi === 'SI',
+    bikeCapacity:
+      feature?.attributes.biciestacion_estacion === '1'
+        ? Number(feature.attributes.capacidad_biciestacion_estacion) || null
+        : null,
+  };
+}
 
 function hasRenderedFeatureAtPoint(
   map: maplibregl.Map,
@@ -401,6 +554,7 @@ function showStationPopup(
         ${wagonSections}
       </div>
       ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
+      ${stationPageLinkHtml(resolvedStation)}
       ${planActionsHtml(stationName, coords as [number, number], stationCode)}
     </div>
   `;
@@ -674,6 +828,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
         ${wagonSections}
       </div>
       ${arrivalsSectionHtml(stationArrivalsCode(resolvedStation, stationCode))}
+      ${stationPageLinkHtml(resolvedStation)}
       ${planActionsHtml(resolvedStation.stationName, coordinate, stationCode)}
     </div>
   `;

@@ -26,8 +26,10 @@ import {
   updateZonalRoutes,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
-import { initRoutePage, openRoutePage, isRoutePageOpen, refreshRoutePage } from './ui/routePage';
-import { parseRoutePathname } from './ui/routeDetail';
+import { initRoutePage, openRoutePage, refreshRoutePage } from './ui/routePage';
+import { initStationPage, openStationPage } from './ui/stationPage';
+import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
+import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
@@ -99,22 +101,23 @@ function hideLoading(): void {
  * bundle has not run — get the stops, horarios and the estación plan without JS.
  * It used to be removed the moment the map went live, which meant a visitor
  * arriving from a search result read for about four seconds and then had the
- * page replaced under them by the map. That is the wrong trade now: the plan
- * answers "which vagón do I stand on", split by sentido and marking the services
- * that terminate at the station, and the map popup answers none of that.
+ * page replaced under them by the map.
  *
- * So the panel stays until the reader dismisses it. The map boots behind it
- * either way, so nothing is delayed — only the decision to leave moves from a
- * timer to the person reading. The button is injected here rather than emitted
- * in the static HTML on purpose: without JS there is no map to switch to, and a
- * dead control is worse than none.
+ * Normally the panel is not dismissed here at all: a `/ruta/` or `/estacion/`
+ * path opens its interactive page (§5.5.5, §5.5.6), which says everything the
+ * static body says and adds the live data and the links, so it takes the body
+ * over. This is the fallback for the case where no page opens — a station or
+ * route this catalog cannot describe — where the panel stays until the reader
+ * dismisses it. The button is injected here rather than emitted in the static
+ * HTML on purpose: without JS there is no map to switch to, and a dead control
+ * is worse than none.
  */
 function revealPrerenderedPanel(): void {
   const panel = document.getElementById('seo-prerender');
   if (!panel || panel.querySelector('.seo-dismiss')) return;
-  // A route page has already taken this panel's place with a live, richer copy
-  // of the same content (spec §5.5.5) — there is nothing left to hand over.
-  if (isRoutePageOpen()) return;
+  // A full page has already taken this panel's place with a live, richer copy of
+  // the same content (spec §5.5.5, §5.5.6) — nothing left to hand over.
+  if (isOverlayPageOpen()) return;
 
   const bar = document.createElement('div');
   bar.className = 'seo-dismiss';
@@ -243,15 +246,17 @@ function refreshLiveNow(): void {
 
 setLiveRefreshHandler(refreshLiveNow);
 
-// The route page is a URL-driven view over the same map, so it is wired once at
-// module scope: its Back/Forward listener has to exist before the first
-// navigation, not after the catalog resolves (spec §5.5.5).
+// The full pages are URL-driven views over the same map, so the shell they open
+// in is wired once at module scope: its Back/Forward listener and its in-app
+// link interception have to exist before the first navigation, not after the
+// catalog resolves (spec §5.5.5, §5.5.6).
+initPageShell({ onShare: (url) => void shareLink(url) });
+
 initRoutePage({
   onShowOnMap: (route) => {
     openSidebar();
     selectRouteByIdOrCode(route.id, route.code);
   },
-  onShare: (_route, url) => void shareLink(url),
   onLiveRefresh: refreshLiveNow,
 });
 
@@ -974,6 +979,41 @@ async function main(): Promise<void> {
     },
   });
 
+  // The estación page (spec §5.5.6). Wired here rather than at module scope
+  // because every one of its exits goes back to *this* map — the popup it came
+  // from, the planner seeded with its coordinate — and the map does not exist
+  // until boot. The URL resolver it registers is only consulted by a navigation,
+  // which cannot happen before the page it navigates from is on screen.
+  initStationPage({
+    onShowOnMap: (station) => {
+      if (!showStationPopupByCode(map, station.code, station.coordinate)) {
+        // No rendered station to open a popup on (ArcGIS degraded, §4.2) — put
+        // the reader over the place anyway rather than leaving them at the
+        // city-wide view with nothing to show for the dismissal.
+        map.easeTo({ center: station.coordinate, zoom: Math.max(map.getZoom(), 15) });
+      }
+    },
+    onPlan: (role, station) => {
+      // Dismiss without handing the station back to the map: re-opening its
+      // popup here would fight the planner panel the reader just asked for.
+      dismissOverlayPage();
+      openSidebar();
+      getPlannerModule()
+        .then((planner) => planner.planFromPopup(role, station.name, station.coordinate, station.code))
+        .catch((error) => console.error('[Planner] plan-from-station-page failed:', error));
+    },
+    onOpenRoute: (code) => {
+      const route = routesWithCode(code)[0];
+      if (!route) return;
+      // Page first, then the map: `pushRouteHash` leaves a `/ruta/<code>/` path
+      // that already names the selected route alone, so selecting afterwards
+      // costs no second history entry — and it starts the live tracking whose
+      // card this page is about to show.
+      openRoutePage(route);
+      selectRouteByIdOrCode(route.id, route.code);
+    },
+  });
+
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement;
     const clickableTag = target.closest('.route-tag.clickable');
@@ -1129,37 +1169,27 @@ async function main(): Promise<void> {
   }
 
   // A visitor from a prerendered estación page (`/estacion/<slug>-<codigo>/`,
-  // spec §5.5.4) arrives with no hash, so nothing in the hash router fires. The
-  // código is the last hyphen-delimited segment of the slug.
+  // spec §5.5.4) arrives with no hash, so nothing in the hash router fires. They
+  // get the interactive version of the page they landed on (§5.5.6) — the same
+  // platform plan plus the live arrivals board and the ridership figures the
+  // static copy cannot carry. `push: false` because the URL is already this
+  // page: pushing would wedge a duplicate entry in front of the Back that should
+  // leave the site.
   //
-  // The coordinate comes from the *catalog*, not `getStationDisplayPoints()`:
-  // a display point's `codigo` is ArcGIS's `numero_estacion`, which is a
-  // different identifier space from the catalog's `TM####` — matching one
-  // against the other never succeeds. `showStationPopupByCode` does accept the
-  // TM code, since it also matches on a resolved station's `sourceStops`.
-  const stationPath = location.pathname.match(/^\/estacion\/(?:.*-)?(tm\d+)\/?$/i);
+  // The map is centred on the station underneath it, so dismissing the page is
+  // an arrival, not a search. Deferred to the map's first idle: boot is still
+  // settling the initial camera at this point and a move issued into that window
+  // is discarded, which used to leave the reader at the city-wide default.
+  const stationPath = parseStationPathname();
   if (stationPath) {
-    const code = stationPath[1].toUpperCase();
-    const station = catalog.stations[code] ?? Object.values(catalog.stations).find(
-      (s) => String(s.codigo).toUpperCase() === code
+    const station = catalog.stations[stationPath] ?? Object.values(catalog.stations).find(
+      (s) => String(s.codigo).toUpperCase() === stationPath
     );
     const [lat, lon] = String(station?.coordenada ?? '').split(',').map((n) => Number(n.trim()));
     if (station && Number.isFinite(lat) && Number.isFinite(lon)) {
       const coordinate: [number, number] = [lon, lat];
-      // Deferred to the map's first idle: boot is still settling the initial
-      // camera at this point, and a camera move issued into that window is
-      // discarded — the popup opened on the right station while the view stayed
-      // at the city-wide default.
-      //
-      // `jumpTo`, not `flyTo`: opening a popup runs its own `easeTo` to clear the
-      // sidebar (`layers/popup.ts`), and that ease carries no zoom — an animated
-      // zoom started here is cancelled by it mid-flight, which left the map
-      // centred on the station but still at city zoom. Setting the zoom
-      // instantly first means the popup's recentre inherits it.
-      map.once('idle', () => {
-        map.jumpTo({ center: coordinate, zoom: 15 });
-        showStationPopupByCode(map, station.codigo, coordinate);
-      });
+      map.once('idle', () => map.jumpTo({ center: coordinate, zoom: 15 }));
+      openStationPage(station.codigo, { push: false });
     }
   }
 

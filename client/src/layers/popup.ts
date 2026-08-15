@@ -23,6 +23,22 @@ function dropPin(map: maplibregl.Map, lngLat: maplibregl.LngLatLike, color: stri
   return new maplibregl.Marker({ element: el, anchor: 'bottom' }).setLngLat(lngLat).addTo(map);
 }
 
+/**
+ * Closes whatever popup is open, if any.
+ *
+ * The estación page (spec §5.5.6) is the popup's own card at full size, and it
+ * is usually reached *from* that card: leaving both alive would stack two copies
+ * of one station on screen — and the live arrivals renderer addresses its slot
+ * by stop code (`layers/arrivals.ts`), so the hidden popup underneath would have
+ * swallowed the board the page asked for.
+ */
+export function closeActivePopup(): void {
+  activePopup?.remove();
+  activePin?.remove();
+  activePopup = null;
+  activePin = null;
+}
+
 export function showPopup(
   map: maplibregl.Map,
   lngLat: maplibregl.LngLatLike,

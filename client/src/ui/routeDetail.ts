@@ -37,13 +37,30 @@ export function slugifyRoute(value: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
+/** The estación page path for a catalog stop — the URL the prerender publishes
+ *  and the one the interactive page keeps (spec §5.5.4, §5.5.6). */
+export function stationPagePath(nombre: string, codigo: string): string {
+  return `/estacion/${slugifyRoute(nombre)}-${slugifyRoute(codigo)}/`;
+}
+
 /**
- * The prerendered estación page for a stop, or null when the stop is a zonal
- * paradero (those are deliberately not emitted — spec §5.5.4).
+ * The estación page for a stop, or null when the stop is a zonal paradero
+ * (those are deliberately not emitted — spec §5.5.4).
  */
 export function stationPageHref(stop: { nombre: string; codigo: string }): string | null {
   if (!TRONCAL_STATION.test(String(stop.codigo || ''))) return null;
-  return `/estacion/${slugifyRoute(stop.nombre)}-${slugifyRoute(stop.codigo)}/`;
+  return stationPagePath(stop.nombre, stop.codigo);
+}
+
+/**
+ * The estación código named by an `/estacion/<slug>-<codigo>/` pathname, or
+ * null. The código is the last hyphen-delimited segment of the slug, which is
+ * how the prerender builds it — the station *name* in front of it is decoration
+ * for the reader and for search, and is never parsed back.
+ */
+export function parseStationPathname(pathname: string = location.pathname): string | null {
+  const match = pathname.match(/^\/estacion\/(?:.*-)?(tm\d+)\/?$/i);
+  return match ? match[1].toUpperCase() : null;
 }
 
 /** The route's own page (spec §5.5.5) — the same URL the prerender emits. */

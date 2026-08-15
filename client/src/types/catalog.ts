@@ -22,6 +22,13 @@ export interface CatalogStation {
   coordenada: string;
   sistema?: string;
   tipoServicio?: string;
+  /** The troncal corridor this station physically sits on, and the letter its
+   *  route codes carry (`{ nombre: 'Autonorte', letra: 'B' }`). Answered
+   *  server-side from the official station maps (`stationCorridor`, §5.5.6) —
+   *  ArcGIS's own `troncal_estacion` is a station label that does not always
+   *  name one corridor ("CR 7-10"), and the nearest centreline is wrong exactly
+   *  where three of them meet. Absent for TransMiCable, which is not a troncal. */
+  corridor?: { nombre: string; letra?: string };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own
    *  A/B/C grouping. Resolved server-side in `printedVagonLabels` and shipped on

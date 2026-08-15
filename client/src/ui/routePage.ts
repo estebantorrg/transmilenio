@@ -4,18 +4,22 @@
  *
  * The sidebar panel is a companion to the map: it is 360 px wide, it describes
  * the *one* direction currently drawn, and it exists to be read next to the
- * trace. A route is bigger than that. It has two sentidos, up to ~80 paradas,
- * horarios, and — the thing no other surface here could show — a **rutero**: the
- * LED sign the bus actually carries, which is how a rider on the andén decides
- * whether the bus pulling in is theirs. This page is that: `/ruta/<code>/`,
- * shareable, indexable, and the same URL the prerender already emits (§5.5.4),
- * so a search result and an in-app navigation land on one address.
+ * trace. A route is bigger than that. It has up to ~80 paradas, horarios, and —
+ * the thing no other surface here could show — a **rutero**: the LED sign the
+ * bus actually carries, which is how a rider on the andén decides whether the
+ * bus pulling in is theirs. This page is that: `/ruta/<code>/`, shareable,
+ * indexable, and the same URL the prerender already emits (§5.5.4), so a search
+ * result and an in-app navigation land on one address.
  *
- * It renders *over* the map rather than replacing the shell, so the map behind
- * it keeps the route highlighted and "Ver en el mapa" is instant — no reboot, no
- * refetch. While it is up, the shell is `inert` and `aria-hidden`: a full page
- * that a screen reader can wander out of, into the tab strip of the thing it is
- * covering, is not a page.
+ * The page is ordered the way a rider reads a route, not the way a database
+ * lists one: the **sign first** (the object you match against the bus in front
+ * of you), then the trip it makes, then its ficha técnica on one line, then the
+ * things that change through the day — buses in vivo, horario — and the paradas
+ * last, because that is the long list you scroll to. Everything coloured on it
+ * is coloured by the route's *own* línea (`--page-accent`, `pageShell.ts`).
+ *
+ * The shell it opens over — masthead, inert map behind, Escape, Back/Forward —
+ * is `ui/pageShell.ts`, shared with the estación page (§5.5.6).
  */
 
 import type { RouteListItem } from '../types/transmilenio';
@@ -33,34 +37,45 @@ import {
   routeTypeLabel,
   tidy,
 } from './routeDetail';
+import {
+  crumbsHtml,
+  factsHtml,
+  isOverlayPageOpen,
+  mastheadHtml,
+  openOverlayPage,
+  refreshOverlayPage,
+  registerPageResolver,
+  type OverlayPage,
+} from './pageShell';
 import { routesWithCode } from './sidebar';
+
+const PAGE_ID = 'route-page';
 
 interface RoutePageHandlers {
   /** Dismiss the page back to the map, with this route selected on it. */
   onShowOnMap: (route: RouteListItem) => void;
-  /** Copy/share the page's own URL. */
-  onShare: (route: RouteListItem, url: string) => void;
   /** Manual live refresh — the same handler the sidebar card uses. */
   onLiveRefresh: () => void;
 }
 
 let handlers: RoutePageHandlers | null = null;
 let openRoute: RouteListItem | null = null;
-let lastFocus: HTMLElement | null = null;
 
 export function initRoutePage(options: RoutePageHandlers): void {
   handlers = options;
-  window.addEventListener('popstate', syncFromLocation);
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && openRoute) {
-      event.preventDefault();
-      leaveToMap();
-    }
+  // Back/Forward and `/ruta/…` links anywhere in the app resolve through the
+  // same helper the hash router uses, so a `/ruta/z8/` entry always points at
+  // the direction the list would have picked.
+  registerPageResolver((pathname) => {
+    const code = parseRoutePathname(pathname);
+    if (!code) return null;
+    const route = routesWithCode(code)[0];
+    return route ? descriptor(route) : null;
   });
 }
 
 export function isRoutePageOpen(): boolean {
-  return openRoute !== null;
+  return isOverlayPageOpen(PAGE_ID);
 }
 
 /**
@@ -72,12 +87,8 @@ export function isRoutePageOpen(): boolean {
  */
 export function refreshRoutePage(route: RouteListItem): void {
   if (openRoute?.id !== route.id) return;
-  const el = document.getElementById('route-page');
-  if (!el) return;
-  const scroll = el.scrollTop;
-  el.innerHTML = render(route);
-  el.scrollTop = scroll;
-  wire(el, route);
+  openRoute = route;
+  refreshOverlayPage(descriptor(route));
 }
 
 /**
@@ -93,7 +104,8 @@ function hasRutero(route: RouteListItem): boolean {
 }
 
 /**
- * The sign this route's bus carries over its windscreen.
+ * The sign this route's bus carries over its windscreen, at the top of the page
+ * because it is the thing a rider standing at the andén is trying to match.
  *
  * **One route, one sign.** The page used to gather every sibling filed under the
  * same código and draw a sign for each. That was wrong twice over: the catalog's
@@ -111,214 +123,124 @@ function ruteroBlock(route: RouteListItem): string {
     label: `Rutero de la ruta ${route.code} hacia ${tidy(route.destination)}`,
   });
   return `
-    <figure class="rutero">
-      <figcaption class="rutero-caption">Hacia ${escapeHTML(tidy(route.destination))}</figcaption>
+    <figure class="rutero route-page-rutero">
       <div class="rutero-frame">${sign}</div>
+      <figcaption class="rutero-caption">Rutero · hacia ${escapeHTML(tidy(route.destination))}</figcaption>
     </figure>
   `;
 }
 
-/** A stat tile, or nothing when the route has no value for it. */
-function statTile(label: string, value: string | null): string {
-  if (!value) return '';
+/**
+ * Origen → destino as the line it is: two labelled ends with the route's own
+ * colour running between them. The old page set this as a sentence with a drawn
+ * arrow in the middle of it, which said the same words and showed nothing.
+ */
+function tripHtml(route: RouteListItem): string {
+  const origin = tidy(route.origin);
+  const destination = tidy(route.destination);
+  if (!origin && !destination) return '';
   return `
-    <div class="route-stat">
-      <span class="route-stat-value">${escapeHTML(value)}</span>
-      <span class="route-stat-label">${escapeHTML(label)}</span>
+    <div class="route-trip">
+      <div class="route-trip-end">
+        <span class="route-trip-label">Origen</span>
+        <span class="route-trip-name">${escapeHTML(origin || '—')}</span>
+      </div>
+      <div class="route-trip-rail" aria-hidden="true"><span class="route-trip-head"></span></div>
+      <div class="route-trip-end route-trip-end-to">
+        <span class="route-trip-label">Destino</span>
+        <span class="route-trip-name">${escapeHTML(destination || '—')}</span>
+      </div>
     </div>
   `;
 }
 
 function render(route: RouteListItem): string {
-  const badgeColor = safeColor(getRouteAccentColor(route));
   const scheduleHtml = formatSchedule(route);
-  const ruteros = hasRutero(route) ? ruteroBlock(route) : '';
+  const rutero = hasRutero(route) ? ruteroBlock(route) : '';
   const stopCount = route.stops?.length ?? 0;
 
-  const stats =
-    statTile('Paradas', stopCount ? String(stopCount) : null) +
-    statTile('Longitud', route.length ? `${route.length.toFixed(1)} km` : null) +
-    statTile('Servicio', routeTypeLabel(route)) +
-    statTile('Operador', route.operator ? tidy(route.operator) : null);
+  const facts = factsHtml([
+    { label: 'Paradas', value: stopCount ? String(stopCount) : null },
+    { label: 'Longitud', value: route.length ? `${route.length.toFixed(1)} km` : null },
+    { label: 'Servicio', value: routeTypeLabel(route) },
+    { label: 'Operador', value: route.operator ? tidy(route.operator) : null },
+  ]);
 
   return `
-    <header class="route-page-bar">
-      <div class="route-page-bar-inner">
-        <button class="route-page-back" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          <span>Ver en el mapa</span>
-        </button>
-        <!-- The site's own masthead, not a page-specific toolbar: same lockup as
-             the sidebar header, so this page reads as part of the app it covers. -->
-        <a class="route-page-brand" href="/" aria-label="Inicio — TransMilenio Explorer">
-          <img class="route-page-logo" src="/icon-192.png" alt="" width="34" height="34" />
-          <span class="route-page-brand-text">
-            <span class="route-page-brand-title">TransMilenio</span>
-            <span class="route-page-brand-sub">Explorer</span>
-          </span>
-        </a>
-        <button class="route-page-share" type="button" aria-label="Copiar enlace a esta página" title="Copiar enlace a esta página">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-          <span>Copiar enlace</span>
-        </button>
-      </div>
-    </header>
+    ${mastheadHtml()}
 
-    <div class="route-page-inner" style="--route-accent:${badgeColor};">
-      <nav class="route-page-crumbs" aria-label="Ruta de navegación">
-        <a href="/">Inicio</a> <span aria-hidden="true">›</span> <span>Ruta ${escapeHTML(route.code)}</span>
-      </nav>
+    <div class="page-inner">
+      ${crumbsHtml([
+        { label: 'Inicio', href: '/' },
+        { label: `Ruta ${route.code}` },
+      ])}
 
-      <header class="route-page-hero">
-        <div class="route-page-badge">${escapeHTML(route.code)}</div>
-        <h1 class="route-page-h1">${escapeHTML(tidy(route.name) || route.code)}</h1>
-        <p class="route-page-trip">
-          <span>${escapeHTML(tidy(route.origin))}</span>
-          <span class="route-page-arrow" aria-hidden="true"></span>
-          <span>${escapeHTML(tidy(route.destination))}</span>
-        </p>
-        <p class="route-page-kind">${escapeHTML(routeSystemLabel(route))}</p>
+      <header class="route-hero">
+        <div class="route-hero-head">
+          <span class="route-plate">${escapeHTML(route.code)}</span>
+          <div class="route-hero-titles">
+            <h1 class="route-hero-name">${escapeHTML(tidy(route.name) || route.code)}</h1>
+            <p class="route-hero-kind">
+              <span class="route-kind-tag">${escapeHTML(routeTypeLabel(route))}</span>
+              <span>${escapeHTML(routeSystemLabel(route))}</span>
+            </p>
+          </div>
+        </div>
+        ${rutero}
+        ${tripHtml(route)}
       </header>
 
-      ${ruteros ? `
-      <section class="route-page-card route-page-rutero-card" aria-labelledby="rutero-h">
-        <h2 class="route-page-h2" id="rutero-h">Rutero</h2>
-        <p class="route-page-meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas.</p>
-        ${ruteros}
-      </section>` : ''}
+      ${facts}
 
-      ${stats ? `<div class="route-stats">${stats}</div>` : ''}
-
-      <section class="route-page-card" aria-labelledby="live-h">
-        <h2 class="route-page-h2" id="live-h">En vivo</h2>
+      <section class="page-section" aria-labelledby="live-h">
+        <h2 class="page-section-title" id="live-h">En vivo</h2>
         ${renderLiveCard()}
       </section>
 
       ${scheduleHtml ? `
-      <section class="route-page-card" aria-labelledby="horario-h">
-        <h2 class="route-page-h2" id="horario-h">Horario</h2>
+      <section class="page-section" aria-labelledby="horario-h">
+        <h2 class="page-section-title" id="horario-h">Horario</h2>
         ${renderServiceStatus(route)}
         ${scheduleHtml}
       </section>` : ''}
 
-      <section class="route-page-card" aria-labelledby="paradas-h">
-        <h2 class="route-page-h2" id="paradas-h">Paradas${stopCount ? ` <span class="route-page-count">${stopCount}</span>` : ''}</h2>
+      <section class="page-section page-section-stops" aria-labelledby="paradas-h">
+        <h2 class="page-section-title" id="paradas-h">Paradas${stopCount ? ` <span class="page-count">${stopCount}</span>` : ''}</h2>
         ${renderStopsTimeline(route, { linkStations: true })}
       </section>
     </div>
   `;
 }
 
-function shell(): HTMLElement {
-  let el = document.getElementById('route-page');
-  if (!el) {
-    el = document.createElement('main');
-    el.id = 'route-page';
-    el.className = 'route-page';
-    el.tabIndex = -1;
-    document.body.appendChild(el);
-  }
-  return el;
+/** This route as a page the shell can open, refresh and restore from a URL. */
+function descriptor(route: RouteListItem): OverlayPage {
+  return {
+    id: PAGE_ID,
+    className: 'route-page',
+    path: routePagePath(route.code),
+    accent: safeColor(getRouteAccentColor(route)),
+    render: () => render(route),
+    wire: (el) => wire(el, route),
+    onLeave: () => {
+      openRoute = null;
+      handlers?.onShowOnMap(route);
+    },
+  };
 }
 
-/** The map, the sidebar and the FAB — everything the page covers. */
-function shellChrome(): HTMLElement[] {
-  return ['map', 'sidebar', 'sidebar-fab']
-    .map((id) => document.getElementById(id))
-    .filter((el): el is HTMLElement => el !== null);
-}
-
-/**
- * Shows the page for a route.
- *
- * `push` is false only when the URL already names this route — a visitor who
- * arrived on `/ruta/g47/` from a search result, where pushing would put a
- * duplicate entry between them and the Back button that should leave the site.
- */
 export function openRoutePage(route: RouteListItem, options: { push?: boolean } = {}): void {
-  const el = shell();
-  const wasClosed = openRoute === null;
-  if (wasClosed && document.activeElement instanceof HTMLElement) {
-    lastFocus = document.activeElement;
-  }
-  openRoute = route;
-
-  const path = routePagePath(route.code);
-  if (options.push !== false && location.pathname !== path) {
-    history.pushState({ routePage: route.code }, '', path + location.search);
-  }
-
-  // The prerendered body (spec §5.5.4) said the same things without the rutero,
-  // the live card or the links; once the bundle is here it is strictly the worse
-  // copy of this page, so it hands over rather than stacking behind it.
-  document.getElementById('seo-prerender')?.remove();
-
-  el.innerHTML = render(route);
-  el.scrollTop = 0;
-  document.body.classList.add('route-page-open');
-  for (const node of shellChrome()) {
-    node.toggleAttribute('inert', true);
-    node.setAttribute('aria-hidden', 'true');
-  }
-
-  wire(el, route);
-  if (wasClosed) el.focus();
+  openOverlayPage(descriptor(route), options);
 }
 
 function wire(el: HTMLElement, route: RouteListItem): void {
-  el.querySelector('.route-page-back')?.addEventListener('click', () => leaveToMap());
-  el.querySelector('.route-page-share')?.addEventListener('click', () => {
-    handlers?.onShare(route, `${location.origin}${routePagePath(route.code)}`);
-  });
+  // Tracked here, not in `openRoutePage`: the shell also opens this page
+  // straight from a URL — an estación page's service chip, Back/Forward, a
+  // search result — and `refreshRoutePage` has to know which route is on screen
+  // whichever way it got there.
+  openRoute = route;
+
   el.querySelector('.live-status-refresh')?.addEventListener('click', () => {
     document.querySelectorAll('.live-status-refresh').forEach((btn) => btn.classList.add('spinning'));
     handlers?.onLiveRefresh();
   });
-}
-
-/**
- * Closes the page and hands the route back to the map.
- *
- * The URL drops to `/` first: `pushRouteHash` (sidebar) deliberately leaves a
- * `/ruta/<code>/` path alone when it already names the selected route, so
- * without this the address bar would keep advertising a page that is no longer
- * on screen — and Back would re-open it out of nowhere.
- */
-function leaveToMap(): void {
-  const route = openRoute;
-  closeRoutePage();
-  if (location.pathname !== '/') history.replaceState(null, '', '/' + location.search);
-  if (route) handlers?.onShowOnMap(route);
-}
-
-export function closeRoutePage(): void {
-  if (!openRoute) return;
-  openRoute = null;
-  document.getElementById('route-page')?.remove();
-  document.body.classList.remove('route-page-open');
-  for (const node of shellChrome()) {
-    node.toggleAttribute('inert', false);
-    node.removeAttribute('aria-hidden');
-  }
-  lastFocus?.focus();
-  lastFocus = null;
-}
-
-/**
- * Back/Forward: the page is a URL, so the browser's history has to drive it.
- * Resolving the código through the same helper the hash router uses keeps a
- * `/ruta/z8/` entry pointing at the direction the list would have picked.
- */
-function syncFromLocation(): void {
-  const code = parseRoutePathname();
-  if (!code) {
-    closeRoutePage();
-    return;
-  }
-  const target = routesWithCode(code)[0];
-  if (!target) {
-    closeRoutePage();
-    return;
-  }
-  if (openRoute?.id !== target.id) openRoutePage(target, { push: false });
 }
