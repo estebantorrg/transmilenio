@@ -2262,23 +2262,23 @@ body.sidebar-collapsed .sidebar-fab {
    platform bar segmented per vagón, with the services boarding each side above
    and below it. A list says which routes serve the station; only this says
    which side to stand on. */
+/* The plan scrolls sideways — a portal has six vagones and the popup is 320 px —
+   but it does it the way every other horizontal row in this app does: hidden
+   scrollbar, mask fade at whichever edge has more behind it, wheel and drag
+   wired by `initChipRowScroll` (`ui/chipRow.ts`, spec §5.4.2b). A native
+   scrollbar under a drawn platform diagram reads as a browser widget sitting on
+   the drawing, and its predecessor here — four background gradients faked over
+   the surface colour — had to be re-pointed at every background the plan was
+   ever placed on. The mask needs no background at all. */
 .popup-plano {
   margin: calc(4px * var(--tm-scale, 1)) 0 calc(8px * var(--tm-scale, 1));
   overflow-x: auto;
   overscroll-behavior-x: contain;
-  /* Scroll cue: a portal has six vagones and the popup is 320px, so the bar is
-     wider than the box more often than not. The "local" layers ride with the
-     content and uncover the "scroll" ones only while there is more off an edge,
-     so a two-vagón station shows no cue at all. */
-  background-image:
-    linear-gradient(to right, #121212 40%, rgba(18, 18, 18, 0)),
-    linear-gradient(to left, #121212 40%, rgba(18, 18, 18, 0)),
-    radial-gradient(farthest-side at 0 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
-    radial-gradient(farthest-side at 100% 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
-  background-position: left center, right center, left center, right center;
-  background-repeat: no-repeat;
-  background-size: 28px 100%, 28px 100%, 10px 100%, 10px 100%;
-  background-attachment: local, local, scroll, scroll;
+  scrollbar-width: none;
+}
+
+.popup-plano::-webkit-scrollbar {
+  display: none;
 }
 
 .popup-plano:focus-visible {
@@ -4334,6 +4334,7 @@ body.sidebar-collapsed .sidebar-fab {
 
 .popup-actions {
   display: flex;
+  flex-direction: column;
   gap: 6px;
   margin-top: 10px;
   padding-top: 10px;
@@ -4350,6 +4351,13 @@ body.sidebar-collapsed .sidebar-fab {
      chips scrolling underneath showed straight through the buttons. */
   background: #121212;
   padding-bottom: calc(12px * var(--tm-scale, 1));
+}
+
+/* The two planner buttons share a line; anything else in the footer (the link to
+   the estación's page) takes its own. */
+.popup-actions-row {
+  display: flex;
+  gap: 6px;
 }
 
 .popup-plan-btn {
@@ -5125,17 +5133,10 @@ body.native-app .route-detail-close:active {
   margin-top: 4px;
 }
 
-/* The scroll cue and the vagón separators are painted with the popup's own
-   background; on the page the ground is the page's, so they are re-pointed at
-   it rather than left as pale seams over the wrong colour. */
-.station-plano .popup-plano {
-  background-image:
-    linear-gradient(to right, var(--bg-primary) 40%, rgba(12, 12, 12, 0)),
-    linear-gradient(to left, var(--bg-primary) 40%, rgba(12, 12, 12, 0)),
-    radial-gradient(farthest-side at 0 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0)),
-    radial-gradient(farthest-side at 100% 50%, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0));
-}
-
+/* The vagón separators are drawn in the popup's own background colour; on the
+   page the ground is the page's, so they are re-pointed at it rather than left
+   as pale seams over the wrong colour. (The scroll cue needs no such treatment:
+   it is a mask, not a painted gradient — see `.popup-plano`.) */
 .station-plano .pvg-plate {
   box-shadow: inset -2px 0 0 var(--bg-primary);
 }
@@ -5180,14 +5181,15 @@ body.native-app .route-detail-close:active {
 }
 
 /* ── The popup's link to this page ────────────────────────────────────────
-   Sits under the arrivals board, above the planner actions: the last thing in
-   the card is "there is more of this station than fits here". */
+   Rides in the popup's sticky footer, above the two planner buttons: a station
+   popup with a plan is taller than its scroller at every portal, so a link left
+   in the flow would sit below the fold on exactly the stations that most need a
+   page of their own. */
 .popup-page-link {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin-top: calc(10px * var(--tm-scale, 1));
   padding: calc(8px * var(--tm-scale, 1)) calc(10px * var(--tm-scale, 1));
   border: 1px solid var(--border-medium);
   border-radius: calc(var(--radius-sm) * var(--tm-scale, 1));

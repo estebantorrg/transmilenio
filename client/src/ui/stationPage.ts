@@ -24,7 +24,12 @@
 import { api, type StationDemand } from '../services/api';
 import { arrivalsSectionHtml, renderStopArrivals } from '../layers/arrivals';
 import { closeActivePopup } from '../layers/popup';
-import { buildStationWagonView, getStationPageData, type StationPageData } from '../layers/stations';
+import {
+  buildStationWagonView,
+  getStationPageData,
+  wirePlanoScroll,
+  type StationPageData,
+} from '../layers/stations';
 import { escapeHTML, safeColor } from '../utils/html';
 import { TRONCAL_COLORS } from '../utils/routeColors';
 import {
@@ -74,15 +79,59 @@ let openCode: string | null = null;
  * The ridership dataset, fetched at most once per session and shared with
  * whatever else asks. It is ~139 rows; refetching it per page open would put a
  * request on the 0.1-CPU instance for data that changes once a day (spec §5.8).
+ *
+ * The **window travels with the rows**. A ridership figure is a measurement of
+ * some days, and which days is part of the figure: the dataset is a rolling
+ * mean regenerated when the upstream Salidas window advances, so a page that
+ * printed the number alone was claiming a permanence it does not have.
  */
-let demandPromise: Promise<StationDemand[]> | null = null;
+interface DemandData {
+  stations: StationDemand[];
+  days: number;
+  window: { from: string; to: string } | null;
+}
 
-function loadDemand(): Promise<StationDemand[]> {
+let demandPromise: Promise<DemandData> | null = null;
+
+function loadDemand(): Promise<DemandData> {
   demandPromise ??= api
     .getStationDemand()
-    .then((res) => (res.success && res.stations ? res.stations : []))
-    .catch(() => []);
+    .then((res) => ({
+      stations: res.success && res.stations ? res.stations : [],
+      days: res.days ?? 0,
+      window: res.window ?? null,
+    }))
+    .catch(() => ({ stations: [], days: 0, window: null }));
   return demandPromise;
+}
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/**
+ * `20260813` → `13 ago 2026`.
+ *
+ * Parsed by parts, never through `new Date('2026-08-13')`: that is read as UTC
+ * midnight and printed in the reader's zone, so the same string renders as the
+ * 12th for anyone west of Greenwich — Bogotá included, which is the whole
+ * audience. These are dates, not instants.
+ */
+function demandDate(value: string | undefined): string {
+  const match = /^(\d{4})(\d{2})(\d{2})$/.exec(String(value ?? ''));
+  if (!match) return '';
+  const [, year, month, day] = match;
+  const name = MONTHS[Number(month) - 1];
+  return name ? `${Number(day)} ${name} ${year}` : '';
+}
+
+/** "de los 15 días hábiles entre el 23 jul 2026 y el 13 ago 2026", as far as
+ *  the dataset actually says — each clause is dropped when its field is absent
+ *  rather than filled with a guess. */
+function demandPeriod(data: DemandData): string {
+  const days = data.days > 0 ? `${data.days} días hábiles` : 'días hábiles';
+  const from = demandDate(data.window?.from);
+  const to = demandDate(data.window?.to);
+  if (!from || !to) return `Promedio de ${days}`;
+  return `Promedio de ${days} entre el ${from} y el ${to}`;
 }
 
 /**
@@ -109,10 +158,10 @@ function demandFor(station: StationPageData, rows: StationDemand[]): StationDema
  * loses the section entirely — an empty "Demanda" heading is a claim that the
  * station has no ridership, which is not what a missing row means.
  */
-function fillDemand(el: HTMLElement, station: StationPageData, rows: StationDemand[]): void {
+function fillDemand(el: HTMLElement, station: StationPageData, data: DemandData): void {
   const section = el.querySelector<HTMLElement>('.station-demand');
   if (!section) return;
-  const row = demandFor(station, rows);
+  const row = demandFor(station, data.stations);
   if (!row) {
     section.remove();
     return;
@@ -124,7 +173,7 @@ function fillDemand(el: HTMLElement, station: StationPageData, rows: StationDema
       { label: 'Entradas', value: nf.format(row.entradas) },
       { label: 'Salidas', value: nf.format(row.salidas) },
     ])}
-    <p class="page-note">Promedio de días hábiles, del dataset abierto de Salidas de TRANSMILENIO S.A. El puesto es sobre las 139 estaciones troncales.</p>
+    <p class="page-note">${escapeHTML(demandPeriod(data))}, del dataset abierto de Salidas de TRANSMILENIO S.A. El puesto es sobre las 139 estaciones troncales.</p>
   `;
 }
 
@@ -242,6 +291,10 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // shared renderer fills the first it finds (`layers/arrivals.ts`).
   closeActivePopup();
 
+  // Same plan, same affordance as in the popup: wheel, drag and edge fades
+  // instead of a native scrollbar under the drawing (§5.5.6).
+  wirePlanoScroll(el);
+
   // The live board is the one thing on this page that has to be asked for. It
   // fills the same `.popup-arrivals` slot the popup uses, and the popup is
   // closed while the page is up (`openStationPage`), so the shared renderer
@@ -287,10 +340,10 @@ function wire(el: HTMLElement, station: StationPageData): void {
     if (openTag(event.target)) event.preventDefault();
   });
 
-  void loadDemand().then((rows) => {
+  void loadDemand().then((data) => {
     // Only while this is still the page on screen: the reader may have followed
     // a service chip to a route page while the dataset was in flight.
-    if (openCode === station.code && el.isConnected) fillDemand(el, station, rows);
+    if (openCode === station.code && el.isConnected) fillDemand(el, station, data);
   });
 }
 
