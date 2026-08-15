@@ -128,14 +128,39 @@ function formatScheduleText(route: { horarios?: CatalogRoute['horarios'] }): str
   return route.horarios?.data?.map((h) => `${h.convencion} ${h.hora_inicio}-${h.hora_fin}`).join(' / ');
 }
 
-export function buildCatalogRouteList(catalog: MasterCatalog): RouteListItem[] {
+/** Slug of a código, matching the prerender's URL builder (`/ruta/<slug>/`). */
+function routeCodeSlug(code: string): string {
+  return String(code || '')
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * `onlyCode` restricts the build to a single código, for a visitor who arrived on
+ * `/ruta/<code>/` and needs *that* route before the rest of the network (§5.5.5):
+ * the full build walks every route in the catalog, and the page they came for
+ * does not depend on the other thousand. Matched on the URL slug, which is how
+ * the prerender spells a código in a path.
+ */
+export function buildCatalogRouteList(
+  catalog: MasterCatalog,
+  options: { onlyCode?: string } = {}
+): RouteListItem[] {
   const items: RouteListItem[] = [];
   if (!catalog.routes) return items;
 
   // Track seen route combinations to deduplicate. Key = baseCode|type|origin|dest
   const seen = new Map<string, number>();
 
-  for (const [code, variants] of Object.entries(catalog.routes)) {
+  const wanted = options.onlyCode ? routeCodeSlug(options.onlyCode) : null;
+  const entries = wanted
+    ? Object.entries(catalog.routes).filter(([code]) => routeCodeSlug(code) === wanted)
+    : Object.entries(catalog.routes);
+
+  for (const [code, variants] of entries) {
     for (const route of variants) {
       const service = `${route.sistema} ${route.tipoServicio}`.toUpperCase();
       const isAlimentador = service.includes('ALIMENTADOR');

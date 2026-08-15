@@ -26,7 +26,7 @@ import {
   updateZonalRoutes,
 } from './layers/routes';
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
-import { initRoutePage, openRoutePage, refreshRoutePage } from './ui/routePage';
+import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshRoutePage } from './ui/routePage';
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
@@ -42,6 +42,7 @@ import { planActionsHtml } from './layers/popupActions';
 import { escapeHTML, safeColor } from './utils/html';
 import {
   applyZonalStopEnrichment,
+  buildCatalogRouteList,
   buildRouteList,
   buildZonalStopGroups,
   dedupeStops,
@@ -639,6 +640,23 @@ async function main(): Promise<void> {
   // at the static copy on a free-tier instance (§5.5.6). The ArcGIS extras it
   // *can* use — WiFi, biciestación, the node id the ridership dataset is keyed
   // on — arrive later and are patched in by `refreshStationPage` below.
+  // Same for a route page (`/ruta/<code>/`, §5.5.5). It needs one route, not the
+  // network, so the catalog build is scoped to that código — the full list walks
+  // every route in the catalog and is the boot's own heaviest synchronous step.
+  // `setRoutes` selects the route from the same path once that list exists, and
+  // the enriched item is adopted then (`adoptRoutePage`), which is also what
+  // starts live tracking.
+  const deepRouteCode = parseRoutePathname();
+  if (deepRouteCode) {
+    void catalogPromise
+      .then((res) => {
+        if (!res.data?.routes) return;
+        const target = buildCatalogRouteList(res.data, { onlyCode: deepRouteCode })[0];
+        if (target) openRoutePage(target, { push: false });
+      })
+      .catch((error) => console.warn('[Deep link] Route page could not open early:', error));
+  }
+
   const deepStationCode = parseStationPathname();
   if (deepStationCode) {
     void catalogPromise
@@ -1194,16 +1212,18 @@ async function main(): Promise<void> {
   setRoutes(routeList);
   refreshLayerCounts();
 
-  // A visitor from a prerendered route page (`/ruta/<code>/`, spec §5.5.4) gets
-  // the interactive version of the page they landed on (§5.5.5). `setRoutes`
-  // has already selected the route from the same path, so the map behind is
-  // drawing it and live tracking is running — "Ver en el mapa" is a dismissal,
-  // not a load. `push: false` because the URL is already this page: pushing
-  // would wedge a duplicate entry in front of the Back that should leave.
-  const routePath = parseRoutePathname();
-  if (routePath) {
-    const target = routesWithCode(routePath)[0];
-    if (target) openRoutePage(target, { push: false });
+  // The page itself opened as soon as the catalog landed (above), on an item
+  // built for that código alone. Now that the merged list exists — ArcGIS
+  // geometry folded in, and `setRoutes` having selected the route from the same
+  // path, so the map behind is drawing it and live tracking is running — the
+  // page adopts the enriched item in place. `openRoutePage` still covers the
+  // case where the early build found nothing (a código only ArcGIS knows).
+  if (deepRouteCode) {
+    const target = routesWithCode(deepRouteCode)[0];
+    if (target) {
+      if (isRoutePageOpen()) adoptRoutePage(target);
+      else openRoutePage(target, { push: false });
+    }
   }
 
   // The estación page itself opened as soon as the catalog landed (above); what

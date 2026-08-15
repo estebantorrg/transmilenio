@@ -232,6 +232,19 @@ export function openRoutePage(route: RouteListItem, options: { push?: boolean } 
   openOverlayPage(descriptor(route), options);
 }
 
+/**
+ * Swaps the open page's route for the enriched list item describing the same
+ * path — a deep link opens on a catalog-only item built for that código alone
+ * (§5.5.5), and the merged item arrives with the rest of the network a few
+ * seconds later. Re-render rather than re-open, so a reader who has already
+ * scrolled into the paradas is not sent back to the top.
+ */
+export function adoptRoutePage(route: RouteListItem): void {
+  if (!isRoutePageOpen() || location.pathname !== routePagePath(route.code)) return;
+  openRoute = route;
+  refreshOverlayPage(descriptor(route));
+}
+
 function wire(el: HTMLElement, route: RouteListItem): void {
   // Tracked here, not in `openRoutePage`: the shell also opens this page
   // straight from a URL — an estación page's service chip, Back/Forward, a
