@@ -142,30 +142,42 @@ function render(route: RouteListItem): string {
     statTile('Operador', route.operator ? tidy(route.operator) : null);
 
   return `
-    <div class="route-page-inner" style="--route-accent:${badgeColor};">
-      <div class="route-page-bar">
+    <header class="route-page-bar">
+      <div class="route-page-bar-inner">
         <button class="route-page-back" type="button">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           <span>Ver en el mapa</span>
         </button>
-        <nav class="route-page-crumbs" aria-label="Ruta de navegación">
-          <a href="/">Inicio</a> <span aria-hidden="true">›</span> <span>Ruta ${escapeHTML(route.code)}</span>
-        </nav>
+        <!-- The site's own masthead, not a page-specific toolbar: same lockup as
+             the sidebar header, so this page reads as part of the app it covers. -->
+        <a class="route-page-brand" href="/" aria-label="Inicio — TransMilenio Explorer">
+          <img class="route-page-logo" src="/icon-192.png" alt="" width="34" height="34" />
+          <span class="route-page-brand-text">
+            <span class="route-page-brand-title">TransMilenio</span>
+            <span class="route-page-brand-sub">Explorer</span>
+          </span>
+        </a>
         <button class="route-page-share" type="button" aria-label="Copiar enlace a esta página" title="Copiar enlace a esta página">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <span>Copiar enlace</span>
         </button>
       </div>
+    </header>
+
+    <div class="route-page-inner" style="--route-accent:${badgeColor};">
+      <nav class="route-page-crumbs" aria-label="Ruta de navegación">
+        <a href="/">Inicio</a> <span aria-hidden="true">›</span> <span>Ruta ${escapeHTML(route.code)}</span>
+      </nav>
 
       <header class="route-page-hero">
         <div class="route-page-badge">${escapeHTML(route.code)}</div>
         <h1 class="route-page-h1">${escapeHTML(tidy(route.name) || route.code)}</h1>
-        <p class="route-page-kind">${escapeHTML(routeSystemLabel(route))}</p>
         <p class="route-page-trip">
           <span>${escapeHTML(tidy(route.origin))}</span>
           <span class="route-page-arrow" aria-hidden="true"></span>
           <span>${escapeHTML(tidy(route.destination))}</span>
         </p>
+        <p class="route-page-kind">${escapeHTML(routeSystemLabel(route))}</p>
       </header>
 
       ${ruteros ? `

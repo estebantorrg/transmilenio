@@ -4494,9 +4494,13 @@ body.native-app .route-detail-close:active {
 /* ══════════════════════════════════════════════════════════════════════════
    ROUTE PAGE (spec §5.5.5) — /ruta/<code>/
    A route's own page, rendered over the map. The map keeps the trace drawn
-   behind it, so leaving is a dismissal rather than a reload. The layout is
-   deliberately centred and card-based: this is a document about one route, not
-   a control panel beside a map, and it reads at any width.
+   behind it, so leaving is a dismissal rather than a reload.
+
+   It is a page, but it is a page *of this site*: it borrows the shell's own
+   parts rather than inventing a second visual language — the sidebar's brand
+   lockup and hairline for its masthead, the panel's badge, its uppercase
+   section titles, its `--bg-secondary` + `--border-card` boxes and its red
+   hover. Nothing here is centred or tinted differently from the app behind it.
    ══════════════════════════════════════════════════════════════════════════ */
 
 .route-page {
@@ -4507,11 +4511,9 @@ body.native-app .route-detail-close:active {
   z-index: 300;
   overflow-y: auto;
   overscroll-behavior: contain;
-  background:
-    radial-gradient(120% 60% at 50% 0%, rgba(56, 189, 248, 0.07), transparent 70%),
-    var(--bg-primary);
+  background: var(--bg-primary);
   color: var(--text-primary);
-  padding: 0 20px calc(56px + env(safe-area-inset-bottom, 0px));
+  padding: 0 0 calc(56px + env(safe-area-inset-bottom, 0px));
   /* Focus is moved here for screen readers on open; the ring would otherwise
      land on a container nobody clicked. */
   outline: none;
@@ -4520,71 +4522,124 @@ body.native-app .route-detail-close:active {
 .route-page-inner {
   max-width: 720px;
   margin: 0 auto;
+  padding: 0 20px;
 }
 
-/* Sticky, because the way out of a 60-parada page must be on screen wherever
-   the reader has got to — the same reason the prerendered panel's dismiss bar
-   is sticky. Three columns with the crumbs centred keeps it balanced. */
+/* ── Masthead ─────────────────────────────────────────────────────────────
+   The site's header, not a toolbar this page invented: the same brand lockup
+   and the same hairline the sidebar carries, over the same glass. Full-bleed
+   background with the content on the page's own column, so it reads as the top
+   of the site rather than the top of a card. Sticky, because the way out of a
+   60-parada page must be on screen wherever the reader has got to — the same
+   reason the prerendered panel's dismiss bar is sticky. */
 .route-page-bar {
   position: sticky;
   top: 0;
   z-index: 2;
+  background: rgba(12, 12, 12, 0.92);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.route-page-bar-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 10px 20px;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 12px;
-  margin: 0 -20px 4px;
-  padding: 14px 20px;
-  background: linear-gradient(var(--bg-primary) 72%, rgba(12, 12, 12, 0));
 }
 
+.route-page-brand {
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text-primary);
+}
+
+.route-page-logo {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.route-page-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.14;
+}
+
+.route-page-brand-title {
+  font-size: var(--font-size-sm);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.route-page-brand-sub {
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+/* The shell's action idiom (`.footer-action`): dark box, hairline, red on
+   hover. The page used to answer with a solid cyan pill, a fill that appears
+   nowhere else in the app. */
 .route-page-back,
 .route-page-share {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  font: inherit;
+  padding: 8px 13px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+  color: var(--text-primary);
+  font-family: var(--font-family);
   font-size: var(--font-size-sm);
   font-weight: 600;
-  border-radius: 999px;
-  padding: 8px 15px;
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition: all var(--transition-fast);
 }
 
 .route-page-back {
   justify-self: start;
-  color: var(--bg-primary);
-  background: var(--tm-blue);
-  border: 0;
-}
-
-.route-page-back:hover {
-  background: var(--tm-blue-light);
 }
 
 .route-page-share {
   justify-self: end;
   color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid var(--border-medium);
 }
 
+.route-page-back:hover,
 .route-page-share:hover {
   color: var(--text-primary);
-  background: var(--bg-hover);
+  border-color: var(--tm-red);
+  background: var(--bg-active);
 }
 
 .route-page-back:focus-visible,
-.route-page-share:focus-visible {
+.route-page-share:focus-visible,
+.route-page-brand:focus-visible {
   outline: 2px solid var(--tm-blue-light);
   outline-offset: 2px;
 }
 
 .route-page-crumbs {
+  padding: 14px 0 0;
   font-size: var(--font-size-xs);
   color: var(--text-tertiary);
   white-space: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.route-page-crumbs::-webkit-scrollbar {
+  display: none;
 }
 
 .route-page-crumbs a {
@@ -4597,56 +4652,49 @@ body.native-app .route-detail-close:active {
 }
 
 /* ── Hero ─────────────────────────────────────────────────────────────────
-   Centred on purpose: the código badge is the route identity and the trip line
-   under it is the one fact a rider checks first. `--route-accent` carries the
+   The sidebar's `.detail-header` at page scale: badge, name, trip, sistema,
+   all ranged left like every other surface here. `--route-accent` carries the
    route colour, set inline by the renderer. */
 .route-page-hero {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 8px;
-  padding: 18px 0 30px;
+  padding: 14px 0 22px;
 }
 
 .route-page-badge {
-  min-width: 76px;
-  padding: 10px 16px;
-  border-radius: var(--radius-lg);
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
   background: var(--route-accent, var(--tm-red));
   /* Rutas fáciles are officially black (`RUTA_FACIL_COLOR`), which on this
      page's own black is an invisible badge. The ring keeps the código a shape. */
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  box-shadow: 0 6px 22px -8px var(--route-accent, var(--tm-red));
-  font-size: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  font-size: var(--font-size-md);
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
   color: #fff;
 }
 
 .route-page-h1 {
-  font-size: 1.75rem;
+  font-size: var(--font-size-xl);
   font-weight: 700;
-  line-height: 1.15;
-  margin: 6px 0 0;
-}
-
-.route-page-kind {
-  margin: 0;
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  margin: 12px 0 0;
 }
 
 .route-page-trip {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
   gap: 10px;
-  margin: 6px 0 0;
+  margin: 8px 0 0;
   font-size: var(--font-size-base);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.route-page-kind {
+  margin: 6px 0 0;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
 }
 
@@ -4672,35 +4720,44 @@ body.native-app .route-detail-close:active {
 
 /* ── Cards ────────────────────────────────────────────────────────────────
    One treatment for every block on the page, so the rhythm down the page stays
-   even whichever sections a given route happens to have. */
+   even whichever sections a given route happens to have. Same surface and same
+   12 px corner as the sidebar itself; the boxes *inside* them (live card,
+   stat tiles) stay a step lighter, which is the panel's own relationship. */
 .route-page-card {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-xl);
-  padding: 20px;
-  margin-bottom: 16px;
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  margin-bottom: 12px;
 }
 
+/* The panel's `.detail-section-title`, verbatim — the site labels a block with
+   a small uppercase line, never with a bold sentence-case heading. */
 .route-page-h2 {
   display: flex;
   align-items: center;
-  gap: 9px;
-  font-size: var(--font-size-md);
-  font-weight: 700;
-  margin: 0 0 6px;
+  gap: 8px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  margin: 0 0 10px;
 }
 
+/* Matches `.route-list-count`, the same count-beside-a-title the panel uses. */
 .route-page-count {
   font-size: var(--font-size-xs);
   font-weight: 700;
+  letter-spacing: 0;
   color: var(--text-secondary);
-  background: var(--bg-hover);
-  border-radius: 999px;
-  padding: 3px 9px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 99px;
+  padding: 2px 8px;
 }
 
 .route-page-meta {
-  margin: 0 0 16px;
+  margin: 0 0 14px;
   font-size: var(--font-size-sm);
   color: var(--text-secondary);
   line-height: 1.5;
@@ -4718,35 +4775,39 @@ body.native-app .route-detail-close:active {
    Auto-fit rather than a fixed column count: routes carry different subsets of
    these facts (many have no operator, zonal ones no length), and a fixed grid
    would leave holes in the row. */
+/* The upper bound matters as much as the lower one: a zonal route carries two
+   of these facts, and a plain `1fr` stretched two tiles across the whole column
+   so "ZONAL" sat alone in a 340 px box. */
 .route-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 220px));
+  justify-content: start;
   gap: 10px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
+/* The shell's box: `--bg-secondary` on a `--border-card` hairline, the same
+   one the live card and the footer actions sit in. */
 .route-stat {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   gap: 4px;
-  text-align: center;
-  padding: 16px 10px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-subtle);
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
   border-radius: var(--radius-lg);
 }
 
 .route-stat-value {
-  font-size: 1.15rem;
+  font-size: var(--font-size-md);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.15;
 }
 
 .route-stat-label {
   font-size: var(--font-size-xs);
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-tertiary);
 }
@@ -4768,15 +4829,20 @@ body.native-app .route-detail-close:active {
   cursor: default;
 }
 
+/* Underlined by decoration, not by a border: a border-bottom on an inline box
+   lands on a device pixel or between two, so the same list drew a rule under
+   some stops and nothing under others. */
 .route-page .timeline-stop-name a {
   color: inherit;
-  text-decoration: none;
-  border-bottom: 1px solid var(--border-medium);
+  text-decoration: underline;
+  text-decoration-color: var(--border-medium);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
 }
 
 .route-page .timeline-stop-name a:hover {
   color: var(--tm-blue-light);
-  border-bottom-color: currentColor;
+  text-decoration-color: currentColor;
 }
 
 /* ── El rutero ────────────────────────────────────────────────────────────
@@ -4829,34 +4895,42 @@ body.route-page-open {
 
 @media (max-width: 560px) {
   .route-page {
-    padding: 0 14px calc(40px + env(safe-area-inset-bottom, 0px));
+    padding: 0 0 calc(40px + env(safe-area-inset-bottom, 0px));
   }
 
-  .route-page-bar {
-    margin: 0 -14px 4px;
-    padding: 10px 14px;
+  .route-page-inner {
+    padding: 0 14px;
   }
 
-  /* The crumbs are the first thing to go: the two actions have to stay
-     reachable, and the H1 below says where you are anyway. */
-  .route-page-crumbs {
+  .route-page-bar-inner {
+    padding: 8px 14px;
+  }
+
+  /* The wordmark is the first thing to go: the two actions have to stay
+     reachable, and the logo alone still says whose site this is. */
+  .route-page-brand-text,
+  .route-page-share span {
     display: none;
   }
 
   .route-page-hero {
-    padding: 10px 0 22px;
+    padding: 12px 0 18px;
   }
 
   .route-page-h1 {
-    font-size: 1.35rem;
+    font-size: var(--font-size-lg);
   }
 
   .route-page-card {
-    padding: 16px;
+    padding: 14px;
   }
 
-  .route-page-share span {
-    display: none;
+  /* `auto-fit` counts its repetitions off the *max* when that max is definite,
+     so the 220 px cap that keeps two stats from stretching on a wide page fits
+     only one tile per row on a phone. Here the column is narrow enough that
+     stretching is what we want anyway. */
+  .route-stats {
+    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   }
 }
 
