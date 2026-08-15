@@ -12,7 +12,6 @@ export declare const GLYPH_COLUMNS: number;
 export declare const GLYPH_ROWS: number;
 export declare const CHAR_ADVANCE: number;
 export declare const PANEL_CHARS: number;
-export declare const SIDE_PANEL_CHARS: number;
 export declare const PANEL_PAD_ROWS: number;
 export declare const PANEL_PAD_COLUMNS: number;
 
@@ -54,33 +53,9 @@ export interface RuteroOptions {
   label?: string;
 }
 
-/** The front sign as a self-contained SVG string (no external refs, no script). */
+/**
+ * The sign over the windscreen, as a self-contained SVG string (no external
+ * refs, no script). Front panel only — see `rutero.js` for why the side/rear
+ * one is deliberately not drawn.
+ */
 export declare function ruteroSvg(options: RuteroOptions): string;
-
-export interface RuteroSideLayout {
-  /** Character columns the panel ends up being. */
-  columns: number;
-  /** The código as the panel prints it. */
-  code: string;
-  /** Character column the código starts at — always centred. */
-  codeAt: number;
-}
-
-export declare function ruteroSideLayout(
-  code: string,
-  panelChars?: number
-): RuteroSideLayout;
-
-export interface RuteroSideOptions {
-  /** Route código, e.g. `F23`. The side panel shows nothing else. */
-  code: string;
-  /** Nominal panel width in characters; defaults to `SIDE_PANEL_CHARS`. */
-  panelChars?: number;
-  /** Unique suffix for the SVG's internal ids — one per sign on the page. */
-  uid?: string;
-  /** Overrides the generated `aria-label`. */
-  label?: string;
-}
-
-/** The side/rear sign — código only, centred — as a self-contained SVG. */
-export declare function ruteroSideSvg(options: RuteroSideOptions): string;

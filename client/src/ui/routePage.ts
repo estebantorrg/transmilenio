@@ -21,7 +21,7 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
-import { carriesRutero, ruteroSideSvg, ruteroSvg } from '../../../shared/rutero.js';
+import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import {
   formatSchedule,
   parseRoutePathname,
@@ -93,9 +93,9 @@ function hasRutero(route: RouteListItem): boolean {
 }
 
 /**
- * The two signs this route's bus carries, drawn as the bus wears them.
+ * The sign this route's bus carries over its windscreen.
  *
- * **One route, one pair.** The page used to gather every sibling filed under the
+ * **One route, one sign.** The page used to gather every sibling filed under the
  * same código and draw a sign for each. That was wrong twice over: the catalog's
  * list items are not a clean partition by código, so a page could end up showing
  * another service's sign and another service's paradas beside its own; and even
@@ -104,29 +104,17 @@ function hasRutero(route: RouteListItem): boolean {
  * chose, and nothing here infers a second one.
  */
 function ruteroBlock(route: RouteListItem): string {
-  const uid = route.id.replace(/[^A-Za-z0-9]/g, '');
-  const front = ruteroSvg({
+  const sign = ruteroSvg({
     code: route.code,
     destination: route.destination,
-    uid: `${uid}-f`,
-    label: `Rutero frontal de la ruta ${route.code} hacia ${tidy(route.destination)}`,
-  });
-  const side = ruteroSideSvg({
-    code: route.code,
-    uid: `${uid}-s`,
-    label: `Rutero lateral de la ruta ${route.code}`,
+    uid: route.id.replace(/[^A-Za-z0-9]/g, ''),
+    label: `Rutero de la ruta ${route.code} hacia ${tidy(route.destination)}`,
   });
   return `
-    <div class="rutero-set">
-      <figure class="rutero rutero-front">
-        <figcaption class="rutero-caption">Frontal · hacia ${escapeHTML(tidy(route.destination))}</figcaption>
-        <div class="rutero-frame">${front}</div>
-      </figure>
-      <figure class="rutero rutero-side">
-        <figcaption class="rutero-caption">Lateral y posterior</figcaption>
-        <div class="rutero-frame">${side}</div>
-      </figure>
-    </div>
+    <figure class="rutero">
+      <figcaption class="rutero-caption">Hacia ${escapeHTML(tidy(route.destination))}</figcaption>
+      <div class="rutero-frame">${sign}</div>
+    </figure>
   `;
 }
 
@@ -183,7 +171,7 @@ function render(route: RouteListItem): string {
       ${ruteros ? `
       <section class="route-page-card route-page-rutero-card" aria-labelledby="rutero-h">
         <h2 class="route-page-h2" id="rutero-h">Rutero</h2>
-        <p class="route-page-meta">Los letreros LED que lleva el bus: el frontal sobre el parabrisas y el lateral junto a la puerta.</p>
+        <p class="route-page-meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas.</p>
         ${ruteros}
       </section>` : ''}
 

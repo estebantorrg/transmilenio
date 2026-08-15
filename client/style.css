@@ -4780,17 +4780,9 @@ body.native-app .route-detail-close:active {
 }
 
 /* ── El rutero ────────────────────────────────────────────────────────────
-   The two LED signs the bus carries. Both are centred and share one frame
-   treatment — the bus's own black bezel — so the pair reads as one object seen
-   from two sides. Each sign is a dot grid (shared/rutero.js), never text in a
-   font, so it must scale as one image and can never reflow. */
-.rutero-set {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 18px;
-}
-
+   The LED sign over the windscreen, in the bus's own black bezel. It is a dot
+   grid (shared/rutero.js), never text in a font, so it must scale as one image
+   and can never reflow. */
 .rutero {
   margin: 0;
   width: 100%;
@@ -4798,12 +4790,6 @@ body.native-app .route-detail-close:active {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-}
-
-.rutero-side {
-  /* A código on a 6-character panel: held to a width where the LEDs stay
-     discrete instead of stretching to the full card. */
-  max-width: 190px;
 }
 
 .rutero-frame {

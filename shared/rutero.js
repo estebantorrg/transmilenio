@@ -97,8 +97,6 @@ export const GLYPH_ROWS = 11;
 export const CHAR_ADVANCE = GLYPH_COLUMNS + 1;
 /** Characters a real panel fits before it has to be widened. */
 export const PANEL_CHARS = 20;
-/** Nominal width of the side/rear panel, which only ever shows a código. */
-export const SIDE_PANEL_CHARS = 6;
 /** Dark dot rows above and below the text, as the panels show them. */
 export const PANEL_PAD_ROWS = 1;
 /** Dark dot columns at each end of the panel. */
@@ -325,7 +323,15 @@ function dotsPath(dots) {
 }
 
 /**
- * Draws one panel of `columns` characters from a set of text placements.
+ * The rutero — the sign over the windscreen — as a self-contained SVG string.
+ *
+ * Front panel only. A side/rear panel was drawn here for a while, from the
+ * manual's rule that it carries the código alone, always centred
+ * (`ManualDeIdentidad.pdf` p. 49). It was removed: **the side signs are not one
+ * thing.** Different buses in the fleet carry visibly different ones, so any
+ * single drawing of "the" lateral rutero asserts something about a bus that
+ * isn't true — the certainty violation priority 1 exists to prevent. The front
+ * panel is consistent enough across the fleet to draw; that one is not.
  *
  * Both the bloom and the LED cores are single `<path>`s, and the *unlit* grid is
  * a one-tile `<pattern>`. Two-dot strokes put ~720 lit LEDs on a full panel, and
@@ -337,17 +343,21 @@ function dotsPath(dots) {
  * bounding box, not each dot, and at the sizes this renders the falloff is not
  * separable from a flat halo anyway.
  *
- * @param {Array<[string, number]>} placements
- * @param {number} columns
- * @param {string} uid
- * @param {string} label
+ * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string }} options
  * @returns {string}
  */
-function renderPanel(placements, columns, uid, label) {
-  const safeUid = String(uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
-  const width = columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
+export function ruteroSvg(options) {
+  const layout = ruteroLayout(options.code, options.destination, options.panelChars);
+  const label =
+    options.label ||
+    `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`;
+  const safeUid = String(options.uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
+  const width = layout.columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
   const height = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
-  const dots = litDots(placements);
+  const dots = litDots([
+    [layout.code, layout.codeAt],
+    [layout.destination, layout.destinationAt],
+  ]);
 
   return (
     `<svg class="rutero-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" ` +
@@ -368,64 +378,5 @@ function renderPanel(placements, columns, uid, label) {
     `<use href="#rt-l-${safeUid}" stroke="#e9f6ff" stroke-width=".66"/>` +
     '</g>' +
     '</svg>'
-  );
-}
-
-/**
- * The **front** rutero — código and destination — as a self-contained SVG string.
- *
- * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string }} options
- * @returns {string}
- */
-export function ruteroSvg(options) {
-  const layout = ruteroLayout(options.code, options.destination, options.panelChars);
-  const label =
-    options.label ||
-    `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`;
-  return renderPanel(
-    [
-      [layout.code, layout.codeAt],
-      [layout.destination, layout.destinationAt],
-    ],
-    layout.columns,
-    options.uid || 'rutero',
-    label
-  );
-}
-
-/**
- * Where the código lands on a **side/rear** panel, in character columns.
- *
- * The manual is unusually specific about this one (`ManualDeIdentidad.pdf`
- * p. 49, "Rutero Electrónico Lateral y Posterior", spec §5.5.5): these panels
- * carry *only* the service's nomenclatura, shown complete and **"siempre
- * centrada"**, with origin and destination expressly forbidden — the illustrated
- * "no permitido" is a side panel reading "Usme". So this is not the front sign
- * with the destination dropped; it is a different sign, centred rather than
- * flush left, and narrow because a código is all it ever shows.
- *
- * @param {string} code
- * @param {number} [panelChars]
- * @returns {{ columns: number, code: string, codeAt: number }}
- */
-export function ruteroSideLayout(code, panelChars = SIDE_PANEL_CHARS) {
-  const c = normalizeRuteroText(code);
-  const columns = Math.max(panelChars, c.length + 2);
-  return { columns, code: c, codeAt: Math.round((columns - c.length) / 2) };
-}
-
-/**
- * The **side/rear** rutero — código only, centred — as a self-contained SVG.
- *
- * @param {{ code: string, panelChars?: number, uid?: string, label?: string }} options
- * @returns {string}
- */
-export function ruteroSideSvg(options) {
-  const layout = ruteroSideLayout(options.code, options.panelChars);
-  return renderPanel(
-    [[layout.code, layout.codeAt]],
-    layout.columns,
-    options.uid || 'rutero-side',
-    options.label || `Rutero lateral: ${layout.code}`
   );
 }

@@ -32,7 +32,7 @@ import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor } from './services/route_colors.js';
-import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSideSvg, ruteroSvg } from '../../shared/rutero.js';
+import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 
@@ -354,7 +354,6 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
    this panel ships before any stylesheet of ours is guaranteed to have loaded,
    and the four rules are the frame, not the drawing. */
 #seo-prerender .rutero{margin:0 0 18px}
-#seo-prerender .rutero-side{max-width:190px}
 #seo-prerender .rutero-frame{border-radius:8px;padding:5px;overflow:hidden;
 background:linear-gradient(180deg,#23262b,#0d0f12);
 box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 8px 22px rgba(0,0,0,.55)}
@@ -461,35 +460,20 @@ ${items}
       Math.max(max, ruteroLayout(codigo, tidy(variant.destination) || tidy(variant.nombre)).columns),
     PANEL_CHARS
   );
-  const frontSigns = signVariants
+  const ruteros = signVariants
         .map(
           (variant, i) => `<figure class="rutero">
-<figcaption>Frontal &middot; hacia ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
+<figcaption>Hacia ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
 <div class="rutero-frame">${ruteroSvg({
             code: codigo,
             destination: tidy(variant.destination) || tidy(variant.nombre),
             panelChars,
             uid: `${slugify(codigo)}-${i}`,
-            label: `Rutero frontal de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
+            label: `Rutero de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
           })}</div>
 </figure>`
         )
         .join('\n');
-  // Exactly one side panel, however many sentidos the código has: it shows the
-  // código and nothing else, so it is the same sign whichever way the bus points
-  // (`ManualDeIdentidad.pdf` p. 49 — "únicamente… la nomenclatura del servicio",
-  // "siempre centrada", origin and destination expressly forbidden).
-  const sideSign = signVariants.length
-    ? `<figure class="rutero rutero-side">
-<figcaption>Lateral y posterior</figcaption>
-<div class="rutero-frame">${ruteroSideSvg({
-        code: codigo,
-        uid: `${slugify(codigo)}-side`,
-        label: `Rutero lateral de la ruta ${codigo}`,
-      })}</div>
-</figure>`
-    : '';
-  const ruteros = frontSigns + (sideSign ? `\n${sideSign}` : '');
 
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender"><div class="wrap">
@@ -497,7 +481,7 @@ ${breadcrumbHtml(trail)}
 <h1>Ruta ${escapeHtml(codigo)} · ${escapeHtml(name)}</h1>
 <p class="sub">Servicio troncal de TransMilenio en Bogotá. Recorrido, paradas y horarios en ambos sentidos.</p>
 ${ruteros ? `<h2>Rutero</h2>
-<p class="meta">Los letreros LED que lleva el bus: el frontal sobre el parabrisas y el lateral junto a la puerta.</p>
+<p class="meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas, un sentido por letrero.</p>
 ${ruteros}` : ''}
 ${directions}
 </div></main>`;
