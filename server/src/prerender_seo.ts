@@ -32,7 +32,7 @@ import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor } from './services/route_colors.js';
-import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
+import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSideSvg, ruteroSvg } from '../../shared/rutero.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 
@@ -353,12 +353,14 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
    never reflow into text. Duplicated from the app's stylesheet on purpose —
    this panel ships before any stylesheet of ours is guaranteed to have loaded,
    and the four rules are the frame, not the drawing. */
-#seo-prerender .rutero{margin:0 0 14px}
-#seo-prerender .rutero-frame{border-radius:7px;padding:5px;overflow:hidden;
+#seo-prerender .rutero{margin:0 0 18px}
+#seo-prerender .rutero-side{max-width:190px}
+#seo-prerender .rutero-frame{border-radius:8px;padding:5px;overflow:hidden;
 background:linear-gradient(180deg,#23262b,#0d0f12);
-box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 6px 18px rgba(0,0,0,.55)}
+box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 8px 22px rgba(0,0,0,.55)}
 #seo-prerender .rutero-svg{display:block;width:100%;height:auto;border-radius:3px}
-#seo-prerender .rutero figcaption{margin-top:7px;font-size:.8rem;color:rgba(255,255,255,.45)}
+#seo-prerender .rutero figcaption{margin:0 0 7px;font-size:.72rem;letter-spacing:.06em;
+text-transform:uppercase;color:rgba(255,255,255,.45)}
 #seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;font-size:.82rem;margin-right:8px}
 #seo-prerender nav{font-size:.85rem;margin-bottom:18px;color:rgba(255,255,255,.45)}
 /* Injected by the client once the map is live (revealPrerenderedPanel in
@@ -459,20 +461,35 @@ ${items}
       Math.max(max, ruteroLayout(codigo, tidy(variant.destination) || tidy(variant.nombre)).columns),
     PANEL_CHARS
   );
-  const ruteros = signVariants
+  const frontSigns = signVariants
         .map(
           (variant, i) => `<figure class="rutero">
+<figcaption>Frontal &middot; hacia ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
 <div class="rutero-frame">${ruteroSvg({
             code: codigo,
             destination: tidy(variant.destination) || tidy(variant.nombre),
             panelChars,
             uid: `${slugify(codigo)}-${i}`,
-            label: `Rutero de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
+            label: `Rutero frontal de la ruta ${codigo} hacia ${tidy(variant.destination)}`,
           })}</div>
-<figcaption>Sentido ${escapeHtml(tidy(variant.origin) || '?')} &rarr; ${escapeHtml(tidy(variant.destination) || '?')}</figcaption>
 </figure>`
         )
         .join('\n');
+  // Exactly one side panel, however many sentidos the código has: it shows the
+  // código and nothing else, so it is the same sign whichever way the bus points
+  // (`ManualDeIdentidad.pdf` p. 49 — "únicamente… la nomenclatura del servicio",
+  // "siempre centrada", origin and destination expressly forbidden).
+  const sideSign = signVariants.length
+    ? `<figure class="rutero rutero-side">
+<figcaption>Lateral y posterior</figcaption>
+<div class="rutero-frame">${ruteroSideSvg({
+        code: codigo,
+        uid: `${slugify(codigo)}-side`,
+        label: `Rutero lateral de la ruta ${codigo}`,
+      })}</div>
+</figure>`
+    : '';
+  const ruteros = frontSigns + (sideSign ? `\n${sideSign}` : '');
 
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender"><div class="wrap">
@@ -480,7 +497,7 @@ ${breadcrumbHtml(trail)}
 <h1>Ruta ${escapeHtml(codigo)} · ${escapeHtml(name)}</h1>
 <p class="sub">Servicio troncal de TransMilenio en Bogotá. Recorrido, paradas y horarios en ambos sentidos.</p>
 ${ruteros ? `<h2>Rutero</h2>
-<p class="meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas, un sentido por letrero.</p>
+<p class="meta">Los letreros LED que lleva el bus: el frontal sobre el parabrisas y el lateral junto a la puerta.</p>
 ${ruteros}` : ''}
 ${directions}
 </div></main>`;

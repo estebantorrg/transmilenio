@@ -21,7 +21,7 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
-import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../../shared/rutero.js';
+import { carriesRutero, ruteroSideSvg, ruteroSvg } from '../../../shared/rutero.js';
 import {
   formatSchedule,
   parseRoutePathname,
@@ -93,125 +93,118 @@ function hasRutero(route: RouteListItem): boolean {
 }
 
 /**
- * Both sentidos of a código, the selected one first so it reads as "this bus".
+ * The two signs this route's bus carries, drawn as the bus wears them.
  *
- * Siblings are narrowed to the same network: a código can exist in both at once
- * — `7` is a ruta fácil *and* a zonal service — and listing the zonal one's
- * paradas under a troncal page would describe a bus that never runs that way.
+ * **One route, one pair.** The page used to gather every sibling filed under the
+ * same código and draw a sign for each. That was wrong twice over: the catalog's
+ * list items are not a clean partition by código, so a page could end up showing
+ * another service's sign and another service's paradas beside its own; and even
+ * where the siblings were genuinely the two sentidos, a page reached *from* one
+ * direction is about that direction. The route on screen is the route the reader
+ * chose, and nothing here infers a second one.
  */
-function directionsOf(route: RouteListItem): RouteListItem[] {
-  const siblings = routesWithCode(route.code).filter(
-    (r) => r.id !== route.id && r.type === route.type
-  );
-  return [route, ...siblings];
-}
-
-/**
- * One panel width for every sign on the page.
- *
- * A real rutero is a fixed piece of hardware — the same number of LEDs whichever
- * way the bus is pointing. Letting each direction size its own panel drew ruta 1
- * with a tall "UNIVERSIDADES CITYU" above a visibly smaller "PORTAL EL DORADO
- * C.C NUESTRO BOGOTA", which reads as two different buses.
- */
-function sharedPanelChars(variants: RouteListItem[]): number {
-  return variants.reduce(
-    (max, v) => Math.max(max, ruteroLayout(v.code, v.destination).columns),
-    PANEL_CHARS
-  );
-}
-
-function ruteroBlock(route: RouteListItem, index: number, panelChars: number): string {
-  const sign = ruteroSvg({
+function ruteroBlock(route: RouteListItem): string {
+  const uid = route.id.replace(/[^A-Za-z0-9]/g, '');
+  const front = ruteroSvg({
     code: route.code,
     destination: route.destination,
-    panelChars,
-    uid: `${route.id.replace(/[^A-Za-z0-9]/g, '')}-${index}`,
-    label: `Rutero de la ruta ${route.code} hacia ${route.destination}`,
+    uid: `${uid}-f`,
+    label: `Rutero frontal de la ruta ${route.code} hacia ${tidy(route.destination)}`,
+  });
+  const side = ruteroSideSvg({
+    code: route.code,
+    uid: `${uid}-s`,
+    label: `Rutero lateral de la ruta ${route.code}`,
   });
   return `
-    <figure class="rutero">
-      <div class="rutero-frame">${sign}</div>
-      <figcaption class="rutero-caption">
-        <span class="rutero-sentido">Sentido ${escapeHTML(tidy(route.origin))} → ${escapeHTML(tidy(route.destination))}</span>
-      </figcaption>
-    </figure>
+    <div class="rutero-set">
+      <figure class="rutero rutero-front">
+        <figcaption class="rutero-caption">Frontal · hacia ${escapeHTML(tidy(route.destination))}</figcaption>
+        <div class="rutero-frame">${front}</div>
+      </figure>
+      <figure class="rutero rutero-side">
+        <figcaption class="rutero-caption">Lateral y posterior</figcaption>
+        <div class="rutero-frame">${side}</div>
+      </figure>
+    </div>
   `;
 }
 
-function directionSection(route: RouteListItem, index: number): string {
-  const count = route.stops?.length ?? 0;
+/** A stat tile, or nothing when the route has no value for it. */
+function statTile(label: string, value: string | null): string {
+  if (!value) return '';
   return `
-    <section class="route-page-section" aria-labelledby="dir-${index}">
-      <h2 class="route-page-h2" id="dir-${index}">${escapeHTML(tidy(route.origin))} → ${escapeHTML(tidy(route.destination))}</h2>
-      <p class="route-page-meta">${count} ${count === 1 ? 'parada' : 'paradas'}</p>
-      ${renderStopsTimeline(route, { linkStations: true })}
-    </section>
+    <div class="route-stat">
+      <span class="route-stat-value">${escapeHTML(value)}</span>
+      <span class="route-stat-label">${escapeHTML(label)}</span>
+    </div>
   `;
 }
 
 function render(route: RouteListItem): string {
   const badgeColor = safeColor(getRouteAccentColor(route));
-  const directions = directionsOf(route);
   const scheduleHtml = formatSchedule(route);
-  const signs = directions.filter(hasRutero);
-  const panelChars = sharedPanelChars(signs);
-  const ruteros = signs.map((variant, i) => ruteroBlock(variant, i, panelChars)).join('');
+  const ruteros = hasRutero(route) ? ruteroBlock(route) : '';
+  const stopCount = route.stops?.length ?? 0;
+
+  const stats =
+    statTile('Paradas', stopCount ? String(stopCount) : null) +
+    statTile('Longitud', route.length ? `${route.length.toFixed(1)} km` : null) +
+    statTile('Servicio', routeTypeLabel(route)) +
+    statTile('Operador', route.operator ? tidy(route.operator) : null);
 
   return `
-    <div class="route-page-inner">
+    <div class="route-page-inner" style="--route-accent:${badgeColor};">
       <div class="route-page-bar">
         <button class="route-page-back" type="button">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           <span>Ver en el mapa</span>
         </button>
+        <nav class="route-page-crumbs" aria-label="Ruta de navegación">
+          <a href="/">Inicio</a> <span aria-hidden="true">›</span> <span>Ruta ${escapeHTML(route.code)}</span>
+        </nav>
         <button class="route-page-share" type="button" aria-label="Copiar enlace a esta página" title="Copiar enlace a esta página">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
           <span>Copiar enlace</span>
         </button>
       </div>
 
-      <nav class="route-page-crumbs" aria-label="Ruta de navegación">
-        <a href="/">Inicio</a> › <span>Ruta ${escapeHTML(route.code)}</span>
-      </nav>
-
-      <header class="route-page-header">
-        <div class="route-page-badge" style="background:${badgeColor};">${escapeHTML(route.code)}</div>
-        <div class="route-page-titles">
-          <h1 class="route-page-h1">${escapeHTML(tidy(route.name) || route.code)}</h1>
-          <p class="route-page-kind">${escapeHTML(routeSystemLabel(route))}${route.subType === 'dual' ? ` · ${escapeHTML(routeTypeLabel(route))}` : ''}</p>
-        </div>
+      <header class="route-page-hero">
+        <div class="route-page-badge">${escapeHTML(route.code)}</div>
+        <h1 class="route-page-h1">${escapeHTML(tidy(route.name) || route.code)}</h1>
+        <p class="route-page-kind">${escapeHTML(routeSystemLabel(route))}</p>
+        <p class="route-page-trip">
+          <span>${escapeHTML(tidy(route.origin))}</span>
+          <span class="route-page-arrow" aria-hidden="true"></span>
+          <span>${escapeHTML(tidy(route.destination))}</span>
+        </p>
       </header>
 
       ${ruteros ? `
-      <section class="route-page-section route-page-rutero-section" aria-labelledby="rutero-h">
+      <section class="route-page-card route-page-rutero-card" aria-labelledby="rutero-h">
         <h2 class="route-page-h2" id="rutero-h">Rutero</h2>
-        <p class="route-page-meta">Tal como se ve en el bus: el letrero LED sobre el parabrisas, un sentido por letrero.</p>
+        <p class="route-page-meta">Los letreros LED que lleva el bus: el frontal sobre el parabrisas y el lateral junto a la puerta.</p>
         ${ruteros}
       </section>` : ''}
 
-      <section class="route-page-section" aria-labelledby="live-h">
+      ${stats ? `<div class="route-stats">${stats}</div>` : ''}
+
+      <section class="route-page-card" aria-labelledby="live-h">
         <h2 class="route-page-h2" id="live-h">En vivo</h2>
         ${renderLiveCard()}
       </section>
 
-      <section class="route-page-section" aria-labelledby="detalles-h">
-        <h2 class="route-page-h2" id="detalles-h">Detalles</h2>
-        ${route.busType ? `<div class="detail-row"><span class="detail-row-label">Tipo de bus</span><span class="detail-row-value">${escapeHTML(route.busType)}</span></div>` : ''}
-        ${route.operator ? `<div class="detail-row"><span class="detail-row-label">Operador</span><span class="detail-row-value">${escapeHTML(route.operator)}</span></div>` : ''}
-        ${route.length ? `<div class="detail-row"><span class="detail-row-label">Longitud</span><span class="detail-row-value">${route.length.toFixed(1)} km</span></div>` : ''}
-        <div class="detail-row"><span class="detail-row-label">Sistema</span><span class="detail-row-value">${escapeHTML(routeSystemLabel(route))}</span></div>
-        <div class="detail-row"><span class="detail-row-label">Sentidos</span><span class="detail-row-value">${directions.length}</span></div>
-      </section>
-
       ${scheduleHtml ? `
-      <section class="route-page-section" aria-labelledby="horario-h">
+      <section class="route-page-card" aria-labelledby="horario-h">
         <h2 class="route-page-h2" id="horario-h">Horario</h2>
         ${renderServiceStatus(route)}
         ${scheduleHtml}
       </section>` : ''}
 
-      ${directions.map((variant, i) => directionSection(variant, i)).join('')}
+      <section class="route-page-card" aria-labelledby="paradas-h">
+        <h2 class="route-page-h2" id="paradas-h">Paradas${stopCount ? ` <span class="route-page-count">${stopCount}</span>` : ''}</h2>
+        ${renderStopsTimeline(route, { linkStations: true })}
+      </section>
     </div>
   `;
 }
