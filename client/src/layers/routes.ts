@@ -147,8 +147,9 @@ export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): Tron
 
 // ─── Corridor gaps (a trunk ArcGIS has not surveyed yet) ───
 
-/** A corridor point this far from the rider's trace counts as "already drawn". */
-const CORRIDOR_COVERED_M = 80;
+/** How far the patch runs into the surveyed corridor before ending, so the two
+ *  lines meet instead of leaving the segment between them undrawn. */
+const CORRIDOR_OVERLAP_M = 150;
 /** Grid cell for the covered-point index, in degrees (~110 m at Bogotá's latitude). */
 const CORRIDOR_CELL_DEG = 0.001;
 /**
@@ -197,21 +198,37 @@ function pathMeters(path: number[][]): number {
  * the whole trace would lay a second, differently-coloured line on top of it.
  *
  * Each kept run is emitted under the ROUTE's own letter, so the new stretch is
- * drawn and labelled in that trunk's colour (`Z` = amber, spec §5.4.3) rather than
- * inheriting the colour of whichever corridor it happens to touch.
+ * drawn and labelled in that trunk's colour (spec §5.4.3) rather than inheriting
+ * the colour of whichever corridor it happens to touch — which, for the `Z…`
+ * services, is the same Américas red they share with `F…`.
  */
+export interface CorridorGapPatch {
+  features: TroncalCorridorFeature[];
+  /**
+   * The route códigos the patch was drawn from.
+   *
+   * The boot pass runs on the light catalog's simplified traces (§5.1.4 caps a
+   * variant at 320 points, and Z63 arrives with 53), which is coarse enough to
+   * cut a corner on a 700 m straight. The caller re-fetches these routes' full
+   * `trazado` and calls again with them, so the corridor settles onto the road
+   * a moment after it appears rather than boot paying for two extra requests.
+   */
+  codes: string[];
+}
+
 export function corridorGapFeatures(
   troncalRoutes: RouteListItem[],
   surveyed: TroncalCorridorFeature[],
-  stations: TroncalStationFeature[]
-): TroncalCorridorFeature[] {
+  stations: TroncalStationFeature[],
+  fullTraces?: Map<string, number[][][]>
+): CorridorGapPatch {
   const covered = new Set<string>();
   for (const corridor of surveyed) {
     for (const path of corridor.geometry?.paths ?? []) {
       for (const [lng, lat] of path) covered.add(cellKey(lng, lat));
     }
   }
-  if (covered.size === 0) return [];
+  if (covered.size === 0) return { features: [], codes: [] };
 
   const isCovered = (point: number[]): boolean => {
     const [lng, lat] = point;
@@ -234,12 +251,15 @@ export function corridorGapFeatures(
   const orphanStations = stations
     .map((station) => [Number(station.attributes.longitud_estacion), Number(station.attributes.latitud_estacion)])
     .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat) && !isCovered([lng, lat]));
-  if (orphanStations.length === 0) return [];
+  if (orphanStations.length === 0) return { features: [], codes: [] };
 
   const servesOrphanStation = (run: number[][]): boolean =>
     orphanStations.some((station) => run.some((point) => metersBetween(point, station) <= ORPHAN_STATION_M));
 
   const gapsByLetter = new Map<string, number[][][]>();
+  // Per letter, because the letters are filtered below and only the survivors'
+  // routes are worth re-fetching at full resolution.
+  const codesByLetter = new Map<string, string[]>();
   for (const route of troncalRoutes) {
     const letter = getTroncalLetter(route.code);
     if (!letter || letter === 'RF' || !(letter in TRONCAL_COLORS)) continue;
@@ -247,32 +267,42 @@ export function corridorGapFeatures(
     // Every uncovered stretch of this route, before deciding whether the route
     // belongs to the new trunk at all.
     const runs: number[][][] = [];
-    for (const path of route.geometry?.paths ?? []) {
+    // The caller's full-resolution trace when it has fetched one, else the light
+    // catalog's simplified geometry the boot pass runs on.
+    for (const path of fullTraces?.get(route.code) ?? route.geometry?.paths ?? []) {
       let run: number[][] = [];
       let previous: number[] | null = null;
-      const flush = (boundary: number[] | null): void => {
-        // Close the run onto the surveyed network by carrying the neighbouring
-        // COVERED vertex into it. Without this the patch starts at the first
-        // uncovered vertex and the segment leading to it is drawn by nobody — a
-        // hole exactly as wide as the trace's vertex spacing, which on the light
-        // catalog's simplified geometry is ~700 m at this junction. One segment
-        // of overlap is invisible (the two lines share a colour and a casing);
-        // a gap in the middle of a corridor is not.
-        if (boundary && run.length > 0) run.push(boundary);
+      /** Metres of already-covered trace carried at the end of the open run. */
+      let overlap = 0;
+      const flush = (): void => {
         if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS) runs.push(run);
         run = [];
+        overlap = 0;
       };
       for (const point of path) {
         if (!Array.isArray(point) || point.length < 2) continue;
         if (isCovered(point)) {
-          flush(point);
+          // Run the patch a little way INTO the surveyed corridor before ending
+          // it. Stopping at the last uncovered vertex leaves the segment between
+          // the two lines drawn by nobody — a hole as wide as the trace's vertex
+          // spacing, which is ~700 m on the light catalog's simplified geometry
+          // and still 40 m on the full one. The overlap is invisible (the two
+          // lines share a colour and a casing); a break in a corridor is not.
+          if (run.length > 0) {
+            overlap += metersBetween(run[run.length - 1], point);
+            run.push(point);
+            if (overlap >= CORRIDOR_OVERLAP_M) flush();
+          }
         } else {
+          // Back in the gap: whatever was carried is simply part of the run —
+          // this is a trace brushing past another trunk, not the end of one.
+          overlap = 0;
           if (run.length === 0 && previous) run.push(previous);
           run.push(point);
         }
         previous = point;
       }
-      flush(null);
+      flush();
     }
 
     // The route qualifies as a whole, and then ALL of its uncovered stretches are
@@ -283,6 +313,19 @@ export function corridorGapFeatures(
     // has no station of its own to qualify with. A corridor with a kilometre
     // missing out of its middle is not a corridor.
     if (!runs.some(servesOrphanStation)) continue;
+    // A run that both starts and ends inside the surveyed network, and reaches
+    // none of the new stations, is the route stepping off the centreline for a
+    // block — a service road, a station approach — not an extension of the
+    // corridor. It would be drawn on top of the line it just left.
+    const extensions = runs.filter(
+      (run) => servesOrphanStation(run) || !isCovered(run[0]) || !isCovered(run[run.length - 1])
+    );
+    if (extensions.length === 0) continue;
+    runs.length = 0;
+    runs.push(...extensions);
+    const letterCodes = codesByLetter.get(letter);
+    if (letterCodes) letterCodes.push(route.code);
+    else codesByLetter.set(letter, [route.code]);
     const existing = gapsByLetter.get(letter);
     if (existing) existing.push(...runs);
     else gapsByLetter.set(letter, runs);
@@ -307,7 +350,7 @@ export function corridorGapFeatures(
   }
 
   let objectid = 10_000; // well clear of the ArcGIS ids this is appended to
-  return Array.from(gapsByLetter, ([letter, paths]) => ({
+  const features = Array.from(gapsByLetter, ([letter, paths]) => ({
     attributes: {
       objectid: objectid++,
       id_trazado: `gap-${letter}`,
@@ -320,6 +363,8 @@ export function corridorGapFeatures(
     },
     geometry: { paths },
   }));
+  const codes = Array.from(new Set(Array.from(gapsByLetter.keys()).flatMap((letter) => codesByLetter.get(letter) ?? [])));
+  return { features, codes };
 }
 
 export function addTroncalCorridorsLayer(

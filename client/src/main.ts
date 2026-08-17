@@ -19,6 +19,7 @@ import {
   addZonalRoutesLayer,
   catalogCorridorsToFeatures,
   corridorGapFeatures,
+  updateTroncalCorridors,
   toggleTroncalRoutes,
   toggleZonalRoutes,
   highlightRoute,
@@ -54,7 +55,7 @@ import {
   traceToGeometry,
   type RouteStop,
 } from './data/routeCatalog';
-import type { ApiResponse, RouteListItem, TroncalRouteFeature, TroncalStationFeature } from './types/transmilenio';
+import type { ApiResponse, RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, TroncalStationFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
@@ -195,6 +196,44 @@ function toCableRouterStations(cableStations: any[]): import('./services/router'
     .filter((s) => s.codigo && Number.isFinite(s.coordinate[0]) && Number.isFinite(s.coordinate[1]));
 }
 
+/**
+ * Redraw the trunk-corridor patch from the routes' FULL traces.
+ *
+ * The patch is built at boot from the light catalog, whose traces are simplified
+ * to at most 320 points per variant (§5.1.4) — Z63 arrives with 53, and between
+ * two of them lies a 700 m straight that cuts the corner off Av. Ciudad de Cali.
+ * The deep route payload carries the whole thing (374 points), but fetching it
+ * during boot would put two requests in front of first paint for a line the
+ * rider can already see. So the corridor appears immediately at catalog
+ * resolution and settles onto the road a moment later.
+ *
+ * Never throws: a failed refine leaves the coarse patch in place, which is a
+ * corridor slightly off the kerb rather than no corridor (§4.2).
+ */
+async function refineCorridorPatch(map: maplibregl.Map, troncalItems: RouteListItem[], codes: string[]): Promise<void> {
+  if (codes.length === 0 || surveyedCorridors.length === 0) return;
+  const traces = new Map<string, number[][][]>();
+
+  await Promise.all(
+    codes.map(async (code) => {
+      try {
+        const detail = await api.getRouteDetail(code);
+        const variants = Array.isArray(detail?.data) ? detail.data : detail?.data ? [detail.data] : [];
+        const paths = variants.flatMap((variant: any) => traceToGeometry(variant?.trazado)?.paths ?? []);
+        if (paths.length > 0) traces.set(code, paths);
+      } catch (error) {
+        console.warn(`[Corridors] full trace for ${code} unavailable:`, error);
+      }
+    })
+  );
+
+  if (traces.size === 0) return;
+  const refined = corridorGapFeatures(troncalItems, surveyedCorridors, troncalStationFeatures, traces);
+  if (refined.features.length === 0) return;
+  updateTroncalCorridors(map, [...surveyedCorridors, ...refined.features]);
+  console.log(`🧩 Trunk corridor patch refined from ${traces.size} full trace(s)`);
+}
+
 /** Retries `attempt` until it reports the layer whole (`true`) or the schedule
  *  runs out. Fire-and-forget: never blocks or rejects into the boot path. */
 function recoverLayer(label: string, attempt: () => Promise<boolean>): void {
@@ -302,6 +341,9 @@ let userMarker: maplibregl.Marker | null = null;
 // keyed on estaciones no surveyed corridor covers (), and
 // its recovery pass runs long after boot's local went out of scope.
 let troncalStationFeatures: TroncalStationFeature[] = [];
+/** The surveyed (ArcGIS) corridors alone, so the patch can be recomputed against
+ *  them once the full-resolution traces land. */
+let surveyedCorridors: TroncalCorridorFeature[] = [];
 let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
@@ -821,11 +863,17 @@ async function main(): Promise<void> {
       // A trunk ArcGIS has not surveyed yet (the Bosa–Tibanica stretch, filed
       // under `TZ022`) would otherwise leave the layer stopping mid-city. Fill
       // only what no surveyed centreline covers, from the routes that ride it.
-      const gaps = corridorGapFeatures(troncalListItems, corridorFeatures, stations);
-      if (gaps.length > 0) {
-        corridorFeatures = [...corridorFeatures, ...gaps];
-        const patched = gaps.map((gap) => gap.attributes.letra_trazado_troncal).join(', ');
+      const patch = corridorGapFeatures(troncalListItems, corridorFeatures, stations);
+      if (patch.features.length > 0) {
+        surveyedCorridors = corridorFeatures;
+        corridorFeatures = [...corridorFeatures, ...patch.features];
+        const patched = patch.features.map((gap) => gap.attributes.letra_trazado_troncal).join(', ');
         console.log(`🧩 Trunk corridors patched from catalog traces: ${patched}`);
+        // Drawn now from the light catalog's simplified trace, then settled onto
+        // the road with the full one — two requests the boot path must not wait
+        // for (§5.1.4: 53 points on Z63, enough to cut a corner on a 700 m
+        // straight; the deep route payload has 374).
+        void refineCorridorPatch(map, troncalListItems, patch.codes);
       }
     }
     addTroncalCorridorsLayer(map, corridorFeatures);
@@ -1373,8 +1421,11 @@ async function main(): Promise<void> {
         // Recovered the same way it is built at boot: survey first, then the
         // stretch no survey covers, or a recovery would silently drop the patch.
         const troncalItems = routeList.filter((route) => route.type === 'troncal');
-        addTroncalCorridorsLayer(map, [...res.features, ...corridorGapFeatures(troncalItems, res.features, troncalStationFeatures)]);
+        surveyedCorridors = res.features;
+        const patch = corridorGapFeatures(troncalItems, res.features, troncalStationFeatures);
+        addTroncalCorridorsLayer(map, [...res.features, ...patch.features]);
         bringTroncalLayersToFront(map);
+        void refineCorridorPatch(map, troncalItems, patch.codes);
         return true;
       });
     }
