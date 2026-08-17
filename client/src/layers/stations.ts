@@ -61,16 +61,6 @@ const STATION_LAYERS = [
   'stations-labels',
 ];
 
-const UNUSED_TRONCAL_STATIONS = new Set([
-  'ISLANDIA',
-  'LOSLAURELES',
-  'TIBANICAPRIMAVERA',
-]);
-
-export function isVisibleTroncalStation(station: TroncalStationFeature): boolean {
-  return !UNUSED_TRONCAL_STATIONS.has(normalizeStationName(station.attributes.nombre_estacion));
-}
-
 // ─── Route Tag Formatting ───────────────────────────────
 
 function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
@@ -611,7 +601,14 @@ export function getStationDisplayPoints(): StationDisplayPoint[] {
  */
 function prepareStations(stations: TroncalStationFeature[]): GeoJSON.FeatureCollection {
   globalStations = stations;
-  const visibleStations = stations.filter(isVisibleTroncalStation);
+  // Every station the official register lists is drawn. A hard-coded hide-list
+  // used to keep ISLANDIA / LOS LAURELES / TIBANICA - PRIMAVERA off the map:
+  // ArcGIS filed them while they were still building sites, and a pin whose popup
+  // has no services is worse than no pin. They opened in August 2026 — served by
+  // F63/Z63 — and the list kept the three newest estaciones in Bogotá invisible
+  // unless the rider opened one of those two routes. A name list cannot know when
+  // that changes (§5.5.6).
+  const visibleStations = stations;
   const resolution = resolveStationCatalog(visibleStations, _catalog);
   _resolvedStations = resolution.stationsByKey;
   _stationAudit = resolution.audit;

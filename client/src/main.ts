@@ -8,7 +8,7 @@
 import maplibregl from 'maplibre-gl';
 import { createMap, initMapImages } from './map';
 import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/api';
-import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, isVisibleTroncalStation, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
+import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
@@ -18,6 +18,7 @@ import {
   addTroncalRoutesLayer,
   addZonalRoutesLayer,
   catalogCorridorsToFeatures,
+  corridorGapFeatures,
   toggleTroncalRoutes,
   toggleZonalRoutes,
   highlightRoute,
@@ -53,7 +54,7 @@ import {
   traceToGeometry,
   type RouteStop,
 } from './data/routeCatalog';
-import type { ApiResponse, RouteListItem, TroncalRouteFeature } from './types/transmilenio';
+import type { ApiResponse, RouteListItem, TroncalRouteFeature, TroncalStationFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
@@ -297,6 +298,10 @@ let userMarker: maplibregl.Marker | null = null;
 // The Cerca tab's point universe: troncal estaciones (known at boot) plus zonal
 // paraderos (enriched in the background). Kept as two lists so the stops arrival
 // simply re-pushes the union.
+// The station features currently drawn. Held because the corridor patch is
+// keyed on estaciones no surveyed corridor covers (), and
+// its recovery pass runs long after boot's local went out of scope.
+let troncalStationFeatures: TroncalStationFeature[] = [];
 let nearbyStationPoints: NearbyPoint[] = [];
 let nearbyStopPoints: NearbyPoint[] = [];
 let nearbyRechargePoints: NearbyPoint[] = [];
@@ -773,9 +778,9 @@ async function main(): Promise<void> {
     // ArcGIS is the primary station source; if it failed or came back empty,
     // rebuild the layer from the (required) master catalog so stations never
     // silently vanish from the map (spec §4.2).
-    let stations = stationsRes.features.filter(isVisibleTroncalStation);
+    let stations = stationsRes.features;
     if (stations.length === 0) {
-      stations = catalogStationsToFeatures(catalog).filter(isVisibleTroncalStation);
+      stations = catalogStationsToFeatures(catalog);
       degradedLayers.add('stations');
       console.warn(`⚠️ ArcGIS stations unavailable — rebuilt ${stations.length} stations from master catalog`);
     }
@@ -812,6 +817,16 @@ async function main(): Promise<void> {
       corridorFeatures = catalogCorridorsToFeatures(troncalListItems);
       degradedLayers.add('corridors');
       console.warn(`⚠️ ArcGIS corridors unavailable — rebuilt ${corridorFeatures.length} trunk corridors from catalog traces`);
+    } else {
+      // A trunk ArcGIS has not surveyed yet (the Bosa–Tibanica stretch, filed
+      // under `TZ022`) would otherwise leave the layer stopping mid-city. Fill
+      // only what no surveyed centreline covers, from the routes that ride it.
+      const gaps = corridorGapFeatures(troncalListItems, corridorFeatures, stations);
+      if (gaps.length > 0) {
+        corridorFeatures = [...corridorFeatures, ...gaps];
+        const patched = gaps.map((gap) => gap.attributes.letra_trazado_troncal).join(', ');
+        console.log(`🧩 Trunk corridors patched from catalog traces: ${patched}`);
+      }
     }
     addTroncalCorridorsLayer(map, corridorFeatures);
 
@@ -819,6 +834,7 @@ async function main(): Promise<void> {
     addTroncalRoutesLayer(map, troncalListItems);
 
     updateProgress(95, 'Renderizando estaciones...');
+    troncalStationFeatures = stations;
     addStationsLayer(map, stations);
     stationCount = stations.length;
 
@@ -1354,7 +1370,10 @@ async function main(): Promise<void> {
       recoverLayer('Troncal corridors', async () => {
         const res = await api.getTroncalCorridors();
         if (!res.features?.length) return false;
-        addTroncalCorridorsLayer(map, res.features);
+        // Recovered the same way it is built at boot: survey first, then the
+        // stretch no survey covers, or a recovery would silently drop the patch.
+        const troncalItems = routeList.filter((route) => route.type === 'troncal');
+        addTroncalCorridorsLayer(map, [...res.features, ...corridorGapFeatures(troncalItems, res.features, troncalStationFeatures)]);
         bringTroncalLayersToFront(map);
         return true;
       });
@@ -1363,8 +1382,9 @@ async function main(): Promise<void> {
     if (degradedLayers.has('stations')) {
       recoverLayer('Troncal stations', async () => {
         const res = await api.getTroncalStations();
-        const stations = res.features?.filter(isVisibleTroncalStation) ?? [];
+        const stations = res.features ?? [];
         if (stations.length === 0) return false;
+        troncalStationFeatures = stations;
         addStationsLayer(map, stations);
         stationCount = stations.length;
         nearbyStationPoints = getStationDisplayPoints().map((p): NearbyPoint => ({

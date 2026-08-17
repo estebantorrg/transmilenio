@@ -3,7 +3,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature } from '../types/transmilenio';
+import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, TroncalStationFeature } from '../types/transmilenio';
 import {
   DEFAULT_TRONCAL_COLOR,
   DEFAULT_ZONAL_COLOR,
@@ -137,6 +137,153 @@ export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): Tron
       inicio_trazado: '',
       fin_trazado: '',
       tipo_trazado: 'catalog',
+      letra_trazado_troncal: letter,
+      troncal: `Troncal ${letter}`,
+      fase_trazado_troncal: '',
+    },
+    geometry: { paths },
+  }));
+}
+
+// ─── Corridor gaps (a trunk ArcGIS has not surveyed yet) ───
+
+/** A corridor point this far from the rider's trace counts as "already drawn". */
+const CORRIDOR_COVERED_M = 80;
+/** Grid cell for the covered-point index, in degrees (~110 m at Bogotá's latitude). */
+const CORRIDOR_CELL_DEG = 0.001;
+/** Shorter runs than this are trace noise beside the corridor, not a new trunk. */
+const MIN_GAP_POINTS = 4;
+const MIN_GAP_METERS = 250;
+/** How close a run must pass to an un-surveyed estación to count as its trunk. */
+const ORPHAN_STATION_M = 250;
+
+function cellKey(lng: number, lat: number): string {
+  return `${Math.floor(lng / CORRIDOR_CELL_DEG)}:${Math.floor(lat / CORRIDOR_CELL_DEG)}`;
+}
+
+function metersBetween(a: number[], b: number[]): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(b[1] - a[1]);
+  const dLng = toRad(b[0] - a[0]);
+  const h =
+    Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a[1])) * Math.cos(toRad(b[1])) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+function pathMeters(path: number[][]): number {
+  let total = 0;
+  for (let i = 1; i < path.length; i++) total += metersBetween(path[i - 1], path[i]);
+  return total;
+}
+
+/**
+ * Trunk corridor that exists on the street but not in the ArcGIS survey.
+ *
+ * `consulta_trazados_troncales` publishes 20 centrelines over 12 corridors, and a
+ * new trunk arrives there **late**: TransMi opened the Bosa–Tibanica stretch with
+ * its stations filed under `TZ022`, a corridor that layer has never heard of. The
+ * result on screen is a Troncales layer that simply stops mid-city — the corridor
+ * the rider is standing on is missing, not drawn faintly.
+ *
+ * The routes that ride it do carry the geometry (their official `trazado`), so the
+ * gap is filled from them and from nothing else. Only the parts **no surveyed
+ * corridor already covers** are kept: Z63 runs Tibanica → Banderas → Pradera, and
+ * two thirds of that is the Américas trunk ArcGIS draws perfectly well — patching
+ * the whole trace would lay a second, differently-coloured line on top of it.
+ *
+ * Each kept run is emitted under the ROUTE's own letter, so the new stretch is
+ * drawn and labelled in that trunk's colour (`Z` = amber, spec §5.4.3) rather than
+ * inheriting the colour of whichever corridor it happens to touch.
+ */
+export function corridorGapFeatures(
+  troncalRoutes: RouteListItem[],
+  surveyed: TroncalCorridorFeature[],
+  stations: TroncalStationFeature[]
+): TroncalCorridorFeature[] {
+  const covered = new Set<string>();
+  for (const corridor of surveyed) {
+    for (const path of corridor.geometry?.paths ?? []) {
+      for (const [lng, lat] of path) covered.add(cellKey(lng, lat));
+    }
+  }
+  if (covered.size === 0) return [];
+
+  const isCovered = (point: number[]): boolean => {
+    const [lng, lat] = point;
+    // The 3×3 neighbourhood, so a point just across a cell boundary from the
+    // corridor still counts as covered.
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (covered.has(cellKey(lng + dx * CORRIDOR_CELL_DEG, lat + dy * CORRIDOR_CELL_DEG))) return true;
+      }
+    }
+    return false;
+  };
+
+  // What separates a NEW TRUNK from a troncal route driving down an ordinary
+  // street: estaciones. Every station on a surveyed corridor is already covered
+  // above, so the ones left over are the trunk ArcGIS has not caught up with. No
+  // uncovered station, no patch — otherwise the K86's airport run and the Carrera
+  // 7 extension add ~50 km of mixed-traffic street to a layer that means
+  // "dedicated trunk".
+  const orphanStations = stations
+    .map((station) => [Number(station.attributes.longitud_estacion), Number(station.attributes.latitud_estacion)])
+    .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat) && !isCovered([lng, lat]));
+  if (orphanStations.length === 0) return [];
+
+  const servesOrphanStation = (run: number[][]): boolean =>
+    orphanStations.some((station) => run.some((point) => metersBetween(point, station) <= ORPHAN_STATION_M));
+
+  const gapsByLetter = new Map<string, number[][][]>();
+  for (const route of troncalRoutes) {
+    const letter = getTroncalLetter(route.code);
+    if (!letter || letter === 'RF' || !(letter in TRONCAL_COLORS)) continue;
+
+    for (const path of route.geometry?.paths ?? []) {
+      let run: number[][] = [];
+      const flush = (): void => {
+        if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS && servesOrphanStation(run)) {
+          const existing = gapsByLetter.get(letter);
+          if (existing) existing.push(run);
+          else gapsByLetter.set(letter, [run]);
+        }
+        run = [];
+      };
+      for (const point of path) {
+        if (!Array.isArray(point) || point.length < 2) continue;
+        if (isCovered(point)) flush();
+        else run.push(point);
+      }
+      flush();
+    }
+  }
+
+  // Both directions of the new service reach these stations, and they carry
+  // different letters — `F63` and `Z63` on the Bosa stretch. Drawing both lays
+  // the Américas red on top of the amber and makes a brand-new trunk look like an
+  // extension of one it never touches. The letter with **no surveyed corridor of
+  // its own** is the one that names this stretch: it is new for the same reason
+  // the corridor is.
+  const surveyedLetters = new Set(
+    surveyed
+      .map((corridor) => getTroncalLetter(corridor.attributes.letra_trazado_troncal))
+      .filter((letter): letter is string => Boolean(letter))
+  );
+  const unsurveyed = Array.from(gapsByLetter.keys()).filter((letter) => !surveyedLetters.has(letter));
+  if (unsurveyed.length > 0) {
+    for (const letter of gapsByLetter.keys()) {
+      if (!unsurveyed.includes(letter)) gapsByLetter.delete(letter);
+    }
+  }
+
+  let objectid = 10_000; // well clear of the ArcGIS ids this is appended to
+  return Array.from(gapsByLetter, ([letter, paths]) => ({
+    attributes: {
+      objectid: objectid++,
+      id_trazado: `gap-${letter}`,
+      inicio_trazado: '',
+      fin_trazado: '',
+      tipo_trazado: 'catalog-gap',
       letra_trazado_troncal: letter,
       troncal: `Troncal ${letter}`,
       fase_trazado_troncal: '',
