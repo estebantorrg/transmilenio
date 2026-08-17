@@ -58,8 +58,16 @@ export function stationPageHref(stop: { nombre: string; codigo: string }): strin
  * for the reader and for search, and is never parsed back.
  */
 export function parseStationPathname(pathname: string = location.pathname): string | null {
-  const match = pathname.match(/^\/estacion\/(?:.*-)?(tm\d+)\/?$/i);
-  return match ? match[1].toUpperCase() : null;
+  // The código is whatever follows the LAST hyphen, because that is how the slug
+  // is built (`stationPagePath` = name + '-' + code) — never a `TM\d+` shape.
+  // Matching the shape meant `/estacion/laureles-90010/` parsed to nothing, so
+  // the interactive page never opened for the three estaciones whose codes are
+  // not TM-coded (§5.5.6): the static body stayed up with the fallback "Ver en
+  // el mapa" bar, and none of the live sections — arrivals, demanda, the route
+  // links — were ever reached. An unknown código still resolves to null one step
+  // later, in `getStationPageData`, which is where "no such station" belongs.
+  const match = pathname.match(/^\/estacion\/(?:.+-)?([^/-]+)\/?$/i);
+  return match ? decodeURIComponent(match[1]).toUpperCase() : null;
 }
 
 /** The route's own page (spec §5.5.5) — the same URL the prerender emits. */

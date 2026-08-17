@@ -16,7 +16,7 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
-import { isTroncalStationCode } from './station_registry.js';
+import { isTroncalStationCode, troncalStationEntry } from './station_registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -535,6 +535,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // derived for the same reason as the plan above: it is an answered fact
       // (§5.5.6), and it is what names and colours the estación page.
       const corridor = stationCorridor(station.codigo);
+      const registryNode = troncalStationEntry(station.codigo || code)?.nodo || '';
 
       cleanStations[code] = {
         id: station.id,
@@ -548,6 +549,14 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         // "estación or paradero?" from the code shape (§5.1.4, §5.5.6). Only the
         // server can answer it: the register is a server-side dataset.
         estacion: true,
+        // The register's node id for this stop, when the two are paired. The
+        // catalog and ArcGIS number stations in different id spaces, and the map
+        // bridges them by name and distance — which fails outright where the two
+        // sources spell a station differently ("Los Laureles" in the register,
+        // "Laureles" in the catalog), leaving the pin with an empty popup. The
+        // pairing is already computed offline, so it travels instead of being
+        // guessed at twice.
+        ...(registryNode ? { nodo: registryNode } : {}),
         ...(corridor ? { corridor } : {}),
         ...(vagonLabels ? { vagonLabels } : {}),
         ...(wagonPlan ? { wagonPlan } : {}),

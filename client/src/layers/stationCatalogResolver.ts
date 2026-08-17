@@ -16,6 +16,8 @@ interface ResolverIndexes {
   platformFragments: CatalogStation[];
   byStopCode: Map<string, CatalogStation>;
   byStopId: Map<string, CatalogStation[]>;
+  /** Register node id → the catalog stop the registry paired it with (§5.5.6). */
+  byRegistryNode: Map<string, CatalogStation>;
 }
 
 interface SourceSelection {
@@ -242,9 +244,13 @@ function buildIndexes(catalog: MasterCatalog): ResolverIndexes {
   const platformFragments = stations.filter((station) => !isAppStop(station));
   const byStopCode = new Map<string, CatalogStation>();
   const byStopId = new Map<string, CatalogStation[]>();
+  const byRegistryNode = new Map<string, CatalogStation>();
 
   for (const station of stations) {
     byStopCode.set(appStopKey(station.codigo), station);
+
+    const node = normalizeNumericId(station.nodo);
+    if (node) byRegistryNode.set(node, station);
 
     const id = normalizeNumericId(station.id);
     if (!id) continue;
@@ -253,7 +259,7 @@ function buildIndexes(catalog: MasterCatalog): ResolverIndexes {
     byStopId.set(id, entries);
   }
 
-  return { appStops, platformFragments, byStopCode, byStopId };
+  return { appStops, platformFragments, byStopCode, byStopId, byRegistryNode };
 }
 
 function routeIdentity(route: CatalogRoute): string {
@@ -540,6 +546,25 @@ function resolveTerminalPlatformCluster(
     : null;
 }
 
+/**
+ * The pairing the registry already made, offline (`troncal_stations.json`).
+ *
+ * Tried before every heuristic below, because it is an answer rather than a
+ * guess — and because the heuristics cannot reach it: the register calls the
+ * station "Los Laureles" and the catalog calls it "Laureles", their ids live in
+ * different spaces, and the two points are 98 m apart. That station therefore
+ * resolved to nothing and its pin opened an empty popup while the routes sat in
+ * the catalog under a name one word away (§5.5.6).
+ */
+function resolveByRegistryNode(
+  feature: TroncalStationFeature,
+  indexes: ResolverIndexes
+): ResolvedCatalogStation | null {
+  const node = stationNode(feature);
+  const station = node ? indexes.byRegistryNode.get(node) : undefined;
+  return station ? makeResolvedStation(feature, 'registry-node', [{ station }], indexes) : null;
+}
+
 function resolveByExactAppStopId(
   feature: TroncalStationFeature,
   indexes: ResolverIndexes
@@ -599,8 +624,11 @@ function resolveByNameAndDistance(
 
 function resolveOne(feature: TroncalStationFeature, indexes: ResolverIndexes): ResolvedCatalogStation {
   return (
+    // The two special cases first — a platform cluster and a verified split both
+    // describe a station the registry pairs with ONE stop, and they know better.
     resolveTerminalPlatformCluster(feature, indexes) ??
     resolveVerifiedSplit(feature, indexes) ??
+    resolveByRegistryNode(feature, indexes) ??
     resolveByExactAppStopId(feature, indexes) ??
     resolveByNameAndDistance(feature, indexes) ??
     unresolvedStation(feature, indexes)

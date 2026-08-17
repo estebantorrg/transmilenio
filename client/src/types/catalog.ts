@@ -27,6 +27,11 @@ export interface CatalogStation {
    *  holds the register. Read through `isStationStopCode`, never directly: a
    *  station that predates the stamp is still recognised by its `TM…` code. */
   estacion?: boolean;
+  /** The official register's node id for this stop (`codigo_nodo_estacion`),
+   *  when the registry pairs the two. It is what lets the map join an ArcGIS
+   *  station point to its catalog stop where the names disagree — "Los Laureles"
+   *  in the register is "Laureles" in the catalog (§5.5.6). */
+  nodo?: string;
   /** The troncal corridor this station physically sits on, and the letter its
    *  route codes carry (`{ nombre: 'Autonorte', letra: 'B' }`). Answered
    *  server-side from the official station maps (`stationCorridor`, §5.5.6) —
