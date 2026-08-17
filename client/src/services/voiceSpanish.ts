@@ -35,10 +35,21 @@ export function normalizeUtterance(value: string): string {
  * this would drift into two different ideas of what "Calle 100" matches
  * (spec §1.1 R2).
  */
+/**
+ * Words that name nothing in this network. The one- and two-letter connectors
+ * ("de", "la", "av") fall out of the length rule below; these are the ones long
+ * enough to survive it and still carry no information — a rider says "los
+ * laureles" for the station the catalog files as "Laureles", and requiring that
+ * extra word to appear sent them to "Br. Los Laureles", the paradero across the
+ * road. Dropped from **both** sides, since every caller tokenises the rider's
+ * words and the stop's name through this same function.
+ */
+const NAME_STOPWORDS = new Set(['los', 'las', 'del']);
+
 export function nameTokens(value: string): string[] {
   return normalizeUtterance(value)
     .split(' ')
-    .filter((token) => token.length > 2 || /^\d+$/.test(token));
+    .filter((token) => (token.length > 2 && !NAME_STOPWORDS.has(token)) || /^\d+$/.test(token));
 }
 
 // ─── Letters ──────────────────────────────────────────────

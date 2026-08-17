@@ -129,15 +129,22 @@ function tokenizedNames(index: VoiceStopIndex): string[][] {
  * The stop the rider named, or null.
  *
  * Strict, like the route engine's anchor: every word of the hint must appear in
- * the stop's name. Ties break toward the shortest name and then the most routes,
- * so "calle 100" resolves to the busy trunk station rather than to an obscure
- * paradero that happens to share the words.
+ * the stop's name. Ties break toward an **estación** first, then the shortest
+ * name, then the most routes.
+ *
+ * The estación step is not a preference, it is what the rider said: names in this
+ * network are given to the station and inherited by the SITP paraderos around it
+ * ("Islandia" the estación, "Br. Islandia" the stop across the road, which files
+ * more routes and therefore used to win). Someone standing at a station who names
+ * it and is answered with the street stop's routes has been told about a
+ * different place — and on the two newest stations, whose paradero twins predate
+ * them by years, that was every time.
  */
 export function findStopByName(index: VoiceStopIndex, hint: string): VoiceStopRecord | null {
   const needle = nameTokens(hint);
   if (needle.length === 0) return null;
   const names = tokenizedNames(index);
-  let best: { record: VoiceStopRecord; length: number; routes: number } | null = null;
+  let best: { record: VoiceStopRecord; station: boolean; length: number; routes: number } | null = null;
   const records = index?.stops ?? [];
   for (let i = 0; i < records.length; i++) {
     const record = records[i];
@@ -145,9 +152,11 @@ export function findStopByName(index: VoiceStopIndex, hint: string): VoiceStopRe
     if (!haystack || haystack.length === 0) continue;
     if (!needle.every((token) => haystack.includes(token))) continue;
     const routes = String(record[4] ?? '').split(',').length;
-    if (best === null || haystack.length < best.length || (haystack.length === best.length && routes > best.routes)) {
-      best = { record, length: haystack.length, routes };
-    }
+    const station = record[5] === 1;
+    const better =
+      best === null ||
+      (station !== best.station ? station : haystack.length !== best.length ? haystack.length < best.length : routes > best.routes);
+    if (better) best = { record, station, length: haystack.length, routes };
   }
   return best?.record ?? null;
 }

@@ -96,16 +96,23 @@ public class VoicePlugin extends Plugin {
      * they set is the difference between being heard and not. Sent as `int`,
      * which is how `android.speech` documents them; a `long` reads back as the
      * default on a recognizer that pulls them with `getInt`.
+     *
+     * Raised from 2500/1500/1200 because a pause is not the end of a question:
+     * riders hesitate mid-código ("el… efe diecinueve"), and 1.2 s of silence is
+     * a breath, not a full stop. A longer window costs the rider nothing now that
+     * {@link #finishListening} lets them end the question themselves — the screen
+     * carries a "Ya terminé" button while the mic is open — so the recognizer no
+     * longer has to guess when someone has stopped talking.
      */
-    private static final int MIN_INPUT_MS = 2500;
-    private static final int COMPLETE_SILENCE_MS = 1500;
-    private static final int POSSIBLY_COMPLETE_SILENCE_MS = 1200;
+    private static final int MIN_INPUT_MS = 3000;
+    private static final int COMPLETE_SILENCE_MS = 2600;
+    private static final int POSSIBLY_COMPLETE_SILENCE_MS = 2000;
     /**
      * Hard ceiling on one recognition. Some OEM recognizers neither return a
      * result nor raise an error; without this the rider watches "Escuchando…"
      * forever and the mic stays open (spec §4.2 — every failure has an answer).
      */
-    private static final long LISTEN_TIMEOUT_MS = 12_000L;
+    private static final long LISTEN_TIMEOUT_MS = 15_000L;
     /**
      * The ceiling is re-armed from the moment the rider starts talking, because
      * the watchdog exists for a recognizer that went quiet, not for a rider who
@@ -113,7 +120,7 @@ public class VoicePlugin extends Plugin {
      * splash was still up used to expire *mid-sentence* and hand back "no escuché
      * nada" over someone who was audibly speaking.
      */
-    private static final long SPEAKING_TIMEOUT_MS = 15_000L;
+    private static final long SPEAKING_TIMEOUT_MS = 20_000L;
     /** How long a transcript captured during boot is still the answer to the
      *  question the rider is asking now. */
     private static final long BUFFER_MAX_AGE_MS = 60_000L;
@@ -175,6 +182,20 @@ public class VoicePlugin extends Plugin {
      * nothing once it is stale.
      */
     private int recognitionGeneration = 0;
+    /**
+     * The newest partial transcript of the recognition in flight.
+     *
+     * Kept because a partial is not a draft to be thrown away — it is what the
+     * rider said, and it is already on their screen. Google's recognizer
+     * regularly streams "efe diecinueve", then finalises with an empty result or
+     * `ERROR_NO_MATCH`; answering "no te entendí" there tells someone the app
+     * could not understand words it had just displayed back to them, which is the
+     * whole of "it has problems recognizing your voice". So an empty final falls
+     * back to the last partial and lets the matcher judge it — nothing is
+     * *answered* below `MIN_VOICE_CONFIDENCE` anyway (spec §5.9), so a junk
+     * partial degrades to the same "no te entendí", while a good one is rescued.
+     */
+    private String lastPartial = null;
     /** A transcript that arrived before the web layer asked for one. */
     private List<String> bufferedTexts = null;
     private String bufferedErrorCode = null;
@@ -322,6 +343,7 @@ public class VoicePlugin extends Plugin {
         bufferedErrorCode = null;
         bufferedErrorMessage = null;
         bufferedAt = 0L;
+        lastPartial = null;
     }
 
     /**
@@ -361,7 +383,9 @@ public class VoicePlugin extends Plugin {
         clearWatchdog();
         Runnable watchdog = () -> {
             if (!isCurrent(generation)) return;
-            deliver(null, ERR_NO_SPEECH, "No escuché nada");
+            // A recognizer that went quiet mid-sentence still heard the sentence:
+            // answer with the partial when there is one (see lastPartial).
+            deliverOrFallBackToPartial(ERR_NO_SPEECH, "No escuché nada");
         };
         synchronized (recognitionLock) {
             listenWatchdog = watchdog;
@@ -451,7 +475,29 @@ public class VoicePlugin extends Plugin {
      * language pack of required locale" and no fallback is possible. Measured on
      * a Pixel 6 / Android 16 with no es pack installed.
      */
+    /**
+     * Spanish, in the order a Bogotá rider is most likely to be understood in.
+     *
+     * The recognizer is handed one language, and a phone that has no `es-CO`
+     * offline pack — most of them — used to fail all the way out to "este
+     * teléfono no tiene español" while carrying `es-419` or `es-ES` perfectly
+     * capable of transcribing the question.
+     */
+    private static final String[] LANGUAGES = { "es-CO", "es-419", "es-US", "es-ES", "es" };
+
+    /** The next language to try after this one, or null when the ladder is done. */
+    private static String nextLanguage(String current) {
+        for (int i = 0; i < LANGUAGES.length - 1; i++) {
+            if (LANGUAGES[i].equals(current)) return LANGUAGES[i + 1];
+        }
+        return null;
+    }
+
     private void startListening(boolean preferOffline, int generation) {
+        startListening(preferOffline, LANGUAGES[0], generation);
+    }
+
+    private void startListening(boolean preferOffline, String language, int generation) {
         // A newer listen (or a cancel) arrived between the post and here: that one
         // owns the microphone now, and opening a second recognizer would leave two
         // of them fighting over one mic.
@@ -463,17 +509,18 @@ public class VoicePlugin extends Plugin {
         releaseRecognizer();
 
         recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
-        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline, generation));
+        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline, language, generation));
 
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "es-CO");
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "es-CO");
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, language);
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, language);
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         if (preferOffline) intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
         // Alternatives are cheap and the matcher scores all of them (resolveListen):
-        // the correct código is often the recognizer's second or third reading.
-        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
+        // the correct código is often the recognizer's second or third reading, and
+        // a códigos table is a better judge of them than the recognizer's ranking.
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 10);
         intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getContext().getPackageName());
         // Give the rider room to think and to breathe mid-question.
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, MIN_INPUT_MS);
@@ -486,6 +533,9 @@ public class VoicePlugin extends Plugin {
         synchronized (recognitionLock) {
             listening = true;
             speechStarted = false;
+            // A new window transcribes a new question: the previous one's partial
+            // must not answer for it.
+            lastPartial = null;
         }
         armWatchdog(generation, LISTEN_TIMEOUT_MS);
         recognizer.startListening(intent);
@@ -551,6 +601,45 @@ public class VoicePlugin extends Plugin {
         });
     }
 
+    /**
+     * The rider says they have finished the sentence.
+     *
+     * `stopListening()` — not `cancel()` — closes the microphone and asks the
+     * recognizer to transcribe what it already has, so this ends in a normal
+     * `onResults`. It exists because the endpointing hints above are only hints:
+     * the recognizer decides when someone has stopped talking, and it decides
+     * wrong in both directions (cutting off a rider mid-pause, or holding the mic
+     * open through the noise of a bus). Giving the rider the button removes the
+     * guess from the one case they can settle themselves — and is what makes the
+     * longer silence windows safe.
+     *
+     * A no-op when nothing is listening, so a double tap cannot take down the
+     * recognition the next question just opened.
+     */
+    @PluginMethod
+    public void finishListening(PluginCall call) {
+        boolean active;
+        synchronized (recognitionLock) {
+            active = listening;
+        }
+        if (!active) {
+            call.resolve();
+            return;
+        }
+        main.post(() -> {
+            SpeechRecognizer current = recognizer;
+            if (current != null) {
+                try {
+                    current.stopListening();
+                } catch (Exception ignored) {
+                    // A recognizer whose service died needs no stopping; the
+                    // watchdog still ends this recognition.
+                }
+            }
+            call.resolve();
+        });
+    }
+
     private void failPendingListen(String code, String message) {
         PluginCall call;
         synchronized (recognitionLock) {
@@ -582,6 +671,29 @@ public class VoicePlugin extends Plugin {
                 /* same */
             }
         }
+    }
+
+    /**
+     * End this recognition with what was actually heard, falling back to the last
+     * partial when the recognizer finalised with nothing.
+     *
+     * Used for every "heard something, transcribed nothing" ending — an empty
+     * final result, `ERROR_NO_MATCH`, `ERROR_SPEECH_TIMEOUT`, and the watchdog for
+     * a recognizer that simply went quiet. In all four the rider may well have
+     * been mid-sentence with their words on screen (see {@link #lastPartial}).
+     */
+    private void deliverOrFallBackToPartial(String errorCode, String errorMessage) {
+        String partial;
+        synchronized (recognitionLock) {
+            partial = lastPartial;
+        }
+        if (partial != null && !partial.trim().isEmpty()) {
+            List<String> texts = new ArrayList<>();
+            texts.add(partial.trim());
+            deliver(texts, null, null);
+            return;
+        }
+        deliver(null, errorCode, errorMessage);
     }
 
     /** Route a finished recognition to whoever is waiting, or buffer it. */
@@ -677,10 +789,14 @@ public class VoicePlugin extends Plugin {
         /** Whether this attempt asked for the offline model — decides if a
          *  language failure is worth one retry over the network. */
         private final boolean preferredOffline;
+        /** Which Spanish this attempt asked for, so a language failure can step
+         *  down the ladder instead of ending the question (see LANGUAGES). */
+        private final String language;
         private final int generation;
 
-        VoiceRecognitionListener(boolean preferredOffline, int generation) {
+        VoiceRecognitionListener(boolean preferredOffline, String language, int generation) {
             this.preferredOffline = preferredOffline;
+            this.language = language;
             this.generation = generation;
         }
 
@@ -725,7 +841,25 @@ public class VoicePlugin extends Plugin {
             // hear them — most devices can, they just have nothing downloaded.
             if (preferredOffline && isRetryableOffline(error)) {
                 int retry = nextGeneration();
-                main.post(() -> startListening(false, retry));
+                main.post(() -> startListening(false, language, retry));
+                return;
+            }
+            // The phone may simply not have *this* Spanish. Colombian first, then
+            // Latin-American, then Spain, then plain `es` — a device with any of
+            // them can hear the question, and giving up at es-CO told riders their
+            // phone has no Spanish when it has four other flavours of it.
+            if (isLanguageUnavailable(error)) {
+                String next = nextLanguage(language);
+                if (next != null) {
+                    int retry = nextGeneration();
+                    main.post(() -> startListening(false, next, retry));
+                    return;
+                }
+            }
+            // NO_MATCH / SPEECH_TIMEOUT after the rider has already been speaking:
+            // the partial on their screen is the answer, not "no te entendí".
+            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                deliverOrFallBackToPartial(errorCodeFor(error), describeError(error));
                 return;
             }
             deliver(null, errorCodeFor(error), describeError(error));
@@ -736,6 +870,11 @@ public class VoicePlugin extends Plugin {
             if (stale()) return;
             List<String> heard = results(partialResults);
             if (heard.isEmpty()) return;
+            // Kept, not just echoed: an empty or unmatched final answers with this
+            // rather than with "no te entendí" (see lastPartial).
+            synchronized (recognitionLock) {
+                lastPartial = heard.get(0);
+            }
             // Streamed so the overlay can echo what it is hearing; the rider
             // seeing their own words is what makes a wrong reading obvious.
             JSObject event = new JSObject();
@@ -748,7 +887,7 @@ public class VoicePlugin extends Plugin {
             if (stale()) return;
             List<String> heard = results(results);
             if (heard.isEmpty()) {
-                deliver(null, ERR_NO_MATCH, describeError(SpeechRecognizer.ERROR_NO_MATCH));
+                deliverOrFallBackToPartial(ERR_NO_MATCH, describeError(SpeechRecognizer.ERROR_NO_MATCH));
             } else {
                 deliver(heard, null, null);
             }

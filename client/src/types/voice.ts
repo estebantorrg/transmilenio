@@ -59,7 +59,16 @@ export interface VoiceIndex {
  * cannot disagree, and loaded **lazily** — 565 KB is worth nothing to the route
  * questions, which are the ones on the ~1.5 s budget.
  */
-export type VoiceStopRecord = [string, string, number, number, string];
+/**
+ * `[codigo, nombre, lng, lat, "F19,B12,…", estacion?]`.
+ *
+ * The trailing `1` marks a TransMilenio **estación** (from the official register,
+ * §5.5.6) and is written only for those, so the flag costs two bytes on ~140 of
+ * 7400 rows. It exists because a rider who says "Islandia" means the station, and
+ * the paradero across the street is called "Br. Islandia" — with routes filed at
+ * it, so it used to win the tie and answer a different question.
+ */
+export type VoiceStopRecord = [string, string, number, number, string, number?];
 
 export interface VoiceStopIndex {
   stops: VoiceStopRecord[];

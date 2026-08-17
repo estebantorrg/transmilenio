@@ -23,7 +23,14 @@ import { h, on } from '../lib/dom';
 import { openSheet, type SheetHandle } from '../ui/sheet';
 import { bus, state } from '../state';
 import { app } from '../appContext';
-import { cancelListening, installVoiceData, onVoicePartial, onVoiceState, stopSpeaking } from '../voice/bridge';
+import {
+  cancelListening,
+  finishListening,
+  installVoiceData,
+  onVoicePartial,
+  onVoiceState,
+  stopSpeaking,
+} from '../voice/bridge';
 import { MIC_FAILURES, runVoiceSession, type VoiceAction, type VoiceProgress } from '../voice/session';
 import { VOICE_EXAMPLES } from '@shared/services/voiceAnswer';
 
@@ -89,6 +96,17 @@ export function openVoice(code: string | null = null): void {
   const pulse = h('div', { class: 'voz-pulse listening' }, [h('span'), h('span'), h('span')]);
 
   const again = h('button', { class: 'btn btn-primary', type: 'button', text: 'Preguntar otra vez' });
+  /**
+   * "Ya terminé" — the rider ends their own sentence.
+   *
+   * Shown only while the microphone is actually open. The recognizer decides when
+   * someone has stopped talking, and it decides wrong in both directions: it cuts
+   * off a rider who pauses mid-código, and it holds the mic open through the noise
+   * of a bus. This is the half of that guess the rider can settle themselves, and
+   * it is what lets the silence windows be generous (`VoicePlugin.LANGUAGES`
+   * neighbours, spec §5.9) instead of racing them.
+   */
+  const done = h('button', { class: 'btn btn-primary hidden', type: 'button', text: 'Ya terminé' });
   // `.hidden` (the app's class), not the `hidden` attribute: `.btn` sets
   // `display:inline-flex`, which outranks the UA's `[hidden] { display:none }`
   // and leaves a dead button on screen.
@@ -115,7 +133,7 @@ export function openVoice(code: string | null = null): void {
   // rider learns it does more than one thing is being shown — on "¿qué puedes
   // hacer?" and on anything that resolved to nothing.
   const examples = h('div', { class: 'voz-examples hidden' });
-  const actions = h('div', { class: 'voz-actions' }, [again, openRoute, installVoice, searchInstead]);
+  const actions = h('div', { class: 'voz-actions' }, [done, again, openRoute, installVoice, searchInstead]);
 
   // One per question. Closing the overlay (or asking again) abandons the one in
   // flight, so the answer to a question the rider walked away from is never read
@@ -182,14 +200,22 @@ export function openVoice(code: string | null = null): void {
    *  emitting for a moment after a cancel, and it must not repaint a closed or
    *  already-answered overlay. */
   let listening = false;
+  /** The "Ya terminé" button belongs to an open microphone and nothing else. */
+  const showDone = (visible: boolean): void => {
+    done.classList.toggle('hidden', !visible);
+    if (visible) done.disabled = false;
+  };
   const offState = onVoiceState((micState) => {
     if (openHandle !== sheet || !listening) return;
     if (micState === 'ready') {
       status.textContent = 'Escuchando…';
       pulse.className = 'voz-pulse listening';
+      showDone(true);
     } else if (micState === 'speaking') {
       status.textContent = 'Te escucho…';
+      showDone(true);
     } else {
+      showDone(false);
       // The mic has closed and the recognizer is deciding. Saying "Escuchando…"
       // here invites the rider to keep talking into nothing.
       status.textContent = 'Un momento…';
@@ -302,6 +328,7 @@ export function openVoice(code: string | null = null): void {
     }
     if (progress.stage === 'buscando') {
       listening = false;
+      showDone(false);
       pulse.className = 'voz-pulse working';
       status.textContent = progress.predicted
         ? `Buscando ${progress.code}, tu ruta de siempre…`
@@ -310,6 +337,7 @@ export function openVoice(code: string | null = null): void {
       return;
     }
     listening = false;
+    showDone(false);
     pulse.className = 'voz-pulse done';
     status.textContent = '';
     // The answer lands here rather than on the session promise: reading a
@@ -348,6 +376,11 @@ export function openVoice(code: string | null = null): void {
     // A código or a typed question needs no microphone at all.
     const silentStart = Boolean(code) || Boolean(typed);
     listening = !silentStart;
+    // Not yet: the button appears when the recognizer says the mic is open
+    // (`onVoiceState`), never while the service is still binding — offering to
+    // end a recording that has not started is the same lie as "Escuchando…" over
+    // a closed microphone.
+    showDone(false);
     status.textContent = silentStart ? 'Buscando…' : 'Abriendo el micrófono…';
     pulse.className = silentStart ? 'voz-pulse working' : 'voz-pulse listening';
 
@@ -388,6 +421,15 @@ export function openVoice(code: string | null = null): void {
       });
     });
   };
+
+  on(done, 'click', () => {
+    // Disabled rather than hidden on the way out: the recognizer takes a moment
+    // to finalise, and the row must not jump under the rider's thumb.
+    done.disabled = true;
+    status.textContent = 'Un momento…';
+    pulse.className = 'voz-pulse working';
+    void finishListening();
+  });
 
   on(installVoice, 'click', () => void installVoiceData());
 

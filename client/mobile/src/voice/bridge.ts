@@ -32,6 +32,7 @@ interface VoicePluginApi {
   consumeLaunch(): Promise<{ voice?: boolean; code?: string | null }>;
   listen(): Promise<{ text?: string; alternatives?: string[] }>;
   cancelListening(): Promise<void>;
+  finishListening(): Promise<void>;
   speak(options: { text: string }): Promise<void>;
   stopSpeaking(): Promise<void>;
   installVoiceData(): Promise<void>;
@@ -300,6 +301,31 @@ export function listenOnce(): Promise<ListenResult> {
       settle({ text: '', alternatives: [], outcome: 'error' });
     }
   });
+}
+
+/**
+ * The rider has finished the sentence — transcribe what has been heard.
+ *
+ * Not a cancel: the microphone closes and the recognition ends in a *result*, so
+ * the question is answered rather than abandoned. It exists because the
+ * recognizer's own idea of when someone stopped talking is a guess it gets wrong
+ * both ways — cutting off a rider who pauses mid-código, or holding the mic open
+ * through a bus's noise — and this is the one case the rider can settle
+ * themselves. Safe to call when nothing is listening (both paths no-op), so the
+ * button never has to know the mic's state.
+ */
+export async function finishListening(): Promise<void> {
+  const api = plugin();
+  if (api) {
+    await api.finishListening?.().catch(() => undefined);
+    return;
+  }
+  try {
+    // `stop()`, never `abort()`: abort throws the audio away, stop transcribes it.
+    webRecognition?.stop();
+  } catch {
+    /* a recognizer that already ended needs no stopping */
+  }
 }
 
 export async function cancelListening(): Promise<void> {

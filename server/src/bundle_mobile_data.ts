@@ -29,6 +29,7 @@ import { copyFile, mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip, type CatalogRouteDetail } from './services/tm_api.js';
+import { isTroncalStationCode } from './services/station_registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -138,7 +139,7 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
   const index: Record<string, unknown> = {};
   // The inverse index: which routes serve each stop. Built from the same pass, so
   // it cannot disagree with the shards (spec §1.1 R2).
-  const stops = new Map<string, { nombre: string; lng: number; lat: number; routes: Set<string> }>();
+  const stops = new Map<string, { nombre: string; lng: number; lat: number; routes: Set<string>; estacion: boolean }>();
   let shards = 0;
   let shardBytes = 0;
 
@@ -168,6 +169,11 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
               lng: round5(coord[0]),
               lat: round5(coord[1]),
               routes: new Set<string>(),
+              // Whether this node is an estación, from the official register
+              // (§5.5.6). Carried into the voice index because "Islandia" the
+              // station and "Br. Islandia" the paradero across the road share a
+              // name, and only one of them is what a rider saying it means.
+              estacion: isTroncalStationCode(key),
             };
             entry.routes.add(code);
             stops.set(key, entry);
@@ -201,13 +207,19 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
   // Compact tuples, not objects: the field names would be ~40% of the payload.
   const stopRows = Array.from(stops.entries())
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([code, entry]) => [
-      code,
-      entry.nombre,
-      entry.lng,
-      entry.lat,
-      Array.from(entry.routes).sort().join(','),
-    ]);
+    .map(([code, entry]) => {
+      const row: (string | number)[] = [
+        code,
+        entry.nombre,
+        entry.lng,
+        entry.lat,
+        Array.from(entry.routes).sort().join(','),
+      ];
+      // Only estaciones carry the flag — two bytes on ~140 rows rather than a
+      // `0` on all 7400 (`VoiceStopRecord`).
+      if (entry.estacion) row.push(1);
+      return row;
+    });
   const stopsJson = JSON.stringify({ stops: stopRows });
   await writeFile(path.join(OUT_DIR, 'voice_stops.json'), stopsJson);
   console.log(
