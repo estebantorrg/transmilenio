@@ -147,9 +147,11 @@ export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): Tron
 
 // ─── Corridor gaps (a trunk ArcGIS has not surveyed yet) ───
 
-/** How far the patch runs into the surveyed corridor before ending, so the two
- *  lines meet instead of leaving the segment between them undrawn. */
-const CORRIDOR_OVERLAP_M = 150;
+/** The patch keeps going until it is this close to the surveyed centreline, so
+ *  the two lines meet instead of leaving the stretch between them undrawn. */
+const CORRIDOR_JOIN_M = 20;
+/** …but never chases a corridor it cannot reach (a terminus has none). */
+const CORRIDOR_JOIN_MAX_M = 600;
 /** Grid cell for the covered-point index, in degrees (~110 m at Bogotá's latitude). */
 const CORRIDOR_CELL_DEG = 0.001;
 /**
@@ -180,6 +182,29 @@ function pathMeters(path: number[][]): number {
   let total = 0;
   for (let i = 1; i < path.length; i++) total += metersBetween(path[i - 1], path[i]);
   return total;
+}
+
+/**
+ * Distance from a point to a segment, in metres, on a local flat projection.
+ *
+ * Vertex distance is not enough here: the surveyed centrelines are sparse where
+ * they run straight, so a point sitting *on* the corridor can be 200 m from the
+ * nearest vertex of it. The join test below would then keep walking along a
+ * corridor it had already reached.
+ */
+function metersToSegment(point: number[], a: number[], b: number[]): number {
+  const scale = Math.cos((point[1] * Math.PI) / 180);
+  const px = point[0] * scale;
+  const py = point[1];
+  const ax = a[0] * scale;
+  const ay = a[1];
+  const dx = b[0] * scale - ax;
+  const dy = b[1] - ay;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lengthSquared));
+  const ddx = px - (ax + t * dx);
+  const ddy = py - (ay + t * dy);
+  return Math.hypot(ddx, ddy) * (Math.PI / 180) * 6371000;
 }
 
 /**
@@ -230,6 +255,24 @@ export function corridorGapFeatures(
   }
   if (covered.size === 0) return { features: [], codes: [] };
 
+  // Every surveyed segment, for the join test. Only a handful of points per run
+  // ever reach it, so a flat scan is cheaper than another index.
+  const surveyedSegments: number[][][] = [];
+  for (const corridor of surveyed) {
+    for (const path of corridor.geometry?.paths ?? []) {
+      for (let i = 1; i < path.length; i++) surveyedSegments.push([path[i - 1], path[i]]);
+    }
+  }
+  const distanceToSurveyed = (point: number[]): number => {
+    let best = Number.POSITIVE_INFINITY;
+    for (const [a, b] of surveyedSegments) {
+      const distance = metersToSegment(point, a, b);
+      if (distance < best) best = distance;
+      if (best <= CORRIDOR_JOIN_M) break;
+    }
+    return best;
+  };
+
   const isCovered = (point: number[]): boolean => {
     const [lng, lat] = point;
     // The 3×3 neighbourhood, so a point just across a cell boundary from the
@@ -270,39 +313,41 @@ export function corridorGapFeatures(
     // The caller's full-resolution trace when it has fetched one, else the light
     // catalog's simplified geometry the boot pass runs on.
     for (const path of fullTraces?.get(route.code) ?? route.geometry?.paths ?? []) {
-      let run: number[][] = [];
-      let previous: number[] | null = null;
-      /** Metres of already-covered trace carried at the end of the open run. */
-      let overlap = 0;
-      const flush = (): void => {
-        if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS) runs.push(run);
-        run = [];
-        overlap = 0;
-      };
-      for (const point of path) {
-        if (!Array.isArray(point) || point.length < 2) continue;
-        if (isCovered(point)) {
-          // Run the patch a little way INTO the surveyed corridor before ending
-          // it. Stopping at the last uncovered vertex leaves the segment between
-          // the two lines drawn by nobody — a hole as wide as the trace's vertex
-          // spacing, which is ~700 m on the light catalog's simplified geometry
-          // and still 40 m on the full one. The overlap is invisible (the two
-          // lines share a colour and a casing); a break in a corridor is not.
-          if (run.length > 0) {
-            overlap += metersBetween(run[run.length - 1], point);
-            run.push(point);
-            if (overlap >= CORRIDOR_OVERLAP_M) flush();
-          }
-        } else {
-          // Back in the gap: whatever was carried is simply part of the run —
-          // this is a trace brushing past another trunk, not the end of one.
-          overlap = 0;
-          if (run.length === 0 && previous) run.push(previous);
-          run.push(point);
+      const points = path.filter((point) => Array.isArray(point) && point.length >= 2);
+      const uncovered = points.map((point) => !isCovered(point));
+
+      let index = 0;
+      while (index < points.length) {
+        if (!uncovered[index]) {
+          index++;
+          continue;
         }
-        previous = point;
+        const start = index;
+        while (index < points.length && uncovered[index]) index++;
+        const end = index - 1;
+
+        // Walk BOTH ends on into the covered trace until the patch actually
+        // touches the surveyed centreline. Ending at the last uncovered vertex
+        // leaves the stretch between the two lines drawn by nobody — the
+        // coverage test fires up to ~165 m out from a corridor vertex, and on
+        // the light catalog's geometry one vertex step is 700 m. Stopping at a
+        // measured distance instead of a vertex count is what makes the join
+        // hold at both resolutions; they share a colour and a casing, so the
+        // overlap is invisible where a break was not.
+        let from = start;
+        while (from > 0 && distanceToSurveyed(points[from]) > CORRIDOR_JOIN_M) {
+          if (metersBetween(points[from], points[start]) > CORRIDOR_JOIN_MAX_M) break;
+          from--;
+        }
+        let to = end;
+        while (to < points.length - 1 && distanceToSurveyed(points[to]) > CORRIDOR_JOIN_M) {
+          if (metersBetween(points[to], points[end]) > CORRIDOR_JOIN_MAX_M) break;
+          to++;
+        }
+
+        const run = points.slice(from, to + 1);
+        if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS) runs.push(run);
       }
-      flush();
     }
 
     // The route qualifies as a whole, and then ALL of its uncovered stretches are
