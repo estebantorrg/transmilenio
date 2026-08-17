@@ -9,7 +9,7 @@
 import { api } from '@shared/services/api';
 import { applyZonalStopEnrichment, buildRouteList, buildZonalStopGroups, isStationStopCode } from '@shared/data/routeCatalog';
 import { buildZonalAreas, getZoneLabel, getZones } from '@shared/data/zones';
-import { setRouteTypeIndex } from '@shared/utils/routeType';
+import { setCatalogIndexes } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
 import { isLiveBridgeAvailable } from '@shared/services/liveBridge';
 import type {
@@ -129,7 +129,7 @@ export function wakeBackend(): Promise<unknown> {
 /** Build routes/stations/counts from a catalog (+ optional ArcGIS troncal geometry). */
 function applyCatalog(catalog: MasterCatalog, troncalRoutes: TroncalRouteFeature[] = [], corridorCount?: number): void {
   state.catalog = catalog;
-  setRouteTypeIndex(catalog);
+  setCatalogIndexes(catalog);
   const routes = buildRouteList(troncalRoutes, catalog);
   const { stations, paraderos } = catalogPointRecords(catalog);
   state.stations = stations;

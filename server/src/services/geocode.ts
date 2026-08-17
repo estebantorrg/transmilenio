@@ -1,4 +1,5 @@
 import * as tmApi from './tm_api.js';
+import { isTroncalStationCode } from './station_registry.js';
 import { BOGOTA_BBOX, BOGOTA_BOUNDS, isWithinBogota } from './bogota.js';
 
 export interface GeocodeCandidate {
@@ -241,7 +242,7 @@ function getLocalIndex(): LocalIndexEntry[] {
     // Skip generic stations that have verified split stations
     if (station.codigo === 'TM0013' || station.codigo === 'TM0069') continue;
 
-    const isTroncal = /^TM\d+$/i.test(station.codigo);
+    const isTroncal = isTroncalStationCode(station.codigo);
     const candidate: GeocodeCandidate = {
       name: `${station.nombre} ${isTroncal ? '(Estacion TM)' : '(Paradero)'}`,
       lat,

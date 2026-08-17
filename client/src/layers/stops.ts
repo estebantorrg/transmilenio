@@ -11,6 +11,7 @@ import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
 import { catalogRouteNetwork, servesZonal } from '../utils/routeType';
+import { isStationStopCode } from '../data/routeCatalog';
 import { showStationPopupByCode } from './stations';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 
@@ -23,7 +24,6 @@ export type StopRoutesMap = Map<string, StopRouteTag[]>;
 
 const STOP_LAYERS = ['stops-circle', 'stops-hitbox', 'stops-labels'];
 const SELECTED_ROUTE_STOPS_LAYERS = ['selected-route-stops-bubble'];
-const STATION_STOP_RE = /^TM\d+$/i;
 
 function hasPointGeometry(stop: any): boolean {
   return Number.isFinite(Number(stop?.geometry?.x)) && Number.isFinite(Number(stop?.geometry?.y));
@@ -69,7 +69,7 @@ function addStopRoute(map: StopRoutesMap, cenefa: string, routeTag: StopRouteTag
 function addCatalogStopRoutes(map: StopRoutesMap, catalog: MasterCatalog): void {
   const stations = Object.values(catalog.stations || {});
   for (const station of stations) {
-    if (/^TM\d+$/i.test(station.codigo)) continue;
+    if (isStationStopCode(station.codigo)) continue;
 
     for (const routes of Object.values(station.wagons)) {
       for (const route of routes) {
@@ -371,7 +371,7 @@ export function updateSelectedRouteStops(map: maplibregl.Map, stops: RouteListIt
         name: s.nombre || '',
         code: String(s.codigo || ''),
         type: type,
-        kind: s.kind || (STATION_STOP_RE.test(String(s.codigo || '')) ? 'station' : 'stop'),
+        kind: s.kind || (isStationStopCode(s.codigo) ? 'station' : 'stop'),
         address: s.direccion || ''
       },
       geometry: {

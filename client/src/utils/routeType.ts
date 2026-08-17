@@ -37,9 +37,17 @@ export function catalogRouteNetwork(route: { sistema?: string | null; tipoServic
 }
 
 let index: Map<string, RouteServiceType> = new Map();
+let stationCodes: Set<string> = new Set();
 
-/** Rebuilds the code → service-type index from the loaded catalog. */
-export function setRouteTypeIndex(catalog: MasterCatalog): void {
+/**
+ * Rebuilds the catalog-derived indexes: código → service type, and which nodes
+ * are estaciones (`station.estacion`, stamped server-side from the official
+ * register, §5.1.4). Both clients call this once per catalog load, which is why
+ * the station index lives here rather than beside its reader — a station that
+ * opens without a TM code (Tibanica - Primavera, Los Laureles, Islandia) is
+ * then an estación on every surface at once, with no code change (§5.5.6).
+ */
+export function setCatalogIndexes(catalog: MasterCatalog): void {
   const next = new Map<string, RouteServiceType>();
 
   for (const [code, variants] of Object.entries(catalog.routes || {})) {
@@ -56,7 +64,21 @@ export function setRouteTypeIndex(catalog: MasterCatalog): void {
     next.set(key, troncal && zonal ? 'dual' : zonal ? 'zonal' : 'troncal');
   }
 
+  const nextStations = new Set<string>();
+  for (const [key, station] of Object.entries(catalog.stations || {})) {
+    if (!station?.estacion) continue;
+    const code = String(station.codigo || key).trim().toUpperCase();
+    if (code) nextStations.add(code);
+  }
+
   index = next;
+  stationCodes = nextStations;
+}
+
+/** True when the loaded catalog stamped this node as an estación. */
+export function isStampedStationCode(code: string | null | undefined): boolean {
+  const key = String(code ?? '').trim().toUpperCase();
+  return key !== '' && stationCodes.has(key);
 }
 
 export function getRouteServiceType(code: string | null | undefined): RouteServiceType | undefined {

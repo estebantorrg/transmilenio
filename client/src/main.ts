@@ -33,7 +33,7 @@ import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
-import { setRouteTypeIndex } from './utils/routeType';
+import { setCatalogIndexes } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from './utils/geo';
 import { initCerca, setCercaLocation, setNearbyPoints, type NearbyPoint } from './ui/cerca';
@@ -763,6 +763,12 @@ async function main(): Promise<void> {
     const cableStations = cableStationsRes.features || [];
     const cableTraces = cableTracesRes.features || [];
     catalog = catalogRes.data || { stations: {}, routes: {} };
+    // Indexed before anything reads the catalog: the station substitution below
+    // asks which nodes are estaciones, and that answer comes from the catalog's
+    // own stamp (§5.5.6). Indexing after it would drop every station whose code
+    // is not `TM…` from the fallback layer — exactly when ArcGIS has failed and
+    // the fallback is all there is.
+    setCatalogIndexes(catalog);
 
     // ArcGIS is the primary station source; if it failed or came back empty,
     // rebuild the layer from the (required) master catalog so stations never
@@ -787,10 +793,9 @@ async function main(): Promise<void> {
     console.log(`✅ Cable traces: ${cableTraces.length}`);
     console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
 
-    // Set catalog for station popups, and index route service types so popups
-    // can keep troncal/zonal routes from leaking into each other.
+    // Set catalog for station popups (route service types + station kinds are
+    // already indexed above, before the station fallback reads them).
     setCatalog(catalog);
-    setRouteTypeIndex(catalog);
 
     // 2. Pre-calculate unified route list from API
     updateProgress(80, 'Procesando catálogo...');

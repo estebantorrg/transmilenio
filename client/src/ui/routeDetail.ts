@@ -14,9 +14,8 @@ import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML } from '../utils/html';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
 import { isAlimentadorRoute } from '../utils/routeColors';
-
-/** A station code of this shape is a troncal estación with a prerendered page. */
-const TRONCAL_STATION = /^TM\d+$/i;
+/** Estación test — the server's stamp, `TM…` code shape as fallback (§5.5.6). */
+import { isStationStopCode } from '../data/routeCatalog';
 
 /**
  * Catalog names carry upstream double spaces ("Portal 20  de Julio"). Collapse
@@ -48,7 +47,7 @@ export function stationPagePath(nombre: string, codigo: string): string {
  * (those are deliberately not emitted — spec §5.5.4).
  */
 export function stationPageHref(stop: { nombre: string; codigo: string }): string | null {
-  if (!TRONCAL_STATION.test(String(stop.codigo || ''))) return null;
+  if (!isStationStopCode(stop.codigo)) return null;
   return stationPagePath(stop.nombre, stop.codigo);
 }
 

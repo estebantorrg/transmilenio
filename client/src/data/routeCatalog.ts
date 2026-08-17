@@ -10,6 +10,7 @@
  */
 
 import { getRouteColor, getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
+import { isStampedStationCode } from '../utils/routeType';
 import { mergeServiceSpans, parseServiceSpans } from '../services/schedule';
 import type { RouteListItem, TroncalRouteFeature } from '../types/transmilenio';
 import type { CatalogRoute, MasterCatalog } from '../types/catalog';
@@ -46,8 +47,20 @@ export function isCicloviaName(text: string | null | undefined): boolean {
     .includes('ciclovia');
 }
 
+/**
+ * Is this catalog node an estación?
+ *
+ * The server answers it from the official station register and stamps the light
+ * catalog (`station.estacion`, §5.1.4/§5.5.6); the `TM…` code shape stays as the
+ * fallback for the 140 stations that have one, and for any surface reading a
+ * catalog that predates the stamp. Deriving it from the code alone drew three
+ * real estaciones — Tibanica - Primavera, Los Laureles, Islandia, opened before
+ * TransMi assigned them TM codes — as zonal paraderos on every screen.
+ */
 export function isStationStopCode(code: string | null | undefined): boolean {
-  return /^TM\d+$/i.test(String(code || '').trim());
+  const key = String(code || '').trim();
+  if (!key) return false;
+  return /^TM\d+$/i.test(key) || isStampedStationCode(key);
 }
 
 function stopKind(code: string | null | undefined): 'station' | 'stop' {

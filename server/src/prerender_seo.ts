@@ -35,6 +35,7 @@ import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
+import { isTroncalStationCode } from './services/station_registry.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -42,8 +43,6 @@ const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
 /** Canonical origin. Changing the domain means changing `seo/README.md`'s checklist too. */
 const ORIGIN = 'https://transmilenio.onrender.com';
 
-/** A station code of this shape is a troncal estación — the same test `buildCatalogLight` uses. */
-const TRONCAL_STATION = /^TM\d+$/i;
 
 // ─── Types (the light catalog is untyped JSON by the time it reaches us) ───
 interface LightStop {
@@ -961,7 +960,7 @@ async function main(): Promise<void> {
 
   // Troncal only (spec §5.5.4 phase 1).
   const stations = Object.values(catalog.stations).filter(
-    (st) => TRONCAL_STATION.test(st.codigo) && Object.keys(st.wagons ?? {}).length > 0
+    (st) => isTroncalStationCode(st.codigo) && Object.keys(st.wagons ?? {}).length > 0
   );
   const routeCodes = Object.entries(catalog.routes).filter(([, variants]) =>
     variants.some((v) => v.sistema === 'TransMilenio')

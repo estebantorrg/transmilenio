@@ -24,6 +24,7 @@ import {
   type StationCatalogAudit,
 } from './stationCatalogResolver';
 import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
+import { isStationStopCode } from '../data/routeCatalog';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
@@ -757,11 +758,12 @@ export function catalogStationsToFeatures(catalog: MasterCatalog): TroncalStatio
   let objectid = 1;
 
   for (const [key, station] of Object.entries(catalog.stations)) {
-    // Classify by CODE, not sistema/tipoServicio: the light catalog this
-    // fallback consumes may omit both fields on a real TM station, which would
-    // silently drop it exactly when ArcGIS already failed. TM…-coded nodes are
-    // the troncal estaciones (spec §5.4.1a; same rule as the mobile twin).
-    const isTroncal = /^TM\d+$/i.test(String(station.codigo || key).trim());
+    // Classified by the server's own answer (`station.estacion`, stamped from
+    // the official register) with the TM…-code shape as fallback — never from
+    // sistema/tipoServicio, which the light catalog may omit on a real station
+    // and would silently drop it exactly when ArcGIS already failed (§5.5.6;
+    // same rule as the mobile twin).
+    const isTroncal = isStationStopCode(String(station.codigo || key).trim());
     if (!isTroncal) continue;
 
     const [latRaw, lngRaw] = String(station.coordenada || '').split(',');

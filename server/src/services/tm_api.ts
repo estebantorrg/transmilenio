@@ -16,6 +16,7 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
+import { isTroncalStationCode } from './station_registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -486,7 +487,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
 
   const cleanStations: Record<string, any> = {};
   for (const [code, station] of Object.entries(masterCatalog.stations || {})) {
-    const isTroncal = /^TM\d+$/i.test(station.codigo);
+    // Answered from the official register, not from the code's shape — a station
+    // that opens before TransMi assigns it a TM code is still a station
+    // (`station_registry.ts`, §5.5.6).
+    const isTroncal = isTroncalStationCode(station.codigo || code);
     const cleanWagons: Record<string, any[]> = {};
     for (const [wagon, routes] of Object.entries(station.wagons || {})) {
       cleanWagons[wagon] = routes.map((r: any) => {
@@ -540,6 +544,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         coordenada: station.coordenada,
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
+        // Shipped so the browser, the app and the prerenderer stop re-deriving
+        // "estación or paradero?" from the code shape (§5.1.4, §5.5.6). Only the
+        // server can answer it: the register is a server-side dataset.
+        estacion: true,
         ...(corridor ? { corridor } : {}),
         ...(vagonLabels ? { vagonLabels } : {}),
         ...(wagonPlan ? { wagonPlan } : {}),
@@ -649,14 +657,19 @@ function isDuplicateRoute(a: { codigo: string; nombre: string }, b: { codigo: st
   return cleanRouteName(a.nombre) === cleanRouteName(b.nombre);
 }
 
+function hasTrace(trace: RouteTrace | undefined): trace is RouteTrace {
+  return Array.isArray(trace) && trace.length > 0;
+}
+
 /**
  * Non-destructively merges a freshly fetched catalog over the previous one.
  *
- * The TransMi API is a live snapshot: some services are only listed on certain
- * days (e.g. Ciclovía routes appear on Sundays), and a partial fetch can miss
- * routes. A blind full replace would delete those. So `fresh` is authoritative
- * for everything it returns (updates win by id), and anything present only in
- * `previous` — routes, variants, station-wagon mappings — is retained.
+ * The TransMi API is a live snapshot: the listing drifts between runs and a
+ * partial fetch can miss routes, so a blind full replace would delete real
+ * services. `fresh` is authoritative for everything it returns (updates win by
+ * id), and anything present only in `previous` — routes, variants,
+ * station-wagon mappings — is retained. The single field-level exception is
+ * `trazado`, which falls back to the previous trace when fresh has none.
  */
 export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): MasterCatalog {
   // Merge `previous` INTO `fresh` in place and return `fresh`. The caller passes
@@ -665,16 +678,62 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
   // (spec §1.1 R2). Only entries the fresh sync missed are grafted on; fresh
   // always wins on conflict, so the published data is identical to before.
 
+  // Upstream route id → the código(s) fresh files it under. A route that is
+  // *renamed* — A61/F61 becoming A61/Z61 — keeps its id and changes código, so
+  // without this the old código is retained forever by the rule below and the
+  // catalog grows a ghost service running the retired code. Retention exists for
+  // a listing that drifts (a route missing from one run is not a route that
+  // ended); an id answering to a different código now is positive evidence that
+  // this entry is the *same* route under its old name, which is the one case
+  // where absence means gone (§5.1.3).
+  const freshCodesById = new Map<string, Set<string>>();
+  for (const [code, variants] of Object.entries(fresh.routes || {})) {
+    for (const variant of variants) {
+      const id = String(variant?.id ?? '').trim();
+      if (!id) continue;
+      const codes = freshCodesById.get(id) ?? new Set<string>();
+      codes.add(code.toUpperCase().trim());
+      freshCodesById.set(id, codes);
+    }
+  }
+  const isRenamedAway = (variant: { id?: string }, code: string): boolean => {
+    const codes = freshCodesById.get(String(variant?.id ?? '').trim());
+    return Boolean(codes && !codes.has(code.toUpperCase().trim()));
+  };
+  let renamedAway = 0;
+
   // Routes: union by code; within a code, union variants by normalized name (fresh wins).
+  let tracesCarried = 0;
   for (const [code, oldVariants] of Object.entries(previous.routes || {})) {
     const freshVariants = fresh.routes[code];
     if (!freshVariants) {
-      fresh.routes[code] = oldVariants;
+      const survivors = oldVariants.filter((v) => !isRenamedAway(v, code));
+      renamedAway += oldVariants.length - survivors.length;
+      if (survivors.length > 0) fresh.routes[code] = survivors;
       continue;
     }
+
+    // `trazado` is the one field where fresh does NOT win on absence. Upstream
+    // `infoRuta` intermittently answers with no trazado at all for a route it
+    // previously traced (66 variants lost a good trace that way on 2026-08-17,
+    // verified against the live endpoint), and a variant-level overwrite takes
+    // the trace down with it. A missing trace is never evidence a route has no
+    // geometry (spec §1 Certainty), and the planner charges ride distance along
+    // it (§5.1.4, §5.6.3), so it falls back to the previous trace instead.
+    const oldByName = new Map(oldVariants.map((v) => [cleanRouteName(v.nombre), v]));
+    for (const variant of freshVariants) {
+      if (hasTrace(variant.trazado)) continue;
+      const previousTrace = oldByName.get(cleanRouteName(variant.nombre))?.trazado;
+      if (!hasTrace(previousTrace)) continue;
+      variant.trazado = previousTrace;
+      tracesCarried++;
+    }
+
     const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
     const retained = oldVariants.filter((v) => !freshKeys.has(cleanRouteName(v.nombre)));
-    if (retained.length > 0) freshVariants.push(...retained);
+    const survivors = retained.filter((v) => !isRenamedAway(v, code));
+    renamedAway += retained.length - survivors.length;
+    if (survivors.length > 0) freshVariants.push(...survivors);
   }
 
   // Stations: union by code; union wagons; within a wagon, union route refs by normalized code+name.
@@ -692,9 +751,21 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
         continue;
       }
       const freshKeys = new Set(freshRoutes.map((r) => `${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
-      const retained = oldRoutes.filter((r) => !freshKeys.has(`${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
+      const retained = oldRoutes
+        .filter((r) => !freshKeys.has(`${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`))
+        // …and never re-attach a mapping for a route that has been renamed away
+        // (above): its recorrido now rides under the new código, so keeping the
+        // old one tags the platform with a service that no longer exists.
+        .filter((r) => !isRenamedAway(r, r.codigo || ''));
       if (retained.length > 0) freshRoutes.push(...retained);
     }
+  }
+
+  if (tracesCarried > 0) {
+    console.log(`[TM API] Kept ${tracesCarried} previous trazado(s) upstream returned no geometry for.`);
+  }
+  if (renamedAway > 0) {
+    console.log(`[TM API] Dropped ${renamedAway} previous entr(ies) whose route id now answers to a different código.`);
   }
 
   return fresh;
@@ -705,8 +776,8 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
  * corroborates.
  *
  * `mergeCatalogs` retains a previous catalog's station-wagon mappings so
- * day-dependent services (Ciclovía routes appear only on Sundays) and partial
- * fetches survive. That same retention also preserves mappings for routes
+ * services the upstream listing happens to omit on a given run, and partial
+ * fetches, survive. That same retention also preserves mappings for routes
  * upstream has since rerouted *away* from a station — e.g. a troncal
  * "C15 Chapinero" that no longer calls at Nariño, or "M85 Museo Nacional" no
  * longer serving Fucha. Those stale mappings surface as phantom or duplicate

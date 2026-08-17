@@ -22,6 +22,11 @@ export interface CatalogStation {
   coordenada: string;
   sistema?: string;
   tipoServicio?: string;
+  /** True when the official station register lists this node as an estación —
+   *  stamped server-side (`station_registry.ts`, §5.5.6) because only the server
+   *  holds the register. Read through `isStationStopCode`, never directly: a
+   *  station that predates the stamp is still recognised by its `TM…` code. */
+  estacion?: boolean;
   /** The troncal corridor this station physically sits on, and the letter its
    *  route codes carry (`{ nombre: 'Autonorte', letra: 'B' }`). Answered
    *  server-side from the official station maps (`stationCorridor`, §5.5.6) —

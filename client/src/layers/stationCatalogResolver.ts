@@ -1,7 +1,7 @@
 import type { CatalogPlanGroup, CatalogRoute, CatalogStation, MasterCatalog } from '../types/catalog';
 import type { TroncalStationFeature } from '../types/transmilenio';
+import { isStationStopCode } from '../data/routeCatalog';
 
-const APP_STOP_CODE_RE = /^TM\d+$/i;
 const TERMINAL_PLATFORM_RADIUS_M = 180;
 const NAME_MATCH_RADIUS_M = 450;
 const NEARBY_AUDIT_RADIUS_M = 700;
@@ -170,8 +170,14 @@ function appStopKey(code: string): string {
   return code.trim().toUpperCase();
 }
 
+/**
+ * Is this catalog stop one of the app's estación nodes — the ones an ArcGIS
+ * station may resolve to? Answered by the shared predicate (the server's stamp,
+ * TM-code shape as fallback), so a station opened without a TM code still
+ * resolves instead of leaving the ArcGIS point `unmatched` with no routes.
+ */
 function isAppStop(station: CatalogStation): boolean {
-  return APP_STOP_CODE_RE.test(station.codigo);
+  return isStationStopCode(station.codigo);
 }
 
 function finiteNumber(value: unknown): number | null {

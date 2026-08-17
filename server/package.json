@@ -16,6 +16,7 @@
     "sync:personalizacion": "tsx src/sync_tullave_points.ts personalizacion",
     "sync:tullave": "tsx src/sync_tullave_points.ts all",
     "sync:transmibici": "tsx src/sync_transmibici.ts",
+    "sync:stations": "tsx src/sync_troncal_stations.ts",
     "bundle:mobile": "tsx src/bundle_mobile_data.ts",
     "seo:prerender": "tsx src/prerender_seo.ts"
   },
