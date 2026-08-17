@@ -151,9 +151,14 @@ export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): Tron
 const CORRIDOR_COVERED_M = 80;
 /** Grid cell for the covered-point index, in degrees (~110 m at Bogotá's latitude). */
 const CORRIDOR_CELL_DEG = 0.001;
-/** Shorter runs than this are trace noise beside the corridor, not a new trunk. */
-const MIN_GAP_POINTS = 4;
-const MIN_GAP_METERS = 250;
+/**
+ * Shorter runs than this are trace noise beside the corridor, not a new trunk.
+ * Low, because once a route qualifies its *connectors* count too — the piece
+ * that carries the corridor from the last new station to the junction with the
+ * surveyed network is often only a few hundred metres.
+ */
+const MIN_GAP_POINTS = 3;
+const MIN_GAP_METERS = 100;
 /** How close a run must pass to an un-surveyed estación to count as its trunk. */
 const ORPHAN_STATION_M = 250;
 
@@ -239,23 +244,48 @@ export function corridorGapFeatures(
     const letter = getTroncalLetter(route.code);
     if (!letter || letter === 'RF' || !(letter in TRONCAL_COLORS)) continue;
 
+    // Every uncovered stretch of this route, before deciding whether the route
+    // belongs to the new trunk at all.
+    const runs: number[][][] = [];
     for (const path of route.geometry?.paths ?? []) {
       let run: number[][] = [];
-      const flush = (): void => {
-        if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS && servesOrphanStation(run)) {
-          const existing = gapsByLetter.get(letter);
-          if (existing) existing.push(run);
-          else gapsByLetter.set(letter, [run]);
-        }
+      let previous: number[] | null = null;
+      const flush = (boundary: number[] | null): void => {
+        // Close the run onto the surveyed network by carrying the neighbouring
+        // COVERED vertex into it. Without this the patch starts at the first
+        // uncovered vertex and the segment leading to it is drawn by nobody — a
+        // hole exactly as wide as the trace's vertex spacing, which on the light
+        // catalog's simplified geometry is ~700 m at this junction. One segment
+        // of overlap is invisible (the two lines share a colour and a casing);
+        // a gap in the middle of a corridor is not.
+        if (boundary && run.length > 0) run.push(boundary);
+        if (run.length >= MIN_GAP_POINTS && pathMeters(run) >= MIN_GAP_METERS) runs.push(run);
         run = [];
       };
       for (const point of path) {
         if (!Array.isArray(point) || point.length < 2) continue;
-        if (isCovered(point)) flush();
-        else run.push(point);
+        if (isCovered(point)) {
+          flush(point);
+        } else {
+          if (run.length === 0 && previous) run.push(previous);
+          run.push(point);
+        }
+        previous = point;
       }
-      flush();
+      flush(null);
     }
+
+    // The route qualifies as a whole, and then ALL of its uncovered stretches are
+    // drawn — not only the ones that pass an orphan station. Testing each run
+    // separately left a hole in the middle of the corridor: the 80 m coverage
+    // test splits a trace wherever it brushes past another trunk, and the
+    // connecting stretch between the new stations and the junction with Américas
+    // has no station of its own to qualify with. A corridor with a kilometre
+    // missing out of its middle is not a corridor.
+    if (!runs.some(servesOrphanStation)) continue;
+    const existing = gapsByLetter.get(letter);
+    if (existing) existing.push(...runs);
+    else gapsByLetter.set(letter, runs);
   }
 
   // Both directions of the new service reach these stations, and they carry

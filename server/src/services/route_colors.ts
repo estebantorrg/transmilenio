@@ -21,7 +21,7 @@ export const TRONCAL_COLORS: Record<string, string> = {
   A: '#0C3A95', B: '#75C347', C: '#FFB741', D: '#6867B4', E: '#B76416',
   F: '#FB2C17', G: '#00B0E8', H: '#FF8525', J: '#E49DAA', K: '#D3AA78',
   L: '#00B0A9', M: '#852D89', P: '#25206F', T: '#808000', RF: '#000000',
-  Z: '#EAB308',
+  Z: '#FB2C17',
 };
 
 const ALIMENTADOR_COLOR = '#009944';

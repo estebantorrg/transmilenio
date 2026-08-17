@@ -16,7 +16,11 @@ export const TRONCAL_COLORS: Record<string, string> = {
   P: '#25206F',
   T: '#808000',
   RF: '#000000',
-  Z: '#EAB308',
+  // Same red as `F`, deliberately: the `Z…` services are the second direction of
+  // the Américas family (`F63`/`Z63` on the Bosa–Tibanica extension), so they
+  // ride and colour the same trunk. A colour of their own split one corridor into
+  // two on the map.
+  Z: '#FB2C17',
 };
 
 /** The two networks a service can belong to — `RouteListItem['type']`. */
