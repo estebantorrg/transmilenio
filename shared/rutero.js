@@ -240,6 +240,46 @@ export function normalizeRuteroText(value) {
 }
 
 /**
+ * What the sign says, for the destinations the catalog spells longer than the
+ * bus does.
+ *
+ * A terminus carries its sponsor or its qualifier in the catalog — `Toberín-
+ * Foundever`, `Héroes - Colmena Seguros`, `Universidades CityU` — and none of
+ * that reaches the panel: the bus is signed `TOBERIN`, `HEROES`,
+ * `UNIVERSIDADES`. This is the same kind of fact as the diacritic fold below it
+ * (the panel's own behaviour, not a limit we work around), so it lives here and
+ * applies to every surface that draws a sign rather than being fixed on one of
+ * them.
+ *
+ * Keyed on the folded, punctuation-free name so a catalog that adds or drops a
+ * space still matches. Deliberately a list of answered cases, not a rule that
+ * strips everything after a dash: `Guatoque - Veraguas` and `AK 68 - CL 12A`
+ * are whole names, and inventing a shorter sign for them would be a wrong
+ * answer of exactly the kind this file exists to avoid (§1 Certainty).
+ */
+const SIGN_DESTINATIONS = new Map([
+  ['ALCALACOLEGIOSTOMASDOMINICOS', 'Alcalá'],
+  ['HEROESCOLMENASEGUROS', 'Héroes'],
+  ['POLOFINCOMERCIO', 'Polo'],
+  ['PRADERAPLAZACENTRAL', 'Pradera'],
+  ['TIBANICAPRIMAVERA', 'Tibanica'],
+  ['TOBERINFOUNDEVER', 'Toberín'],
+  ['UNIVERSIDADESCITYU', 'Universidades'],
+]);
+
+/**
+ * The destination as the panel shows it — the catalog's name unless the sign is
+ * known to be shorter (see {@link SIGN_DESTINATIONS}).
+ *
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function ruteroDestination(value) {
+  const key = normalizeRuteroText(value).replace(/[^A-ZÑ0-9]/g, '');
+  return SIGN_DESTINATIONS.get(key) ?? String(value ?? '');
+}
+
+/**
  * Where each character lands on the panel, in character columns.
  *
  * The código is flush left; the destination is centred on the **whole** panel
@@ -254,7 +294,10 @@ export function normalizeRuteroText(value) {
  */
 export function ruteroLayout(code, destination, panelChars = PANEL_CHARS) {
   const c = normalizeRuteroText(code);
-  const d = normalizeRuteroText(destination);
+  // Shortened first, folded second: the sign's wording is decided before the
+  // panel's glyph fold, and the layout (and therefore the panel width every
+  // sign on the page is sized to) must be measured on what will actually light.
+  const d = normalizeRuteroText(ruteroDestination(destination));
   // One blank column between them at the very least; widen the panel when the
   // pair cannot fit the nominal 20.
   const minimum = c.length + (d.length ? 1 + d.length : 0);

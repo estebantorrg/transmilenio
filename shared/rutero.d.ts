@@ -21,6 +21,12 @@ export declare function carriesRutero(tipoServicio: unknown): boolean;
 /** Uppercase, diacritic-folded (Ñ survives), collapsed to glyphs the face has. */
 export declare function normalizeRuteroText(value: unknown): string;
 
+/**
+ * The destination as the sign words it: the catalog name unless the bus is
+ * known to show a shorter one (`Toberín- Foundever` → `Toberín`).
+ */
+export declare function ruteroDestination(value: unknown): string;
+
 export interface RuteroLayout {
   /** Character columns the panel ends up being, ≥ `PANEL_CHARS`. */
   columns: number;
