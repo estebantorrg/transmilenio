@@ -601,18 +601,32 @@ export function getStationDisplayPoints(): StationDisplayPoint[] {
  */
 function prepareStations(stations: TroncalStationFeature[]): GeoJSON.FeatureCollection {
   globalStations = stations;
-  // Every station the official register lists is drawn. A hard-coded hide-list
-  // used to keep ISLANDIA / LOS LAURELES / TIBANICA - PRIMAVERA off the map:
-  // ArcGIS filed them while they were still building sites, and a pin whose popup
-  // has no services is worse than no pin. They opened in August 2026 — served by
-  // F63/Z63 — and the list kept the three newest estaciones in Bogotá invisible
-  // unless the rider opened one of those two routes. A name list cannot know when
-  // that changes (§5.5.6).
-  const visibleStations = stations;
-  const resolution = resolveStationCatalog(visibleStations, _catalog);
+  const resolution = resolveStationCatalog(stations, _catalog);
   _resolvedStations = resolution.stationsByKey;
   _stationAudit = resolution.audit;
   publishStationAudit();
+
+  // A station with no service filed at it is not drawn.
+  //
+  // This used to be a hard-coded list of three names (ISLANDIA, LOSLAURELES,
+  // TIBANICAPRIMAVERA — ArcGIS files a station while it is still a building
+  // site, and a pin whose popup has no services is worse than no pin). That list
+  // could not know when they opened, so it kept the three newest estaciones in
+  // Bogotá off the map for the whole month they were running.
+  //
+  // The catalog knows. Eight stations resolve to nothing today — Tercer Milenio,
+  // Calle 19, Calle 45, Calle 63, Calle 72 and Hospital, all closed for the
+  // Metro Línea 1 works on Caracas, plus Patio Bonito (remodelling) and SENA —
+  // and upstream files no service at any of them, which is the same fact as
+  // "closed". They are still in the register, so they stay in the audit; they
+  // simply stop being offered to a rider as somewhere a bus stops.
+  const visibleStations = stations.filter((station) => {
+    const resolved = _resolvedStations[buildStationKey(station)];
+    if (!resolved) return false;
+    return Object.values(resolved.wagons).some((routes) => routes.length > 0);
+  });
+  const hidden = stations.length - visibleStations.length;
+  if (hidden > 0) console.log(`🚧 ${hidden} estación(es) sin servicio en el catálogo — no se dibujan`);
 
   const geojson: GeoJSON.FeatureCollection = {
     type: 'FeatureCollection',
