@@ -68,3 +68,34 @@ export function troncalStationEntry(code: string | null | undefined): RegistryEn
 export function registeredStationCount(): number {
   return REGISTERED.size;
 }
+
+/**
+ * Catalog stops that carry TransMilenio service but are in neither the registry
+ * nor the `TM…` code space — i.e. estaciones this build cannot recognise.
+ *
+ * This is the warning for the one silent failure the registry introduced. A
+ * station that opens without a TM code is invisible to every surface until
+ * `npm run sync:stations` regenerates the pairing, and since the map now draws
+ * only stations the catalog files service at, the symptom is *absence* rather
+ * than something visibly wrong. Cheap to check, so it is checked at boot and at
+ * the end of every catalog sync rather than waiting for someone to notice a
+ * missing pin.
+ */
+export function unregisteredServedStations(catalog: {
+  stations?: Record<string, { codigo?: string; nombre?: string; wagons?: Record<string, Array<{ sistema?: string }>> }>;
+}): Array<{ codigo: string; nombre: string }> {
+  const out: Array<{ codigo: string; nombre: string }> = [];
+  for (const [key, station] of Object.entries(catalog.stations || {})) {
+    const code = String(station?.codigo || key).trim();
+    if (!code || isTroncalStationCode(code)) continue;
+    const served = Object.values(station?.wagons || {}).some((routes) =>
+      routes.some((route) => route?.sistema === 'TransMilenio')
+    );
+    // A street stop a padrón route passes is not an estación; only nodes the
+    // register would plausibly list are worth naming. The register keys its
+    // stations numerically, so a cenefa-coded paradero (`443A05`) is excluded
+    // by shape while `90009` is not.
+    if (served && /^\d+$/.test(code)) out.push({ codigo: code, nombre: String(station?.nombre || '') });
+  }
+  return out;
+}

@@ -38,6 +38,17 @@ export interface GraphEdge {
    * charged as — so the drawn metres are always the charged ones.
    */
   traced: boolean;
+  /**
+   * This service picks riders up at street stops, not only at estaciones.
+   *
+   * True for **PADRON** services (`busType`), which the catalog files as
+   * troncal because they are TransMilenio-operated and lettered, but which run
+   * padrón buses in mixed traffic and call at ordinary paraderos between
+   * stations. The station-only rule below is about a troncal bus in the busway
+   * — where a paradero genuinely cannot serve one — and applying it to these
+   * severed every padrón route at its first street stop.
+   */
+  streetStops: boolean;
 }
 
 export interface RouteStop {
@@ -559,6 +570,11 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   for (const route of routes) {
     if (!route.stops || route.stops.length < 2) continue;
 
+    // PADRON services are lettered and troncal-typed but run in mixed traffic,
+    // calling at street paraderos between estaciones (K86, M86, L81, F63/Z63 —
+    // 14 of the catalog's 16). Every non-PADRON troncal route calls only at
+    // stations, so this is the exact line between the two.
+    const streetStops = /PADR[OÓ]N/i.test(String(route.busType ?? ''));
     const speed = route.type === 'troncal' ? TRONCAL_SPEED_M_PER_MINUTE : ZONAL_SPEED_M_PER_MINUTE;
     const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
     const routeIdx = routeIndexById.get(route.id)!;
@@ -596,6 +612,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         time,
         fromOrd: i,
         traced: usable,
+        streetStops,
       });
       transitEdgesCount++;
     }
@@ -620,6 +637,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         time,
         fromOrd: -1,
         traced: false,
+        streetStops: false,
       });
       transitEdgesCount++;
     };
@@ -647,6 +665,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       time: distance / WALK_SPEED_M_PER_MINUTE,
       fromOrd: -1,
       traced: false,
+      streetStops: false,
     });
     walkingEdgesCount++;
   };
@@ -936,6 +955,12 @@ export function refreshRouteTrace(routeId: string): void {
 }
 
 /** Public schedule of a route variant, for the UIs' service labels. */
+/** Whether this route variant calls at street paraderos (`GraphEdge.streetStops`). */
+export function routeServesStreetStops(routeId: string | undefined): boolean {
+  if (!routeId) return false;
+  return /PADR[OÓ]N/i.test(String(routesById.get(routeId)?.busType ?? ''));
+}
+
 export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
   if (!routeId) return undefined;
   return routesById.get(routeId)?.serviceSpans;
@@ -1470,8 +1495,15 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       if (edge.type === 'cable' && mode !== 'mix') continue;
 
       // CRITICAL: Troncal routes can ONLY be boarded/alighted at stations.
-      // A paradero (zonal stop) cannot physically serve troncal buses.
-      if (edge.type === 'troncal') {
+      // A paradero (zonal stop) cannot physically serve a troncal bus in the
+      // busway — but a PADRON service is not one (`edge.streetStops`): it is a
+      // lettered TransMilenio route run with padrón buses in mixed traffic, and
+      // half its recorrido is ordinary street stops. Applying the rule to those
+      // severed 14 of the catalog's 16 padrón routes at their first paradero,
+      // leaving only the station-to-station fragments reachable — which is why a
+      // trip to Tibanica - Primavera came back as an hour of zonal buses while
+      // Z63 ran the same corridor in 19 minutes (§5.6.3).
+      if (edge.type === 'troncal' && !edge.streetStops) {
         if (currentStop.kind !== 'station') continue;
         if (stopList[edge.toIdx].kind !== 'station') continue;
       }
@@ -1652,9 +1684,13 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const seenRouteKeys = new Set<string>();
 
   for (const plan of plans) {
-    // Validate: reject plans where troncal rides start/end at non-station nodes
+    // Validate: reject plans where troncal rides start/end at non-station nodes.
+    // PADRON services are exempt for the reason given at the edge gate above —
+    // they stop in the street by design, so this check would throw away exactly
+    // the plans that gate now allows.
     const hasInvalidTroncalBoarding = plan.steps.some((step) => {
       if (step.type !== 'ride' || step.routeType !== 'troncal') return false;
+      if (routeServesStreetStops(step.routeId)) return false;
       const fromNode = uniqueStops.get(step.fromCode);
       const toNode = uniqueStops.get(step.toCode);
       return (fromNode && fromNode.kind !== 'station') || (toNode && toNode.kind !== 'station');

@@ -16,7 +16,7 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
-import { isTroncalStationCode, troncalStationEntry } from './station_registry.js';
+import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -40,6 +40,22 @@ const MAX_DELAY_MS = 1500;
 const MAX_RETRIES = 3;
 const RETRY_BASE_DELAY_MS = 3000;
 const STALE_DAYS = 7;
+/**
+ * How long a route may go unlisted before the catalog lets it go.
+ *
+ * Long enough that day-dependent services survive: Ciclovía routes are listed
+ * on Sundays and festivos, so three weeks covers three of each plus a missed
+ * sync. Short enough that a retired route does not outlive the network by a
+ * season.
+ */
+const ROUTE_RETENTION_DAYS = Number(process.env.TM_ROUTE_RETENTION_DAYS || 21);
+/**
+ * Expiry only runs after a sync that plainly saw the whole network. A partial
+ * fetch is the exact thing retention exists to survive, and it must never be
+ * read as "these routes are gone" — so a run that indexed fewer than this
+ * fraction of the códigos the catalog already had drops nothing at all.
+ */
+const HEALTHY_SYNC_COVERAGE = 0.9;
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
 /**
  * Vertices kept per route variant in the browser catalog.
@@ -99,6 +115,18 @@ export interface CatalogRouteDetail {
     direccion?: string;
   }>;
   trazado?: RouteTrace;
+  /**
+   * Epoch ms of the last sync that saw this variant in the upstream listing.
+   *
+   * Retention keeps everything a fetch missed (§5.1.3), which is right for a
+   * listing that drifts and wrong forever after: a route TransMi actually
+   * retires has no way out of the catalog, and the id-keyed rename purge only
+   * catches the case where the same id comes back under a new código. This is
+   * the clock that lets a genuinely delisted route expire. Absent on entries
+   * that predate it — those are stamped on the next sync and get the full
+   * window from there, so nothing is dropped for having no stamp.
+   */
+  seenAt?: number;
 }
 
 export interface MasterCatalog {
@@ -358,6 +386,7 @@ export async function loadCatalogFromDisk(): Promise<void> {
     console.log(
       `[TM API] Loaded master catalog: ${stationCount} stations, ${totalRoutes} route-wagon mappings, ${Object.keys(masterCatalog.routes || {}).length} routes`
     );
+    warnUnregisteredStations();
   } catch (err: any) {
     console.log(`[TM API] No master catalog on disk (${err.message}). Run sync to generate.`);
   }
@@ -839,6 +868,56 @@ export function pruneUnservedStationRoutes(catalog: MasterCatalog): number {
 }
 
 /**
+ * Drops route variants no sync has seen for `ROUTE_RETENTION_DAYS`.
+ *
+ * The counterpart to retention. `mergeCatalogs` keeps everything a fetch missed,
+ * because the upstream listing drifts and absence from one run proves nothing —
+ * but with no clock that rule also keeps routes TransMi has genuinely retired,
+ * forever. A variant is dropped only when the catalog has watched it be absent
+ * across the whole window, and only after a sync that saw the whole network
+ * (the caller's health check): a partial fetch is precisely what retention is
+ * for, and must never be read as a retirement.
+ *
+ * Unstamped variants are stamped rather than judged, so the first sync after
+ * this shipped starts everyone's clock instead of expiring the catalog.
+ */
+/**
+ * Names estaciones the registry does not know yet — the one silent failure mode
+ * of answering "is this a station?" from a generated file (§5.5.6). Logged at
+ * boot and after every sync, because the symptom is a station simply missing
+ * from the map rather than anything visibly wrong.
+ */
+export function warnUnregisteredStations(): void {
+  const missing = unregisteredServedStations(masterCatalog);
+  if (missing.length === 0) return;
+  console.warn(
+    `[TM API] ${missing.length} station(s) carry TransMilenio service but are not in the register — ` +
+      `run \`npm run sync:stations\`: ${missing.map((s) => `${s.codigo} ${s.nombre}`).join(', ')}`
+  );
+}
+
+export function expireUnseenVariants(catalog: MasterCatalog, now: number): number {
+  const cutoff = now - ROUTE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  let dropped = 0;
+
+  for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    const kept = variants.filter((variant) => {
+      if (typeof variant.seenAt !== 'number') {
+        variant.seenAt = now;
+        return true;
+      }
+      return variant.seenAt >= cutoff;
+    });
+    if (kept.length === variants.length) continue;
+    dropped += variants.length - kept.length;
+    if (kept.length > 0) catalog.routes[code] = kept;
+    else delete catalog.routes[code];
+  }
+
+  return dropped;
+}
+
+/**
  * Repairs the on-disk catalog in place: loads it, prunes phantom station-wagon
  * mappings (see `pruneUnservedStationRoutes`), and rewrites it atomically. Used
  * to heal a catalog whose stale mappings predate the prune step now baked into
@@ -865,6 +944,10 @@ export async function syncMasterCatalog(): Promise<void> {
   }
 
   syncInProgress = true;
+  // One clock for the whole run: every variant this sync sees is stamped with
+  // the same moment, so the retention window is measured between syncs rather
+  // than between the first and last route of one.
+  const syncStartedAt = Date.now();
   console.log('[TM API] ═══ Starting Master Catalog Sync ═══');
 
   try {
@@ -970,7 +1053,10 @@ export async function syncMasterCatalog(): Promise<void> {
                 coordenada: s.coordenada,
                 posicion: s.posicion
               })),
-              trazado
+              trazado,
+              // Seen in this run's listing — the clock `expireUnseenVariants`
+              // reads. Retained variants keep whatever stamp they arrived with.
+              seenAt: syncStartedAt,
             });
           }
 
@@ -988,9 +1074,31 @@ export async function syncMasterCatalog(): Promise<void> {
     }
 
     // 3. Merge over the previous catalog so day-dependent services (Ciclovía
-    //    routes are only listed on Sundays) and anything a partial fetch missed
-    //    survive, then save atomically and publish once the file is complete.
+    //    runs Sundays and festivos) and anything a partial fetch missed survive,
+    //    then save atomically and publish once the file is complete.
     const merged = mergeCatalogs(masterCatalog, newCatalog);
+
+    // 3b. …and let go of what the network has actually retired. Only after a run
+    //     that plainly saw the whole listing: a short fetch is the case
+    //     retention exists for, and reading it as a retirement would delete
+    //     real routes on a bad night.
+    const previousCodes = Object.keys(masterCatalog.routes || {}).length;
+    const coverage = previousCodes === 0 ? 1 : Object.keys(newCatalog.routes).length / previousCodes;
+    const healthy = errors === 0 && coverage >= HEALTHY_SYNC_COVERAGE;
+    if (healthy) {
+      const expired = expireUnseenVariants(merged, syncStartedAt);
+      if (expired > 0) {
+        console.log(
+          `[TM API] Dropped ${expired} route variant(s) unlisted for more than ${ROUTE_RETENTION_DAYS} days.`
+        );
+      }
+    } else {
+      console.warn(
+        `[TM API] Partial sync (${Math.round(coverage * 100)}% of known códigos, ${errors} errors) — ` +
+          'nothing expired; every retained route kept.'
+      );
+    }
+
     const prunedMappings = pruneUnservedStationRoutes(merged);
     if (prunedMappings > 0) {
       console.log(`[TM API] Pruned ${prunedMappings} stale station-wagon mappings no recorrido corroborates.`);
@@ -1009,6 +1117,9 @@ export async function syncMasterCatalog(): Promise<void> {
     console.log(
       `[TM API] ═══ Sync Complete! ${stationCount} stations, ${totalRoutes} mappings, ${errors} errors ═══`
     );
+    // A sync is exactly when a new station arrives, so it is exactly when the
+    // register is most likely to be a step behind.
+    warnUnregisteredStations();
   } finally {
     syncInProgress = false;
   }
