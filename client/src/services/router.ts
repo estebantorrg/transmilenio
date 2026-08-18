@@ -570,11 +570,21 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   for (const route of routes) {
     if (!route.stops || route.stops.length < 2) continue;
 
-    // PADRON services are lettered and troncal-typed but run in mixed traffic,
-    // calling at street paraderos between estaciones (K86, M86, L81, F63/Z63 —
-    // 14 of the catalog's 16). Every non-PADRON troncal route calls only at
-    // stations, so this is the exact line between the two.
-    const streetStops = /PADR[OÓ]N/i.test(String(route.busType ?? ''));
+    // Does this service stop in the street? Answered by its own recorrido, not
+    // by its label.
+    //
+    // The catalog's vocabulary is TRONCAL / PADRON / ALIMENTADOR / URBANO, and
+    // it files a service under the nearest of those rather than describing it:
+    // `F63`/`Z63` come through as PADRON but are run with **articulados duales**
+    // — new buses that work inside the busway and out of it. A label that is
+    // already an approximation is the wrong thing to gate on, and the next
+    // service type will arrive the same way. The operator does answer the
+    // question directly, though: a stop is in the recorrido because the bus
+    // stops there. `busType` stays only as a second signal, for a variant whose
+    // street stops happen to be coded as stations.
+    const streetStops =
+      /PADR[OÓ]N/i.test(String(route.busType ?? '')) ||
+      (route.stops ?? []).some((stop) => stop.kind !== 'station');
     const speed = route.type === 'troncal' ? TRONCAL_SPEED_M_PER_MINUTE : ZONAL_SPEED_M_PER_MINUTE;
     const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
     const routeIdx = routeIndexById.get(route.id)!;
@@ -958,7 +968,12 @@ export function refreshRouteTrace(routeId: string): void {
 /** Whether this route variant calls at street paraderos (`GraphEdge.streetStops`). */
 export function routeServesStreetStops(routeId: string | undefined): boolean {
   if (!routeId) return false;
-  return /PADR[OÓ]N/i.test(String(routesById.get(routeId)?.busType ?? ''));
+  const route = routesById.get(routeId);
+  if (!route) return false;
+  return (
+    /PADR[OÓ]N/i.test(String(route.busType ?? '')) ||
+    (route.stops ?? []).some((stop) => stop.kind !== 'station')
+  );
 }
 
 export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
