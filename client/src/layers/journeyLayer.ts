@@ -7,6 +7,7 @@ const JOURNEY_LAYERS = [
   'journey-path-glow',
   'journey-path-casing',
   'journey-path-line',
+  'journey-path-estimate',
   'journey-walk-glow',
   'journey-walk-casing',
   'journey-walk-line',
@@ -72,11 +73,15 @@ export function addJourneyLayer(map: maplibregl.Map): void {
   }, beforeId);
 
   // Dark casing
+  // The casing skips the estimated pieces for the same reason the core does: a
+  // solid dark ribbon under the dashes would fill their gaps and the leg would
+  // read as continuous again. The glow above still covers the whole ride, so it
+  // stays one journey rather than two disconnected ones.
   map.addLayer({
     id: 'journey-path-casing',
     type: 'line',
     source: 'journey-path',
-    filter: ['==', ['get', 'type'], 'ride'],
+    filter: ['all', ['==', ['get', 'type'], 'ride'], ['!=', ['get', 'estimated'], true]],
     layout: {
       'line-cap': 'round',
       'line-join': 'round',
@@ -89,12 +94,12 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     },
   }, beforeId);
 
-  // Core colored line
+  // Core colored line — the parts of the ride drawn from the route's own trace.
   map.addLayer({
     id: 'journey-path-line',
     type: 'line',
     source: 'journey-path',
-    filter: ['==', ['get', 'type'], 'ride'],
+    filter: ['all', ['==', ['get', 'type'], 'ride'], ['!=', ['get', 'estimated'], true]],
     layout: {
       'line-cap': 'round',
       'line-join': 'round',
@@ -103,6 +108,30 @@ export function addJourneyLayer(map: maplibregl.Map): void {
     paint: {
       'line-color': ['get', 'color'],
       'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 5.5, 17, 8],
+    },
+  }, beforeId);
+
+  // The pieces the trace could not measure, drawn as the straight lines they
+  // are. Same colour and the same glow and casing as the rest of the ride — it
+  // is one journey — but dashed, exactly like an unrouted walk, because a ruler
+  // line between two stops is not the shape of the route (§1 certainty, §5.7
+  // #8). The solid layer above filters these out rather than drawing underneath
+  // them, or the dashes would sit on a continuous line and read as solid.
+  map.addLayer({
+    id: 'journey-path-estimate',
+    type: 'line',
+    source: 'journey-path',
+    filter: ['all', ['==', ['get', 'type'], 'ride'], ['==', ['get', 'estimated'], true]],
+    layout: {
+      'line-cap': 'butt',
+      'line-join': 'round',
+      'visibility': 'none',
+    },
+    paint: {
+      'line-color': ['get', 'color'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3.5, 14, 5.5, 17, 8],
+      'line-dasharray': [1.6, 1.4],
+      'line-opacity': 0.9,
     },
   }, beforeId);
 
@@ -372,6 +401,16 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
       }
     } else {
       transitFeatures.push(feature);
+      // The straight pieces ride along as their own features so the core line
+      // can skip them and the dashed layer can pick them up (`estimatedPath`).
+      for (const piece of step.estimatedPath ?? []) {
+        if (piece.length < 2) continue;
+        transitFeatures.push({
+          type: 'Feature',
+          properties: { type: 'ride', color, routeCode: step.routeCode || '', index, estimated: true },
+          geometry: { type: 'LineString', coordinates: piece },
+        });
+      }
     }
   });
 

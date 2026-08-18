@@ -109,6 +109,17 @@ export interface JourneyStep {
    * between stations *is* its real shape.
    */
   traceSource?: 'trace' | 'partial' | 'estimate';
+  /**
+   * Ride steps: the pieces of `path` that are NOT the route's real shape — the
+   * straight lines between stops the trace could not measure.
+   *
+   * Carried so the map can draw them dashed, the way an unrouted walk already
+   * is. `traceSource` says a ride is part guesswork; without this the guesswork
+   * is drawn in the same solid line as the rest and a 15 km ruler across the
+   * city reads as the route (spec §1 certainty, §5.7 #8). Per piece, not per
+   * step, because a ride is routinely part real and part straight.
+   */
+  estimatedPath?: [number, number][][];
   // ── Schedule annotations (§5.6.2). Present only on schedule-aware searches;
   // minutes are counted from the plan day's midnight in Bogotá, so a value
   // above 1440 means the step happens after midnight.
@@ -1062,11 +1073,22 @@ function rideGeometry(
   fromOrd: number,
   legTraced: boolean[],
   fallback: [number, number][]
-): [number, number][] {
+): { path: [number, number][]; estimated: [number, number][][] } {
   const index = fromOrd < 0 ? undefined : traceIndexById.get(routeId);
-  if (!index || !legTraced.some(Boolean)) return fallback;
+  if (!index || !legTraced.some(Boolean)) {
+    return { path: fallback, estimated: fallback.length > 1 ? [fallback] : [] };
+  }
 
   const path: [number, number][] = [];
+  // The straight pieces, kept apart from the drawn line so the map can show
+  // them for what they are (§5.7 #8) instead of letting a ruler across the city
+  // pass for the route's shape.
+  const estimated: [number, number][][] = [];
+  let run: [number, number][] = [];
+  const closeRun = (): void => {
+    if (run.length > 1) estimated.push(run);
+    run = [];
+  };
   const append = (point: [number, number]): void => {
     const last = path[path.length - 1];
     if (last && last[0] === point[0] && last[1] === point[1]) return;
@@ -1076,6 +1098,7 @@ function rideGeometry(
   for (let k = 0; k < legTraced.length; k++) {
     const sliced = legTraced[k] ? traceSliceBetween(index, fromOrd + k, fromOrd + k + 1) : null;
     if (sliced && sliced.length > 1) {
+      closeRun();
       for (const point of sliced) append(point);
       continue;
     }
@@ -1083,11 +1106,16 @@ function rideGeometry(
     // what the search charged for it. Appending from wherever the previous leg
     // ended keeps the ride one continuous polyline — the projection of a stop
     // sits within `MAX_SNAP_ERROR_M` of the stop itself (p99 17 m).
+    const from = path[path.length - 1] ?? fallback[k];
     append(fallback[k]);
     append(fallback[k + 1]);
+    // Consecutive untraced legs join into one dashed run rather than several.
+    if (run.length === 0) run.push(from);
+    run.push(fallback[k + 1]);
   }
+  closeRun();
 
-  return path.length > 1 ? path : fallback;
+  return path.length > 1 ? { path, estimated } : { path: fallback, estimated };
 }
 
 /**
@@ -1119,7 +1147,13 @@ function buildJourneySteps(
 
   const commitCurrent = (): void => {
     if (!currentStep) return;
-    currentStep.path = rideGeometry(currentRouteId!, currentFromOrd, currentLegTraced, currentChain);
+    const drawn = rideGeometry(currentRouteId!, currentFromOrd, currentLegTraced, currentChain);
+    currentStep.path = drawn.path;
+    // The cable's straight span between stations IS its shape, so it is not an
+    // estimate of anything and must not be drawn as one.
+    if (currentStep.routeType !== 'cable' && drawn.estimated.length > 0) {
+      currentStep.estimatedPath = drawn.estimated;
+    }
     // What the rider is looking at, per step. Reading the same `traced` flags
     // `rideGeometry` just drew from is exact, not an approximation of it:
     // `traceSliceBetween` refuses on precisely the condition `traceDistanceBetween`
