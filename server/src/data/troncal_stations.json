@@ -3,7 +3,7 @@
     "what": "Official troncal estaciones, joined to the catalog stop code that carries their routes.",
     "source": "ArcGIS Troncal/consulta_estaciones_troncales, joined to server/src/data/master_catalog.json.",
     "why": "A station is an estación because the register says so, not because its catalog code starts with TM — stations open before they are assigned one (Tibanica - Primavera, Los Laureles, Islandia). See spec 5.5.6.",
-    "generated": "2026-08-17",
+    "generated": "2026-08-19",
     "registryStations": 153,
     "matched": 143,
     "unmatched": [
@@ -21,39 +21,6 @@
     "match_what": "node-id = the register node equals the catalog stop id; name-and-distance = same name within 450 m; proximity = no name match, nearest catalog stop within 200 m. distanceM is register point to catalog point."
   },
   "stations": {
-    "90009": {
-      "numero": "05010",
-      "nodo": "5010",
-      "nombre": "Tibanica - Primavera",
-      "troncal": "TZ022",
-      "vagones": 2,
-      "lat": 4.60672702,
-      "lon": -74.20605303,
-      "match": "name-and-distance",
-      "distanceM": 13
-    },
-    "90010": {
-      "numero": "05009",
-      "nodo": "5009",
-      "nombre": "Los Laureles",
-      "troncal": "TZ022",
-      "vagones": 4,
-      "lat": 4.61109139,
-      "lon": -74.20232841,
-      "match": "name-and-distance",
-      "distanceM": 98
-    },
-    "90011": {
-      "numero": "05008",
-      "nodo": "5008",
-      "nombre": "Islandia",
-      "troncal": "TZ022",
-      "vagones": 4,
-      "lat": 4.61434757,
-      "lon": -74.19374374,
-      "match": "name-and-distance",
-      "distanceM": 84
-    },
     "TM0001": {
       "numero": "09123",
       "nodo": "9123",
@@ -1593,6 +1560,39 @@
       "lon": -74.12089669,
       "match": "name-and-distance",
       "distanceM": 360
+    },
+    "TM90009": {
+      "numero": "05010",
+      "nodo": "5010",
+      "nombre": "Tibanica - Primavera",
+      "troncal": "TZ022",
+      "vagones": 2,
+      "lat": 4.60672702,
+      "lon": -74.20605303,
+      "match": "name-and-distance",
+      "distanceM": 9
+    },
+    "TM90010": {
+      "numero": "05009",
+      "nodo": "5009",
+      "nombre": "Los Laureles",
+      "troncal": "TZ022",
+      "vagones": 4,
+      "lat": 4.61109139,
+      "lon": -74.20232841,
+      "match": "name-and-distance",
+      "distanceM": 11
+    },
+    "TM90011": {
+      "numero": "05008",
+      "nodo": "5008",
+      "nombre": "Islandia",
+      "troncal": "TZ022",
+      "vagones": 4,
+      "lat": 4.61434757,
+      "lon": -74.19374374,
+      "match": "name-and-distance",
+      "distanceM": 3
     }
   }
 }

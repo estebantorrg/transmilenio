@@ -136,8 +136,17 @@ export async function syncTroncalStations(): Promise<{ matched: number; unmatche
     // "Br. San Bernardo" beside Tercer Milenio), so name and distance alone
     // promote a street stop to an estación. Thirteen register stations have no
     // catalog counterpart at all; leaving them unmatched is the honest answer.
+    // Specifically a TRONCAL service, not any TransMilenio one. Padrón routes
+    // call at ordinary paraderos between stations (K86 files 78 of them), so
+    // "some TransMilenio route stops here" is true of half the street and it
+    // paired the register's closed Calle 63 and Calle 45 with the paraderos
+    // 130 m away — putting a pin, and K86, back on stations shut for the Metro
+    // works. A troncal bus cannot call anywhere but an estación, which is the
+    // property this gate is actually looking for.
     troncalServed: Object.values(station.wagons || {}).some((routes) =>
-      (routes as Array<{ sistema?: string }>).some((route) => route?.sistema === 'TransMilenio')
+      (routes as Array<{ sistema?: string; tipoServicio?: string }>).some(
+        (route) => route?.sistema === 'TransMilenio' && route?.tipoServicio === 'TRONCAL'
+      )
     ),
   }));
   const byId = new Map<string, typeof stations>();

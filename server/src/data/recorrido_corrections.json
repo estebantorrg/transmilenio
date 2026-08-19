@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "what": "Upstream recorrido facts this project overrides, with the evidence for each.",
+    "why": "The operator's own data lags its network. A stop left on a recorrido after the service stopped making it, or a código still listed after the route it named was retired, is not a difference of opinion — it is stale data, and publishing it puts a stop on a page that no bus calls at.",
+    "how_to_remove": "Every entry is checked on each sync. When upstream stops needing it, the sync logs `no longer needed` for that entry and it should be deleted from this file. Nothing here is meant to outlive the fix upstream.",
+    "rule": "An entry needs evidence that stands on its own — the operator's chainage, the route listing, a photograph — recorded in `note`. A correction filed on a hunch is a second wrong answer.",
+    "maintained": "by hand"
+  },
+  "dropStops": [
+    {
+      "codigo": "A61",
+      "stop": "TM0087",
+      "nombre": "Portal Américas",
+      "added": "2026-08-18",
+      "note": "A61 was extended down the Av. Ciudad de Cali corridor and now runs Tibanica - Primavera → Polo - FINCOMERCIO. Upstream left the old cabecera on the recorrido: it files Portal Américas at `posicion` 0, the same chainage as Tibanica, while every other stop increases from Tibanica (Laureles 541, Islandia 1695 … Polo 21287). Two heads at the same metre is not a sequence, and the service does not call there. Z61, the opposite direction, carries no such entry."
+    }
+  ],
+  "retiredRoutes": [
+    {
+      "codigo": "F61",
+      "added": "2026-08-18",
+      "note": "Replaced by Z61 when the A61/F61 pair was extended to Tibanica. Upstream dropped F61 from `searchRutaByTipo` on 2026-08-18 while A61 stayed, and issued Z61 under a NEW id (5467) rather than re-coding F61's (1190) — so the id-keyed rename purge in `mergeCatalogs` cannot see it and retention would hold the código for its full window. This is the answered retirement that short-circuits that clock."
+    }
+  ]
+}

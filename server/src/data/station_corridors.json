@@ -10,9 +10,9 @@
     "letters_generated": "2026-08-15",
     "manual_what": "Stations the station-maps API has not published yet, filed by hand from the operator's own corridor name. Remove an entry once the API carries it.",
     "manual": {
-      "90009": "Av. Ciudad de Cali",
-      "90010": "Av. Ciudad de Cali",
-      "90011": "Av. Ciudad de Cali"
+      "TM90009": "Av. Ciudad de Cali",
+      "TM90010": "Av. Ciudad de Cali",
+      "TM90011": "Av. Ciudad de Cali"
     }
   },
   "letters": {
@@ -31,9 +31,6 @@
     "Av. Ciudad de Cali": "Z"
   },
   "corridors": {
-    "90009": "Av. Ciudad de Cali",
-    "90010": "Av. Ciudad de Cali",
-    "90011": "Av. Ciudad de Cali",
     "TM0031": "Autonorte",
     "TM0030": "Autonorte",
     "TM0029": "Autonorte",
@@ -186,6 +183,9 @@
     "TM0152": "TransMICable",
     "TM0190": "Caracas Sur",
     "TM0012": "Caracas",
-    "TM0014": "Caracas"
+    "TM0014": "Caracas",
+    "TM90009": "Av. Ciudad de Cali",
+    "TM90010": "Av. Ciudad de Cali",
+    "TM90011": "Av. Ciudad de Cali"
   }
 }

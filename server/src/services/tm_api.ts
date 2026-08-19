@@ -17,6 +17,7 @@ import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
+import { correctRecorrido, isRetiredRoute, reportUnusedCorrections } from './recorrido_corrections.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,6 +57,9 @@ const ROUTE_RETENTION_DAYS = Number(process.env.TM_ROUTE_RETENTION_DAYS || 21);
  * fraction of the códigos the catalog already had drops nothing at all.
  */
 const HEALTHY_SYNC_COVERAGE = 0.9;
+/** Two stops may share a chainage if they are the two kerbs of one street; this
+ *  far apart they are a stale recorrido instead (`warnTiedChainage`). */
+const TIED_CHAINAGE_TOLERANCE_M = 400;
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
 /**
  * Vertices kept per route variant in the browser catalog.
@@ -901,6 +905,16 @@ export function expireUnseenVariants(catalog: MasterCatalog, now: number): numbe
   let dropped = 0;
 
   for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    // An answered retirement does not wait out the window. Retention exists
+    // because absence from one listing proves nothing; a route the network has
+    // actually ended is not an absence, it is a fact on file
+    // (`recorrido_corrections.json`) — and upstream can retire a código without
+    // ever reusing its id, which is the one case the rename purge cannot see.
+    if (isRetiredRoute(code)) {
+      dropped += variants.length;
+      delete catalog.routes[code];
+      continue;
+    }
     const kept = variants.filter((variant) => {
       if (typeof variant.seenAt !== 'number') {
         variant.seenAt = now;
@@ -931,6 +945,49 @@ export async function pruneCatalogFileInPlace(): Promise<number> {
     invalidateLightCatalog();
   }
   return pruned;
+}
+
+/**
+ * Warns when a recorrido files two stops at the same metre.
+ *
+ * `posicion` is the operator's own chainage along the route, so two stops
+ * sharing one — while sitting far apart on the ground — means the recorrido is
+ * carrying something that is not a position in the sequence. That is how A61
+ * arrived with its retired cabecera still attached (Portal Américas at 0, tied
+ * with the real head at Tibanica). Only ever a warning: which of the two is the
+ * stale one is a question about the network, answered in
+ * `recorrido_corrections.json` with evidence, never guessed at here (§1).
+ */
+function warnTiedChainage(codigo: string, stops: Array<{ codigo?: string; nombre?: string; posicion?: number; coordenada?: string }>): void {
+  const byPosition = new Map<number, typeof stops>();
+  for (const stop of stops) {
+    const position = Number(stop?.posicion);
+    if (!Number.isFinite(position)) continue;
+    const bucket = byPosition.get(position) ?? [];
+    bucket.push(stop);
+    byPosition.set(position, bucket);
+  }
+  for (const [position, tied] of byPosition) {
+    if (tied.length < 2) continue;
+    // Opposite kerbs of one street legitimately share a metre; kilometres apart
+    // does not.
+    const points = tied
+      .map((stop) => String(stop?.coordenada || '').split(',').map(Number))
+      .filter((pair) => pair.length === 2 && pair.every(Number.isFinite));
+    let apart = 0;
+    for (let i = 0; i < points.length; i++) {
+      for (let j = i + 1; j < points.length; j++) {
+        const [lat1, lng1] = points[i];
+        const [lat2, lng2] = points[j];
+        apart = Math.max(apart, Math.hypot((lat1 - lat2) * 111320, (lng1 - lng2) * 110000));
+      }
+    }
+    if (apart < TIED_CHAINAGE_TOLERANCE_M) continue;
+    console.warn(
+      `[TM API] ${codigo}: ${tied.length} stops filed at posicion ${position}, ${Math.round(apart)} m apart ` +
+        `(${tied.map((stop) => stop?.codigo).join(', ')}) — upstream recorrido looks stale.`
+    );
+  }
 }
 
 // ─── Master Sync ────────────────────────────────────────
@@ -975,18 +1032,36 @@ export async function syncMasterCatalog(): Promise<void> {
     for (const route of catalogRoutes) {
       processed++;
       const progress = `${processed}/${catalogRoutes.length}`;
+      // A código the network has retired is not fetched, indexed or retained —
+      // upstream keeps listing one for a while after the service ends.
+      if (isRetiredRoute(route.codigo)) {
+        console.log(`[TM API] [${progress}] ${route.codigo} — retired (recorrido_corrections.json), skipped`);
+        continue;
+      }
 
       try {
         const { recorrido, color, horarios, sistema, tipoServicio, trazado } = await getRouteInfo(route.id, route.nombre, route.codigo);
+        // A recorrido carries what the operator filed, which is not always what
+        // the service does (`recorrido_corrections.json`). Corrected here, at the
+        // edge, so the catalog on disk records the route as it is actually run
+        // and nothing downstream has to know about the difference.
+        const corrected = correctRecorrido(route.codigo, recorrido || []);
+        if (corrected.length !== (recorrido || []).length) {
+          console.log(
+            `[TM API] [${progress}] ${route.codigo} — dropped ${(recorrido || []).length - corrected.length} ` +
+              'stop(s) upstream files but the service does not make.'
+          );
+        }
+        warnTiedChainage(route.codigo, corrected);
         const routeColor = color || route.color || '#64748B';
 
-        if (!recorrido || recorrido.length === 0) {
+        if (corrected.length === 0) {
           console.log(`[TM API] [${progress}] ${route.codigo} — no stops`);
           errors++;
         } else {
           let stopsAdded = 0;
 
-          for (const stop of recorrido) {
+          for (const stop of corrected) {
             const stationCode = stop.codigo;
             if (!stationCode || stationCode.length === 0) continue;
 
@@ -1047,7 +1122,7 @@ export async function syncMasterCatalog(): Promise<void> {
               sistema: sistema || route.sistema,
               tipoServicio: tipoServicio || route.tipoServicio,
               horarios,
-              stops: recorrido.map(s => ({
+              stops: corrected.map(s => ({
                 nombre: s.nombre,
                 codigo: s.codigo,
                 coordenada: s.coordenada,
@@ -1061,7 +1136,7 @@ export async function syncMasterCatalog(): Promise<void> {
           }
 
           console.log(
-            `[TM API] [${progress}] ${route.codigo} (${route.nombre}) — ${recorrido.length} stops, ${stopsAdded} new mappings`
+            `[TM API] [${progress}] ${route.codigo} (${route.nombre}) — ${corrected.length} stops, ${stopsAdded} new mappings`
           );
         }
       } catch (err: any) {
