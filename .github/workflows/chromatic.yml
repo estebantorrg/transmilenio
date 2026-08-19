@@ -6,15 +6,55 @@ on:
   pull_request:
     branches: [ main ]
 
+# A push train used to leave a queue of full runs racing each other. Only the tip
+# of a PR branch is worth building; every push to main still runs, because each
+# one is a Chromatic baseline.
+concurrency:
+  group: chromatic-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   chromatic:
     name: Run Chromatic
     runs-on: ubuntu-latest
+    # A healthy run is ~5 min. `playwright install` stalled once and sat there
+    # until the 6 h default budget ran out, so cap it.
+    timeout-minutes: 30
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0 # Required by Chromatic for git history tracking
+
+      # server/src/data/master_catalog.json is Git LFS (58 MB). A plain checkout
+      # leaves a 133-byte pointer, the server fails to parse it and boots with an
+      # empty catalog, and every catalog-fed map layer draws zero features — which
+      # is precisely what tests/arcgis-layers.spec.ts asserts against.
+      #
+      # Cached rather than pulled through `checkout: lfs: true`: the free LFS
+      # bandwidth budget is 1 GB/month and this workflow runs on every push, so
+      # re-downloading 58 MB each time would exhaust the quota and break the
+      # checkout itself. The key is the pointer's own hash, so a resynced catalog
+      # (new oid) misses the cache and fetches exactly once.
+      - name: Restore Git LFS cache
+        uses: actions/cache@v4
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('server/src/data/master_catalog.json') }}
+
+      - name: Fetch Git LFS objects
+        run: git lfs pull
+
+      # Fail here, with the reason, instead of letting the layer specs fail with
+      # "expected > 0, received 0" six times over.
+      - name: Verify the catalog materialised
+        run: |
+          bytes=$(stat -c%s server/src/data/master_catalog.json)
+          if [ "$bytes" -lt 1000000 ]; then
+            echo "::error::master_catalog.json is $bytes bytes — the Git LFS object was not fetched (quota? auth?). The catalog-fed layers cannot render."
+            exit 1
+          fi
+          echo "master_catalog.json: $bytes bytes"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -30,6 +70,16 @@ jobs:
 
       - name: Run Playwright Tests
         run: npx playwright test
+
+      # The HTML report is the only place the failure detail lives; without it a
+      # red run says nothing but "step failed".
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
 
       - name: Run Chromatic
         run: npx chromatic --playwright --exit-zero-on-changes
