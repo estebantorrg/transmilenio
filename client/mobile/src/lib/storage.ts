@@ -25,6 +25,35 @@ function write(key: string, list: string[]): void {
   }
 }
 
+// ── Generic object storage ──────────────────────────────────────────────────
+// The helpers above are string-list only. An in-flight journey (`guidance.ts`)
+// is a structured value, and it must survive the app being killed mid-trip.
+
+export function loadJSON<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveJSON<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage may be full/blocked — non-fatal */
+  }
+}
+
+export function removeKey(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* non-fatal */
+  }
+}
+
 export function getFavorites(): string[] {
   return read(FAV_KEY);
 }

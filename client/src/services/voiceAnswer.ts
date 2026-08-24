@@ -40,22 +40,29 @@ export interface VoiceAnswer {
   detail: string;
 }
 
-/** The three things that read differently out loud than on screen. */
-interface Phrasing {
+/**
+ * The three things that read differently out loud than on screen.
+ *
+ * Exported because in-journey guidance (`journeyGuide.ts`) composes its cues the
+ * same way and through the *same* tables: a second set would drift, and the first
+ * thing it would drift into is the defect this shape exists to prevent — "el efe
+ * 19" on a screen, "F19" through a speaker (spec §5.9, §1.1 R2).
+ */
+export interface Phrasing {
   code(code: string): string;
   place(name: string): string;
   clock(minute: number): string;
   distance(meters: number): string;
 }
 
-const SPOKEN: Phrasing = {
+export const SPOKEN: Phrasing = {
   code: speakRouteCode,
   place: speakPlace,
   clock: speakClock,
   distance: speakDistance,
 };
 
-const WRITTEN: Phrasing = {
+export const WRITTEN: Phrasing = {
   code: (code) => code,
   place: (name) => name,
   clock: formatClockMinute,
@@ -187,7 +194,7 @@ function punctuate(sentence: string): string {
 }
 
 /** Run a sentence builder for both the speaker and the screen. */
-function both(build: (p: Phrasing) => string): { spoken: string; written: string } {
+export function both(build: (p: Phrasing) => string): { spoken: string; written: string } {
   return { spoken: punctuate(build(SPOKEN)), written: punctuate(build(WRITTEN)) };
 }
 

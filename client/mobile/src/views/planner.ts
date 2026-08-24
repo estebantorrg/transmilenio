@@ -21,6 +21,7 @@ import {
   describeDeparture,
   planDayDelta,
 } from '@shared/services/departure';
+import { isGuidedPlan, isGuiding, startGuidance, stopGuidance } from '../services/guidance';
 import { getRouteAccentColor, CABLE_COLOR } from '@shared/utils/routeColors';
 import { api } from '@shared/services/api';
 import { POINT_KIND_META, rankPointsByKind, POINT_KINDS, dedupePointsByName } from '@shared/data/pointKinds';
@@ -763,12 +764,24 @@ interface SearchConstraints {
   relax: (which: 'mix' | 'schedules') => void;
 }
 
+/**
+ * Bus subscriptions owned by the itinerary cards currently on screen.
+ *
+ * `renderPlans` replaces every card on each search and on the second pass that
+ * lands the real walking legs (§5.6.4), so the guidance listeners those cards
+ * held have to go with them — otherwise a rider who searches ten times leaves ten
+ * dead buttons repainting on every position fix.
+ */
+let cardCleanups: (() => void)[] = [];
+
 function renderPlans(
   host: HTMLElement,
   plans: JourneyPlan[],
   onShowOnMap: (plan: JourneyPlan) => void,
   constraints?: SearchConstraints
 ): void {
+  cardCleanups.forEach((off) => off());
+  cardCleanups = [];
   host.replaceChildren();
   if (plans.length === 0) {
     // A search comes back empty for one of three reasons, and each has a
@@ -919,6 +932,32 @@ function renderPlans(
       onShowOnMap(plan);
     });
     card.append(mapBtn);
+
+    // Guidance: the itinerary stops being a picture and starts running (§5.10).
+    // Offered per plan rather than globally, because "guide me" only means
+    // anything once the rider has chosen WHICH itinerary they are riding. The
+    // banner, the speech and the journey itself belong to `services/guidance` —
+    // this is only the switch, and every card's switch repaints off the same
+    // broadcast so two of them can never both claim to be the running trip.
+    const guideBtn = h('button', { class: 'btn btn-ghost plan-map-btn', type: 'button' });
+    const paintGuideBtn = (): void => {
+      const running = isGuiding() && isGuidedPlan(plan);
+      guideBtn.innerHTML = `${running ? ICONS.stop : ICONS.locate}<span>${running ? 'Terminar viaje' : 'Iniciar viaje'}</span>`;
+    };
+    paintGuideBtn();
+    // Unsubscribed with the card: `renderPlans` replaces `host`'s children on
+    // every search, and a listener per discarded button would accumulate one
+    // repaint per itinerary the rider ever looked at.
+    cardCleanups.push(bus.on('guidance', paintGuideBtn));
+    guideBtn.addEventListener('click', () => {
+      haptic('medium');
+      if (isGuiding() && isGuidedPlan(plan)) {
+        stopGuidance();
+        return;
+      }
+      startGuidance(plan); // the banner says what happened, success or not
+    });
+    card.append(guideBtn);
     host.append(card);
   });
 }

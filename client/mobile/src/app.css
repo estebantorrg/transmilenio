@@ -57,6 +57,12 @@
      Anything anchored to the bottom-right of a screen offsets by this or lands
      underneath it. */
   --voz-lane: 74px;
+  /* How much room the in-journey guidance banner is taking, 0 when it is not on
+     screen. Measured and written by `guidanceBanner.ts` rather than hard-coded,
+     because the banner is one line or two depending on what it is saying — the
+     twin of --voz-lane, and for the same reason: the bottom-right corner is
+     crowded and every control anchored there has to clear the others (§5.10). */
+  --guide-lane: 0px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
@@ -509,8 +515,8 @@ input { font-family: inherit; }
    bottom-right corner (`--voz-lane` below), which is exactly where "Mi
    ubicación" used to sit — the two overlapped pixel for pixel and the mic won,
    so the map's own locate button was untappable. */
-.map-locate-btn { bottom: calc(24px + var(--voz-lane)); transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
-.screen-mapa.has-route .map-locate-btn { bottom: calc(96px + var(--voz-lane)); }
+.map-locate-btn { bottom: calc(24px + var(--voz-lane) + var(--guide-lane)); transition: bottom 0.28s cubic-bezier(0.22, 1, 0.36, 1); }
+.screen-mapa.has-route .map-locate-btn { bottom: calc(96px + var(--voz-lane) + var(--guide-lane)); }
 /* Map-pick prompt ("toca tu ubicación en el mapa"). */
 .map-pick-hint {
   /* `right` clears the layers FAB (44px at right:14) so the two never overlap. */
@@ -537,7 +543,7 @@ input { font-family: inherit; }
 .mf-cable { background: #f97316; }
 .mf-label { font-size: 13.5px; }
 
-.map-route-banner { position: absolute; left: 12px; right: 12px; bottom: calc(20px + var(--voz-lane)); z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
+.map-route-banner { position: absolute; left: 12px; right: 12px; bottom: calc(20px + var(--voz-lane) + var(--guide-lane)); z-index: 5; display: flex; align-items: center; gap: 11px; background: rgba(11, 16, 27, 0.94); backdrop-filter: blur(16px); border: 1px solid var(--border-2); border-radius: 18px; padding: 11px 12px; box-shadow: var(--shadow); animation: screen-in 0.3s ease; }
 /* The badge + name + live chip are one big tap target back into the route sheet. */
 .mrb-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; background: none; border: 0; padding: 0; color: var(--text); text-align: left; }
 .mrb-open:active { opacity: 0.72; }
@@ -827,4 +833,40 @@ input { font-family: inherit; }
    of motion someone turns that switch off for (WCAG 2.3.3). */
 @media (prefers-reduced-motion: reduce) {
   .voz-pulse span { animation: none !important; height: 16px; }
+}
+
+/* ── In-journey guidance banner (§5.10) ───────────────────────────────────
+   Every cue is spoken, but it is shown too: a device with no installed TTS
+   voice accepts speak() and says nothing (§4.2), and an articulado is loud.
+   Sits above the tab bar, clear of the voice FAB's lane, and swallows no taps
+   — the rider is meant to be able to ignore it and keep using the map under
+   it. Its "Terminar" button is the one exception, because a journey that can
+   only be ended from the card that started it is a trap. */
+.guidance-banner {
+  position: fixed; z-index: 96;
+  left: 12px; right: 12px;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--voz-lane) + 12px);
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(52, 211, 153, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.32);
+  color: var(--green);
+  backdrop-filter: blur(14px);
+  font-size: 14px; font-weight: 600; line-height: 1.35;
+  pointer-events: none;
+  animation: screen-in 0.22s ease;
+}
+.guidance-text { flex: 1; min-width: 0; text-align: left; }
+.guidance-progress { margin-top: 2px; font-size: 12px; font-weight: 600; opacity: 0.78; }
+.guidance-end {
+  flex: none;
+  pointer-events: auto;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(52, 211, 153, 0.45);
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--green);
+  font: inherit; font-size: 12px; font-weight: 700;
+  cursor: pointer;
 }

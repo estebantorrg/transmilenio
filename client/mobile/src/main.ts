@@ -21,6 +21,8 @@ import { createMapaView, type MapaView } from './views/mapa';
 import { createCercaView } from './views/cerca';
 import { createSaldoView } from './views/saldo';
 import { closeVoice, isVoiceOpen, openVoice } from './views/voz';
+import { mountGuidanceBanner } from './ui/guidanceBanner';
+import { resumeGuidance } from './services/guidance';
 import { consumeVoiceLaunch, onVoiceLaunch } from './voice/bridge';
 import type { View } from './views/types';
 import type { RouteListItem } from '@shared/types/transmilenio';
@@ -247,6 +249,10 @@ async function main(): Promise<void> {
   // One connectivity banner for the whole app (spec §4.2 graceful degradation).
   initNetworkBanner();
 
+  // In-journey guidance draws over every tab and survives them all, so its
+  // banner is mounted once here rather than owned by the planner (spec §5.10).
+  mountGuidanceBanner();
+
   // ── Voice (spec §5.9) ──────────────────────────────────
   // The mic is a floating control rather than a seventh tab: it is not a place
   // in the app, it is a shortcut past all of them.
@@ -322,6 +328,11 @@ async function main(): Promise<void> {
     // Non-blocking follow-ups.
     void fetchHealth();
     void loadBackground();
+
+    // A rider whose phone was killed mid-trip reopens the app still on the bus.
+    // Resumed here rather than at boot because the vagón lookup reads the
+    // catalog's station records (spec §5.5.6), which `loadCore` has just filled.
+    resumeGuidance();
 
     // Build the map while the phone is idle. It is created lazily (MapLibre needs
     // an attached, sized container), so the first tap on "Mapa" used to pay a

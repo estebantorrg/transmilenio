@@ -19,7 +19,7 @@ import type {
   StationDemandResponse,
   TransmibiciResponse,
 } from '@shared/services/api';
-import type { MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
+import type { CatalogStation, CatalogWagons, MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
 import { bus, setRoutes, state, type DemandRecord, type HealthInfo, type StationRecord } from './state';
 import { idbGet, idbSet } from './lib/cache';
@@ -86,6 +86,42 @@ function parseLatLng(coordenada: string | undefined): [number, number] | null {
 }
 
 /**
+ * Inverts a station's `wagons` map (wagon key → services) into the lookup
+ * guidance needs (route código → the vagón number **printed on the sign**), so an
+ * in-journey cue can name the platform a transfer boards from (§5.5.4, §5.10,
+ * `StationRecord.wagonByRoute`).
+ *
+ * Two keys are deliberately dropped, and both for the same reason — a rider sent
+ * to a platform must have something to look for:
+ *
+ *  - **Key `0`** is the pool the catalog does NOT assign to a vagón: a mix of
+ *    alimentador/zonal services and 61 troncal ones across 22 stations. Only the
+ *    station's own signage names those platforms (§5.4.1).
+ *  - **Any key with no entry in `vagonLabels`.** The catalog groups platforms
+ *    `A`/`B`/`C` while the signs read "Vagón 1/2/3", and the two only line up
+ *    where the plano's plate count backs them — 93 of 139 stations. The mapping
+ *    is gated server-side and shipped as `station.vagonLabels`; the raw key is a
+ *    letter that appears on no sign in any station, and "Vagón 1" where the sign
+ *    reads 3 is a real-world wrong answer, so the number is withheld rather than
+ *    guessed (§5.5.4, §1). The cue simply drops its vagón clause.
+ */
+function invertWagons(station: CatalogStation): Record<string, string> | undefined {
+  const wagons: CatalogWagons | undefined = station.wagons;
+  if (!wagons) return undefined;
+  const printed = station.vagonLabels ?? {};
+  const byRoute: Record<string, string> = {};
+  for (const [key, routes] of Object.entries(wagons)) {
+    if (key === '0') continue;
+    const label = printed[key];
+    if (!label) continue;
+    for (const route of routes || []) {
+      if (route?.codigo) byRoute[route.codigo] = label;
+    }
+  }
+  return Object.keys(byRoute).length > 0 ? byRoute : undefined;
+}
+
+/**
  * Splits the master catalog's `stations` map — which mixes troncal ESTACIONES
  * and zonal PARADEROS — into the two typed lists the UI needs. The light catalog
  * served by the API carries no `sistema`, so classification is by CODE: canonical
@@ -106,6 +142,7 @@ function catalogPointRecords(catalog: MasterCatalog): { stations: StationRecord[
       direccion: st.direccion || '',
       coordinate,
       wagonCount: st.wagons ? Object.keys(st.wagons).length : 0,
+      wagonByRoute: invertWagons(st),
       kind: isStation ? 'station' : 'stop',
     });
   }

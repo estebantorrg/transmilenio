@@ -81,6 +81,22 @@ export interface JourneyStep {
   time: number; // in minutes (ride steps include the expected boarding wait)
   stopCount?: number;
   stops?: string[]; // Intermediate stop names (excluding boarding/alighting)
+  /**
+   * The same intermediate stops as `stops`, carrying the código and coordinate
+   * the router already held when it built them.
+   *
+   * `stops` is names alone, and a name is not an identity — dozens of paraderos
+   * share one across the city — so nothing downstream can turn it back into a
+   * place. In-journey guidance (`journeyGuide.ts`) needs to know where each stop
+   * *is* to tell a rider which one is next, so the router keeps what it had
+   * instead of discarding it. Additive: `stops` is unchanged and every existing
+   * reader of it is untouched.
+   */
+  stopPoints?: { name: string; code: string; coord: [number, number] }[];
+  /** Boarding point coordinate — `path[0]` is the drawn shape, not the stop. */
+  fromCoord?: [number, number];
+  /** Alighting point coordinate. */
+  toCoord?: [number, number];
   path?: [number, number][]; // Coordinates for this leg
   isTunnel?: boolean;
   /**
@@ -1207,6 +1223,8 @@ function buildJourneySteps(
         fromCode: fromStop.codigo,
         toName: toStop.nombre,
         toCode: toStop.codigo,
+        fromCoord: fromStop.coordinate,
+        toCoord: toStop.coordinate,
         distance,
         time,
         path: walkPath,
@@ -1222,10 +1240,19 @@ function buildJourneySteps(
       // Extend existing ride step
       if (currentStep.stops && fromStop.codigo !== currentStep.fromCode) {
         const lastStop = currentStep.stops[currentStep.stops.length - 1];
-        if (lastStop !== fromStop.nombre) currentStep.stops.push(fromStop.nombre);
+        if (lastStop !== fromStop.nombre) {
+          currentStep.stops.push(fromStop.nombre);
+          // Kept in lockstep with `stops` so the two never drift out of order.
+          currentStep.stopPoints?.push({
+            name: fromStop.nombre,
+            code: fromStop.codigo,
+            coord: fromStop.coordinate,
+          });
+        }
       }
       currentStep.toName = toStop.nombre;
       currentStep.toCode = toStop.codigo;
+      currentStep.toCoord = toStop.coordinate;
       currentStep.distance += leg.distance;
       currentStep.time += leg.time;
       if (currentStep.stopCount !== undefined) currentStep.stopCount++;
@@ -1247,6 +1274,9 @@ function buildJourneySteps(
         time: leg.time + BOARD_WAIT_MINUTES[leg.type],
         stopCount: 1,
         stops: [], // Will populate if multiple stops are traversed
+        stopPoints: [], // Same stops, with código + coordinate (guidance)
+        fromCoord: fromStop.coordinate,
+        toCoord: toStop.coordinate,
       };
       // Waiting for the window to open is real trip time, exactly as the search
       // charged it, so it belongs inside the step duration.
