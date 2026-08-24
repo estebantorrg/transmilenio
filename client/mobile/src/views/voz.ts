@@ -314,6 +314,11 @@ export function openVoice(code: string | null = null): void {
     if (openHandle !== sheet || forRound !== round) return;
     if (progress.stage === 'escuchando') {
       listening = true;
+      // A fresh window starts with the mic closed, whatever the last one ended
+      // on: the button comes back on `voiceReady`. A recognition that died
+      // without a `voiceEnd` (a watchdog, an OEM that just goes quiet) otherwise
+      // left "Ya terminé" sitting over a microphone that is no longer open.
+      showDone(false);
       // A second window after a first one that produced nothing — say which of the
       // two happened, or it reads as the app having ignored the rider entirely.
       // "No te escuché" to someone who just spoke is the wrong accusation.

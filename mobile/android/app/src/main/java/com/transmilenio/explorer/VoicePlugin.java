@@ -443,6 +443,7 @@ public class VoicePlugin extends Plugin {
         call.setKeepAlive(true);
         PluginCall superseded;
         boolean restart;
+        String partial;
         synchronized (recognitionLock) {
             superseded = pendingListen;
             pendingListen = call;
@@ -451,6 +452,7 @@ public class VoicePlugin extends Plugin {
             // rider can see is a full one rather than whatever is left of a timer
             // that started behind the splash screen.
             restart = !(listening && speechStarted);
+            partial = lastPartial;
         }
         if (superseded != null) superseded.reject("Reemplazado por una nueva escucha", "SUPERSEDED");
         if (restart) {
@@ -460,6 +462,22 @@ public class VoicePlugin extends Plugin {
             // answer for it (see recognitionGeneration).
             int generation = nextGeneration();
             main.post(() -> startListening(true, generation));
+            return;
+        }
+        // Taking over a recognition that is ALREADY open: every state event it
+        // will ever emit (`voiceReady`, `voiceSpeaking`) fired while the WebView
+        // was still building, so the overlay has heard none of them. Without a
+        // replay the screen sits on "Abriendo el micrófono…" over a live
+        // microphone, and "Ya terminé" — which is gated on `voiceReady` — never
+        // appears at all, on the hot-mic path this whole plugin exists for.
+        notifyListeners("voiceReady", new JSObject());
+        notifyListeners("voiceSpeaking", new JSObject());
+        if (partial != null && !partial.trim().isEmpty()) {
+            // What the rider has said so far is already transcribed; the overlay
+            // echoes it back so they can see they are being heard.
+            JSObject echo = new JSObject();
+            echo.put("text", partial.trim());
+            notifyListeners("voicePartial", echo);
         }
     }
 
@@ -875,6 +893,11 @@ public class VoicePlugin extends Plugin {
             synchronized (recognitionLock) {
                 lastPartial = heard.get(0);
             }
+            // Words are still arriving, so the rider is still talking. The ceiling
+            // exists for a recognizer that went QUIET, and leaving it counting from
+            // the first syllable cut off anyone whose question ran past it — handing
+            // back a half-transcribed partial as though they had stopped speaking.
+            armWatchdog(generation, SPEAKING_TIMEOUT_MS);
             // Streamed so the overlay can echo what it is hearing; the rider
             // seeing their own words is what makes a wrong reading obvious.
             JSObject event = new JSObject();

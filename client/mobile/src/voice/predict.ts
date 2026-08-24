@@ -118,10 +118,3 @@ export function predictRoute(at: Date = new Date()): string | null {
   return best?.code ?? null;
 }
 
-export function clearVoiceHistory(): void {
-  try {
-    localStorage.removeItem(KEY);
-  } catch {
-    /* non-fatal */
-  }
-}

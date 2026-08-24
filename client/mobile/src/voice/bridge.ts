@@ -200,9 +200,18 @@ const WEB_OUTCOMES: Record<string, ListenOutcome> = {
   'language-not-supported': 'sin-idioma',
 };
 
-/** Same purpose as the plugin's watchdog: a recognizer that neither returns nor
- *  errors must not leave the overlay claiming to listen forever. */
-const WEB_LISTEN_TIMEOUT_MS = 12_000;
+/**
+ * Same purpose as the plugin's watchdog: a recognizer that neither returns nor
+ * errors must not leave the overlay claiming to listen forever.
+ *
+ * Two windows, exactly as in `VoicePlugin`: the first is how long a mic nobody
+ * has spoken into stays open, the second restarts the moment the rider does
+ * speak. A single ceiling counted from `start()` expires *over someone
+ * mid-sentence* — which is the defect the native path was fixed for, and this
+ * path is the one the whole flow is exercised on without a handset.
+ */
+const WEB_LISTEN_TIMEOUT_MS = 15_000;
+const WEB_SPEAKING_TIMEOUT_MS = 20_000;
 
 /**
  * Listen once and resolve with what was heard, or with why nothing was.
@@ -241,7 +250,10 @@ export function listenOnce(): Promise<ListenResult> {
     webRecognition = recognition;
     recognition.lang = 'es-CO';
     recognition.interimResults = true;
-    recognition.maxAlternatives = 5;
+    // Ten, matching `EXTRA_MAX_RESULTS` in the plugin: the matcher scores every
+    // reading against a códigos table and is a better judge than the recognizer's
+    // own ranking, so extra readings are close to free.
+    recognition.maxAlternatives = 10;
 
     let best = '';
     const alternatives: string[] = [];
@@ -255,17 +267,32 @@ export function listenOnce(): Promise<ListenResult> {
       resolve(result);
     };
     const announce = (state: VoiceMicState) => webStateHandlers.forEach((handler) => handler(state));
-    const watchdog = window.setTimeout(() => {
-      try {
-        recognition.abort();
-      } catch {
-        /* aborting a recognizer that already died is fine */
-      }
-      settle({ text: best, alternatives, outcome: best ? 'ok' : 'silencio' });
-    }, WEB_LISTEN_TIMEOUT_MS);
+    let watchdog = 0;
+    const arm = (delay: number): void => {
+      window.clearTimeout(watchdog);
+      watchdog = window.setTimeout(() => {
+        try {
+          // `stop()`, never `abort()`: the audio already captured is transcribed,
+          // so a rider the recognizer went quiet on is still answered. Aborting
+          // threw their sentence away and reported silence over it.
+          recognition.stop();
+        } catch {
+          /* a recognizer that already died needs no stopping */
+        }
+        // `stop()` ends in `onend`, which settles with whatever was heard; this
+        // second timer is only for a recognizer that ignores `stop()` too.
+        window.setTimeout(() => settle({ text: best, alternatives, outcome: best ? 'ok' : 'silencio' }), 2_000);
+      }, delay);
+    };
+    arm(WEB_LISTEN_TIMEOUT_MS);
 
     recognition.onaudiostart = () => announce('ready');
-    recognition.onspeechstart = () => announce('speaking');
+    recognition.onspeechstart = () => {
+      // The rider is talking: the ceiling restarts from here so it cannot expire
+      // over a question in progress.
+      arm(WEB_SPEAKING_TIMEOUT_MS);
+      announce('speaking');
+    };
     recognition.onspeechend = () => announce('end');
     recognition.onresult = (event: any) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -280,6 +307,8 @@ export function listenOnce(): Promise<ListenResult> {
             if (alt && !alternatives.includes(alt)) alternatives.push(alt);
           }
         } else {
+          // Words are still arriving — still talking (see `arm`).
+          arm(WEB_SPEAKING_TIMEOUT_MS);
           webPartialHandlers.forEach((handler) => handler(text));
         }
       }
