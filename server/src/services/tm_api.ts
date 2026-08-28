@@ -14,7 +14,7 @@ import zlib from 'zlib';
 import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { printedVagonLabels } from './plano_vagones.js';
+import { plateWagon, printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 import {
@@ -993,8 +993,48 @@ export function dropRetiredVariants(catalog: MasterCatalog): number {
 }
 
 /**
+ * Moves services out of the unlettered `"0"` pool onto the vagón their station's
+ * plano prints (`plateWagon`).
+ *
+ * The sync applies this at the edge, where the recorrido's empty `vagon` is
+ * first read. This is the same answer applied to what is already in the catalog
+ * — mappings retained from a previous run, and every station written before the
+ * sheet was read — so the two paths converge without a 70-minute re-fetch.
+ * Returns the number of mappings moved.
+ */
+export function applyPlanoWagons(catalog: MasterCatalog): number {
+  let moved = 0;
+  for (const station of Object.values(catalog.stations || {})) {
+    const pool = station.wagons?.['0'];
+    if (!pool || pool.length === 0) continue;
+
+    const stayed: CatalogRoute[] = [];
+    for (const route of pool) {
+      const wagon = plateWagon(station.codigo, route.codigo);
+      if (!wagon) {
+        stayed.push(route);
+        continue;
+      }
+      const target = station.wagons[wagon] || (station.wagons[wagon] = []);
+      const key = `${(route.codigo || '').toUpperCase().trim()}|${cleanRouteName(route.nombre)}`;
+      const already = target.some(
+        (r) => `${(r.codigo || '').toUpperCase().trim()}|${cleanRouteName(r.nombre)}` === key
+      );
+      if (!already) target.push(route);
+      moved++;
+    }
+
+    if (stayed.length === pool.length) continue;
+    if (stayed.length > 0) station.wagons['0'] = stayed;
+    else delete station.wagons['0'];
+  }
+  return moved;
+}
+
+/**
  * Repairs the on-disk catalog in place: loads it, drops variants filed as
- * replaced, prunes phantom station-wagon mappings (see
+ * replaced, places the services the planos letter and the recorrido does not,
+ * prunes phantom station-wagon mappings (see
  * `pruneUnservedStationRoutes`), and rewrites it atomically. Used to heal a
  * catalog whose stale mappings predate the prune step now baked into
  * `syncMasterCatalog`. Returns the number of mappings pruned.
@@ -1009,8 +1049,12 @@ export async function pruneCatalogFileInPlace(): Promise<number> {
   if (retired > 0) {
     console.log(`[TM API] Dropped ${retired} route variant(s) filed as replaced in recorrido_corrections.json.`);
   }
+  const placed = applyPlanoWagons(masterCatalog);
+  if (placed > 0) {
+    console.log(`[TM API] Placed ${placed} unlettered mapping(s) on the vagón their plano prints.`);
+  }
   const pruned = pruneUnservedStationRoutes(masterCatalog);
-  if (pruned > 0 || retired > 0) {
+  if (pruned > 0 || retired > 0 || placed > 0) {
     await writeCatalogAtomically(masterCatalog);
     invalidateLightCatalog();
   }
@@ -1135,8 +1179,22 @@ export async function syncMasterCatalog(): Promise<void> {
             const stationCode = stop.codigo;
             if (!stationCode || stationCode.length === 0) continue;
 
-            // Wagon label from the API
-            const wagonLabel = stop.vagon || '0';
+            // Wagon label from the API, or from the station's own plano where
+            // the API sends none (`plateWagon`). "0" is the pool for a stop with
+            // no platform on file, and it takes no vagón number on any surface —
+            // so a service the plano *does* place is worth placing here, at the
+            // edge, rather than published as a route that stops at no platform.
+            const planoWagon = plateWagon(stationCode, route.codigo);
+            if (planoWagon && stop.vagon && stop.vagon.trim().toUpperCase() !== planoWagon.toUpperCase()) {
+              // Upstream filling the field in is the good outcome; upstream
+              // filling it in with a different answer is a fact worth hearing
+              // about, not one to resolve silently in favour of either side.
+              console.warn(
+                `[TM API] ${route.codigo} at ${stationCode}: recorrido says vagón ${stop.vagon}, ` +
+                  `plano_vagones.json says ${planoWagon} — recorrido kept, re-read the plano.`
+              );
+            }
+            const wagonLabel = stop.vagon || planoWagon || '0';
 
             // Initialize station if needed
             if (!newCatalog.stations[stationCode]) {
@@ -1222,6 +1280,14 @@ export async function syncMasterCatalog(): Promise<void> {
     //    runs Sundays and festivos) and anything a partial fetch missed survive,
     //    then save atomically and publish once the file is complete.
     const merged = mergeCatalogs(masterCatalog, newCatalog);
+
+    // 3a. Retained mappings predate the edge rule above, so the plano answer is
+    //     applied to the merged whole as well — otherwise a service the sheet
+    //     letters stays in "0" for as long as retention keeps carrying it.
+    const placed = applyPlanoWagons(merged);
+    if (placed > 0) {
+      console.log(`[TM API] Placed ${placed} unlettered mapping(s) on the vagón their plano prints.`);
+    }
 
     // 3b. …and let go of what the network has actually retired. Only after a run
     //     that plainly saw the whole listing: a short fetch is the case

@@ -31,16 +31,44 @@ import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-/** Vagón plates counted on each official plano, by station código. */
-const PLANO_VAGONES: Record<string, number> = (() => {
+const PLANO_FILE: { counts?: Record<string, number>; wagons?: Record<string, Record<string, string>> } = (() => {
   try {
-    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_vagones.json'), 'utf-8')).counts ?? {};
+    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_vagones.json'), 'utf-8'));
   } catch {
     // A missing dataset must not break the catalog — it only costs numbering.
     console.warn('[TM API] plano_vagones.json unreadable; vagón numbers will be omitted.');
     return {};
   }
 })();
+
+/** Vagón plates counted on each official plano, by station código. */
+const PLANO_VAGONES: Record<string, number> = PLANO_FILE.counts ?? {};
+
+/**
+ * Station código → route código → the vagón letter the plano puts it on.
+ *
+ * Read off the same sheets as the plate counts, for the pairs upstream files
+ * without a `vagon`.
+ */
+const PLANO_WAGONS: Record<string, Record<string, string>> = PLANO_FILE.wagons ?? {};
+
+/**
+ * The vagón a service boards from where the plano says so and the recorrido
+ * does not.
+ *
+ * Upstream sends `vagon` empty on some recorrido stops and the sync files those
+ * under wagon `"0"`, the pool that takes no platform number anywhere (see
+ * `printedVagonLabels`). On the three Avenida Ciudad de Cali stations that is
+ * two of the four services at each — the station page lists them with no
+ * platform at all while the plano on the wall prints one. This is that printed
+ * answer, and only that: a pair with no sheet stays in `"0"` rather than being
+ * inferred from where its neighbours board (§1 Certainty).
+ */
+export function plateWagon(stationCode: unknown, codigo: unknown): string | undefined {
+  const station = PLANO_WAGONS[String(stationCode ?? '').trim().toUpperCase()];
+  if (!station) return undefined;
+  return station[String(codigo ?? '').trim().toUpperCase()];
+}
 
 /**
  * Wagon key → the number printed on that platform's sign, for the keys where it
