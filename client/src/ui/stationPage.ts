@@ -193,7 +193,7 @@ function heroChips(station: StationPageData, serviceCount: number): string {
 }
 
 function render(station: StationPageData): string {
-  const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan);
+  const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos);
   const name = tidy(station.name);
 
   const planoSection = view.plano
@@ -202,7 +202,7 @@ function render(station: StationPageData): string {
         <h2 class="page-section-title" id="plano-h">Plano de la estación</h2>
         <p class="page-note">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
         <div class="station-plano">${view.plano}</div>
-        <p class="page-note">Esquema propio, derivado del catálogo oficial: el orden de los vagones y los servicios de cada sentido son los que el catálogo registra. No representa distancias, accesos ni la posición real de los andenes en la calle.</p>
+        <p class="page-note">Esquema propio, dibujado como el <em>plano de ubicación</em> de la estación: un vagón por segmento, con los servicios de cada sentido arriba y abajo. Los vagones, sus números y los servicios de cada lado son los que registra el catálogo oficial. No incluye salidas, taquillas, torniquetes ni puentes peatonales, y no representa distancias ni la posición real de los andenes en la calle.</p>
       </section>`
     : '';
 

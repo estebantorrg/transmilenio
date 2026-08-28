@@ -89,6 +89,19 @@ export interface StationCorridor {
   nombre: string;
   /** Its troncal letter, absent where the corridor has none (TransMiCable). */
   letra?: string;
+  /**
+   * What riders call the corridor's two directions ("norte"/"sur"), from
+   * `corridor_directions.json`.
+   *
+   * Shipped because the drawn plan needs the station's sides to mean ONE thing
+   * each, the way the operator's `Plano de ubicación` does: one direction along
+   * the top edge, the other along the bottom, named once. Without it the plan
+   * can only put a vagón's first group above and the rest below, which is an
+   * ordering accident — at Bicentenario that printed `occidente` over one vagón
+   * and `sur` over the next, so neither side of the drawing meant anything.
+   * Absent for a corridor with no answered axis (TransMiCable).
+   */
+  sentidos?: { positive: string; negative: string };
 }
 
 /**
@@ -105,7 +118,9 @@ export function stationCorridor(stationCode: string): StationCorridor | null {
   const nombre = STATION_CORRIDORS[String(stationCode).toUpperCase()];
   if (!nombre) return null;
   const letra = CORRIDOR_LETTERS[nombre];
-  return letra ? { nombre, letra } : { nombre };
+  const axis = CORRIDOR_DIRECTIONS[nombre];
+  const sentidos = axis ? { positive: axis.positive, negative: axis.negative } : undefined;
+  return { nombre, ...(letra ? { letra } : {}), ...(sentidos ? { sentidos } : {}) };
 }
 
 /** Smallest angle between two bearings, 0–180. */

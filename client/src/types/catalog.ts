@@ -38,7 +38,13 @@ export interface CatalogStation {
    *  ArcGIS's own `troncal_estacion` is a station label that does not always
    *  name one corridor ("CR 7-10"), and the nearest centreline is wrong exactly
    *  where three of them meet. Absent for TransMiCable, which is not a troncal. */
-  corridor?: { nombre: string; letra?: string };
+  corridor?: {
+    nombre: string;
+    letra?: string;
+    /** What riders call the corridor's two directions, so the drawn plan can put
+     *  one along each edge the way the operator's own plano does (§5.5.4). */
+    sentidos?: { positive: string; negative: string };
+  };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own
    *  A/B/C grouping. Resolved server-side in `printedVagonLabels` and shipped on

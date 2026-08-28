@@ -2286,15 +2286,30 @@ body.sidebar-collapsed .sidebar-fab {
   outline-offset: 2px;
 }
 
+/* The drawing's own width. The axes are as wide as the platform, so they sit in
+   here with it and scroll with it. */
+.popup-plano-inner {
+  min-width: min-content;
+}
+
 /* Three shared rows — approach, platform, departure — so every plate lands on
    one line and the vagones read as one segmented platform rather than as boxes
-   drifting against each other. */
+   drifting against each other. Tracks size to their content so a crossing block
+   stays the narrow gap it is instead of taking a vagón's width. */
 .popup-plano-cols {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(calc(136px * var(--tm-scale, 1)), 1fr);
+  grid-auto-columns: max-content;
   grid-template-rows: auto auto auto;
   min-width: min-content;
+}
+
+.pvg {
+  min-width: calc(136px * var(--tm-scale, 1));
+}
+
+.pvg-gap {
+  width: calc(24px * var(--tm-scale, 1));
 }
 
 .pvg {
@@ -2324,21 +2339,49 @@ body.sidebar-collapsed .sidebar-fab {
   .pvg-side-a { flex: 1 0 auto; }
 }
 
+/* ── The deck ────────────────────────────────────────────────────────────
+   The platform itself, drawn as the operator's own `Plano de ubicación` draws
+   it: a pale deck, door marks along both long edges, and a YELLOW plate reading
+   the vagón number centred between them. The yellow is the sheet's single most
+   recognisable mark — it is what a rider's eye lands on inside the station —
+   so it is reproduced literally rather than restyled to the app's palette.
+   The deck is pale-on-dark instead of the sheet's grey-on-white because the
+   page around it is dark; the shape, not the ground, is what has to match. */
+.pvg-deck {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: calc(4px * var(--tm-scale, 1));
+  padding: calc(5px * var(--tm-scale, 1)) calc(6px * var(--tm-scale, 1));
+  background: rgba(255, 255, 255, 0.09);
+  border-top: 2px solid var(--border-medium);
+  border-bottom: 2px solid var(--border-medium);
+}
+
+/* Doors, as marks rather than as a count: the sheet draws them along both edges
+   of every vagón and we do not know how many a given platform has, so this is
+   a fixed rhythm and deliberately decorative (see `buildStationPlanoHtml`). */
+.pvg-doors {
+  height: calc(4px * var(--tm-scale, 1));
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--text-tertiary) 0,
+    var(--text-tertiary) calc(7px * var(--tm-scale, 1)),
+    transparent calc(7px * var(--tm-scale, 1)),
+    transparent calc(15px * var(--tm-scale, 1))
+  );
+  opacity: 0.5;
+}
+
 .pvg-plate {
   display: flex;
   align-items: baseline;
   justify-content: center;
   gap: 5px;
-  padding: calc(7px * var(--tm-scale, 1)) calc(6px * var(--tm-scale, 1));
-  background: rgba(255, 255, 255, 0.07);
-  border-top: 2px solid var(--border-medium);
-  border-bottom: 2px solid var(--border-medium);
-  /* Segment separator, drawn inside so adjacent plates still form one bar. */
-  box-shadow: inset -2px 0 0 #121212;
-}
-
-.pvg:last-child .pvg-plate {
-  box-shadow: none;
+  padding: calc(3px * var(--tm-scale, 1)) calc(7px * var(--tm-scale, 1));
+  border-radius: 2px;
+  background: var(--tm-yellow);
+  color: #121212;
 }
 
 .pvg-name {
@@ -2350,8 +2393,76 @@ body.sidebar-collapsed .sidebar-fab {
 
 .pvg-sub {
   font-size: calc(9.5px * var(--tm-scale, 1));
-  color: var(--text-tertiary);
+  color: rgba(0, 0, 0, 0.6);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── The crossing between vagones ────────────────────────────────────────
+   On the sheet, adjacent vagones are separated by a darker block carrying the
+   pedestrian mark — the gap a rider walks through to reach the next platform.
+   It occupies the deck row only: nothing boards there, so nothing is stacked
+   above or below it. */
+.pvg-gap {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+}
+
+.pvg-gap-deck {
+  grid-row: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.04);
+  border-top: 2px solid var(--border-medium);
+  border-bottom: 2px solid var(--border-medium);
+}
+
+.pvg-gap-mark {
+  width: calc(9px * var(--tm-scale, 1));
+  height: calc(9px * var(--tm-scale, 1));
+  border-radius: 50%;
+  border: 2px solid var(--text-tertiary);
+  opacity: 0.75;
+}
+
+@supports not (grid-template-rows: subgrid) {
+  .pvg-gap { display: flex; flex-direction: column; }
+  .pvg-gap-deck { flex: 1 0 auto; }
+}
+
+/* ── The corridor, named once at each edge ───────────────────────────────
+   The sheet prints the corridor along the top and bottom of the drawing, not
+   on every segment. Hoisted here on the same condition: only when every vagón
+   agrees which direction each side serves. */
+.pvg-axis {
+  display: flex;
+  align-items: center;
+  gap: calc(5px * var(--tm-scale, 1));
+  padding: calc(2px * var(--tm-scale, 1)) 0;
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.pvg-axis::before,
+.pvg-axis::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border-subtle);
+}
+
+.pvg-axis-a .pvg-axis-name::before {
+  content: '▲ ';
+  color: var(--text-tertiary);
+}
+
+.pvg-axis-b .pvg-axis-name::after {
+  content: ' ▼';
+  color: var(--text-tertiary);
 }
 
 /* Second and later groups on a side (the other direction, or the terminating
@@ -5148,23 +5259,11 @@ body.native-app .route-detail-close:active {
   margin-top: 4px;
 }
 
-/* The vagón separators are drawn in the popup's own background colour; on the
-   page the ground is the page's, so they are re-pointed at it rather than left
-   as pale seams over the wrong colour. (The scroll cue needs no such treatment:
-   it is a mask, not a painted gradient — see `.popup-plano`.) */
-.station-plano .pvg-plate {
-  box-shadow: inset -2px 0 0 var(--bg-primary);
-}
-
 /* In the popup the plate's sub-label is a bare number for want of room; on the
    page "Vagón 1 · 5" has to say what the 5 counts — as the prerendered plan
    already does. */
 .station-plano .pvg-sub::after {
   content: ' servicios';
-}
-
-.station-plano .pvg:last-child .pvg-plate {
-  box-shadow: none;
 }
 
 .station-services {

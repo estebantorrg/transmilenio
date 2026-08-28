@@ -637,6 +637,21 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
   };
 }
 
+/**
+ * Bump whenever `buildCatalogLight` changes the SHAPE of what it ships — a new
+ * stamped field, a dropped one, a different simplification.
+ *
+ * The ETag was `catalog-<syncedAt>` alone, which identifies the *data* and not
+ * the payload built from it. The endpoint is served `public, max-age=1800`, so
+ * a field added to the light catalog reached nobody for half an hour and then
+ * only if the browser happened to revalidate: the body changed, the validator
+ * did not, and every cache went on serving the old shape. That is the failure
+ * that hid `corridor.sentidos` from the client while the API plainly returned
+ * it — the drawn plan silently kept its fallback layout on a machine whose
+ * server had already shipped the fix.
+ */
+const LIGHT_CATALOG_SHAPE = 2;
+
 export interface LightCatalogArtifact {
   gzip: Buffer;
   count: number;
@@ -653,7 +668,7 @@ export interface LightCatalogArtifact {
  * ~5 MB buffer — never a second full copy.
  */
 export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
-  const etag = `W/"catalog-${catalogLoadedAt}"`;
+  const etag = `W/"catalog-${catalogLoadedAt}-${LIGHT_CATALOG_SHAPE}"`;
   if (lightCatalogGzip) {
     return { gzip: lightCatalogGzip, count: lightCatalogStationCount, etag };
   }

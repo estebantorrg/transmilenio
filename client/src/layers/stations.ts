@@ -160,20 +160,61 @@ function buildDirectionRowsHtml(
  * where `subgrid` is unsupported, since a bar that steps up and down mid-station
  * reads as a rendering fault rather than as a station.
  *
+ * ── Drawn in the operator's own grammar ───────────────────────────────────
+ *
+ * The layout is not invented: it is TRANSMILENIO's `Plano de ubicación`, the
+ * sheet posted inside every station and the thing a rider is looking at when
+ * they ask which vagón. That sheet draws a light platform deck, a **yellow**
+ * plate reading `Vagón N` centred in each segment, door marks along both edges,
+ * the services that board each side stacked above and below, a crossing block
+ * between adjacent vagones, and the corridor named once at each long edge
+ * rather than repeated per segment. Every one of those is reproduced here, at
+ * whatever scale the surface asks for, so the page and the sheet on the wall
+ * read as the same object.
+ *
+ * What is NOT reproduced is everything the catalog cannot answer: exits and
+ * their street names, taquillas, turnstiles, ramps, pedestrian bridges, floors,
+ * and the real length or spacing of anything. The sheet has them; we would be
+ * drawing them from nothing (§1 Certainty). The door marks are the one
+ * deliberate exception and are decoration — a fixed three per side, not a door
+ * count — because a deck without them reads as a table rather than a platform.
+ *
+ * The corridor is hoisted to the edges only when every vagón agrees on it. Where
+ * they disagree the sentido stays printed per group, which is longer and true,
+ * and `fin de recorrido` always stays with its own group because it belongs to
+ * one vagón rather than to the station.
+ *
  * Wide stations scroll sideways inside the plan rather than stretching the
  * popup: a portal has six vagones and the popup is 320 px.
  */
 function buildStationPlanoHtml(
   lettered: Array<{ key: string; routes: CatalogRoute[] }>,
   vagonLabels: Record<string, string>,
-  wagonPlan: Record<string, CatalogPlanGroup[]>
+  wagonPlan: Record<string, CatalogPlanGroup[]>,
+  sentidos?: { positive: string; negative: string }
 ): string | null {
-  const columns: string[] = [];
+  type Resolved = { group: CatalogPlanGroup; members: CatalogRoute[] };
+  const vagones: Array<{ name: string; count: number; a: Resolved[]; b: Resolved[] }> = [];
+
+  // Which side of the platform a group is drawn on is the whole point of a plan,
+  // so it is answered by the corridor and not by the order the catalog happened
+  // to list the groups in: everything running the corridor's positive direction
+  // goes above, everything running its negative goes below, at every vagón in
+  // the station. Anything else — a service that leaves the corridor, or one that
+  // terminates here — keeps its own label and falls below, because forcing it
+  // onto a side would state a direction the data does not.
+  const sideOf = (group: CatalogPlanGroup): 'a' | 'b' => {
+    if (!sentidos || group.arrival || !group.sentido) return 'b';
+    return group.sentido === sentidos.positive ? 'a' : 'b';
+  };
+  const isAxisGroup = (group: CatalogPlanGroup): boolean =>
+    Boolean(sentidos && !group.arrival && group.sentido) &&
+    (group.sentido === sentidos!.positive || group.sentido === sentidos!.negative);
 
   lettered.forEach(({ key, routes }, index) => {
     const groups = wagonPlan[key] ?? [];
     const byId = new Map(routes.map((r) => [String(r.id ?? ''), r]));
-    const resolved = groups
+    const resolved: Resolved[] = groups
       .map((g) => ({
         group: g,
         members: g.ids.map((id) => byId.get(String(id))).filter((r): r is CatalogRoute => Boolean(r)),
@@ -181,43 +222,103 @@ function buildStationPlanoHtml(
       .filter((g) => g.members.length > 0);
     if (resolved.length === 0) return;
 
-    // One group's label + tags. The wrappers are emitted once per side below:
-    // a vagón can serve three groups (both directions plus terminating
-    // services), and giving each its own side element pushed the extras outside
-    // the three shared grid rows, where they drew on top of one another.
-    const groupBlock = (entry: (typeof resolved)[number], which: 'a' | 'b'): string => {
-      const { group, members } = entry;
-      const label = group.arrival
-        ? '<span class="popup-dir-end">fin de recorrido</span>'
-        : group.sentido
-          ? `<span class="popup-dir-arrow popup-dir-arrow-${which === 'a' ? 'up' : 'down'}"></span>${escapeHTML(group.sentido)}`
-          : 'sin determinar';
-      return (
-        `<div class="pvg-group"><div class="popup-dir-label">${label}</div>` +
-        `<div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
-      );
-    };
-
     // No number where the plate count doesn't back the catalog's grouping —
     // "Plataforma N" is vague but true, a wrong vagón number sends a rider to
     // the wrong side of the station.
     const name = vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${index + 1}`;
     const count = resolved.reduce((n, g) => n + groupCatalogRoutesByDirection(g.members).length, 0);
-    const [first, ...rest] = resolved;
 
-    columns.push(
+    if (sentidos) {
+      vagones.push({
+        name,
+        count,
+        a: resolved.filter((r) => sideOf(r.group) === 'a'),
+        b: resolved.filter((r) => sideOf(r.group) === 'b'),
+      });
+    } else {
+      const [first, ...rest] = resolved;
+      vagones.push({ name, count, a: first ? [first] : [], b: rest });
+    }
+  });
+
+  if (vagones.length === 0) return null;
+
+  // The corridor is named once per edge, as the sheet names it — but only where
+  // the drawing actually earns it: the side has to carry that direction at some
+  // vagón and carry nothing that contradicts it.
+  const edgeLabel = (side: 'a' | 'b'): string | null => {
+    if (!sentidos) return null;
+    const want = side === 'a' ? sentidos.positive : sentidos.negative;
+    let seen = false;
+    for (const v of vagones) {
+      for (const { group } of v[side]) {
+        if (!isAxisGroup(group)) continue;
+        if (group.sentido !== want) return null;
+        seen = true;
+      }
+    }
+    return seen ? want : null;
+  };
+  const axisA = edgeLabel('a');
+  const axisB = edgeLabel('b');
+  const hoisted = Boolean(axisA && axisB);
+
+  const groupBlock = (entry: Resolved, which: 'a' | 'b'): string => {
+    const { group, members } = entry;
+    // Hoisted to the edge — printing it again on every segment is the clutter
+    // the sheet itself avoids. Only the two corridor directions are hoisted, so
+    // a terminus, or a service that turns off the corridor, still says so where
+    // it stands: those are the ones a rider would otherwise read off the wrong
+    // edge label.
+    const label = group.arrival
+      ? '<span class="popup-dir-end">fin de recorrido</span>'
+      : hoisted && isAxisGroup(group)
+        ? ''
+        : group.sentido
+          ? `<span class="popup-dir-arrow popup-dir-arrow-${which === 'a' ? 'up' : 'down'}"></span>${escapeHTML(group.sentido)}`
+          : 'sin determinar';
+    return (
+      `<div class="pvg-group">${label ? `<div class="popup-dir-label">${label}</div>` : ''}` +
+      `<div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+    );
+  };
+
+  const crossing =
+    '<div class="pvg-gap" aria-hidden="true"><div class="pvg-gap-deck"><span class="pvg-gap-mark"></span></div></div>';
+
+  const columns = vagones.map(({ name, count, a, b }) => {
+    // The deck is the platform itself: door marks along both long edges and the
+    // yellow plate the station prints, centred between them.
+    const deck =
+      `<div class="pvg-deck">` +
+      `<span class="pvg-doors" aria-hidden="true"></span>` +
+      `<div class="pvg-plate"><span class="pvg-name">${name}</span><span class="pvg-sub">${count}</span></div>` +
+      `<span class="pvg-doors" aria-hidden="true"></span>` +
+      `</div>`;
+    return (
       `<section class="pvg" aria-label="${name}">` +
-        `<div class="pvg-side pvg-side-a">${first ? groupBlock(first, 'a') : ''}</div>` +
-        `<div class="pvg-plate"><span class="pvg-name">${name}</span><span class="pvg-sub">${count}</span></div>` +
-        `<div class="pvg-side pvg-side-b">${rest.map((entry) => groupBlock(entry, 'b')).join('')}</div>` +
-        `</section>`
+      `<div class="pvg-side pvg-side-a">${a.map((entry) => groupBlock(entry, 'a')).join('')}</div>` +
+      deck +
+      `<div class="pvg-side pvg-side-b">${b.map((entry) => groupBlock(entry, 'b')).join('')}</div>` +
+      `</section>`
     );
   });
 
-  if (columns.length === 0) return null;
+  const axis = (name: string | null, side: 'a' | 'b'): string =>
+    name
+      ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
+      : '';
+
+  // The axes belong to the drawing, not to the viewport: they are as wide as the
+  // platform is, so they ride inside the scroller with it rather than being
+  // pinned to whatever slice of a six-vagón station happens to be on screen.
   return (
     `<div class="popup-plano" role="group" aria-label="Plano de la estación" tabindex="0">` +
-    `<div class="popup-plano-cols">${columns.join('')}</div></div>`
+    `<div class="popup-plano-inner">` +
+    axis(axisA, 'a') +
+    `<div class="popup-plano-cols">${columns.join(crossing)}</div>` +
+    axis(axisB, 'b') +
+    `</div></div>`
   );
 }
 
@@ -270,7 +371,8 @@ export interface StationWagonView {
 export function buildStationWagonView(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
-  wagonPlan: Record<string, CatalogPlanGroup[]> = {}
+  wagonPlan: Record<string, CatalogPlanGroup[]> = {},
+  sentidos?: { positive: string; negative: string }
 ): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -293,7 +395,7 @@ export function buildStationWagonView(
   // The lettered platforms are drawn as the station's plan — the same view the
   // /estacion/ page carries. Where the catalog ships no plan for them, they fall
   // back to the labelled sections below, so a station is never left blank.
-  const plano = buildStationPlanoHtml(lettered, vagonLabels, wagonPlan);
+  const plano = buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
 
   const sections = [
     ...(plano
@@ -344,13 +446,31 @@ export function buildStationWagonView(
   return { plano, sections: html, serviceCount, sectionCount };
 }
 
+/**
+ * The corridor directions for a resolved station, for the drawn plan's two edges.
+ *
+ * Read off the catalog stop the station resolved to, and only when it resolved
+ * to exactly ONE — the same condition `vagonLabels` and `wagonPlan` are carried
+ * under. A cluster assembled from several stops can straddle two corridors, and
+ * labelling both its edges from one of them would name a direction the other
+ * half does not run.
+ */
+function stationPlanSentidos(
+  resolved: ResolvedCatalogStation | undefined
+): { positive: string; negative: string } | undefined {
+  if (!resolved || resolved.sourceStops.length !== 1) return undefined;
+  const code = resolved.sourceStops[0]?.codigo;
+  return code ? _catalog.stations[code]?.corridor?.sentidos : undefined;
+}
+
 /** The popup's flavour of {@link buildStationWagonView}: one stacked block. */
 function buildWagonSectionsHtml(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
-  wagonPlan: Record<string, CatalogPlanGroup[]> = {}
+  wagonPlan: Record<string, CatalogPlanGroup[]> = {},
+  sentidos?: { positive: string; negative: string }
 ): string {
-  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan);
+  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan, sentidos);
   return (view.plano ?? '') + view.sections || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
@@ -436,6 +556,10 @@ export interface StationPageData {
   /** That corridor's troncal letter, when it has one — the key its colour is
    *  drawn from (`TRONCAL_COLORS`, §5.4.3). */
   corridorLetter: string;
+  /** What riders call that corridor's two directions — the pair the drawn plan
+   *  puts along its two edges (§5.5.4). Absent where the corridor has no
+   *  answered axis, and the plan then falls back to labelling each group. */
+  corridorSentidos?: { positive: string; negative: string };
   coordinate: [number, number];
   wagons: ResolvedCatalogWagons;
   vagonLabels: Record<string, string>;
@@ -481,6 +605,7 @@ export function getStationPageData(code: string): StationPageData | null {
     // source doesn't cover, where a label is still better than a blank line.
     corridor: station.corridor?.nombre || feature?.attributes.troncal_estacion || '',
     corridorLetter: station.corridor?.letra || '',
+    corridorSentidos: station.corridor?.sentidos,
     coordinate: [lng, lat],
     wagons,
     vagonLabels: station.vagonLabels ?? {},
@@ -523,7 +648,7 @@ function showStationPopup(
 
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
-      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan)
+      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation))
       // Not "no routes serve this station" — the catalog simply files no wagon
       // assignment for it, and saying which is the difference between a data gap
       // and a claim about the network (spec §1).
@@ -843,7 +968,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan);
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation));
 
   const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||
