@@ -2341,12 +2341,15 @@ body.sidebar-collapsed .sidebar-fab {
 
 /* ── The deck ────────────────────────────────────────────────────────────
    The platform itself, drawn as the operator's own `Plano de ubicación` draws
-   it: a pale deck, door marks along both long edges, and a YELLOW plate reading
-   the vagón number centred between them. The yellow is the sheet's single most
-   recognisable mark — it is what a rider's eye lands on inside the station —
-   so it is reproduced literally rather than restyled to the app's palette.
-   The deck is pale-on-dark instead of the sheet's grey-on-white because the
-   page around it is dark; the shape, not the ground, is what has to match. */
+   it: a pale deck, door marks along both long edges, and the vagón number
+   centred between them.
+
+   The sheet sets that number on a yellow plate and this drawing does not. The
+   yellow works on the sheet's white ground as one accent among several; dropped
+   into a dark page at the centre of every segment it became a row of bright
+   strips that pulled the eye off the services, which are what the reader came
+   for. The deck is pale-on-dark rather than the sheet's grey-on-white for the
+   same reason — the shape is what has to match, not the ground. */
 .pvg-deck {
   display: flex;
   flex-direction: column;
@@ -2379,9 +2382,6 @@ body.sidebar-collapsed .sidebar-fab {
   justify-content: center;
   gap: 5px;
   padding: calc(3px * var(--tm-scale, 1)) calc(7px * var(--tm-scale, 1));
-  border-radius: 2px;
-  background: var(--tm-yellow);
-  color: #121212;
 }
 
 .pvg-name {
@@ -2389,11 +2389,12 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 700;
   letter-spacing: 0.02em;
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .pvg-sub {
   font-size: calc(9.5px * var(--tm-scale, 1));
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 

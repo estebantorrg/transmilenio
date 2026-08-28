@@ -164,13 +164,18 @@ function buildDirectionRowsHtml(
  *
  * The layout is not invented: it is TRANSMILENIO's `Plano de ubicación`, the
  * sheet posted inside every station and the thing a rider is looking at when
- * they ask which vagón. That sheet draws a light platform deck, a **yellow**
- * plate reading `Vagón N` centred in each segment, door marks along both edges,
+ * they ask which vagón. That sheet draws a light platform deck, a plate reading
+ * `Vagón N` centred in each segment, door marks along both edges,
  * the services that board each side stacked above and below, a crossing block
  * between adjacent vagones, and the corridor named once at each long edge
  * rather than repeated per segment. Every one of those is reproduced here, at
  * whatever scale the surface asks for, so the page and the sheet on the wall
  * read as the same object.
+ *
+ * The structure is copied; the palette is not. The sheet sets the vagón number
+ * on a yellow plate, which is one accent among several on its white ground —
+ * repeated down the middle of a dark page it became a row of bright strips that
+ * pulled the eye off the services, which are what the reader came for.
  *
  * What is NOT reproduced is everything the catalog cannot answer: exits and
  * their street names, taquillas, turnstiles, ramps, pedestrian bridges, floors,
@@ -288,7 +293,7 @@ function buildStationPlanoHtml(
 
   const columns = vagones.map(({ name, count, a, b }) => {
     // The deck is the platform itself: door marks along both long edges and the
-    // yellow plate the station prints, centred between them.
+    // vagón's plate, centred between them.
     const deck =
       `<div class="pvg-deck">` +
       `<span class="pvg-doors" aria-hidden="true"></span>` +
