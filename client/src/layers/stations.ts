@@ -614,12 +614,17 @@ function prepareStations(stations: TroncalStationFeature[]): GeoJSON.FeatureColl
   // could not know when they opened, so it kept the three newest estaciones in
   // Bogotá off the map for the whole month they were running.
   //
-  // The catalog knows. Eight stations resolve to nothing today — Tercer Milenio,
-  // Calle 19, Calle 45, Calle 63, Calle 72 and Hospital, all closed for the
-  // Metro Línea 1 works on Caracas, plus Patio Bonito (remodelling) and SENA —
-  // and upstream files no service at any of them, which is the same fact as
-  // "closed". They are still in the register, so they stay in the audit; they
-  // simply stop being offered to a rider as somewhere a bus stops.
+  // The catalog knows. Nine stations resolve to nothing today — Tercer Milenio,
+  // Calle 19, Calle 45, Calle 63, Calle 76, Hospital and Temporal Calle 34, all
+  // closed for the Metro Línea 1 works on Caracas, plus Patio Bonito
+  // (remodelling) and SENA — and upstream files no service at any of them, which
+  // is the same fact as "closed". They are still in the register, so they stay in
+  // the audit; they simply stop being offered to a rider as somewhere a bus stops.
+  //
+  // The list moves, which is the point of not having one: Calle 72 was on it
+  // until 2026-08-25, when the works swapped — it reopened as TM0002 with 18
+  // services and Calle 76 (TM0001) took its place with none. Nothing here
+  // changed for that; the catalog did.
   const visibleStations = stations.filter((station) => {
     const resolved = _resolvedStations[buildStationKey(station)];
     if (!resolved) return false;

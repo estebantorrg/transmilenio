@@ -31,16 +31,26 @@ interface RetiredRoute {
   codigo: string;
   note?: string;
 }
+interface RetiredVariant {
+  codigo: string;
+  id: string;
+  nombre?: string;
+  note?: string;
+}
 
-function load(): { dropStops: DropStop[]; retiredRoutes: RetiredRoute[] } {
+function load(): { dropStops: DropStop[]; retiredRoutes: RetiredRoute[]; retiredVariants: RetiredVariant[] } {
   try {
     const file = path.resolve(__dirname, '..', 'data', 'recorrido_corrections.json');
     const parsed = JSON.parse(readFileSync(file, 'utf-8'));
-    return { dropStops: parsed.dropStops ?? [], retiredRoutes: parsed.retiredRoutes ?? [] };
+    return {
+      dropStops: parsed.dropStops ?? [],
+      retiredRoutes: parsed.retiredRoutes ?? [],
+      retiredVariants: parsed.retiredVariants ?? [],
+    };
   } catch {
     // Missing file = no corrections. The catalog is then exactly what upstream
     // says, which is the honest fallback.
-    return { dropStops: [], retiredRoutes: [] };
+    return { dropStops: [], retiredRoutes: [], retiredVariants: [] };
   }
 }
 
@@ -49,6 +59,7 @@ const key = (codigo: unknown, stop: unknown): string =>
   `${String(codigo ?? '').trim().toUpperCase()}|${String(stop ?? '').trim().toUpperCase()}`;
 const DROPPED = new Set(CORRECTIONS.dropStops.map((entry) => key(entry.codigo, entry.stop)));
 const RETIRED = new Set(CORRECTIONS.retiredRoutes.map((entry) => String(entry.codigo).trim().toUpperCase()));
+const RETIRED_VARIANTS = new Set(CORRECTIONS.retiredVariants.map((entry) => key(entry.codigo, entry.id)));
 
 /** Corrections that fired at least once this run — the rest are candidates for deletion. */
 const used = new Set<string>();
@@ -77,6 +88,27 @@ export function retiredRouteCodes(): string[] {
 }
 
 /**
+ * Whether this (código, id) names a *variant* the network has replaced.
+ *
+ * The gap this fills: upstream can re-issue a route under a NEW id while keeping
+ * its código — A60's `Calle 76` run became id 5711 `Calle 72` when Calle 76 shut
+ * for the Metro works, leaving id 1187 delisted. The rename purge in
+ * `mergeCatalogs` is id→código and sees nothing (the código did not change), the
+ * variant key is the route's name so the old name is retained as if it were a
+ * second service, and `pruneUnservedStationRoutes` reads that retained variant's
+ * own recorrido as corroboration — so the closed station keeps its platform tags
+ * for the whole retention window. A variant is dropped here only when the file
+ * says so, with the evidence recorded beside it (§1 Certainty).
+ */
+export function isRetiredVariant(codigo: unknown, id: unknown): boolean {
+  if (RETIRED_VARIANTS.size === 0) return false;
+  const entry = key(codigo, id);
+  if (!RETIRED_VARIANTS.has(entry)) return false;
+  used.add(`variant|${entry}`);
+  return true;
+}
+
+/**
  * Names the corrections that did nothing this run.
  *
  * A stop correction that no longer matches means upstream dropped the stop
@@ -91,6 +123,16 @@ export function reportUnusedCorrections(seenCodigos: Set<string>): string[] {
     // Only judge a correction whose route was actually fetched this run.
     if (!seenCodigos.has(String(entry.codigo).trim().toUpperCase())) continue;
     if (!used.has(id)) stale.push(`${entry.codigo} no longer lists ${entry.stop}`);
+  }
+  // A variant retirement fires against the *previous* catalog, not against the
+  // fetch, so there is no seen-this-run gate to apply: once the ghost it names
+  // is out of the catalog the entry has done its work and has nothing left to
+  // match. Keeping it would leave a permanent veto on a (código, id) pair
+  // upstream is free to re-use.
+  for (const entry of CORRECTIONS.retiredVariants) {
+    if (!used.has(`variant|${key(entry.codigo, entry.id)}`)) {
+      stale.push(`${entry.codigo} #${entry.id} is no longer in the catalog`);
+    }
   }
   return stale;
 }

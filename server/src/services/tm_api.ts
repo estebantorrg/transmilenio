@@ -17,7 +17,12 @@ import { collectBody, decodeBody } from './upstream_body.js';
 import { printedVagonLabels } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
-import { correctRecorrido, isRetiredRoute, reportUnusedCorrections } from './recorrido_corrections.js';
+import {
+  correctRecorrido,
+  isRetiredRoute,
+  isRetiredVariant,
+  reportUnusedCorrections,
+} from './recorrido_corrections.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -744,13 +749,25 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
   };
   let renamedAway = 0;
 
+  // The purge above reads id → código, so it is blind to the mirror case:
+  // upstream re-issuing a route under a NEW id while keeping the código. Nothing
+  // in the fresh listing then mentions the old id at all, absence is all there
+  // is, and absence is exactly what retention refuses to act on. That variant is
+  // therefore retired by hand, with its evidence, in
+  // `recorrido_corrections.json` (`retiredVariants`).
+  const isRetiredTwin = (variant: { id?: string }, code: string): boolean =>
+    isRetiredVariant(code, variant?.id);
+  let retiredTwins = 0;
+
   // Routes: union by code; within a code, union variants by normalized name (fresh wins).
   let tracesCarried = 0;
   for (const [code, oldVariants] of Object.entries(previous.routes || {})) {
     const freshVariants = fresh.routes[code];
     if (!freshVariants) {
-      const survivors = oldVariants.filter((v) => !isRenamedAway(v, code));
-      renamedAway += oldVariants.length - survivors.length;
+      const alive = oldVariants.filter((v) => !isRetiredTwin(v, code));
+      retiredTwins += oldVariants.length - alive.length;
+      const survivors = alive.filter((v) => !isRenamedAway(v, code));
+      renamedAway += alive.length - survivors.length;
       if (survivors.length > 0) fresh.routes[code] = survivors;
       continue;
     }
@@ -773,15 +790,36 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
 
     const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
     const retained = oldVariants.filter((v) => !freshKeys.has(cleanRouteName(v.nombre)));
-    const survivors = retained.filter((v) => !isRenamedAway(v, code));
-    renamedAway += retained.length - survivors.length;
+    const alive = retained.filter((v) => !isRetiredTwin(v, code));
+    retiredTwins += retained.length - alive.length;
+    const survivors = alive.filter((v) => !isRenamedAway(v, code));
+    renamedAway += alive.length - survivors.length;
     if (survivors.length > 0) freshVariants.push(...survivors);
   }
+
+  // Never re-attach a mapping for a route that has been renamed away or whose
+  // variant is an answered twin: its recorrido now rides under the new código or
+  // the new id, so keeping the old one tags the platform with a service that no
+  // longer exists. Applied on every path a previous mapping can travel back in
+  // by — including the two wholesale copies below, which is precisely where a
+  // *closed* station's tags live: nothing fresh calls there, so fresh has no
+  // station and no wagon to merge into.
+  const keepMapping = (r: CatalogRoute): boolean =>
+    !isRenamedAway(r, r.codigo || '') && !isRetiredTwin(r, r.codigo || '');
+  const keptWagons = (wagons: CatalogWagons): CatalogWagons => {
+    const out: CatalogWagons = {};
+    for (const [wagon, routes] of Object.entries(wagons || {})) {
+      const kept = routes.filter(keepMapping);
+      if (kept.length > 0) out[wagon] = kept;
+    }
+    return out;
+  };
 
   // Stations: union by code; union wagons; within a wagon, union route refs by normalized code+name.
   for (const [stationCode, oldStation] of Object.entries(previous.stations || {})) {
     const freshStation = fresh.stations[stationCode];
     if (!freshStation) {
+      oldStation.wagons = keptWagons(oldStation.wagons || {});
       fresh.stations[stationCode] = oldStation;
       continue;
     }
@@ -789,16 +827,14 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
     for (const [wagon, oldRoutes] of Object.entries(oldStation.wagons || {})) {
       const freshRoutes = freshWagons[wagon];
       if (!freshRoutes) {
-        freshWagons[wagon] = oldRoutes;
+        const kept = oldRoutes.filter(keepMapping);
+        if (kept.length > 0) freshWagons[wagon] = kept;
         continue;
       }
       const freshKeys = new Set(freshRoutes.map((r) => `${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`));
       const retained = oldRoutes
         .filter((r) => !freshKeys.has(`${r.codigo.toUpperCase().trim()}|${cleanRouteName(r.nombre)}`))
-        // …and never re-attach a mapping for a route that has been renamed away
-        // (above): its recorrido now rides under the new código, so keeping the
-        // old one tags the platform with a service that no longer exists.
-        .filter((r) => !isRenamedAway(r, r.codigo || ''));
+        .filter(keepMapping);
       if (retained.length > 0) freshRoutes.push(...retained);
     }
   }
@@ -808,6 +844,11 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
   }
   if (renamedAway > 0) {
     console.log(`[TM API] Dropped ${renamedAway} previous entr(ies) whose route id now answers to a different código.`);
+  }
+  if (retiredTwins > 0) {
+    console.log(
+      `[TM API] Dropped ${retiredTwins} previous entr(ies) filed as replaced in recorrido_corrections.json.`
+    );
   }
 
   return fresh;
@@ -932,15 +973,44 @@ export function expireUnseenVariants(catalog: MasterCatalog, now: number): numbe
 }
 
 /**
- * Repairs the on-disk catalog in place: loads it, prunes phantom station-wagon
- * mappings (see `pruneUnservedStationRoutes`), and rewrites it atomically. Used
- * to heal a catalog whose stale mappings predate the prune step now baked into
+ * Drops the route variants `recorrido_corrections.json` files as replaced.
+ *
+ * `mergeCatalogs` refuses them on the way in, but a variant already sitting in
+ * the catalog when the entry is filed would otherwise wait out the full 21-day
+ * retention window — and a whole re-sync is a ~70-minute round trip to apply a
+ * fact that is already answered. Returns the number dropped.
+ */
+export function dropRetiredVariants(catalog: MasterCatalog): number {
+  let dropped = 0;
+  for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    const kept = variants.filter((variant) => !isRetiredVariant(code, variant.id));
+    if (kept.length === variants.length) continue;
+    dropped += variants.length - kept.length;
+    if (kept.length > 0) catalog.routes[code] = kept;
+    else delete catalog.routes[code];
+  }
+  return dropped;
+}
+
+/**
+ * Repairs the on-disk catalog in place: loads it, drops variants filed as
+ * replaced, prunes phantom station-wagon mappings (see
+ * `pruneUnservedStationRoutes`), and rewrites it atomically. Used to heal a
+ * catalog whose stale mappings predate the prune step now baked into
  * `syncMasterCatalog`. Returns the number of mappings pruned.
+ *
+ * Order matters: the mapping prune reads each route's recorrido as the proof
+ * that a platform tag is real, so a replaced variant has to be gone before its
+ * own stale recorrido gets a vote.
  */
 export async function pruneCatalogFileInPlace(): Promise<number> {
   await loadCatalogFromDisk();
+  const retired = dropRetiredVariants(masterCatalog);
+  if (retired > 0) {
+    console.log(`[TM API] Dropped ${retired} route variant(s) filed as replaced in recorrido_corrections.json.`);
+  }
   const pruned = pruneUnservedStationRoutes(masterCatalog);
-  if (pruned > 0) {
+  if (pruned > 0 || retired > 0) {
     await writeCatalogAtomically(masterCatalog);
     invalidateLightCatalog();
   }
@@ -1177,6 +1247,17 @@ export async function syncMasterCatalog(): Promise<void> {
     const prunedMappings = pruneUnservedStationRoutes(merged);
     if (prunedMappings > 0) {
       console.log(`[TM API] Pruned ${prunedMappings} stale station-wagon mappings no recorrido corroborates.`);
+    }
+
+    // 3c. Every correction is re-checked on each run (§5.1.3): one that fired
+    //     nothing has outlived the upstream fact it was filed against, and a
+    //     correction kept past its cause is the same stale data it exists to
+    //     remove. Named, never auto-deleted — the file is maintained by hand.
+    const unusedCorrections = reportUnusedCorrections(
+      new Set(Object.keys(newCatalog.routes).map((code) => code.toUpperCase().trim()))
+    );
+    for (const entry of unusedCorrections) {
+      console.warn(`[TM API] Correction no longer needed — ${entry} (delete it from recorrido_corrections.json).`);
     }
     merged.syncedAt = Date.now();
     await writeCatalogAtomically(merged);

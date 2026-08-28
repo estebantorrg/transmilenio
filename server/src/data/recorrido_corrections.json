@@ -1,7 +1,7 @@
 {
   "_meta": {
     "what": "Upstream recorrido facts this project overrides, with the evidence for each.",
-    "why": "The operator's own data lags its network. A stop left on a recorrido after the service stopped making it, or a código still listed after the route it named was retired, is not a difference of opinion — it is stale data, and publishing it puts a stop on a page that no bus calls at.",
+    "why": "The operator's own data lags its network. A stop left on a recorrido after the service stopped making it, a código still listed after the route it named was retired, or a retained variant re-issued under a new id so the rename purge cannot see it, is not a difference of opinion — it is stale data, and publishing it puts a stop on a page that no bus calls at.",
     "how_to_remove": "Every entry is checked on each sync. When upstream stops needing it, the sync logs `no longer needed` for that entry and it should be deleted from this file. Nothing here is meant to outlive the fix upstream.",
     "rule": "An entry needs evidence that stands on its own — the operator's chainage, the route listing, a photograph — recorded in `note`. A correction filed on a hunch is a second wrong answer.",
     "maintained": "by hand"
@@ -20,6 +20,29 @@
       "codigo": "F61",
       "added": "2026-08-18",
       "note": "Replaced by Z61 when the A61/F61 pair was extended to Tibanica. Upstream dropped F61 from `searchRutaByTipo` on 2026-08-18 while A61 stayed, and issued Z61 under a NEW id (5467) rather than re-coding F61's (1190) — so the id-keyed rename purge in `mergeCatalogs` cannot see it and retention would hold the código for its full window. This is the answered retirement that short-circuits that clock."
+    }
+  ],
+  "retiredVariants": [
+    {
+      "codigo": "A60",
+      "id": "1187",
+      "nombre": "Calle 76",
+      "added": "2026-08-25",
+      "note": "Pre-closure recorrido of A60, terminating at TM0001 Calle 76. Calle 76 closed for the Metro Línea 1 works and Calle 72 (TM0002) reopened in its place: the 2026-08-25 sync fetched 1233 routes and not one of them calls at TM0001, while 18 variants call at TM0002. Upstream now lists A60 under a NEW id (5711, `Calle 72`) instead of re-coding 1187's, so neither the id-keyed rename purge nor `pruneUnservedStationRoutes` — which reads this variant's own retained recorrido as corroboration — can see it. Querying `infoRuta` for id 1187 answers `codigo A60, nombre \"Calle 72\"`, ending TM0002: the same route under its pre-closure name."
+    },
+    {
+      "codigo": "6",
+      "id": "692",
+      "nombre": "Calle 76 / Universidades",
+      "added": "2026-08-25",
+      "note": "Both retained variants filed under id 692 ride TM0001 Calle 76 — `Calle 76` terminates there, `Universidades` passes through it. Same closure as A60 above. Upstream now lists código 6 as ids 691 (`Portal 80`) and 5709 (`Calle 72`); id 692 is gone from `searchRutaByTipo` and `infoRuta` for it answers `codigo 6, nombre \"Calle 72\"` with a 14-stop recorrido ending TM0002."
+    },
+    {
+      "codigo": "G52",
+      "id": "296",
+      "nombre": "Portal Sur",
+      "added": "2026-08-25",
+      "note": "Retained recorrido runs Flores → TM0001 Calle 76 → Portal Sur, i.e. through the station upstream now files no service at. Unlike A60 and 6 this one has no successor in the listing: código G52 is absent from the 2026-08-25 `searchRutaByTipo` sweep entirely, and `infoRuta` for id 296 answers `{\"STATUS\":false}` with no route object at all. The absence alone would prove nothing (that is what retention is for) — what is answered here is the recorrido: a variant whose own stop list rides a closed station is stale whether or not the código comes back."
     }
   ]
 }

@@ -3,14 +3,13 @@
     "what": "Official troncal estaciones, joined to the catalog stop code that carries their routes.",
     "source": "ArcGIS Troncal/consulta_estaciones_troncales, joined to server/src/data/master_catalog.json.",
     "why": "A station is an estación because the register says so, not because its catalog code starts with TM — stations open before they are assigned one (Tibanica - Primavera, Los Laureles, Islandia). See spec 5.5.6.",
-    "generated": "2026-08-19",
+    "generated": "2026-08-26",
     "registryStations": 153,
-    "matched": 143,
+    "matched": 144,
     "unmatched": [
       "09109 Tercer Milenio",
       "12003 Ricaurte - CL 13 (catalog stop TM0069 already claimed by 07111)",
       "09117 Calle 45 - American School Way",
-      "09122 Calle 72",
       "09111 Calle 19",
       "14003 Temporal AV. Jiménez - Inter Eléctricas (catalog stop TM0013 already claimed by 09110)",
       "09120 Calle 63",
@@ -31,6 +30,17 @@
       "lon": -74.06126016,
       "match": "node-id",
       "distanceM": 22
+    },
+    "TM0002": {
+      "numero": "09122",
+      "nodo": "9122",
+      "nombre": "Calle 72",
+      "troncal": "Caracas",
+      "vagones": 3,
+      "lat": 4.65823884,
+      "lon": -74.06206854,
+      "match": "node-id",
+      "distanceM": 23
     },
     "TM0003": {
       "numero": "09121",
