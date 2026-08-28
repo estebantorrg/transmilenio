@@ -255,19 +255,35 @@ export function normalizeRuteroText(value) {
  *
  * Keyed on the folded, punctuation-free name so a catalog that adds or drops a
  * space still matches. Deliberately a list of answered cases, not a rule that
- * strips everything after a dash: `AK 68 - CL 12A` is a whole name, and
- * inventing a shorter sign for it would be a wrong answer of exactly the kind
- * this file exists to avoid (§1 Certainty). `Guatoque - Veraguas` was the other
- * example of that until the maintainer answered it — the bus is signed
- * `GUATOQUE` — which is the difference this list is built on: the answer comes
- * from someone who has seen the sign, never from the shape of the name.
+ * strips everything after a dash — the shape of a name decides nothing here,
+ * and three termini prove why:
+ *
+ *   • `AK 68 - CL 12A` is a whole name and is signed whole.
+ *   • `Las Aguas - Centro Colombo Americano` looks like every sponsor suffix on
+ *     this list and is **not** one: the bus really does sign the Centro Colombo
+ *     Americano. It is absent from the map on purpose, and its 36 characters
+ *     widen the panel past any real one — which is the honest drawing of a sign
+ *     that long, since a real panel scrolls rather than dropping the tail.
+ *   • `Guatoque - Veraguas` was filed here as an example of a name to leave
+ *     alone, reasoned from Veraguas being a barrio rather than a brand. The bus
+ *     signs `GUATOQUE`. The reasoning was about the name; the answer was about
+ *     the sign, and only the second one counts.
+ *
+ * `Portal Norte - Unicervantes` is the awkward case: the fleet runs **both**
+ * wordings, `PORTAL NORTE` and the full one. One page draws one sign, so it
+ * draws the short one — that is a wording buses actually carry *and* it fits the
+ * 20-character panel, where the long one forces a 31-column panel no bus has.
+ * Between two true answers, the one that does not also invent hardware.
  */
 const SIGN_DESTINATIONS = new Map([
   ['ALCALACOLEGIOSTOMASDOMINICOS', 'Alcalá'],
+  ['CALLE72AREANDINA', 'Calle 72'],
   ['GUATOQUEVERAGUAS', 'Guatoque'],
   ['HEROESCOLMENASEGUROS', 'Héroes'],
   ['POLOFINCOMERCIO', 'Polo'],
   ['PORTALELDORADOCCNUESTROBOGOTA', 'Portal El Dorado'],
+  ['PORTALNORTEUNICERVANTES', 'Portal Norte'],
+  ['PORTALSURJFKCOOPFINANCIERA', 'Portal Sur-JFK'],
   ['PRADERAPLAZACENTRAL', 'Pradera'],
   ['TIBANICAPRIMAVERA', 'Tibanica'],
   ['TOBERINFOUNDEVER', 'Toberín'],
