@@ -42,7 +42,8 @@
       "id": "296",
       "nombre": "Portal Sur",
       "added": "2026-08-25",
-      "note": "Retained recorrido runs Flores → TM0001 Calle 76 → Portal Sur, i.e. through the station upstream now files no service at. Unlike A60 and 6 this one has no successor in the listing: código G52 is absent from the 2026-08-25 `searchRutaByTipo` sweep entirely, and `infoRuta` for id 296 answers `{\"STATUS\":false}` with no route object at all. The absence alone would prove nothing (that is what retention is for) — what is answered here is the recorrido: a variant whose own stop list rides a closed station is stale whether or not the código comes back."
+      "note": "Retained recorrido runs Flores → TM0001 Calle 76 → Portal Sur, i.e. through the station upstream now files no service at. Unlike A60 and 6 this one has no successor in the listing: código G52 is absent from the 2026-08-25 `searchRutaByTipo` sweep entirely, and `infoRuta` for id 296 answers `{\"STATUS\":false}` with no route object at all. The absence alone would prove nothing (that is what retention is for) — what is answered here is the recorrido: a variant whose own stop list rides a closed station is stale whether or not the código comes back.",
+      "amended": "2026-08-28. G52 is NOT retired. TRANSMILENIO's own Calle 76 closure notice lists it among the services at Calle 72, on Vagón 2. So the service runs, re-routed off Calle 76 like every other one here, and only its recorrido is unpublished — this entry drops a stale stop list, which is still right, and says nothing about the código being gone. There is nothing to restore: upstream serves no recorrido for G52 at all, and writing one by hand would invent a path (§1). Consequence to know: G52 is absent from this app entirely until upstream republishes it, which is a gap the notice proves rather than hides. Delete this entry the moment it comes back — the sync already names it as unused once it has nothing left to match."
     }
   ]
 }

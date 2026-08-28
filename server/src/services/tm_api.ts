@@ -985,6 +985,14 @@ export function dropRetiredVariants(catalog: MasterCatalog): number {
   for (const [code, variants] of Object.entries(catalog.routes || {})) {
     const kept = variants.filter((variant) => !isRetiredVariant(code, variant.id));
     if (kept.length === variants.length) continue;
+    // Named, not just counted. A file entry outlives its cause the moment
+    // upstream republishes the route, and this is the one path that would drop
+    // it again on the way past — so it says out loud which (código, id) it took.
+    for (const variant of variants) {
+      if (!kept.includes(variant)) {
+        console.log(`[TM API]   dropped ${code} #${variant.id} "${variant.nombre}" (filed as replaced)`);
+      }
+    }
     dropped += variants.length - kept.length;
     if (kept.length > 0) catalog.routes[code] = kept;
     else delete catalog.routes[code];
