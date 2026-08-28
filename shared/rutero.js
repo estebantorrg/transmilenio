@@ -244,23 +244,30 @@ export function normalizeRuteroText(value) {
  * bus does.
  *
  * A terminus carries its sponsor or its qualifier in the catalog — `Toberín-
- * Foundever`, `Héroes - Colmena Seguros`, `Universidades CityU` — and none of
- * that reaches the panel: the bus is signed `TOBERIN`, `HEROES`,
- * `UNIVERSIDADES`. This is the same kind of fact as the diacritic fold below it
+ * Foundever`, `Héroes - Colmena Seguros`, `Universidades CityU`, `Portal El
+ * Dorado – C.C Nuestro Bogotá` — and none of that reaches the panel: the bus is
+ * signed `TOBERIN`, `HEROES`, `UNIVERSIDADES`, `PORTAL EL DORADO`. The qualifier
+ * need not be a sponsor to be absent from the sign: `Guatoque - Veraguas` names
+ * two barrios and the bus still shows only `GUATOQUE`. This is the same kind of fact as the diacritic fold below it
  * (the panel's own behaviour, not a limit we work around), so it lives here and
  * applies to every surface that draws a sign rather than being fixed on one of
  * them.
  *
  * Keyed on the folded, punctuation-free name so a catalog that adds or drops a
  * space still matches. Deliberately a list of answered cases, not a rule that
- * strips everything after a dash: `Guatoque - Veraguas` and `AK 68 - CL 12A`
- * are whole names, and inventing a shorter sign for them would be a wrong
- * answer of exactly the kind this file exists to avoid (§1 Certainty).
+ * strips everything after a dash: `AK 68 - CL 12A` is a whole name, and
+ * inventing a shorter sign for it would be a wrong answer of exactly the kind
+ * this file exists to avoid (§1 Certainty). `Guatoque - Veraguas` was the other
+ * example of that until the maintainer answered it — the bus is signed
+ * `GUATOQUE` — which is the difference this list is built on: the answer comes
+ * from someone who has seen the sign, never from the shape of the name.
  */
 const SIGN_DESTINATIONS = new Map([
   ['ALCALACOLEGIOSTOMASDOMINICOS', 'Alcalá'],
+  ['GUATOQUEVERAGUAS', 'Guatoque'],
   ['HEROESCOLMENASEGUROS', 'Héroes'],
   ['POLOFINCOMERCIO', 'Polo'],
+  ['PORTALELDORADOCCNUESTROBOGOTA', 'Portal El Dorado'],
   ['PRADERAPLAZACENTRAL', 'Pradera'],
   ['TIBANICAPRIMAVERA', 'Tibanica'],
   ['TOBERINFOUNDEVER', 'Toberín'],
