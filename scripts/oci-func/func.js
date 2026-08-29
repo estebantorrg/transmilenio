@@ -122,7 +122,12 @@ function extractBuses(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
 
-  const keys = ['buses', 'data', 'result', 'results', 'vehiculos', 'vehicles'];
+  // Key ORDER is part of "behaviourally identical": a payload carrying both
+  // `data` and `buses` resolves to whichever is tried first, and the other three
+  // unwrappers all try `data` first. This one led with `buses`, so the co-relay
+  // tier could answer with a different array than every other tier for the same
+  // upstream response.
+  const keys = ['data', 'buses', 'result', 'results', 'vehiculos', 'vehicles'];
   for (const key of keys) {
     if (Array.isArray(payload[key])) return payload[key];
   }
