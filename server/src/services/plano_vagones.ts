@@ -35,8 +35,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export interface PlanoLayoutVagon {
   /** The number printed on its plate. */
   vagon: string;
-  /** The códigos that board it, as the plano lists them. */
-  codigos: string[];
+  /**
+   * The códigos on each of its two long edges, as the sheet draws them.
+   *
+   * Per vagón and not per platform, because the two are not the same question:
+   * at Calle 85 one straight platform has vagón 4 serving southbound only,
+   * vagón 3 northbound only, and vagones 2 and 1 both. A side declared once for
+   * the whole platform cannot say that, and guessing it from the corridor would
+   * put chips on an edge no bus stops at.
+   */
+  arriba?: string[];
+  abajo?: string[];
   /**
    * código → the destination whose variant boards this vagón, for a código the
    * catalog files more than once here.
@@ -49,12 +58,10 @@ export interface PlanoLayoutVagon {
    */
   destinos?: Record<string, string>;
 }
-/** One platform in a staggered station: a run of vagones along one carriageway. */
+/** One platform: a run of vagones, in the order the sheet draws them. */
 export interface PlanoLayoutRow {
-  /** Which long edge its services stand on — `a` the top, `b` the bottom. */
-  side: 'a' | 'b';
   /** How far along the drawing the row starts, in vagón columns — the stagger
-   *  between the two platforms, as the sheet draws it. */
+   *  between two platforms that do not line up, as the sheet draws it. */
   offset: number;
   vagones: PlanoLayoutVagon[];
 }
@@ -121,12 +128,15 @@ export function planoLayout(stationCode: unknown): PlanoLayout | undefined {
   return PLANO_LAYOUTS[String(stationCode ?? '').trim().toUpperCase()];
 }
 
-/** Every código a layout claims, for reconciling it against the catalog. */
+/** Every código a layout claims, across both edges of every vagón, for
+ *  reconciling it against the catalog. */
 export function layoutServices(layout: PlanoLayout): Set<string> {
   const codes = new Set<string>();
   for (const row of layout.rows ?? []) {
     for (const vagon of row.vagones ?? []) {
-      for (const codigo of vagon.codigos ?? []) codes.add(String(codigo).trim().toUpperCase());
+      for (const codigo of [...(vagon.arriba ?? []), ...(vagon.abajo ?? [])]) {
+        codes.add(String(codigo).trim().toUpperCase());
+      }
     }
   }
   return codes;

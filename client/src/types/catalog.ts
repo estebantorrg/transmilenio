@@ -52,9 +52,19 @@ export interface CatalogStation {
    *  catalog server-side; absent for every station the bar describes correctly. */
   planoLayout?: {
     rows: Array<{
-      side: 'a' | 'b';
+      /** Stagger, in vagón columns, for a platform that does not line up with
+       *  the one above it. */
       offset: number;
-      vagones: Array<{ vagon: string; codigos: string[]; destinos?: Record<string, string> }>;
+      vagones: Array<{
+        vagon: string;
+        /** Códigos on each long edge, per vagón: one vagón can serve a single
+         *  direction while its neighbour on the same platform serves both. */
+        arriba?: string[];
+        abajo?: string[];
+        /** código → the destination whose variant boards this vagón, where the
+         *  catalog files that código here more than once. */
+        destinos?: Record<string, string>;
+      }>;
     }>;
   };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the

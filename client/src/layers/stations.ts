@@ -153,19 +153,31 @@ export type StationPlanoLayout = NonNullable<
 >;
 
 /**
- * A staggered station, drawn as the shape it is (`planoLayout`, §5.5.4).
+ * A station drawn from its own plano, where the catalog's lettered wagons
+ * cannot describe it (`planoLayout`, §5.5.4).
  *
- * The bar below assumes one segmented platform carrying both directions along
- * it. La Castellana is two platforms on opposite carriageways, offset from each
- * other with the busway between — four printed vagones that the catalog files
- * as two wagons, each straddling both platforms. Drawn as a bar it reads
- * "Vagón 1: B28 y G12", two services separated by a road. So where the sheet
- * has been read, the sheet is drawn: one deck per platform, each offset to the
- * end the plano puts it at, services on that platform's own outer edge.
+ * The bar below is built from those letters and assumes one segmented platform
+ * carrying both directions along it. Two shapes break that, and both were
+ * publishing a **wrong vagón number** rather than withholding one, because each
+ * station's plate count happened to agree with its wagon count:
  *
- * The vagón numbers here come straight off the plate and skip `vagonLabels`
- * entirely — that mapping exists to turn catalog letters into printed numbers,
- * and this station's letters are not its platforms.
+ * - **La Castellana** is two platforms on opposite carriageways, offset, with
+ *   the busway between — four printed vagones filed as two wagons, each
+ *   straddling both platforms. As a bar it read "Vagón 1: B28 y G12", two
+ *   services separated by a road.
+ * - **Calle 85** is one straight platform of four vagones filed as three
+ *   wagons, its `C` merging printed vagones 3 and 4 — so `C50`/`D10`/`H27` were
+ *   labelled Vagón 3 when they board Vagón 4.
+ *
+ * So the sheet is drawn instead: rows of vagones in the order it draws them,
+ * each row offset by the stagger it shows, and each vagón's services on the
+ * edge it prints them. Sides are per **vagón**, never per platform — at Calle
+ * 85 vagón 4 boards southbound only, vagón 3 northbound only, and vagones 2 and
+ * 1 both, which no platform-wide side can express.
+ *
+ * The vagón numbers come straight off the plate and skip `vagonLabels`
+ * entirely: that mapping exists to turn catalog letters into printed numbers,
+ * and at these stations the letters are not the platforms.
  */
 function buildStationLayoutHtml(
   layout: StationPlanoLayout,
@@ -173,43 +185,56 @@ function buildStationLayoutHtml(
   sentidoById: Map<string, string>,
   sentidos?: { positive: string; negative: string }
 ): string | null {
+  // Each edge of a vagón boards one direction, so the catalog's two variants of
+  // a código are separated by the side they are drawn on. Both `G12`s at La
+  // Castellana are southbound, which is why `destinos` exists as well: this
+  // narrows a código to a direction, that one narrows it to a service.
+  const boardsOn = (route: CatalogRoute, side: 'a' | 'b'): boolean => {
+    if (!sentidos) return true;
+    const want = side === 'a' ? sentidos.positive : sentidos.negative;
+    const sentido = sentidoById.get(String(route.id ?? ''));
+    // No answer for this variant is not a reason to drop it: absence of a
+    // direction is not evidence of the opposite one (§1).
+    return sentido === undefined || sentido === want;
+  };
+
   const rows = (layout.rows ?? []).map((row) => {
-    // A platform on a staggered station faces one carriageway, so it boards one
-    // direction. The catalog carries both directions of a código under the same
-    // code, and drawing them both put two `G12` chips on a platform where only
-    // the southbound one stops — the plate then counted two services where a
-    // rider can catch one. The direction each variant runs is already answered
-    // per id in `wagonPlan`, so it is used to keep this side's.
-    const want = sentidos ? (row.side === 'a' ? sentidos.positive : sentidos.negative) : null;
-    const boardsHere = (route: CatalogRoute): boolean => {
-      if (!want) return true;
-      const sentido = sentidoById.get(String(route.id ?? ''));
-      // No answer for this variant is not a reason to drop it: absence of a
-      // direction is not evidence of the opposite one (§1).
-      return sentido === undefined || sentido === want;
-    };
     const decks = row.vagones
       .map((vagon) => {
         // One chip per código, as the plate prints it. Where the catalog files
-        // the same código twice on this platform, the sheet's chip names one of
-        // them and `destinos` says which — two chips under one sign would claim
-        // two boardable services where a rider sees one.
+        // the same código twice on this edge, the sheet's chip names one of them
+        // and `destinos` says which — two chips under one sign would claim two
+        // boardable services where a rider sees one.
         const wanted = vagon.destinos ?? {};
-        const members = vagon.codigos
-          .flatMap((codigo) => {
-            const variants = (routesByCode.get(codigo.toUpperCase()) ?? []).filter(boardsHere);
+        const membersFor = (codigos: string[] | undefined, side: 'a' | 'b'): CatalogRoute[] =>
+          (codigos ?? []).flatMap((codigo) => {
+            const all = routesByCode.get(codigo.toUpperCase()) ?? [];
+            // Both filters below may only NARROW a código the sheet lists, never
+            // erase it. The sheet is what says this service boards this edge;
+            // the catalog's direction only helps choose between variants of it.
+            // `D10` leaves the corridor westward at Calle 85, so it matches
+            // neither `norte` nor `sur` and a strict filter dropped a service
+            // printed on the plate — the drawing then contradicted the sign it
+            // was copied from.
+            const byDirection = all.filter((r) => boardsOn(r, side));
+            const variants = byDirection.length > 0 ? byDirection : all;
             const destino = wanted[codigo] ?? wanted[codigo.toUpperCase()];
             if (!destino) return variants;
             const picked = variants.filter(
               (r) => normalizeStationName(r.nombre) === normalizeStationName(destino)
             );
-            // An answer that matches nothing is a stale answer, and dropping the
-            // código entirely would hide a service that does board here.
             return picked.length > 0 ? picked : variants;
           });
-        if (members.length === 0) return '';
-        const count = groupCatalogRoutesByDirection(members).length;
-        const tags = `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members)}</div></div>`;
+
+        const above = membersFor(vagon.arriba, 'a');
+        const below = membersFor(vagon.abajo, 'b');
+        if (above.length === 0 && below.length === 0) return '';
+        const count =
+          groupCatalogRoutesByDirection(above).length + groupCatalogRoutesByDirection(below).length;
+        const tags = (members: CatalogRoute[]): string =>
+          members.length
+            ? `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+            : '';
         const deck =
           `<div class="pvg-deck">` +
           `<span class="pvg-doors" aria-hidden="true"></span>` +
@@ -219,9 +244,9 @@ function buildStationLayoutHtml(
           `</div>`;
         return (
           `<section class="pvg" aria-label="Vagón ${escapeHTML(vagon.vagon)}">` +
-          `<div class="pvg-side pvg-side-a">${row.side === 'a' ? tags : ''}</div>` +
+          `<div class="pvg-side pvg-side-a">${tags(above)}</div>` +
           deck +
-          `<div class="pvg-side pvg-side-b">${row.side === 'b' ? tags : ''}</div>` +
+          `<div class="pvg-side pvg-side-b">${tags(below)}</div>` +
           `</section>`
         );
       })
