@@ -1373,7 +1373,8 @@ export async function syncMasterCatalog(): Promise<void> {
     //     correction kept past its cause is the same stale data it exists to
     //     remove. Named, never auto-deleted — the file is maintained by hand.
     const unusedCorrections = reportUnusedCorrections(
-      new Set(Object.keys(newCatalog.routes).map((code) => code.toUpperCase().trim()))
+      new Set(Object.keys(newCatalog.routes).map((code) => code.toUpperCase().trim())),
+      healthy
     );
     for (const entry of unusedCorrections) {
       console.warn(`[TM API] Correction no longer needed — ${entry} (delete it from recorrido_corrections.json).`);

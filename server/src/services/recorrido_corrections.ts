@@ -115,14 +115,31 @@ export function isRetiredVariant(codigo: unknown, id: unknown): boolean {
  * itself; a retirement that never fired means the código is gone from the
  * catalog too. Either way the entry has outlived its cause and should be deleted
  * — which is the whole reason this file is allowed to exist.
+ *
+ * `healthy` is the same gate `expireUnseenVariants` runs behind: a route
+ * retirement fires either from the fetch loop (the código is still listed) or
+ * from the expiry pass (it is still in the catalog), so "fired nowhere" only
+ * means "gone from both" on a run that plainly saw the whole listing. On a short
+ * fetch it means nothing, and naming an entry for deletion there is exactly the
+ * absence retention exists to ignore (§5.1.3).
  */
-export function reportUnusedCorrections(seenCodigos: Set<string>): string[] {
+export function reportUnusedCorrections(seenCodigos: Set<string>, healthy = false): string[] {
   const stale: string[] = [];
   for (const entry of CORRECTIONS.dropStops) {
     const id = key(entry.codigo, entry.stop);
     // Only judge a correction whose route was actually fetched this run.
     if (!seenCodigos.has(String(entry.codigo).trim().toUpperCase())) continue;
     if (!used.has(id)) stale.push(`${entry.codigo} no longer lists ${entry.stop}`);
+  }
+  // Route retirements are re-checked too — the `retired|` bookkeeping was being
+  // written and never read, so a código upstream had itself stopped listing kept
+  // a hand-filed retirement alive indefinitely, which is the same stale fact the
+  // entry was filed to remove.
+  if (healthy) {
+    for (const entry of CORRECTIONS.retiredRoutes) {
+      const id = String(entry.codigo).trim().toUpperCase();
+      if (!used.has(`retired|${id}`)) stale.push(`${entry.codigo} is no longer listed upstream`);
+    }
   }
   // A variant retirement fires against the *previous* catalog, not against the
   // fetch, so there is no seen-this-run gate to apply: once the ghost it names
