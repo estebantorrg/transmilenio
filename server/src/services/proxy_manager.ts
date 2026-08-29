@@ -24,6 +24,9 @@ const LIVE_TEST_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 // Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
 // only inspected for coordinates, so it never needs to be buffered whole.
 const PROBE_MAX_BODY_CHARS = 512 * 1024;
+// Scraped proxy lists are third-party text on a 460 MB heap (spec §5.1.3); the
+// real ones are a few hundred KB.
+const MAX_PROXY_LIST_CHARS = 4 * 1024 * 1024;
 
 export class SimpleProxyAgent extends https.Agent {
   public proxyHost: string;
@@ -397,32 +400,35 @@ class ProxyManagerClass {
   }
 
   private fetchJson(url: string): Promise<any> {
-    return new Promise((resolve, reject) => {
-      https
-        .get(url, { timeout: 10_000 }, (res) => {
-          let data = '';
-          res.on('data', (chunk) => (data += chunk));
-          res.on('end', () => {
-            try {
-              resolve(JSON.parse(data));
-            } catch (e) {
-              reject(e);
-            }
-          });
-        })
-        .on('error', reject)
-        .on('timeout', function (this: http.ClientRequest) {
-          this.destroy(new Error('timeout'));
-        });
-    });
+    return this.fetchText(url).then((data) => JSON.parse(data));
   }
 
+  /**
+   * Reads a scraped proxy list.
+   *
+   * The sources are third-party text hosts that reset connections routinely, and
+   * the response stream needs its own `error` listener: an aborted or reset
+   * response with none is an unhandled `'error'` event, i.e. a **process-level
+   * crash**, not a rejected promise (spec §5.2.5). `req.on('error')` does not
+   * cover it — a body that dies after the headers arrived errors on `res`. The
+   * promise also has to settle, or the refresh pass hangs on a dead socket.
+   *
+   * Bounded for the same reason every other upstream read is: this is untrusted
+   * third-party text on a 460 MB heap, and a list is a few hundred KB.
+   */
   private fetchText(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
       https
         .get(url, { timeout: 10_000 }, (res) => {
           let data = '';
-          res.on('data', (chunk) => (data += chunk));
+          res.on('data', (chunk) => {
+            data += chunk;
+            if (data.length > MAX_PROXY_LIST_CHARS) {
+              res.destroy();
+              reject(new Error(`${url}: proxy list exceeded ${MAX_PROXY_LIST_CHARS} chars`));
+            }
+          });
+          res.on('error', reject);
           res.on('end', () => resolve(data));
         })
         .on('error', reject)

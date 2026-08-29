@@ -105,12 +105,20 @@ function isAuthorized(req: Request): boolean {
     (headerSecret !== '' && secretsMatch(headerSecret));
 }
 
+/**
+ * The egress country check (`cdn-cgi/trace`). Bounded and error-listened through
+ * the same reader every other upstream read uses (`collectBody`, spec §5.2.5):
+ * a response that dies after its headers arrived emits `'error'` on the RESPONSE
+ * stream, which `req.on('error')` does not cover — with no listener that is an
+ * unhandled event and takes the relay process down.
+ */
 function fetchText(url: string, timeoutMs = 5_000): Promise<string> {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { timeout: timeoutMs }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on('data', (chunk: Buffer) => chunks.push(chunk));
-      res.on('end', () => resolve(Buffer.concat(chunks).toString('utf-8')));
+      collectBody(res, 'egress trace').then(
+        (body) => resolve(body.toString('utf-8')),
+        reject
+      );
     });
 
     req.on('error', reject);
