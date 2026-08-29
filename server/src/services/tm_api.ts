@@ -335,7 +335,7 @@ let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
 let lightCatalogGzip: Buffer | null = null;
 let lightCatalogStationCount = 0;
 // De-dupes concurrent first-hit builds so a burst of requests compresses once.
-let lightCatalogBuilding: Promise<Buffer> | null = null;
+let lightCatalogBuilding: Promise<LightCatalogArtifact> | null = null;
 let catalogLoadedAt: number = 0;
 
 const gzipAsync = promisify(zlib.gzip);
@@ -344,6 +344,14 @@ const gzipAsync = promisify(zlib.gzip);
 function invalidateLightCatalog(): void {
   lightCatalogGzip = null;
   lightCatalogStationCount = 0;
+  // A build already in flight was started from the catalog that has just been
+  // replaced, so it is detached here too. Leaving it attached handed its stale
+  // body to the next request — which computes the ETag from the NEW
+  // `catalogLoadedAt` — and then cached it, so every client cached the previous
+  // catalog under the current validator for the full 30-minute `max-age`. That
+  // is the §5.5.6 trap (the validator names the shape, the body is older than
+  // it says) one layer down, and it survives until the next sync.
+  lightCatalogBuilding = null;
 }
 
 export function getCatalogLoadedAt(): number {
@@ -666,29 +674,51 @@ export interface LightCatalogArtifact {
  * intermediate light object + its JSON string are released the moment the gzip
  * buffer is produced, so steady-state RSS holds only the full catalog + this
  * ~5 MB buffer — never a second full copy.
+ *
+ * The build carries the catalog version it was started from, and the ETag it
+ * answers with is that version's — never whatever `catalogLoadedAt` happens to
+ * be when it finishes. A body and the validator that names it are one thing: a
+ * sync landing mid-build must not be able to publish the previous catalog under
+ * the new tag, nor overwrite a fresher buffer on the way out (see
+ * {@link invalidateLightCatalog}). A caller already waiting on a superseded
+ * build still gets that build's own body under that build's own tag, which is
+ * the same read-continuity §4.3 asks of the catalog itself.
  */
 export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
-  const etag = `W/"catalog-${catalogLoadedAt}-${LIGHT_CATALOG_SHAPE}"`;
   if (lightCatalogGzip) {
-    return { gzip: lightCatalogGzip, count: lightCatalogStationCount, etag };
+    return {
+      gzip: lightCatalogGzip,
+      count: lightCatalogStationCount,
+      etag: `W/"catalog-${catalogLoadedAt}-${LIGHT_CATALOG_SHAPE}"`,
+    };
   }
   if (!lightCatalogBuilding) {
-    lightCatalogBuilding = (async () => {
+    const version = catalogLoadedAt;
+    const build = (async (): Promise<LightCatalogArtifact> => {
       const light = buildCatalogLight();
-      lightCatalogStationCount = Object.keys(light.stations).length;
+      const count = Object.keys(light.stations).length;
       const body = JSON.stringify({
         success: true,
         data: light,
-        count: lightCatalogStationCount,
+        count,
         stale: isCatalogStale(),
       });
-      const gz = await gzipAsync(body);
-      lightCatalogGzip = gz;
-      return gz;
-    })().finally(() => { lightCatalogBuilding = null; });
+      const gzip = await gzipAsync(body);
+      // Publish only while this is still the catalog on disk.
+      if (catalogLoadedAt === version) {
+        lightCatalogGzip = gzip;
+        lightCatalogStationCount = count;
+      }
+      return { gzip, count, etag: `W/"catalog-${version}-${LIGHT_CATALOG_SHAPE}"` };
+    })();
+    lightCatalogBuilding = build;
+    // Release the slot on settle, but only if it is still this build's — a sync
+    // may already have detached it in favour of a newer one.
+    void build.catch(() => undefined).then(() => {
+      if (lightCatalogBuilding === build) lightCatalogBuilding = null;
+    });
   }
-  const gzip = await lightCatalogBuilding;
-  return { gzip, count: lightCatalogStationCount, etag };
+  return lightCatalogBuilding;
 }
 
 export function getStationByCode(code: string): CatalogStation | null {
