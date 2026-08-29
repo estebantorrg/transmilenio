@@ -2432,6 +2432,48 @@ body.sidebar-collapsed .sidebar-fab {
   .pvg-gap-deck { flex: 1 0 auto; }
 }
 
+/* ── A staggered station ─────────────────────────────────────────────────
+   Two platforms on opposite carriageways, offset from each other with the
+   busway between them (La Castellana). Not a variant of the bar above: the bar
+   is one platform serving both directions, and this is two platforms serving
+   one each, which is why it is drawn from the sheet rather than from the
+   catalog's letters (`buildStationLayoutHtml`).
+
+   Each row keeps its own grid so its vagones stay a segmented platform, and the
+   rows are pushed to opposite ends — that offset is the whole point of the
+   drawing, and centring them would say the platforms face each other when they
+   do not. */
+.popup-plano-split .popup-plano-inner {
+  display: flex;
+  flex-direction: column;
+}
+
+/* `--pvg-offset` is the stagger in vagón columns, straight off the sheet. A
+   platform pushed along the drawing is the fact this layout exists to state:
+   drawn flush, the two would read as facing each other across the busway. */
+.pvg-row {
+  display: flex;
+  margin-left: calc(var(--pvg-offset, 0) * 136px * var(--tm-scale, 1));
+}
+
+/* The road between them. On the sheet it is the full-width band the two
+   platforms sit either side of — the reason a rider cannot walk from Vagón 1 to
+   Vagón 4 without crossing. */
+.pvg-busway {
+  height: calc(10px * var(--tm-scale, 1));
+  margin: calc(3px * var(--tm-scale, 1)) 0;
+  background: repeating-linear-gradient(
+    to right,
+    var(--border-medium) 0,
+    var(--border-medium) calc(10px * var(--tm-scale, 1)),
+    transparent calc(10px * var(--tm-scale, 1)),
+    transparent calc(20px * var(--tm-scale, 1))
+  );
+  background-position: 0 50%;
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+}
+
 /* ── The corridor, named once at each edge ───────────────────────────────
    The sheet prints the corridor along the top and bottom of the drawing, not
    on every segment. Hoisted here on the same condition: only when every vagón

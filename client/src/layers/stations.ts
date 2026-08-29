@@ -148,6 +148,102 @@ function buildDirectionRowsHtml(
   return rows.length > 0 ? rows.join('') : null;
 }
 
+export type StationPlanoLayout = NonNullable<
+  import('../types/catalog').CatalogStation['planoLayout']
+>;
+
+/**
+ * A staggered station, drawn as the shape it is (`planoLayout`, §5.5.4).
+ *
+ * The bar below assumes one segmented platform carrying both directions along
+ * it. La Castellana is two platforms on opposite carriageways, offset from each
+ * other with the busway between — four printed vagones that the catalog files
+ * as two wagons, each straddling both platforms. Drawn as a bar it reads
+ * "Vagón 1: B28 y G12", two services separated by a road. So where the sheet
+ * has been read, the sheet is drawn: one deck per platform, each offset to the
+ * end the plano puts it at, services on that platform's own outer edge.
+ *
+ * The vagón numbers here come straight off the plate and skip `vagonLabels`
+ * entirely — that mapping exists to turn catalog letters into printed numbers,
+ * and this station's letters are not its platforms.
+ */
+function buildStationLayoutHtml(
+  layout: StationPlanoLayout,
+  routesByCode: Map<string, CatalogRoute[]>,
+  sentidoById: Map<string, string>,
+  sentidos?: { positive: string; negative: string }
+): string | null {
+  const rows = (layout.rows ?? []).map((row) => {
+    // A platform on a staggered station faces one carriageway, so it boards one
+    // direction. The catalog carries both directions of a código under the same
+    // code, and drawing them both put two `G12` chips on a platform where only
+    // the southbound one stops — the plate then counted two services where a
+    // rider can catch one. The direction each variant runs is already answered
+    // per id in `wagonPlan`, so it is used to keep this side's.
+    const want = sentidos ? (row.side === 'a' ? sentidos.positive : sentidos.negative) : null;
+    const boardsHere = (route: CatalogRoute): boolean => {
+      if (!want) return true;
+      const sentido = sentidoById.get(String(route.id ?? ''));
+      // No answer for this variant is not a reason to drop it: absence of a
+      // direction is not evidence of the opposite one (§1).
+      return sentido === undefined || sentido === want;
+    };
+    const decks = row.vagones
+      .map((vagon) => {
+        // One chip per código, as the plate prints it. Where the catalog files
+        // the same código twice on this platform, the sheet's chip names one of
+        // them and `destinos` says which — two chips under one sign would claim
+        // two boardable services where a rider sees one.
+        const wanted = vagon.destinos ?? {};
+        const members = vagon.codigos
+          .flatMap((codigo) => {
+            const variants = (routesByCode.get(codigo.toUpperCase()) ?? []).filter(boardsHere);
+            const destino = wanted[codigo] ?? wanted[codigo.toUpperCase()];
+            if (!destino) return variants;
+            const picked = variants.filter(
+              (r) => normalizeStationName(r.nombre) === normalizeStationName(destino)
+            );
+            // An answer that matches nothing is a stale answer, and dropping the
+            // código entirely would hide a service that does board here.
+            return picked.length > 0 ? picked : variants;
+          });
+        if (members.length === 0) return '';
+        const count = groupCatalogRoutesByDirection(members).length;
+        const tags = `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members)}</div></div>`;
+        const deck =
+          `<div class="pvg-deck">` +
+          `<span class="pvg-doors" aria-hidden="true"></span>` +
+          `<div class="pvg-plate"><span class="pvg-name">Vagón ${escapeHTML(vagon.vagon)}</span>` +
+          `<span class="pvg-sub">${count}</span></div>` +
+          `<span class="pvg-doors" aria-hidden="true"></span>` +
+          `</div>`;
+        return (
+          `<section class="pvg" aria-label="Vagón ${escapeHTML(vagon.vagon)}">` +
+          `<div class="pvg-side pvg-side-a">${row.side === 'a' ? tags : ''}</div>` +
+          deck +
+          `<div class="pvg-side pvg-side-b">${row.side === 'b' ? tags : ''}</div>` +
+          `</section>`
+        );
+      })
+      .filter(Boolean);
+    if (decks.length === 0) return '';
+    // The stagger, in vagón columns. Drawing the two platforms flush would say
+    // they face each other across the road, which at a staggered station is the
+    // one thing they do not do.
+    const offset = Number(row.offset) || 0;
+    const style = offset > 0 ? ` style="--pvg-offset:${offset}"` : '';
+    return `<div class="pvg-row"${style}><div class="popup-plano-cols">${decks.join('')}</div></div>`;
+  });
+
+  const drawn = rows.filter(Boolean);
+  if (drawn.length === 0) return null;
+  return (
+    `<div class="popup-plano popup-plano-split" role="group" aria-label="Plano de la estación" tabindex="0">` +
+    `<div class="popup-plano-inner">${drawn.join('<div class="pvg-busway" aria-hidden="true"></div>')}</div>` +
+    `</div>`
+  );
+}
+
 /**
  * The station drawn as a plan — the same view the prerendered `/estacion/` page
  * carries (spec §5.5.4): one continuous platform bar segmented per vagón, the
@@ -377,7 +473,8 @@ export function buildStationWagonView(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
   wagonPlan: Record<string, CatalogPlanGroup[]> = {},
-  sentidos?: { positive: string; negative: string }
+  sentidos?: { positive: string; negative: string },
+  layout?: StationPlanoLayout
 ): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -400,7 +497,28 @@ export function buildStationWagonView(
   // The lettered platforms are drawn as the station's plan — the same view the
   // /estacion/ page carries. Where the catalog ships no plan for them, they fall
   // back to the labelled sections below, so a station is never left blank.
-  const plano = buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  // A station whose shape has been read off its plano is drawn from that and
+  // not from the letters — the letters are what cannot describe it.
+  const byCode = new Map<string, CatalogRoute[]>();
+  for (const { routes } of lettered) {
+    for (const route of routes) {
+      const key = String(route.codigo || '').trim().toUpperCase();
+      if (!key) continue;
+      const bucket = byCode.get(key);
+      if (bucket) bucket.push(route);
+      else byCode.set(key, [route]);
+    }
+  }
+  const sentidoById = new Map<string, string>();
+  for (const groups of Object.values(wagonPlan)) {
+    for (const group of groups) {
+      if (!group.sentido) continue;
+      for (const id of group.ids) sentidoById.set(String(id), group.sentido);
+    }
+  }
+  const plano =
+    (layout ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos) : null) ??
+    buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
 
   const sections = [
     ...(plano
@@ -468,14 +586,26 @@ function stationPlanSentidos(
   return code ? _catalog.stations[code]?.corridor?.sentidos : undefined;
 }
 
+/** The read-off shape for a resolved station, under the same single-stop
+ *  condition: a layout describes one station's platforms, and a cluster
+ *  assembled from several stops is not that station. */
+function stationPlanLayout(
+  resolved: ResolvedCatalogStation | undefined
+): StationPlanoLayout | undefined {
+  if (!resolved || resolved.sourceStops.length !== 1) return undefined;
+  const code = resolved.sourceStops[0]?.codigo;
+  return code ? _catalog.stations[code]?.planoLayout : undefined;
+}
+
 /** The popup's flavour of {@link buildStationWagonView}: one stacked block. */
 function buildWagonSectionsHtml(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
   wagonPlan: Record<string, CatalogPlanGroup[]> = {},
-  sentidos?: { positive: string; negative: string }
+  sentidos?: { positive: string; negative: string },
+  layout?: StationPlanoLayout
 ): string {
-  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan, sentidos);
+  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan, sentidos, layout);
   return (view.plano ?? '') + view.sections || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
@@ -565,6 +695,8 @@ export interface StationPageData {
    *  puts along its two edges (§5.5.4). Absent where the corridor has no
    *  answered axis, and the plan then falls back to labelling each group. */
   corridorSentidos?: { positive: string; negative: string };
+  /** The station's drawn shape, where the catalog's wagons cannot express it. */
+  planoLayout?: StationPlanoLayout;
   coordinate: [number, number];
   wagons: ResolvedCatalogWagons;
   vagonLabels: Record<string, string>;
@@ -611,6 +743,7 @@ export function getStationPageData(code: string): StationPageData | null {
     corridor: station.corridor?.nombre || feature?.attributes.troncal_estacion || '',
     corridorLetter: station.corridor?.letra || '',
     corridorSentidos: station.corridor?.sentidos,
+    planoLayout: station.planoLayout,
     coordinate: [lng, lat],
     wagons,
     vagonLabels: station.vagonLabels ?? {},
@@ -653,7 +786,7 @@ function showStationPopup(
 
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
-      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation))
+      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation))
       // Not "no routes serve this station" — the catalog simply files no wagon
       // assignment for it, and saying which is the difference between a data gap
       // and a claim about the network (spec §1).
@@ -973,7 +1106,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation));
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation));
 
   const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||

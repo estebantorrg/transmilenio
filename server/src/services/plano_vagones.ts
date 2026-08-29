@@ -31,7 +31,42 @@ import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const PLANO_FILE: { counts?: Record<string, number>; wagons?: Record<string, Record<string, string>> } = (() => {
+/** One printed vagón in a station's drawn shape (`layouts`). */
+export interface PlanoLayoutVagon {
+  /** The number printed on its plate. */
+  vagon: string;
+  /** The códigos that board it, as the plano lists them. */
+  codigos: string[];
+  /**
+   * código → the destination whose variant boards this vagón, for a código the
+   * catalog files more than once here.
+   *
+   * A plate prints one chip per código. Where the catalog carries two variants
+   * of that código in the same direction — La Castellana files `G12` southbound
+   * to both `P. Sur` and `G. Santander` — drawing both puts two chips under one
+   * sign and claims two boardable services. Which one it is, is answered here;
+   * picking by array order would be a coin toss printed as a fact (§1).
+   */
+  destinos?: Record<string, string>;
+}
+/** One platform in a staggered station: a run of vagones along one carriageway. */
+export interface PlanoLayoutRow {
+  /** Which long edge its services stand on — `a` the top, `b` the bottom. */
+  side: 'a' | 'b';
+  /** How far along the drawing the row starts, in vagón columns — the stagger
+   *  between the two platforms, as the sheet draws it. */
+  offset: number;
+  vagones: PlanoLayoutVagon[];
+}
+export interface PlanoLayout {
+  rows: PlanoLayoutRow[];
+}
+
+const PLANO_FILE: {
+  counts?: Record<string, number>;
+  wagons?: Record<string, Record<string, string>>;
+  layouts?: Record<string, PlanoLayout>;
+} = (() => {
   try {
     return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_vagones.json'), 'utf-8'));
   } catch {
@@ -64,6 +99,39 @@ const PLANO_WAGONS: Record<string, Record<string, string>> = PLANO_FILE.wagons ?
  * answer, and only that: a pair with no sheet stays in `"0"` rather than being
  * inferred from where its neighbours board (§1 Certainty).
  */
+const PLANO_LAYOUTS: Record<string, PlanoLayout> = PLANO_FILE.layouts ?? {};
+
+/**
+ * The station's drawn shape, where the catalog's lettered wagons cannot express
+ * it (`layouts` in `plano_vagones.json`).
+ *
+ * The bar this app draws assumes one segmented platform carrying both
+ * directions, which is what most stations are. A **staggered** station is not:
+ * two platforms face opposite carriageways, offset, with the busway between
+ * them. At La Castellana each catalog wagon straddles both of them, so a bar
+ * built from the letters puts services from opposite sides of a road on one
+ * platform — and its plate count happened to match the letters, so the
+ * numbering gate passed that through as `Vagón 1`.
+ *
+ * Returned only after reconciling against the catalog's own services
+ * (`layoutServices`): a sheet that has drifted is a stale drawing, and the
+ * caller drops it rather than drawing a station that no longer exists.
+ */
+export function planoLayout(stationCode: unknown): PlanoLayout | undefined {
+  return PLANO_LAYOUTS[String(stationCode ?? '').trim().toUpperCase()];
+}
+
+/** Every código a layout claims, for reconciling it against the catalog. */
+export function layoutServices(layout: PlanoLayout): Set<string> {
+  const codes = new Set<string>();
+  for (const row of layout.rows ?? []) {
+    for (const vagon of row.vagones ?? []) {
+      for (const codigo of vagon.codigos ?? []) codes.add(String(codigo).trim().toUpperCase());
+    }
+  }
+  return codes;
+}
+
 export function plateWagon(stationCode: unknown, codigo: unknown): string | undefined {
   const station = PLANO_WAGONS[String(stationCode ?? '').trim().toUpperCase()];
   if (!station) return undefined;

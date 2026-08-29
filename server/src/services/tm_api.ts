@@ -11,10 +11,17 @@ import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
+import { createHash } from 'crypto';
 import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { plateWagon, printedVagonLabels } from './plano_vagones.js';
+import {
+  layoutServices,
+  planoLayout,
+  plateWagon,
+  printedVagonLabels,
+  type PlanoLayout,
+} from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 import {
@@ -333,6 +340,7 @@ let masterCatalog: MasterCatalog = { stations: {}, routes: {} };
 // and its ~15 MB JSON string live only for the duration of one build and are
 // GC'd, leaving just this compact (~5 MB) buffer resident. Null = needs rebuild.
 let lightCatalogGzip: Buffer | null = null;
+let lightCatalogEtagValue = '';
 let lightCatalogStationCount = 0;
 // De-dupes concurrent first-hit builds so a burst of requests compresses once.
 let lightCatalogBuilding: Promise<LightCatalogArtifact> | null = null;
@@ -343,6 +351,7 @@ const gzipAsync = promisify(zlib.gzip);
 /** Drop the cached gzip body so the next request rebuilds it from the new catalog. */
 function invalidateLightCatalog(): void {
   lightCatalogGzip = null;
+  lightCatalogEtagValue = '';
   lightCatalogStationCount = 0;
   // A build already in flight was started from the catalog that has just been
   // replaced, so it is detached here too. Leaving it attached handed its stale
@@ -583,6 +592,40 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       const corridor = stationCorridor(station.codigo);
       const registryNode = troncalStationEntry(station.codigo || code)?.nodo || '';
 
+      // The station's drawn shape, for the staggered stations whose platforms
+      // the catalog's lettered wagons cannot express (§5.5.4). Reconciled here,
+      // where both the sheet and the catalog's own services are in hand: a
+      // layout naming a service this station does not run, or missing one it
+      // does, is a sheet that has drifted from the network, and a stale drawing
+      // of a platform is worse than no drawing at all.
+      const layout = planoLayout(station.codigo);
+      let planoLayoutOut: PlanoLayout | undefined;
+      if (layout) {
+        const claimed = layoutServices(layout);
+        const served = new Set<string>();
+        for (const [wagon, routes] of Object.entries(cleanWagons)) {
+          if (wagon === '0') continue;
+          for (const route of routes) {
+            if (route.codigo) served.add(String(route.codigo).trim().toUpperCase());
+          }
+        }
+        const missing = [...served].filter((c) => !claimed.has(c));
+        const extra = [...claimed].filter((c) => !served.has(c));
+        if (missing.length === 0 && extra.length === 0) {
+          // Rows only. The entry's `source` and `why` are why the shape is on
+          // file, which belongs in the file and not in a 4 MB payload every
+          // visitor downloads.
+          planoLayoutOut = { rows: layout.rows };
+        } else {
+          console.warn(
+            `[TM API] ${station.codigo}: plano layout disagrees with the catalog — ` +
+              `${missing.length ? `not on the sheet: ${missing.join(', ')}; ` : ''}` +
+              `${extra.length ? `not in the catalog: ${extra.join(', ')}; ` : ''}` +
+              'layout dropped, re-read the plano.'
+          );
+        }
+      }
+
       cleanStations[code] = {
         id: station.id,
         codigo: station.codigo,
@@ -606,6 +649,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ...(corridor ? { corridor } : {}),
         ...(vagonLabels ? { vagonLabels } : {}),
         ...(wagonPlan ? { wagonPlan } : {}),
+        ...(planoLayoutOut ? { planoLayout: planoLayoutOut } : {}),
         wagons: cleanWagons,
       };
     } else {
@@ -646,19 +690,29 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
 }
 
 /**
- * Bump whenever `buildCatalogLight` changes the SHAPE of what it ships — a new
- * stamped field, a dropped one, a different simplification.
+/**
+ * The ETag is a hash of the bytes it names.
  *
- * The ETag was `catalog-<syncedAt>` alone, which identifies the *data* and not
- * the payload built from it. The endpoint is served `public, max-age=1800`, so
- * a field added to the light catalog reached nobody for half an hour and then
- * only if the browser happened to revalidate: the body changed, the validator
- * did not, and every cache went on serving the old shape. That is the failure
- * that hid `corridor.sentidos` from the client while the API plainly returned
- * it — the drawn plan silently kept its fallback layout on a machine whose
- * server had already shipped the fix.
+ * It used to be `catalog-<syncedAt>`, which identifies the catalog the payload
+ * was built *from* rather than the payload — and everything else this endpoint
+ * ships is built from files the sync never touches: `plano_vagones.json`,
+ * `station_corridors.json`, the register. Edit one of those and the body
+ * changes while the validator does not, so every cache goes on serving the old
+ * bytes. The service worker is network-first with `cache: 'no-cache'`, which
+ * makes it *worse*, not better: it dutifully revalidates, gets a `304` naming
+ * an ETag that never moved, and serves the stale body with full confidence.
+ * That is what hid `corridor.sentidos` and then `destinos` from the browser
+ * while the API plainly returned both — twice in one afternoon, each time
+ * looking like the renderer was broken.
+ *
+ * A hand-bumped shape counter fixed the first case and missed the second,
+ * because the second was a data edit and not a shape change. There is no
+ * version of that counter someone will remember to bump. Hashing the buffer
+ * costs one pass over ~5 MB per catalog build and cannot be forgotten.
  */
-const LIGHT_CATALOG_SHAPE = 2;
+function lightCatalogEtag(gzip: Buffer): string {
+  return `W/"catalog-${createHash('sha1').update(gzip).digest('hex').slice(0, 16)}"`;
+}
 
 export interface LightCatalogArtifact {
   gzip: Buffer;
@@ -689,7 +743,7 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
     return {
       gzip: lightCatalogGzip,
       count: lightCatalogStationCount,
-      etag: `W/"catalog-${catalogLoadedAt}-${LIGHT_CATALOG_SHAPE}"`,
+      etag: lightCatalogEtagValue,
     };
   }
   if (!lightCatalogBuilding) {
@@ -704,12 +758,14 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
         stale: isCatalogStale(),
       });
       const gzip = await gzipAsync(body);
+      const etag = lightCatalogEtag(gzip);
       // Publish only while this is still the catalog on disk.
       if (catalogLoadedAt === version) {
         lightCatalogGzip = gzip;
+        lightCatalogEtagValue = etag;
         lightCatalogStationCount = count;
       }
-      return { gzip, count, etag: `W/"catalog-${version}-${LIGHT_CATALOG_SHAPE}"` };
+      return { gzip, count, etag };
     })();
     lightCatalogBuilding = build;
     // Release the slot on settle, but only if it is still this build's — a sync

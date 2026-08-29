@@ -45,6 +45,18 @@ export interface CatalogStation {
      *  one along each edge the way the operator's own plano does (§5.5.4). */
     sentidos?: { positive: string; negative: string };
   };
+  /** The station's drawn shape, where its platforms are not one segmented bar
+   *  and the catalog's lettered wagons therefore cannot describe them — a
+   *  staggered station, two platforms on opposite carriageways, offset, with the
+   *  busway between (§5.5.4). Read off the plano and reconciled against the
+   *  catalog server-side; absent for every station the bar describes correctly. */
+  planoLayout?: {
+    rows: Array<{
+      side: 'a' | 'b';
+      offset: number;
+      vagones: Array<{ vagon: string; codigos: string[]; destinos?: Record<string, string> }>;
+    }>;
+  };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own
    *  A/B/C grouping. Resolved server-side in `printedVagonLabels` and shipped on
