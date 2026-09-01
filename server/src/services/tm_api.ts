@@ -624,17 +624,38 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         }
         const missing = [...boards].filter((c) => !claimed.has(c));
         const extra = [...claimed].filter((c) => !served.has(c));
-        if (missing.length === 0 && extra.length === 0) {
+        // Only a PHANTOM is fatal. The two disagreements are not symmetric:
+        //
+        //   • `extra` — the sheet draws a service the station does not run — is
+        //     a drawing that lies about where a bus stops, and no drawing is
+        //     better than that.
+        //   • `missing` — the catalog runs a service the sheet does not draw —
+        //     is just a sheet older than the network, which every sheet is.
+        //     CAN's is stamped November 2025 and the catalog has gained K53 and
+        //     G53 since; Corferias, Gobernación and the rest of Calle 26 will
+        //     all drift the same way as services are added.
+        //
+        // `missing` used to be fatal too, which meant a split station lost its
+        // true shape and fell back to a bar the moment one new service reached
+        // it — trading a drawing that is incomplete for one that is wrong. The
+        // client now lists every service a layout does not place, under the
+        // drawing, so an unplaced service is shown rather than lost, and that
+        // is what makes this safe to warn about instead of reject.
+        if (extra.length === 0) {
+          if (missing.length > 0) {
+            console.warn(
+              `[TM API] ${station.codigo}: plano layout does not place ${missing.join(', ')} — ` +
+                'sheet is older than the catalog; drawn anyway, unplaced services listed below it.'
+            );
+          }
           // Rows only. The entry's `source` and `why` are why the shape is on
           // file, which belongs in the file and not in a 4 MB payload every
           // visitor downloads.
           planoLayoutOut = { rows: layout.rows, ...(layout.divider ? { divider: layout.divider } : {}) };
         } else {
           console.warn(
-            `[TM API] ${station.codigo}: plano layout disagrees with the catalog — ` +
-              `${missing.length ? `not on the sheet: ${missing.join(', ')}; ` : ''}` +
-              `${extra.length ? `not in the catalog: ${extra.join(', ')}; ` : ''}` +
-              'layout dropped, re-read the plano.'
+            `[TM API] ${station.codigo}: plano layout draws a service the station ` +
+              `does not run: ${extra.join(', ')}; layout dropped, re-read the plano.`
           );
         }
       }

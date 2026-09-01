@@ -866,7 +866,16 @@ export function getStationPageData(code: string): StationPageData | null {
     wagons,
     vagonLabels: station.vagonLabels ?? {},
     wagonPlan: station.wagonPlan ?? {},
-    platformCount: Object.keys(wagons).filter((key) => key !== '0').length,
+    // The catalog's lettered wagons, unless a sheet has been read — then it is
+    // the vagones that sheet draws. The two differ at exactly the stations this
+    // count matters most: CAN and Gobernación each file FOUR printed vagones
+    // under two catalog wagons, and the header chip read "2 vagones" directly
+    // above a drawing of four. A page must not contradict itself about the
+    // station it is describing, and between the catalog's grouping and the sign
+    // on the platform, the sign is what the rider is standing in front of.
+    platformCount: station.planoLayout
+      ? (station.planoLayout.rows ?? []).reduce((n, row) => n + (row.vagones?.length ?? 0), 0)
+      : Object.keys(wagons).filter((key) => key !== '0').length,
     nodes: platforms.map((p) => p.stationNode).filter(Boolean),
     wifi: feature?.attributes.componente_wifi === 'SI',
     bikeCapacity:

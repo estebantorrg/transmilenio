@@ -158,7 +158,7 @@
     "TM0125": 2,
     "TM0126": 2,
     "TM0127": 2,
-    "TM0128": 5,
+    "TM0128": 4,
     "TM0129": 4,
     "TM0130": 5,
     "TM0131": 4,
@@ -568,6 +568,103 @@
         }
       ],
       "divider": "cano"
+    },
+    "TM0129": {
+      "source": "Plano de ubicacion, Estacion CAN - British Council, version noviembre de 2025.",
+      "why": "Four vagones across two platforms either side of the ciclorruta — Vagon 2 and Vagon 1 on the Calle 26 / Avenida 68 side, Vagon 4 and Vagon 3 on the AutoNorte side — against TWO catalog wagons, each of which merges an upper vagon with a lower one. The sheet does not draw K53 or G53: both reached the station after November 2025, and they are listed under the drawing rather than placed on it.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "1",
+                "K16",
+                "K23",
+                "P85"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "K10",
+                "K54",
+                "K86"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "4",
+              "abajo": [
+                "1",
+                "B16",
+                "B23",
+                "M85"
+              ]
+            },
+            {
+              "vagon": "3",
+              "abajo": [
+                "H54",
+                "L10",
+                "M86"
+              ]
+            }
+          ]
+        }
+      ],
+      "divider": "ciclorruta"
+    },
+    "TM0128": {
+      "source": "Plano de ubicacion, Estacion Gobernacion, version noviembre de 2024.",
+      "why": "Four vagones across two platforms either side of the ciclorruta — Vagon 2 and Vagon 1 on the Calle 26 side, Vagon 4 and Vagon 3 on the AutoNorte side — against TWO catalog wagons. This sheet is a year older than CAN next door and has drifted: it draws B16 on Vagon 4, and the catalog files B23 here and no B16 at all. B16 is NOT recorded as B23 — that would be guessing a successor — it is simply not drawn, because drawing a service the station does not run is the one disagreement that invalidates a sheet. B23 and S43 (the September 2026 Soacha re-lettering of G43, which postdates the sheet) are listed under the drawing instead. Re-read this plano when a newer version is published.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "K23",
+                "K43"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "K10",
+                "K86"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "4",
+              "abajo": [
+                "K43"
+              ]
+            },
+            {
+              "vagon": "3",
+              "abajo": [
+                "1",
+                "L10",
+                "M86"
+              ]
+            }
+          ]
+        }
+      ],
+      "divider": "ciclorruta"
     }
   }
 }
