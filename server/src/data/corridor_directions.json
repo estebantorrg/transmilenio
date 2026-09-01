@@ -5,7 +5,8 @@
     "source": "Answered station-pair by station-pair by the maintainer, 2026-08-12, as the deciding authority. Each corridor was posed as a concrete trip ('Bus de Calle 76 - Heroes'), and the 24 answers cover all 1444 boardable services at the 140 troncal stations. Two were corrected on review because a corridor's two ends came back with names that were not opposites; the pair that flushed them out is recorded below.",
     "how": "`axisBearing` is the mean heading of the `positive` end. Project a leg's bearing onto that axis: travelling with it takes `positive`, against it takes `negative`. A leg that leaves the corridor entirely (perpendicular, e.g. the bus that turns off Carrera 7 onto Calle 26 at Museo Nacional) takes the perpendicular pair instead — see `labelFor` in services/station_plan.ts.",
     "generated": "2026-08-12",
-    "pending_confirmation": "Av. Ciudad de Cali: axis measured 58° from the three new stations (Tibanica→Islandia→junction, identical along the stretch). Named norte/sur like the avenue itself, following the NQS precedent (a corridor keeps one name for its axis even where the road bends). Confirm against station signage."
+    "pending_confirmation": "Av. Ciudad de Cali: axis measured 58° from the three new stations (Tibanica→Islandia→junction, identical along the stretch). Named norte/sur like the avenue itself, following the NQS precedent (a corridor keeps one name for its axis even where the road bends). Confirm against station signage.",
+    "soacha": "Soacha inherits NQS Sur norte/sur because it IS that busway continuing past Portal Sur — the same carriageway, the same two ways along it, and riders name them the same. Answered by the maintainer on 2026-09-01, not derived: the axisBearing is carried over with it and, as the why above says, the compass gets no vote on what a direction is called here."
   },
   "corridors": {
     "Américas": {
@@ -70,6 +71,11 @@
     },
     "Av. Ciudad de Cali": {
       "axisBearing": 58,
+      "positive": "norte",
+      "negative": "sur"
+    },
+    "Soacha": {
+      "axisBearing": 76,
       "positive": "norte",
       "negative": "sur"
     }
