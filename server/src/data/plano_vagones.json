@@ -28,7 +28,8 @@
     "a_sheet_can_omit_a_label": "TM0052 Boyaca was recorded as an island like Terminal on 2026-09-01 and that was WRONG — corrected the same day when the maintainer, who has been to the station, said it has two vagones. It does. Its sheet prints one Vagon 1 plate, but it draws TWO platform decks 257px wide side by side at x=428 and x=690, the same arrangement as Calle 100 three 147px decks; the left one simply carries no label. Terminal is the genuine island and its geometry says so differently: two decks 365px wide at the SAME x, stacked at y=237 and y=387, which is one platform seen from both carriageways. So counting printed plates UNDERCOUNTS wherever a sheet omits a label, and prints=1 against two lettered wagons is not by itself the island signature. Deck geometry separates the two: decks side by side are vagones, decks stacked are faces. Boyaca corrected to 2, which also makes its lettering publish correctly — A is the right deck (6, D20, H20) and prints as Vagon 1, B the left (B10, D10, D22, G22) as Vagon 2.",
     "tm0146_no_layout": "Museo Nacional prints TWO vagones and stored 2 is already right. No layout is filed because its sheet (version noviembre de 2025) predates M47, M51 and M85, three services the catalog now files there; a layout drawn from it would drop all three from the page. What the sheet CAN settle is the wagon-0 pool: it puts D81, M86 and L81 on Vagon 2 (catalog B) and K86 and P85 on Vagon 1 (catalog A). M85 is not on the sheet and stays unplaced.",
     "dividers": "What separates the two platforms of a split station is answered per station, never inferred from the drawing. This started wrong: every divider was drawn as a busway on no evidence at all. El Tiempo (TM0131), AV. Rojas (TM0132) and Tygua - San Jose (TM0148) are split by a CICLORRUTA, and Guatoque - Veraguas (TM0147) by a CANO, an open water channel. The sheets do encode it — the ciclorruta ones draw bici glyphs on the dividing line and Guatoque draws it in blue — but it was read past. Corrected on the maintainer word, who knows the stations. AV. Rojas and Tygua have no layout yet, so their answer lives here until one is filed. La Castellana (TM0059), NQS Calle 75 (TM0060) and Av. Chile (TM0061) are split by the RAILWAY that runs down the NQS — answered by the maintainer, who has been to them; the sheets draw it as a plain grey band and nothing on them says it is a rail corridor. A station with no answer on file — La Castellana included, which has never been checked — gets a plain separator that claims nothing.",
-    "counts_scan_2026_09_01": "The scanner (scripts/ocr/planos.mjs) re-read all 127 sheets and found 23 stored counts that disagree with the sheet. 16 were applied and 7 were deliberately NOT, and the split is geometric. A sheet draws one bar per vagon at an ordinary station; at a station whose two platforms face each other it draws the SAME vagon once per carriageway, so the bar count doubles. Both look like 'decks=2 vagones=2' to the scanner and it files both under 'ordinary shape, only the stored number is wrong' — which is wrong for the doubled ones, and dangerously so: applying the count would make plates equal wagons and START publishing a vagon number for a split station drawn as a single bar, the exact La Castellana failure this dataset exists to prevent. TM0148 Tygua - San Jose proves it, because the maintainer has already told us it is split by a ciclorruta and the scanner still called it ordinary. HELD, all with doubled bars, all on a corridor that already has a confirmed split station: TM0060 and TM0148 (NQS Central, which has La Castellana and Guatoque), TM0128, TM0129, TM0130 and TM0134 (Calle 26, which has El Tiempo and AV. Rojas and whose ciclorruta runs the length of the corridor between them), and TM0030 Calle 187 (Autonorte, one deck region against two catalog wagons, ambiguous on its own). Each needs its sheet read. APPLIED, all with one bar per vagon and decks, plates and wagons all three agreeing: TM0005, TM0008, TM0011, TM0038, TM0047, TM0056, TM0064, TM0074, TM0075, TM0077, TM0079, TM0081, TM0082, TM0084, TM0140, TM0141."
+    "counts_scan_2026_09_01": "The scanner (scripts/ocr/planos.mjs) re-read all 127 sheets and found 23 stored counts that disagree with the sheet. 16 were applied and 7 were deliberately NOT, and the split is geometric. A sheet draws one bar per vagon at an ordinary station; at a station whose two platforms face each other it draws the SAME vagon once per carriageway, so the bar count doubles. Both look like 'decks=2 vagones=2' to the scanner and it files both under 'ordinary shape, only the stored number is wrong' — which is wrong for the doubled ones, and dangerously so: applying the count would make plates equal wagons and START publishing a vagon number for a split station drawn as a single bar, the exact La Castellana failure this dataset exists to prevent. TM0148 Tygua - San Jose proves it, because the maintainer has already told us it is split by a ciclorruta and the scanner still called it ordinary. HELD, all with doubled bars, all on a corridor that already has a confirmed split station: TM0060 and TM0148 (NQS Central, which has La Castellana and Guatoque), TM0128, TM0129, TM0130 and TM0134 (Calle 26, which has El Tiempo and AV. Rojas and whose ciclorruta runs the length of the corridor between them), and TM0030 Calle 187 (Autonorte, one deck region against two catalog wagons, ambiguous on its own). Each needs its sheet read. APPLIED, all with one bar per vagon and decks, plates and wagons all three agreeing: TM0005, TM0008, TM0011, TM0038, TM0047, TM0056, TM0064, TM0074, TM0075, TM0077, TM0079, TM0081, TM0082, TM0084, TM0140, TM0141.",
+    "two_decks_one_plate": "The scanner's last unresolved tier was six stations reading \"2 decks, 1 plate\". All six are now read and NONE was a miscount — the signature has three different causes. TM0051 Ferias, TM0057 Quirigua and TM0049 Carrera 53 are single island platforms whose one Vagon 1 is drawn in two segments with the crossing between them, services on both long edges; they need no layout, the bar already describes them. TM0116 Biblioteca and TM0117 Parque are one vagon drawn once per carriageway either side of a CANO, which those two sheets label in words on a blue band — the only sheets in the set that name their own divider. TM0035 Suba - Calle 100 is the odd one: its second deck carries a RED plate reading \"Vagon 2 / NO OPERATIVO\", a vagon that physically exists and is out of service, so the sheet prints two decks and one operating vagon on purpose. Its count of 1 is right and matches the catalog's single wagon; it is recorded here so the two decks are not \"corrected\" back to 2 by someone counting boxes on a later pass."
   },
   "counts": {
     "TM0001": 3,
@@ -81,13 +82,13 @@
     "TM0048": 2,
     "TM0049": 1,
     "TM0050": 2,
-    "TM0051": 2,
+    "TM0051": 1,
     "TM0052": 2,
     "TM0053": 2,
     "TM0054": 4,
     "TM0055": 2,
     "TM0056": 2,
-    "TM0057": 2,
+    "TM0057": 1,
     "TM0058": 0,
     "TM0059": 4,
     "TM0060": 2,
@@ -146,8 +147,8 @@
     "TM0113": 2,
     "TM0114": 2,
     "TM0115": 2,
-    "TM0116": 2,
-    "TM0117": 2,
+    "TM0116": 1,
+    "TM0117": 1,
     "TM0118": 3,
     "TM0119": 2,
     "TM0120": 1,
@@ -987,6 +988,80 @@
           ]
         }
       ]
+    },
+    "TM0116": {
+      "source": "Plano de ubicacion, Estacion Biblioteca, version noviembre de 2024.",
+      "why": "ONE vagon, drawn once per carriageway either side of a CANO — and this sheet does not leave it to be guessed, it prints the word \"Cano\" on the blue band between the two decks. Both decks read \"Vagon 1\", the catalog files one wagon, and the two agree, so the station is numbered. Biblioteca boards B13 to Portal Norte on the AutoNorte side and H13 to Portal Tunal on the Caracas Sur side. Stored count corrected from 2, which had counted the two drawn decks rather than the one vagon they both name.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "B13"
+              ],
+              "destinos": {
+                "3": "Corferias"
+              }
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "3",
+                "H13"
+              ],
+              "destinos": {
+                "3": "Portal Tunal"
+              }
+            }
+          ]
+        }
+      ],
+      "divider": "cano"
+    },
+    "TM0117": {
+      "source": "Plano de ubicacion, Estacion Parque, version noviembre de 2024.",
+      "why": "ONE vagon, drawn once per carriageway either side of a CANO — and this sheet does not leave it to be guessed, it prints the word \"Cano\" on the blue band between the two decks. Both decks read \"Vagon 1\", the catalog files one wagon, and the two agree, so the station is numbered. Parque boards C15 to Portal Suba on the Suba side and H15 to Portal Tunal on the Caracas Sur side. Stored count corrected from 2, which had counted the two drawn decks rather than the one vagon they both name.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "C15"
+              ],
+              "destinos": {
+                "3": "Corferias"
+              }
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "3",
+                "H15"
+              ],
+              "destinos": {
+                "3": "Portal Tunal"
+              }
+            }
+          ]
+        }
+      ],
+      "divider": "cano"
     }
   }
 }

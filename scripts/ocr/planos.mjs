@@ -82,6 +82,14 @@ const SETTLED = new Set([
   'TM0093', 'TM0103', 'TM0121', 'TM0122', 'TM0132', 'TM0137', 'TM0139',
   'TM0143', 'TM0054', 'TM0111', 'TM0131', 'TM0146', 'TM0147',
   'TM90009', 'TM90010', 'TM90011',
+  // Read by hand 2026-09-01, closing the last of the flagged tiers. Six of
+  // these are shapes this scanner cannot see: it reads bar GEOMETRY and these
+  // are told apart by the LABELS on the bars. Two aligned rows of bars are
+  // four different vagones at Gobernacion (2, 1 / 4, 3) and the same two drawn
+  // once per carriageway at Calle 75 (2, 1 / 2, 1) — identical to a pixel
+  // counter, opposite in meaning, and only the second can be numbered.
+  'TM0030', 'TM0035', 'TM0049', 'TM0051', 'TM0057', 'TM0060', 'TM0116',
+  'TM0117', 'TM0128', 'TM0129', 'TM0130', 'TM0134', 'TM0148',
 ]);
 
 /**
