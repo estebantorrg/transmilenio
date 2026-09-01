@@ -22,7 +22,8 @@
     "counts_can_be_wrong": "TM0028 Toberín was stored as 4 and its plano prints 5, matching the catalog's five lettered wagons exactly — Vagón 5 holds E (H72), Vagón 4 holds D (8, J70, J74) and Vagón 3 holds C (B16, B46, B74, B75, G11, H27, H75), member for member. TM0103 San Mateo was stored as 2 and its plano prints 3 ('versión mayo de 2026'), which cost the busiest station in this audit (62k riders a day) its vagón numbers. Its three vagones hold the catalog's C, B and A: K43+B46 on Vagón 3, E42 on Vagón 2, E48+G45+L41 on Vagón 1. Likewise TM0046 Polo - FINCOMERCIO was stored as 4 and its published plano prints 3 (Vagón 1/2/3, 'versión agosto de 2026'). The count came from the 2026-08-11 automated pass, so that pass has at least one error beyond the occurrences-vs-distinct bug below, and a stored count is not self-verifying. The correction is checkable and was checked: with the four services this file now places out of wagon \"0\", the plano's three vagones hold exactly the catalog's C, B and A — 6/6, 4/4 and 6/6 members. Any station where the plate count disagrees with the catalog's lettered-wagon count deserves the same look before it is believed to be a genuine grouping difference; that disagreement is what withholds the numbering, so a miscount silently costs a station its vagón numbers.",
     "tm0002_source": "TM0002 Calle 72 - Areandina is counted from a DIFFERENT artifact, and the difference is recorded rather than hidden: its plano has not been published since the station reopened on 2026-08-25. The count of 3 comes from TRANSMILENIO's own closure notice for Calle 76 ('Cierre definitivo estación Calle 76 debido a las obras de construcción del Metro de Bogotá', 2026-08), which lists Calle 72's services under headed blocks Vagón 1 / Vagón 2 / Vagón 3. It is the operator publishing the same numbering for the same station, so it counts; replace it with the plano when one appears. The letter->number mapping is not assumed here either — the notice's Vagón 1 block holds exactly the catalog's wagon A (B18, B23, B75, 6, 8, K23) and its Vagón 3 exactly wagon C (6, 8, D24, F60, J24, L18), member for member. Only Vagón 2 differs, by carrying G52 (see recorrido_corrections.json).",
     "layouts_destinos": "A plate prints ONE chip per código; the catalog can carry several variants of that código boarding the same platform. La Castellana Vagón 1 is the case: the catalog files G12 twice southbound, to P. Sur and to G. Santander, and the sheet prints a single G12. Two chips there claim two boardable services where a rider sees one sign. Which variant it is, is a question about the network and is answered here (`destinos`: código -> the destination whose variant boards this vagón), never inferred — picking one by order would be a coin toss printed as a fact. A código with no entry keeps every variant the direction filter allows.",
-    "verified_correct": "Sheets read by hand and found ALREADY correct — recorded so they are not read twice, and because they are the counterweight to the corrections above. TM0018 Calle 100 - Marketmedios (2026-08-28, plano version junio de 2025): three vagones, plates 3 = 3 lettered wagons, and the mapping confirmed member for member — Vagon 3 is wagon C (8, B26, B27, D10, F26), Vagon 2 is B (8, B10, B75, G46, H75), Vagon 1 is A (B12, B46, G12, H27). An ordinary straight platform, both directions along it, which the drawn bar already describes: no layout needed. It is also the highest-traffic station in this audit at 77k riders a day, so its being right matters as much as the seven that were wrong."
+    "verified_correct": "Sheets read by hand and found ALREADY correct — recorded so they are not read twice, and because they are the counterweight to the corrections above. TM0018 Calle 100 - Marketmedios (2026-08-28, plano version junio de 2025): three vagones, plates 3 = 3 lettered wagons, and the mapping confirmed member for member — Vagon 3 is wagon C (8, B26, B27, D10, F26), Vagon 2 is B (8, B10, B75, G46, H75), Vagon 1 is A (B12, B46, G12, H27). An ordinary straight platform, both directions along it, which the drawn bar already describes: no layout needed. It is also the highest-traffic station in this audit at 77k riders a day, so its being right matters as much as the seven that were wrong.",
+    "tm0132_no_layout": "AV. Rojas - UNISALESIANA prints SIX vagones (3/2/1 on the Calle 26 platform, 6/5/4 on the AutoNorte one) against three catalog wagons, so its count is corrected to 6 and its numbering is now correctly withheld — before this it published A/B/C as Vagon 1/2/3 while A actually merges printed Vagon 1 (K16, K23) with Vagon 4 (B16, B23), sending half its riders across the busway. No LAYOUT is filed because the sheet is version noviembre de 2024 and predates G53 and K53, two troncal services the catalog now files here; drawing from it would silently drop them from the station page. K86 and M86 stay in wagon 0 for the same reason: the sheet places them on Vagon 3 and Vagon 6, but the wagons map keys on catalog LETTERS and no letter corresponds to either of those platforms alone. Re-file both when a current sheet is published."
   },
   "counts": {
     "TM0001": 3,
@@ -50,7 +51,7 @@
     "TM0023": 3,
     "TM0024": 3,
     "TM0025": 3,
-    "TM0026": 4,
+    "TM0026": 5,
     "TM0027": 3,
     "TM0028": 5,
     "TM0029": 3,
@@ -156,7 +157,7 @@
     "TM0129": 4,
     "TM0130": 5,
     "TM0131": 4,
-    "TM0132": 3,
+    "TM0132": 6,
     "TM0133": 2,
     "TM0134": 5,
     "TM0135": 0,
@@ -346,6 +347,55 @@
               "arriba": [
                 "B11",
                 "B28"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0026": {
+      "source": "Plano de ubicacion, Estacion Mazuren, version julio de 2026.",
+      "why": "Five vagones on one line against three catalog wagons. C is Vagon 5 exactly (H13, H72), but A merges Vagon 2 (8, B10, B16) with Vagon 1 (D10, K16) and B merges Vagon 3 (B13, B72, B74) with Vagon 4 (8, J70, J74) — so two of the three letters name two platforms each. Sides do not follow the halves either: Vagon 1 boards below while its neighbour Vagon 2 boards above.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "5",
+              "abajo": [
+                "H13",
+                "H72"
+              ]
+            },
+            {
+              "vagon": "4",
+              "abajo": [
+                "8",
+                "J70",
+                "J74"
+              ]
+            },
+            {
+              "vagon": "3",
+              "arriba": [
+                "B13",
+                "B72",
+                "B74"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B10",
+                "B16"
+              ]
+            },
+            {
+              "vagon": "1",
+              "abajo": [
+                "D10",
+                "K16"
               ]
             }
           ]
