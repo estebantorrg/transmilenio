@@ -194,16 +194,24 @@ function platesOf(blobs, height) {
     }
   }
 
-  // A near-exact size match is a plate wherever it sits. A looser one has to
-  // earn it by lying in a row with another bar, which is what a second platform
-  // does and what a stray label does not: Bicentenario's `Piso 1` and `Piso 2`
-  // are within 17% of its plates but sit alone, while La Castellana's second
-  // platform is 14% off and comes as a pair.
+  // Where the sheet HAS a row of plates, every plate belongs to a row — so a
+  // bar sitting on its own is a label, whatever its size. That is the only
+  // thing that separates Universidades' `Estación Las Aguas` callout from its
+  // plates: the callout is 175×34 and so are they, exact to the pixel.
+  //
+  // Where no row exists — Las Aguas draws one plate per platform, two bands of
+  // one — there is nothing to belong to, and size is all that is left.
+  const rowed = best.band.length >= 2;
   return bars
     .filter((b) => {
       const dw = Math.abs(b.w - best.width) / best.width;
       const dh = Math.abs(b.h - best.height) / best.height;
-      return (dw <= 0.12 && dh <= 0.12) || (dw <= 0.25 && dh <= 0.25 && bandOf(b).length >= 2);
+      if (dw > 0.25 || dh > 0.25) return false;
+      const tight = dw <= 0.12 && dh <= 0.12;
+      // A looser size still has to earn its place in a row, which is what a
+      // second platform drawn at a different scale does (La Castellana, 67px
+      // against 78px) and what a stray label does not.
+      return rowed ? bandOf(b).length >= 2 : tight;
     })
     .sort((a, b) => a.y - b.y || a.x - b.x);
 }
