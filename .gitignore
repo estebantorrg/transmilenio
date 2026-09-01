@@ -43,3 +43,6 @@ playwright-report/
 test-results/
 blob-report/
 playwright/.local-browsers/
+
+# WIP GTFS experiments, not part of the build
+scripts/gtfs/

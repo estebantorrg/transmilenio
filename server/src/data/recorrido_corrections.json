@@ -8,6 +8,40 @@
     "cleared_2026_08_28": "Emptied after the 2026-08-28 sync, which was the first healthy run (0 errors) since reportUnusedCorrections was wired in and named all five entries as spent: A61 no longer lists TM0087 (upstream fixed its own recorrido), F61 is gone from searchRutaByTipo entirely, and the three replaced variants A60#1187, 6#692 and G52#296 are out of the catalog. Keeping any of them would be the same stale fact each was filed to remove. G52 is worth remembering: it is a LIVE service that TRANSMILENIO lists at Calle 72 on its own closure notice, and it is absent from this app only because upstream publishes no recorrido for it — if it returns carrying its pre-closure stop list through the closed Calle 76, file it again."
   },
   "dropStops": [],
-  "retiredRoutes": [],
-  "retiredVariants": []
+  "retiredRoutes": [
+    {
+      "codigo": "G41",
+      "added": "2026-09-01",
+      "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    },
+    {
+      "codigo": "G42",
+      "added": "2026-09-01",
+      "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    },
+    {
+      "codigo": "G43",
+      "added": "2026-09-01",
+      "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    },
+    {
+      "codigo": "G46",
+      "added": "2026-09-01",
+      "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    },
+    {
+      "codigo": "G48",
+      "added": "2026-09-01",
+      "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    }
+  ],
+  "retiredVariants": [
+    {
+      "codigo": "G45",
+      "id": "393",
+      "nombre": "San Mateo",
+      "added": "2026-09-01",
+      "note": "Only the SAN MATEO variant of G45 was re-lettered (to S45 #5587). G45 itself still runs — id 3929 to Portal Sur was listed in the same 2026-09-01 sweep — so the codigo is NOT retired and only this variant is. Retiring the whole codigo here would delete a service that is still running."
+    }
+  ]
 }

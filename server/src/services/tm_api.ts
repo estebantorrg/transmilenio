@@ -1084,6 +1084,16 @@ export function expireUnseenVariants(catalog: MasterCatalog, now: number): numbe
 export function dropRetiredVariants(catalog: MasterCatalog): number {
   let dropped = 0;
   for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    // A código answered as retired goes the same way, and for the same reason:
+    // `expireUnseenVariants` already short-circuits its clock, but that only
+    // runs after a healthy sync. Filing a retirement and then waiting seventy
+    // minutes to see it is what this repair path exists to avoid.
+    if (isRetiredRoute(code)) {
+      console.log(`[TM API]   dropped ${code} — retired (recorrido_corrections.json)`);
+      dropped += variants.length;
+      delete catalog.routes[code];
+      continue;
+    }
     const kept = variants.filter((variant) => !isRetiredVariant(code, variant.id));
     if (kept.length === variants.length) continue;
     // Named, not just counted. A file entry outlives its cause the moment
