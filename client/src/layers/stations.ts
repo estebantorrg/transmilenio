@@ -63,6 +63,29 @@ const STATION_LAYERS = [
 
 // ─── Route Tag Formatting ───────────────────────────────
 
+/**
+ * The destination a chip is keyed by, with the catalog's abbreviation expanded.
+ *
+ * Chips are keyed on the destination because one código genuinely runs two ways
+ * from one plate, and each end needs its own clickable tag. But the catalog
+ * writes one destination two ways: El Tiempo files `K43` as both `P. ElDorado`
+ * and `Portal Eldorado`. Those are two real variants — they differ EAST of the
+ * station, via Perdomo against via General Santander — and from this plate,
+ * westward, they are the same journey to the same portal. Keyed on the raw name
+ * they drew two K43 chips under a sign that prints one, claiming a choice the
+ * rider does not have.
+ *
+ * Every abbreviated destination in the catalog is a portal — `P. 80`, `P. Sur`,
+ * `P. 20 DE JULIO`, ten of them — so expanding `P.` is enough to make the two
+ * spellings one key, and it leaves the case the grouping exists for untouched:
+ * `Universidades` and `Portal El Dorado` are different places and stay two
+ * chips. Collapsed, the tag links to the código rather than to either variant,
+ * which is the honest target when the sheet does not say which one you board.
+ */
+function destinationKey(nombre: string | null | undefined): string {
+  return normalizeStationName(String(nombre ?? '').replace(/^\s*P\.\s*/i, 'PORTAL '));
+}
+
 function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
   const groups = new Map<string, { code: string; primary: CatalogRoute; routes: CatalogRoute[] }>();
 
@@ -74,7 +97,7 @@ function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: st
     // in both directions — common for rutas fáciles like "1" → Universidades /
     // Portal Eldorado — must keep each end as its own clickable tag instead of
     // collapsing into a single tag that can only reach one direction.
-    const key = `${codeKey}|${normalizeStationName(route.nombre)}`;
+    const key = `${codeKey}|${destinationKey(route.nombre)}`;
 
     const group = groups.get(key);
     if (group) {
@@ -580,9 +603,37 @@ export function buildStationWagonView(
       for (const id of group.ids) sentidoById.set(String(id), group.sentido);
     }
   }
-  const plano =
-    (layout ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos) : null) ??
-    buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  const drawn = layout ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos) : null;
+  const plano = drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+
+  // A layout places services by código, and it places them from a sheet that is
+  // older than the catalog — CAN's is stamped November 2025 and the catalog has
+  // gained `K53` and `G53` since. So "what the drawing shows" and "what the
+  // catalog files under a letter" are two different sets, and the list below has
+  // to be the difference between them rather than either one:
+  //
+  //   • a lettered service the sheet does not draw would otherwise VANISH, since
+  //     the lettered sections are suppressed whenever a plan is drawn;
+  //   • a wagon "0" service the sheet DOES draw would otherwise appear twice —
+  //     El Tiempo printed K86 and M86 once in the drawing and again below it.
+  //
+  // The bar drawing needs none of this: it is built from the letters, so it
+  // already shows every lettered service and nothing else.
+  const placed = new Set<string>();
+  if (drawn) {
+    for (const row of layout?.rows ?? []) {
+      for (const vagon of row.vagones ?? []) {
+        for (const codigo of [...(vagon.arriba ?? []), ...(vagon.abajo ?? [])]) {
+          placed.add(String(codigo).trim().toUpperCase());
+        }
+      }
+    }
+  }
+  const others = drawn
+    ? [...lettered.flatMap(({ routes }) => routes), ...unlettered].filter(
+        (r) => !placed.has(String(r.codigo || '').trim().toUpperCase())
+      )
+    : unlettered;
 
   const sections = [
     ...(plano
@@ -595,11 +646,14 @@ export function buildStationWagonView(
     // "Vagón único" is only true where there is no lettered platform to sit
     // beside; otherwise these are simply the services the catalog gives no
     // platform for, and only the station's signage can say which.
-    ...(unlettered.length
+    ...(others.length
       ? [{
-          label: lettered.length ? 'Otros servicios troncales' : 'Vagón único',
-          routes: unlettered,
-          plan: wagonPlan['0'],
+          label: lettered.length || drawn ? 'Otros servicios troncales' : 'Vagón único',
+          // No single wagon's plan describes this list once a layout has mixed
+          // lettered and unlettered leftovers into it, so it goes out flat
+          // rather than under a direction it cannot vouch for.
+          routes: others,
+          plan: drawn ? undefined : wagonPlan['0'],
         }]
       : []),
     // Feeders stay one flat list: the plan gives them no direction (they are
