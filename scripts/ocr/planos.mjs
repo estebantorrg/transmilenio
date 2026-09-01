@@ -282,16 +282,32 @@ for (const m of list) {
       continue;
     }
 
+    // Services the catalog files with no platform at all. Where these exist the
+    // lettered count UNDERSTATES the station's platforms — those services board
+    // somewhere — so `printed > wagons` says nothing about the shape. Puentelargo
+    // is an ordinary two-vagón station that this test called odd, because eight
+    // of its nine services sit in "0" and only one wagon carries a letter. The
+    // fix there is the sheet's placements, not a layout.
+    const pool = (station?.wagons?.['0'] ?? []).filter(
+      (r) => r.tipoServicio === 'TRONCAL' || r.tipoServicio === 'PADRON'
+    ).length;
+
     const flags = [];
     // The shape that publishes a WRONG vagón number rather than withholding
-    // one: more platforms printed than the catalog can name.
-    if (wagons && printed > wagons) flags.push(`prints ${printed} vagones, catalog has ${wagons} wagons`);
+    // one: more platforms printed than the catalog can name. Only meaningful
+    // once every service HAS a platform on file.
+    if (wagons && printed > wagons && pool === 0) {
+      flags.push(`prints ${printed} vagones, catalog has ${wagons} wagons`);
+    }
+    if (wagons && printed > wagons && pool > 0) {
+      flags.push(`${pool} service(s) unplaced in wagon "0" — needs placements, not a layout`);
+    }
     if (wagons && printed < wagons && printed > 0) flags.push(`prints ${printed}, catalog has ${wagons}`);
     if (staggered) flags.push('staggered platforms');
     if (printed > 0 && has !== undefined && printed !== has) flags.push(`stored count ${has}`);
     if (plates.length === 0) flags.push('no plates found');
 
-    report.push({ code, name: m.name, printed, plates: plates.length, rows: rows.length, aligned, staggered, wagons, stored: has, flags });
+    report.push({ code, name: m.name, printed, plates: plates.length, rows: rows.length, aligned, staggered, wagons, pool, stored: has, flags });
     process.stderr.write(flags.length ? '!' : '.');
   } catch (e) {
     report.push({ code, name: m.name, error: String(e.message).slice(0, 60), flags: ['unreadable'] });
@@ -306,7 +322,7 @@ const failed = report.filter((r) => r.error);
 const clean = report.filter((r) => !r.flags.length);
 
 console.log(`\n${report.length} sheets — ${flagged.length} flagged, ${clean.length} ordinary, ${failed.length} unreadable\n`);
-const rank = (r) => (r.staggered ? 0 : 1) + (r.printed > r.wagons ? 0 : 1);
+const rank = (r) => (r.staggered ? 0 : 1) + (r.printed > r.wagons && !r.pool ? 0 : 1);
 for (const r of flagged.sort((a, b) => rank(a) - rank(b) || b.printed - a.printed)) {
   console.log(`${r.code}  ${String(r.name).slice(0, 32).padEnd(33)} prints=${r.printed} plates=${r.plates} rows=${r.rows}${r.aligned ? ' (aligned)' : ''} wagons=${r.wagons} stored=${r.stored}`);
   console.log(`        ${r.flags.join(' · ')}`);
