@@ -60,7 +60,7 @@
     "TM0027": 4,
     "TM0028": 5,
     "TM0029": 3,
-    "TM0030": 3,
+    "TM0030": 1,
     "TM0031": 1,
     "TM0032": 2,
     "TM0033": 2,
@@ -178,7 +178,7 @@
     "TM0145": 2,
     "TM0146": 2,
     "TM0147": 4,
-    "TM0148": 4,
+    "TM0148": 2,
     "TM0149": 2,
     "TM0150": 4,
     "TM0151": 0,
@@ -894,6 +894,99 @@
         }
       ],
       "divider": "ciclorruta"
+    },
+    "TM0148": {
+      "source": "Plano de ubicacion, Estacion Tygua - San Jose, version noviembre de 2024.",
+      "why": "TWO vagones, each drawn once per carriageway either side of the ciclorruta — both rows read \"Vagon 2, Vagon 1\". The catalog maps onto them exactly: wagon A is the printed Vagon 1 (B72, S41, G47 on the AutoNorte side; M47, L41 on the other) and wagon B is Vagon 2 (8 to Terminal, C25; 8 to Guatoque, H72, L25), so the count is 2 and A->1, B->2 holds. Stored count corrected from 4, which counted the four drawn bars rather than the two vagones they name. The sheet prints G41 where the catalog now files S41: that route ends at San Mateo, a Soacha station, and the September 2026 re-lettering moved exactly those services to the S letter — which is also why G47 beside it keeps its G, since it stops at Portal Sur.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "C25"
+              ],
+              "destinos": {
+                "8": "Terminal"
+              }
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B72",
+                "S41",
+                "G47"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "abajo": [
+                "8",
+                "H72",
+                "L25"
+              ],
+              "destinos": {
+                "8": "Guatoque"
+              }
+            },
+            {
+              "vagon": "1",
+              "abajo": [
+                "M47",
+                "L41"
+              ]
+            }
+          ]
+        }
+      ],
+      "divider": "ciclorruta"
+    },
+    "TM0030": {
+      "source": "Plano de ubicacion, Estacion Calle 187, version noviembre de 2024.",
+      "why": "ONE vagon, drawn once per carriageway — both decks read \"Vagon 1\" and the sheet prints no second plate anywhere. The catalog files TWO wagons here and both of them carry services in BOTH directions, so its A/B grouping is not the platform split and cannot be reconciled with a single printed vagon; this is the Calle 161 / Av. Jimenez case, and the numbering gate stays shut on it (1 plate against 2 wagons). Stored count corrected from 3. What the sheet does settle is the shape, and the catalog agrees with it independently: the chips drawn above the top deck are exactly the services the direction plan calls norte (8 to Terminal, B11, B16, B18) and those below the bottom deck are exactly the sur ones (8 to Guatoque, G11, K16, L18). B55 and D55 are in the catalog but not on this sheet; they list under the drawing. NO DIVIDER is recorded: unlike Calle 75 and Av. Chile the sheet draws no band between the decks at all, only a blank callout box, so what separates them is not answered and the drawing claims nothing.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "8",
+                "B11",
+                "B16",
+                "B18"
+              ],
+              "destinos": {
+                "8": "Terminal"
+              }
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "8",
+                "G11",
+                "K16",
+                "L18"
+              ],
+              "destinos": {
+                "8": "Guatoque"
+              }
+            }
+          ]
+        }
+      ]
     }
   }
 }
