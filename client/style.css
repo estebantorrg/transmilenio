@@ -2588,6 +2588,62 @@ body.sidebar-collapsed .sidebar-fab {
   margin-top: calc(1px * var(--tm-scale, 1));
 }
 
+/* ── The way out on foot ─────────────────────────────────────────────────
+   A pedestrian tunnel is the one thing on a plano that is not part of the
+   station: it is how you leave it for another one. Ricaurte and Av. Jiménez
+   are each two platforms joined by one, and Las Aguas draws its Universidades
+   tunnel mouth in platform styling with a "Vagón 1" plate on it. Drawing it
+   and saying nothing about where it comes out wastes the most useful thing on
+   the sheet, so it is a link — and it sits UNDER the drawing rather than
+   inside it, because it reads the same whether the station was drawn from a
+   sheet or from the catalog's letters. */
+.plano-tunel {
+  display: flex;
+  align-items: center;
+  gap: calc(7px * var(--tm-scale, 1));
+  margin-top: calc(6px * var(--tm-scale, 1));
+  padding: calc(6px * var(--tm-scale, 1)) calc(9px * var(--tm-scale, 1));
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(4px * var(--tm-scale, 1));
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+  color: var(--text-secondary);
+  font-size: calc(10.5px * var(--tm-scale, 1));
+  text-decoration: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.plano-tunel:hover,
+.plano-tunel:focus-visible {
+  border-color: var(--border-medium);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.plano-tunel strong { color: var(--text-primary); font-weight: 700; }
+
+/* The mouth of the tunnel: an arch, not a door. */
+.plano-tunel-mark {
+  flex: 0 0 auto;
+  width: calc(13px * var(--tm-scale, 1));
+  height: calc(11px * var(--tm-scale, 1));
+  border: 1.5px solid currentColor;
+  border-bottom: 0;
+  border-radius: calc(7px * var(--tm-scale, 1)) calc(7px * var(--tm-scale, 1)) 0 0;
+  opacity: 0.75;
+}
+
+.plano-tunel-text { flex: 1 1 auto; }
+
+.plano-tunel-arrow {
+  flex: 0 0 auto;
+  width: calc(6px * var(--tm-scale, 1));
+  height: calc(6px * var(--tm-scale, 1));
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.6;
+}
+
 /* ── The corridor, named once at each edge ───────────────────────────────
    The sheet prints the corridor along the top and bottom of the drawing, not
    on every segment. Hoisted here on the same condition: only when every vagón

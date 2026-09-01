@@ -33,6 +33,7 @@ import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
+import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
@@ -962,6 +963,22 @@ async function main(): Promise<void> {
   const stations = Object.values(catalog.stations).filter(
     (st) => isTroncalStationCode(st.codigo) && Object.keys(st.wagons ?? {}).length > 0
   );
+  // One page per PLATFORM for the two stations the catalog files as a single
+  // stop. Avenida Jiménez and Ricaurte are each a trunk platform and a Calle 13
+  // platform, on different troncals, joined by a tunnel and sharing no service
+  // — so a rider standing on one of them was reading a page that described the
+  // other as well. The merged page stays: it is the whole interchange, and it
+  // is what every existing link points at.
+  for (const platform of STATION_PLATFORMS) {
+    const parent = stations.find((st) => st.codigo.toUpperCase() === platform.parent);
+    if (!parent) {
+      console.warn(`[seo] platform ${platform.codigo}: parent ${platform.parent} not in catalog; page skipped.`);
+      continue;
+    }
+    const derived = platformStation(platform, parent) as LightStation | null;
+    if (derived) stations.push(derived);
+  }
+
   const routeCodes = Object.entries(catalog.routes).filter(([, variants]) =>
     variants.some((v) => v.sistema === 'TransMilenio')
   );

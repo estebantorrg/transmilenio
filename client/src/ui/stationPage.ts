@@ -193,7 +193,7 @@ function heroChips(station: StationPageData, serviceCount: number): string {
 }
 
 function render(station: StationPageData): string {
-  const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout);
+  const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout, station.code);
   const name = tidy(station.name);
 
   const planoSection = view.plano

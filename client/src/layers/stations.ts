@@ -26,8 +26,14 @@ import {
 import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
 import { isStationStopCode } from '../data/routeCatalog';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
-import { stationPageHref } from '../ui/routeDetail';
+import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
+import {
+  platformForMatchMethod,
+  platformStation,
+  stationPlatform,
+  tunnelFrom,
+} from '../../../shared/station_platforms.js';
 
 const APP_STOP_CODE_RE = /^TM\d+$/i;
 
@@ -532,7 +538,10 @@ function buildStationPlanoHtml(
           : 'sin determinar';
     return (
       `<div class="pvg-group">${label ? `<div class="popup-dir-label">${label}</div>` : ''}` +
-      `<div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+      // One chip per código, because this is a PLATE: the bar draws the vagón
+      // sign the same way a read sheet does, and Las Aguas printed "F23 F23" for
+      // one código whose two variants end at Portal Américas and at Banderas.
+      `<div class="popup-route-tags">${formatRouteTags(members, 28, true)}</div></div>`
     );
   };
 
@@ -605,6 +614,37 @@ function buildStationPlanoHtml(
  *
  * Sections left empty are omitted.
  */
+/**
+ * The pedestrian tunnel out of this station, as a link to where it comes out.
+ *
+ * A tunnel is the one thing on a plano that is not part of the station: it is
+ * how you leave it on foot for another one. Ricaurte and Av. Jiménez are each
+ * two platforms joined by one, and Las Aguas draws its Universidades tunnel
+ * mouth in platform styling with a "Vagón 1" plate on it — which is why the
+ * plate scanner had to be taught that box is not a platform. Drawing it and
+ * saying nothing about where it goes wastes the most useful thing on the
+ * sheet, so it is a link.
+ *
+ * Nothing is drawn where the tunnel is CLOSED. Av. Jiménez has one and its own
+ * plano strikes it through in red, so `tunelA` is deliberately absent there:
+ * offering a rider a crossing that is shut is worse than offering none.
+ */
+function stationTunnelHtml(codigo: string | undefined): string {
+  const to = tunnelFrom(codigo);
+  if (!to) return '';
+  const platform = stationPlatform(to);
+  const nombre = platform?.nombre ?? _catalog.stations[to]?.nombre;
+  if (!nombre) return '';
+  const href = stationPagePath(nombre, to);
+  return (
+    `<a class="plano-tunel" href="${href}">` +
+    `<span class="plano-tunel-mark" aria-hidden="true"></span>` +
+    `<span class="plano-tunel-text">Túnel peatonal a <strong>${escapeHTML(nombre)}</strong></span>` +
+    `<span class="plano-tunel-arrow" aria-hidden="true"></span>` +
+    `</a>`
+  );
+}
+
 export interface StationWagonView {
   /** The drawn platform plan, or null where the catalog ships no plan for it. */
   plano: string | null;
@@ -626,7 +666,8 @@ export function buildStationWagonView(
   vagonLabels: Record<string, string> = {},
   wagonPlan: Record<string, CatalogPlanGroup[]> = {},
   sentidos?: { positive: string; negative: string },
-  layout?: StationPlanoLayout
+  layout?: StationPlanoLayout,
+  codigo?: string
 ): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -684,7 +725,12 @@ export function buildStationWagonView(
   const drawn = layout
     ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos, presentWagons)
     : null;
-  const plano = drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  const planoDrawing = drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  // Under the drawing rather than inside it, so it reads the same whether the
+  // station was drawn from a sheet or from the catalog's letters — Las Aguas
+  // has no layout at all and still has a tunnel to Universidades.
+  const tunel = planoDrawing ? stationTunnelHtml(codigo) : '';
+  const plano = planoDrawing ? planoDrawing + tunel : null;
 
   // A layout places services by código, and it places them from a sheet that is
   // older than the catalog — CAN's is stamped November 2025 and the catalog has
@@ -795,15 +841,29 @@ function stationPlanLayout(
   return code ? _catalog.stations[code]?.planoLayout : undefined;
 }
 
+/**
+ * The código this resolved station IS, for anything keyed on where the rider
+ * is standing rather than on which stop the catalog files them under. A
+ * verified-split platform answers with its own — Ricaurte - NQS is TM0069NQS,
+ * not TM0069 — which is what makes its tunnel lead to the other platform
+ * instead of to itself.
+ */
+function stationViewCode(resolved: ResolvedCatalogStation | undefined): string | undefined {
+  return (
+    platformForMatchMethod(resolved?.matchMethod)?.codigo ?? resolved?.sourceStops?.[0]?.codigo
+  );
+}
+
 /** The popup's flavour of {@link buildStationWagonView}: one stacked block. */
 function buildWagonSectionsHtml(
   wagons: ResolvedCatalogWagons,
   vagonLabels: Record<string, string> = {},
   wagonPlan: Record<string, CatalogPlanGroup[]> = {},
   sentidos?: { positive: string; negative: string },
-  layout?: StationPlanoLayout
+  layout?: StationPlanoLayout,
+  codigo?: string
 ): string {
-  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan, sentidos, layout);
+  const view = buildStationWagonView(wagons, vagonLabels, wagonPlan, sentidos, layout, codigo);
   return (view.plano ?? '') + view.sections || '<div class="popup-empty">Sin rutas disponibles</div>';
 }
 
@@ -858,7 +918,16 @@ function publishStationAudit(): void {
  */
 function stationPageLinkHtml(resolved: ResolvedCatalogStation | undefined): string {
   const stop = resolved?.sourceStops?.[0];
-  const href = stop ? stationPageHref({ nombre: stop.nombre, codigo: stop.codigo }) : null;
+  // A verified-split platform now HAS a page of its own, so it links there
+  // rather than to the merged stop it shares with the platform across the
+  // tunnel. That merged page still exists and still shows both halves; it is
+  // just not the answer when you are standing on one of them.
+  const platform = platformForMatchMethod(resolved?.matchMethod);
+  const href = platform
+    ? stationPagePath(platform.nombre, platform.codigo)
+    : stop
+      ? stationPageHref({ nombre: stop.nombre, codigo: stop.codigo })
+      : null;
   if (!href) return '';
   return `
     <a class="popup-page-link" href="${href}">
@@ -912,9 +981,19 @@ export function getStationPageData(code: string): StationPageData | null {
   const wanted = String(code || '').trim().toUpperCase();
   if (!wanted) return null;
 
-  const station =
-    _catalog.stations[wanted] ??
-    Object.values(_catalog.stations).find((s) => String(s.codigo).toUpperCase() === wanted);
+  // A platform of a station the catalog files as one stop resolves to that
+  // stop, narrowed to the wagons this platform actually holds. Ricaurte - NQS
+  // and Ricaurte - CL 13 are two stations across a tunnel with no service in
+  // common, and each now has a page that says only what is true where you are
+  // standing.
+  const platform = stationPlatform(wanted);
+  const lookup = platform ? platform.parent : wanted;
+
+  const parent =
+    _catalog.stations[lookup] ??
+    Object.values(_catalog.stations).find((s) => String(s.codigo).toUpperCase() === lookup);
+  if (!parent) return null;
+  const station = platform ? platformStation(platform, parent) : parent;
   if (!station) return null;
 
   const [lat, lng] = String(station.coordenada || '').split(',').map((n) => Number(n.trim()));
@@ -922,8 +1001,13 @@ export function getStationPageData(code: string): StationPageData | null {
 
   // The catalog's TM code and ArcGIS's `numero_estacion` are different id spaces
   // (spec §5.4.1); the resolver is the only bridge between them.
-  const platforms = Object.values(_resolvedStations).filter((resolved) =>
-    resolved.sourceStops.some((stop) => stop.codigo.toUpperCase() === wanted)
+  const platforms = Object.values(_resolvedStations).filter(
+    (resolved) =>
+      resolved.sourceStops.some((stop) => stop.codigo.toUpperCase() === lookup) &&
+      // On a platform page, only THIS platform. The nodes below feed the
+      // ridership figures, which are keyed by node in the open dataset — both
+      // halves of Ricaurte would otherwise report the whole interchange.
+      (!platform || resolved.matchMethod === platform.matchMethod)
   );
   const feature = platforms.length
     ? globalStations.find((s) => s.attributes.numero_estacion === platforms[0].stationCode)
@@ -1003,7 +1087,7 @@ function showStationPopup(
 
   const wagonSections =
     resolvedStation && Object.keys(resolvedStation.wagons).length > 0
-      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation))
+      ? buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation), stationViewCode(resolvedStation))
       // Not "no routes serve this station" — the catalog simply files no wagon
       // assignment for it, and saying which is the difference between a data gap
       // and a claim about the network (spec §1).
@@ -1323,7 +1407,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   if (!resolvedStation) return false;
 
-  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation));
+  const wagonSections = buildWagonSectionsHtml(resolvedStation.wagons, resolvedStation.vagonLabels, resolvedStation.wagonPlan, stationPlanSentidos(resolvedStation), stationPlanLayout(resolvedStation), stationViewCode(resolvedStation));
 
   const stationFeature = globalStations.find(s =>
     s.attributes.numero_estacion === stationCode ||
