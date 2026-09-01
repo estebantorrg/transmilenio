@@ -43,7 +43,7 @@
     "TM0016": 4,
     "TM0017": 3,
     "TM0018": 3,
-    "TM0019": 3,
+    "TM0019": 4,
     "TM0020": 2,
     "TM0021": 2,
     "TM0022": 3,
@@ -306,6 +306,47 @@
               "destinos": {
                 "G12": "P. Sur"
               }
+            }
+          ]
+        }
+      ]
+    },
+    "TM0019": {
+      "source": "Plano de ubicacion, Estacion Calle 106, version junio de 2026.",
+      "why": "Four vagones on one line, but the platform is cut in half by two puente peatonal bays: Vagon 4 and Vagon 3 board only southbound (chips below), Vagon 2 and Vagon 1 only northbound (chips above). The catalog files TWO wagons and neither is a half of the platform — each pairs one southbound vagon with the northbound one across the bridge. A holds Vagon 3 (8, D55, H13) plus Vagon 1 (B11, B28); B holds Vagon 4 (F28, G11) plus Vagon 2 (8, B13, B55). Drawn from those letters it would put services from opposite ends of a split platform on one plate.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "4",
+              "abajo": [
+                "F28",
+                "G11"
+              ]
+            },
+            {
+              "vagon": "3",
+              "abajo": [
+                "8",
+                "D55",
+                "H13"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B13",
+                "B55"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B11",
+                "B28"
+              ]
             }
           ]
         }

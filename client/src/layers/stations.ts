@@ -262,10 +262,27 @@ function buildStationLayoutHtml(
 
   const drawn = rows.filter(Boolean);
   if (drawn.length === 0) return null;
+
+  // The corridor, named once at each long edge, exactly as the bar does it and
+  // as the sheet does it. A layout's sides ARE the corridor's two directions —
+  // that is what `arriba`/`abajo` mean and what `boardsOn` filters on — so the
+  // labels are the same two words, and drawn only where a side carries chips.
+  const used = (side: 'a' | 'b'): boolean =>
+    (layout.rows ?? []).some((r) =>
+      (r.vagones ?? []).some((v) => ((side === 'a' ? v.arriba : v.abajo) ?? []).length > 0)
+    );
+  const axis = (name: string | undefined, side: 'a' | 'b'): string =>
+    name && used(side)
+      ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
+      : '';
+
   return (
     `<div class="popup-plano popup-plano-split" role="group" aria-label="Plano de la estación" tabindex="0">` +
-    `<div class="popup-plano-inner">${drawn.join('<div class="pvg-busway" aria-hidden="true"></div>')}</div>` +
-    `</div>`
+    `<div class="popup-plano-inner">` +
+    axis(sentidos?.positive, 'a') +
+    drawn.join('<div class="pvg-busway" aria-hidden="true"></div>') +
+    axis(sentidos?.negative, 'b') +
+    `</div></div>`
   );
 }
 
