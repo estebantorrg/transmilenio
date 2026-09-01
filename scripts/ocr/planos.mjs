@@ -71,6 +71,41 @@ const READ_BY_HAND = new Set([
 // its wagon count and no sheet will reconcile them (`VERIFIED_SPLITS`).
 const MERGED = new Set(['TM0013', 'TM0069']);
 
+// Settled: read against the sheet and either corrected or confirmed. These are
+// never flagged again. Four of them — Puentelargo, Terminal, General Santander,
+// Universidades — turned out perfectly ordinary and cost someone the trouble of
+// fetching a sheet to prove it, which is what the confidence tiers below exist
+// to stop repeating.
+const SETTLED = new Set([
+  'TM0002', 'TM0016', 'TM0018', 'TM0019', 'TM0024', 'TM0026', 'TM0027',
+  'TM0028', 'TM0031', 'TM0036', 'TM0046', 'TM0052', 'TM0059', 'TM0061',
+  'TM0093', 'TM0103', 'TM0121', 'TM0122', 'TM0132', 'TM0137', 'TM0139',
+  'TM0143', 'TM90009', 'TM90010', 'TM90011',
+]);
+
+/**
+ * How many vagones the sheet has, and how much that answer can be trusted.
+ *
+ * Measured against the 21 stations settled by eye, the two independent counts
+ * agree on 14 of them and are RIGHT on all 14. Neither is good enough alone —
+ * decks scored 17/21, plates 19/21 — because each fails in its own direction:
+ *
+ *   • plates UNDERCOUNT when a sheet draws a platform and forgets to label it
+ *     (Boyacá: one plate over two decks, recorded as a one-vagón island until
+ *     someone who had stood on the second one said otherwise).
+ *   • decks OVERCOUNT when a concourse or integration zone shares the
+ *     platforms' pale grey (San Mateo reads 6 for 3), and UNDERCOUNT where two
+ *     platforms merge into one grey mass.
+ *
+ * So agreement is the signal. Where the two agree the count is as good as read;
+ * where they disagree only a sheet settles it, and that is the only case worth
+ * anyone's time fetching one.
+ */
+function confidence(decks, plates) {
+  if (decks === plates) return { count: plates, sure: true };
+  return { count: plates, sure: false };
+}
+
 const argv = process.argv.slice(2);
 const all = argv.includes('--all');
 const only = argv.filter((a) => /^TM\d+$/i.test(a)).map((a) => a.toUpperCase());
@@ -319,7 +354,7 @@ const stored = JSON.parse(readFileSync(PLATES, 'utf8')).counts;
 const list = (await markers()).filter((m) => {
   if (only.length) return only.includes(String(m.code).toUpperCase());
   if (MERGED.has(m.code)) return false;
-  return all || !READ_BY_HAND.has(m.code);
+  return all || (!READ_BY_HAND.has(m.code) && !SETTLED.has(m.code));
 });
 
 const browser = await chromium.launch();
@@ -362,27 +397,32 @@ for (const m of list) {
       (r) => r.tipoServicio === 'TRONCAL' || r.tipoServicio === 'PADRON'
     ).length;
 
+    const { count, sure } = confidence(decks.length, printed);
     const flags = [];
-    // The shape that publishes a WRONG vagón number rather than withholding
-    // one: more platforms printed than the catalog can name. Only meaningful
-    // once every service HAS a platform on file.
-    if (wagons && printed > wagons && pool === 0) {
-      flags.push(`prints ${printed} vagones, catalog has ${wagons} wagons`);
-    }
-    if (wagons && printed > wagons && pool > 0) {
-      flags.push(`${pool} service(s) unplaced in wagon "0" — needs placements, not a layout`);
-    }
-    if (wagons && printed < wagons && printed > 0) flags.push(`prints ${printed}, catalog has ${wagons}`);
-    if (staggered) flags.push('staggered platforms');
-    if (printed > 0 && has !== undefined && printed !== has) flags.push(`stored count ${has}`);
-    if (plates.length === 0) flags.push('no plates found');
-    // A deck the sheet drew but never labelled. Boyaca printed one plate over
-    // two of them and was recorded as a one-vagon island because of it.
-    if (decks.length > printed && printed > 0) {
-      flags.push(`${decks.length} platform decks drawn but only ${printed} labelled`);
-    }
+    let tier = 'ok';
 
-    report.push({ code, name: m.name, printed, plates: plates.length, decks: decks.length, rows: rows.length, aligned, staggered, wagons, pool, stored: has, flags });
+    // Only a disagreement between the two counts is genuinely unresolved. Where
+    // they agree the count is as reliable as a reading, so anything that still
+    // looks wrong is a data fix rather than a question for a person.
+    if (!sure) {
+      tier = 'sheet';
+      flags.push(`decks ${decks.length} vs plates ${printed} — counts disagree`);
+    } else if (wagons && count > wagons && pool === 0) {
+      tier = 'shape';
+      flags.push(`prints ${count}, catalog names ${wagons} — needs a layout`);
+    } else if (wagons && count > wagons && pool > 0) {
+      tier = 'unplaced';
+      flags.push(`${pool} service(s) in wagon "0" — needs placements`);
+    } else if (has !== undefined && count !== has) {
+      tier = 'count';
+      flags.push(`stored ${has}, sheet has ${count}`);
+    } else if (staggered) {
+      tier = 'shape';
+      flags.push('staggered platforms');
+    }
+    if (plates.length === 0) { tier = 'sheet'; flags.push('no plates found'); }
+
+    report.push({ code, name: m.name, printed, count, sure, tier, plates: plates.length, decks: decks.length, rows: rows.length, aligned, staggered, wagons, pool, stored: has, flags });
     process.stderr.write(flags.length ? '!' : '.');
   } catch (e) {
     report.push({ code, name: m.name, error: String(e.message).slice(0, 60), flags: ['unreadable'] });
@@ -397,10 +437,33 @@ const failed = report.filter((r) => r.error);
 const clean = report.filter((r) => !r.flags.length);
 
 console.log(`\n${report.length} sheets — ${flagged.length} flagged, ${clean.length} ordinary, ${failed.length} unreadable\n`);
-const rank = (r) => (r.staggered ? 0 : 1) + (r.printed > r.wagons && !r.pool ? 0 : 1);
-for (const r of flagged.sort((a, b) => rank(a) - rank(b) || b.printed - a.printed)) {
-  console.log(`${r.code}  ${String(r.name).slice(0, 32).padEnd(33)} prints=${r.printed} plates=${r.plates} rows=${r.rows}${r.aligned ? ' (aligned)' : ''} wagons=${r.wagons} stored=${r.stored}`);
-  console.log(`        ${r.flags.join(' · ')}`);
+
+// Ordered by what a person actually has to do about it. Only the first group
+// needs a sheet fetched; the rest can be acted on from the counts alone,
+// because where decks and plates agree they were right 14 times out of 14.
+const TIERS = [
+  ['sheet', 'NEEDS A SHEET — the two counts disagree, nothing else can settle it'],
+  ['shape', 'SHAPE — count is confident, but the catalog cannot name every platform'],
+  ['unplaced', 'UNPLACED — ordinary shape, services sitting in wagon "0"'],
+  ['count', 'COUNT — ordinary shape, only the stored number is wrong'],
+];
+for (const [tier, heading] of TIERS) {
+  const rows = flagged.filter((r) => r.tier === tier);
+  if (rows.length === 0) continue;
+  console.log(`\n${heading}  (${rows.length})`);
+  for (const r of rows.sort((a, b) => b.count - a.count)) {
+    // `printed` is the deduped vagón count — plates after two aligned rows are
+    // collapsed to one (Av. Chile draws 6 bars for 3 vagones). The raw blob
+    // count is only shown when it differs, so the comparison being made is the
+    // one on screen.
+    const raw = r.plates !== r.printed ? ` (${r.plates} bars)` : '';
+    console.log(
+      `  ${r.code}  ${String(r.name).slice(0, 30).padEnd(31)}` +
+        ` decks=${r.decks} vagones=${r.printed}${raw} wagons=${r.wagons} stored=${r.stored}` +
+        `${r.staggered ? ' STAGGERED' : ''}${r.pool ? ` pool=${r.pool}` : ''}`
+    );
+    console.log(`         ${r.flags.join(' · ')}`);
+  }
 }
 if (failed.length) {
   console.log('\nUNREADABLE');
