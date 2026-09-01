@@ -162,9 +162,9 @@ export type StationPlanoLayout = NonNullable<
  * station's plate count happened to agree with its wagon count:
  *
  * - **La Castellana** is two platforms on opposite carriageways, offset, with
- *   the busway between — four printed vagones filed as two wagons, each
+ *   something between them — four printed vagones filed as two wagons, each
  *   straddling both platforms. As a bar it read "Vagón 1: B28 y G12", two
- *   services separated by a road.
+ *   services that face opposite sides of the corridor.
  * - **Calle 85** is one straight platform of four vagones filed as three
  *   wagons, its `C` merging printed vagones 3 and 4 — so `C50`/`D10`/`H27` were
  *   labelled Vagón 3 when they board Vagón 4.
@@ -276,11 +276,28 @@ function buildStationLayoutHtml(
       ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
       : '';
 
+  // What lies between the platforms is named only where someone has checked it.
+  // This drawing called every divider a busway on no evidence at all:
+  // El Tiempo, AV. Rojas and Tygua are split by a ciclorruta and Guatoque by a
+  // caño — an open water channel. Sending a rider across the wrong one is a
+  // confident wrong answer, so an unchecked station gets a plain separator with
+  // no claim attached.
+  const DIVIDERS: Record<string, string> = {
+    busway: 'calzada',
+    ciclorruta: 'ciclorruta',
+    cano: 'caño',
+  };
+  const label = layout.divider ? DIVIDERS[layout.divider] : '';
+  const divider =
+    `<div class="pvg-divider pvg-divider-${escapeHTML(layout.divider ?? 'plain')}">` +
+    (label ? `<span class="pvg-divider-name">${escapeHTML(label)}</span>` : '') +
+    `</div>`;
+
   return (
     `<div class="popup-plano popup-plano-split" role="group" aria-label="Plano de la estación" tabindex="0">` +
     `<div class="popup-plano-inner">` +
     axis(sentidos?.positive, 'a') +
-    drawn.join('<div class="pvg-busway" aria-hidden="true"></div>') +
+    drawn.join(divider) +
     axis(sentidos?.negative, 'b') +
     `</div></div>`
   );

@@ -51,6 +51,10 @@ export interface CatalogStation {
    *  busway between (§5.5.4). Read off the plano and reconciled against the
    *  catalog server-side; absent for every station the bar describes correctly. */
   planoLayout?: {
+    /** What physically separates the two platforms, where someone has checked —
+     *  a busway, a ciclorruta or a caño. Absent means nobody has, and the
+     *  drawing then separates them without naming what lies between. */
+    divider?: 'busway' | 'ciclorruta' | 'cano';
     rows: Array<{
       /** Stagger, in vagón columns, for a platform that does not line up with
        *  the one above it. */

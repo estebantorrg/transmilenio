@@ -2433,10 +2433,10 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* ── A staggered station ─────────────────────────────────────────────────
-   Two platforms on opposite carriageways, offset from each other with the
-   busway between them (La Castellana). Not a variant of the bar above: the bar
-   is one platform serving both directions, and this is two platforms serving
-   one each, which is why it is drawn from the sheet rather than from the
+   Two platforms on opposite carriageways, offset from each other with
+   something between them (La Castellana). Not a variant of the bar above: the
+   bar is one platform serving both directions, and this is two platforms
+   serving one each, which is why it is drawn from the sheet rather than from the
    catalog's letters (`buildStationLayoutHtml`).
 
    Each row keeps its own grid so its vagones stay a segmented platform, and the
@@ -2450,18 +2450,37 @@ body.sidebar-collapsed .sidebar-fab {
 
 /* `--pvg-offset` is the stagger in vagón columns, straight off the sheet. A
    platform pushed along the drawing is the fact this layout exists to state:
-   drawn flush, the two would read as facing each other across the busway. */
+   drawn flush, the two would read as facing each other across the divider. */
 .pvg-row {
   display: flex;
   margin-left: calc(var(--pvg-offset, 0) * 136px * var(--tm-scale, 1));
 }
 
-/* The road between them. On the sheet it is the full-width band the two
-   platforms sit either side of — the reason a rider cannot walk from Vagón 1 to
-   Vagón 4 without crossing. */
-.pvg-busway {
-  height: calc(10px * var(--tm-scale, 1));
+/* What lies between the two platforms — the reason a rider cannot walk from one
+   to the other without crossing something.
+
+   It is NOT always a busway, which is what this drawing used to call every
+   one of them on no evidence. El Tiempo, AV. Rojas and Tygua are split by a
+   ciclorruta; Guatoque by a caño, an open water channel. Each is named only
+   where someone has checked, and an unchecked station gets `-plain`: a divider
+   that separates without claiming what it is. */
+.pvg-divider {
+  display: flex;
+  align-items: center;
+  gap: calc(6px * var(--tm-scale, 1));
+  height: calc(14px * var(--tm-scale, 1));
   margin: calc(3px * var(--tm-scale, 1)) 0;
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.pvg-divider::before,
+.pvg-divider::after {
+  content: '';
+  flex: 1;
+  height: 2px;
   background: repeating-linear-gradient(
     to right,
     var(--border-medium) 0,
@@ -2469,9 +2488,18 @@ body.sidebar-collapsed .sidebar-fab {
     transparent calc(10px * var(--tm-scale, 1)),
     transparent calc(20px * var(--tm-scale, 1))
   );
-  background-position: 0 50%;
-  background-repeat: no-repeat;
-  background-size: 100% 2px;
+}
+
+/* A caño is water, and the sheet draws it in blue rather than as a dashed
+   carriageway. It is the one divider that is not a road at all. */
+.pvg-divider-cano {
+  color: var(--tm-blue);
+}
+
+.pvg-divider-cano::before,
+.pvg-divider-cano::after {
+  background: var(--tm-blue);
+  opacity: 0.5;
 }
 
 /* ── The corridor, named once at each edge ───────────────────────────────

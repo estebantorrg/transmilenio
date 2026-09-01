@@ -67,6 +67,21 @@ export interface PlanoLayoutRow {
 }
 export interface PlanoLayout {
   rows: PlanoLayoutRow[];
+  /**
+   * What physically separates the two platforms — answered, never assumed.
+   *
+   * The drawing called this a busway everywhere, on no evidence at all. It is
+   * not: El Tiempo, AV. Rojas and Tygua are split by a **ciclorruta**,
+   * and Guatoque by a **caño**, an open water channel. The sheets say so if you
+   * look — the first three draw bici glyphs on the dividing line and Guatoque
+   * draws it in blue — and telling a rider they must cross a busway to reach
+   * the other platform, when what is actually there is a canal, is the kind of
+   * confident wrong answer this dataset exists to avoid.
+   *
+   * Absent where nobody has checked: the drawing then separates the platforms
+   * without naming what lies between them.
+   */
+  divider?: 'busway' | 'ciclorruta' | 'cano';
 }
 
 const PLANO_FILE: {

@@ -628,7 +628,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
           // Rows only. The entry's `source` and `why` are why the shape is on
           // file, which belongs in the file and not in a 4 MB payload every
           // visitor downloads.
-          planoLayoutOut = { rows: layout.rows };
+          planoLayoutOut = { rows: layout.rows, ...(layout.divider ? { divider: layout.divider } : {}) };
         } else {
           console.warn(
             `[TM API] ${station.codigo}: plano layout disagrees with the catalog — ` +
