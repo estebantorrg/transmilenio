@@ -2446,6 +2446,11 @@ body.sidebar-collapsed .sidebar-fab {
 .popup-plano-split .popup-plano-inner {
   display: flex;
   flex-direction: column;
+  /* Sized to the drawing, not to the pane. The divider is a sibling of the
+     rows, so on a full-width container it ran past the platforms — invisible
+     while it was a hairline, obvious once the caño became a solid band of
+     water longer than the station it divides. */
+  width: max-content;
 }
 
 /* `--pvg-offset` is the stagger in vagón columns, straight off the sheet. A
@@ -2491,16 +2496,31 @@ body.sidebar-collapsed .sidebar-fab {
   );
 }
 
-/* A caño is water, and the sheet draws it in blue rather than as a dashed
-   carriageway. It is the one divider that is not a road at all. */
+/* A caño is water, and the operator draws it as a SOLID BAND across the whole
+   width — not as a line with a gap in it. Biblioteca and Parque go further and
+   print the word "Caño" on that band, which is how we know the type at all.
+   Drawn as a line either side of a label it read like every other divider,
+   just tinted; the one thing it must not look like is a road you step over.
+   So the band is the divider here, and the label sits on the water. */
 .pvg-divider-cano {
-  color: var(--tm-blue);
+  justify-content: center;
+  height: calc(13px * var(--tm-scale, 1));
+  border-radius: calc(2px * var(--tm-scale, 1));
+  background: linear-gradient(
+    180deg,
+    #4FC3F7 0%,
+    #29A8DC 55%,
+    #1B87B8 100%
+  );
+  color: #FFFFFF;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(4, 40, 58, 0.45);
 }
 
+/* The band replaces the rules, rather than sitting between them. */
 .pvg-divider-cano::before,
 .pvg-divider-cano::after {
-  background: var(--tm-blue);
-  opacity: 0.5;
+  display: none;
 }
 
 /* Train tracks. La Castellana, NQS Calle 75 and Av. Chile sit either side of
