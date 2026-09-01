@@ -42,6 +42,13 @@
       "nombre": "San Mateo",
       "added": "2026-09-01",
       "note": "Only the SAN MATEO variant of G45 was re-lettered (to S45 #5587). G45 itself still runs — id 3929 to Portal Sur was listed in the same 2026-09-01 sweep — so the codigo is NOT retired and only this variant is. Retiring the whole codigo here would delete a service that is still running."
+    },
+    {
+      "codigo": "G12",
+      "id": "1210",
+      "nombre": "G. Santander",
+      "added": "2026-09-01",
+      "note": "A short-turn of G12 #350 that is not advertised to riders — answered by the maintainer, and the catalog agrees on every checkable point. Its stop list is #350 truncated: the two share TM0029 through TM0093 exactly and #1210 simply stops at General Santander instead of continuing to Perdomo and Portal Sur. Upstream has already dropped it — #1210 was last listed on 2026-08-26 while the full run was listed on 2026-09-01 — so retention was holding it for its 21-day window and it would have expired around 2026-09-16 anyway. It occupied 14 station-wagon slots, printing a second G12 chip beside the real one at every station on the corridor, including Calle 142 and La Castellana where the plate prints one."
     }
   ]
 }
