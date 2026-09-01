@@ -310,6 +310,7 @@ function buildStationLayoutHtml(
     ciclorruta: 'ciclorruta',
     cano: 'caño',
     tren: 'vía férrea',
+    separador: 'separador verde',
   };
   const label = layout.divider ? DIVIDERS[layout.divider] : '';
   const divider =

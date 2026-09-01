@@ -29,7 +29,11 @@
     "tm0146_no_layout": "Museo Nacional prints TWO vagones and stored 2 is already right. No layout is filed because its sheet (version noviembre de 2025) predates M47, M51 and M85, three services the catalog now files there; a layout drawn from it would drop all three from the page. What the sheet CAN settle is the wagon-0 pool: it puts D81, M86 and L81 on Vagon 2 (catalog B) and K86 and P85 on Vagon 1 (catalog A). M85 is not on the sheet and stays unplaced.",
     "dividers": "What separates the two platforms of a split station is answered per station, never inferred from the drawing. This started wrong: every divider was drawn as a busway on no evidence at all. El Tiempo (TM0131), AV. Rojas (TM0132) and Tygua - San Jose (TM0148) are split by a CICLORRUTA, and Guatoque - Veraguas (TM0147) by a CANO, an open water channel. The sheets do encode it — the ciclorruta ones draw bici glyphs on the dividing line and Guatoque draws it in blue — but it was read past. Corrected on the maintainer word, who knows the stations. AV. Rojas and Tygua have no layout yet, so their answer lives here until one is filed. La Castellana (TM0059), NQS Calle 75 (TM0060) and Av. Chile (TM0061) are split by the RAILWAY that runs down the NQS — answered by the maintainer, who has been to them; the sheets draw it as a plain grey band and nothing on them says it is a rail corridor. A station with no answer on file — La Castellana included, which has never been checked — gets a plain separator that claims nothing.",
     "counts_scan_2026_09_01": "The scanner (scripts/ocr/planos.mjs) re-read all 127 sheets and found 23 stored counts that disagree with the sheet. 16 were applied and 7 were deliberately NOT, and the split is geometric. A sheet draws one bar per vagon at an ordinary station; at a station whose two platforms face each other it draws the SAME vagon once per carriageway, so the bar count doubles. Both look like 'decks=2 vagones=2' to the scanner and it files both under 'ordinary shape, only the stored number is wrong' — which is wrong for the doubled ones, and dangerously so: applying the count would make plates equal wagons and START publishing a vagon number for a split station drawn as a single bar, the exact La Castellana failure this dataset exists to prevent. TM0148 Tygua - San Jose proves it, because the maintainer has already told us it is split by a ciclorruta and the scanner still called it ordinary. HELD, all with doubled bars, all on a corridor that already has a confirmed split station: TM0060 and TM0148 (NQS Central, which has La Castellana and Guatoque), TM0128, TM0129, TM0130 and TM0134 (Calle 26, which has El Tiempo and AV. Rojas and whose ciclorruta runs the length of the corridor between them), and TM0030 Calle 187 (Autonorte, one deck region against two catalog wagons, ambiguous on its own). Each needs its sheet read. APPLIED, all with one bar per vagon and decks, plates and wagons all three agreeing: TM0005, TM0008, TM0011, TM0038, TM0047, TM0056, TM0064, TM0074, TM0075, TM0077, TM0079, TM0081, TM0082, TM0084, TM0140, TM0141.",
-    "two_decks_one_plate": "The scanner's last unresolved tier was six stations reading \"2 decks, 1 plate\". All six are now read and NONE was a miscount — the signature has three different causes. TM0051 Ferias, TM0057 Quirigua and TM0049 Carrera 53 are single island platforms whose one Vagon 1 is drawn in two segments with the crossing between them, services on both long edges; they need no layout, the bar already describes them. TM0116 Biblioteca and TM0117 Parque are one vagon drawn once per carriageway either side of a CANO, which those two sheets label in words on a blue band — the only sheets in the set that name their own divider. TM0035 Suba - Calle 100 is the odd one: its second deck carries a RED plate reading \"Vagon 2 / NO OPERATIVO\", a vagon that physically exists and is out of service, so the sheet prints two decks and one operating vagon on purpose. Its count of 1 is right and matches the catalog's single wagon; it is recorded here so the two decks are not \"corrected\" back to 2 by someone counting boxes on a later pass."
+    "two_decks_one_plate": "The scanner's last unresolved tier was six stations reading \"2 decks, 1 plate\". All six are now read and NONE was a miscount — the signature has three different causes. TM0051 Ferias, TM0057 Quirigua and TM0049 Carrera 53 are single island platforms whose one Vagon 1 is drawn in two segments with the crossing between them, services on both long edges; they need no layout, the bar already describes them. TM0116 Biblioteca and TM0117 Parque are one vagon drawn once per carriageway either side of a CANO, which those two sheets label in words on a blue band — the only sheets in the set that name their own divider. TM0035 Suba - Calle 100 is the odd one: its second deck carries a RED plate reading \"Vagon 2 / NO OPERATIVO\", a vagon that physically exists and is out of service, so the sheet prints two decks and one operating vagon on purpose. Its count of 1 is right and matches the catalog's single wagon; it is recorded here so the two decks are not \"corrected\" back to 2 by someone counting boxes on a later pass.",
+    "printed_what": "Wagon letter -> the vagon number that wagon actually boards, read off the sheet. The counts gate is a PROXY: equal counts are taken as evidence that the letters and the plates line up in order, which is usually true. Where an entry exists here it is the answer and the counts are not consulted.",
+    "printed_why": "Av. Jimenez is the case that proves the proxy can pass and still be wrong. FIVE catalog wagons, FIVE printed vagones, and the mapping is not one-to-one: wagon A is Vagon 1, D is Vagon 4 and E is Vagon 5, but B and C each carry half of Vagon 2 and half of Vagon 3, split by DIRECTION rather than by platform — C holds everything northbound across both vagones, B everything southbound. Counting alone would print \"Vagon 2\" for a wagon whose riders are standing at Vagon 3 half the time, and the counts would have agreed. B and C are therefore left out and take no number, while A, D and E are numbered from the sheet.",
+    "the_five_missing_sheets": "The five stations whose planos never resolved from the maps API were supplied by the maintainer on 2026-09-01, and they close the two cases this dataset had written off as unreconcilable. RICAURTE and AV. JIMENEZ are each published as TWO sheets, one per troncal, joined by a pedestrian tunnel — which is exactly why no single sheet could ever match the catalog and why both were recorded as \"no sheet can reconcile this\". RICAURTE: sheet E (NQS Central, diciembre 2025) prints Vagon 3, 2, 1 and sheet F (Americas, agosto 2026) prints Vagon 4, 5, 6, six vagones against six catalog wagons, and the match is exact service for service — C is Vagon 3, B is Vagon 2, A is Vagon 1, D is Vagon 4, E is Vagon 5, F is Vagon 6. Its stored count goes 3 -> 6 and it is numbered for the first time. Sheet E prints G43 and G48 where the catalog files S43 and S48, both running to San Mateo: the same Soacha re-lettering seen at El Tiempo, Salitre El Greco, Modelia and Tygua. AV. JIMENEZ: sheet A (Estacion temporal, Caracas, enero 2026) prints Vagon 3, 2, 1 and sheet F (Americas, enero 2026) prints Vagon 4 and 5, five against five — but see printed_why, the mapping is not one-to-one. Its sheet F also marks the pedestrian tunnel to the Caracas half CIERRE (closed), so the two halves are not walkable between. TIBANICA - PRIMAVERA, LOS LAURELES and ISLANDIA each print two vagones and each CONFIRMS the count and the A->1 B->2 mapping already on file: at Tibanica wagon A is Vagon 1 (Z61 north, F63 south) and B is Vagon 2 (Z63 north, A61 south), while at Laureles and Islandia both Z services sit on Vagon 2 and F63 with A61 on Vagon 1. Nothing changed for those three; they are recorded because \"confirmed by the sheet\" and \"never checked\" are not the same state.",
+    "ricaurte_jimenez_no_layout_yet": "Ricaurte and Av. Jimenez are NUMBERED from their sheets but not yet DRAWN, and the reason is the axis. Every layout on file is two platforms of ONE corridor, so the drawing names that corridor once along each long edge. These two are not that: each is two platform complexes on DIFFERENT troncals joined by a pedestrian tunnel. Ricaurte vagones 1-3 face AutoNorte/Suba/Calle 80/NQS Central against Caracas Sur/Carrera 10/NQS Sur, while vagones 4-6 face Americas/AV. Ciudad de Cali against Suba/Caracas/Carrera 7/Eje Ambiental. One shared axis pair would label half of each station with the other half's directions. Drawing them needs a per-row axis, which is a renderer change, not a data one. The full readings are in the_five_missing_sheets so no re-reading is needed when that lands. Note also for whoever does it: Av. Jimenez sheet F marks its tunnel to the Caracas half CIERRE (closed), so the two halves are NOT walkable between and a drawing must not imply they are."
   },
   "counts": {
     "TM0001": 3,
@@ -44,7 +48,7 @@
     "TM0010": 2,
     "TM0011": 2,
     "TM0012": 0,
-    "TM0013": 2,
+    "TM0013": 5,
     "TM0014": 0,
     "TM0015": 3,
     "TM0016": 4,
@@ -100,7 +104,7 @@
     "TM0066": 2,
     "TM0067": 2,
     "TM0068": 2,
-    "TM0069": 3,
+    "TM0069": 6,
     "TM0070": 1,
     "TM0071": 2,
     "TM0072": 2,
@@ -951,7 +955,7 @@
     },
     "TM0030": {
       "source": "Plano de ubicacion, Estacion Calle 187, version noviembre de 2024.",
-      "why": "ONE vagon, drawn once per carriageway — both decks read \"Vagon 1\" and the sheet prints no second plate anywhere. The catalog files TWO wagons here and both of them carry services in BOTH directions, so its A/B grouping is not the platform split and cannot be reconciled with a single printed vagon; this is the Calle 161 / Av. Jimenez case, and the numbering gate stays shut on it (1 plate against 2 wagons). Stored count corrected from 3. What the sheet does settle is the shape, and the catalog agrees with it independently: the chips drawn above the top deck are exactly the services the direction plan calls norte (8 to Terminal, B11, B16, B18) and those below the bottom deck are exactly the sur ones (8 to Guatoque, G11, K16, L18). B55 and D55 are in the catalog but not on this sheet; they list under the drawing. NO DIVIDER is recorded: unlike Calle 75 and Av. Chile the sheet draws no band between the decks at all, only a blank callout box, so what separates them is not answered and the drawing claims nothing.",
+      "why": "ONE vagon, drawn once per carriageway — both decks read \"Vagon 1\" and the sheet prints no second plate anywhere. The catalog files TWO wagons here and both of them carry services in BOTH directions, so its A/B grouping is not the platform split and cannot be reconciled with a single printed vagon; this is the Calle 161 / Av. Jimenez case, and the numbering gate stays shut on it (1 plate against 2 wagons). Stored count corrected from 3. What the sheet does settle is the shape, and the catalog agrees with it independently: the chips drawn above the top deck are exactly the services the direction plan calls norte (8 to Terminal, B11, B16, B18) and those below the bottom deck are exactly the sur ones (8 to Guatoque, G11, K16, L18). B55 and D55 are in the catalog but not on this sheet; they list under the drawing. The DIVIDER is a green median, and it is the one on file with the weakest provenance. The sheet draws no band between the decks at all, only a blank callout box. It was answered from satellite imagery supplied by the maintainer, which shows the two platforms separated by a wide landscaped strip of grass and mature trees, with the Autopista Norte carriageways OUTSIDE both of them — which is also why the sheet puts chips only on the outer edge of each deck. The maintainer has explicitly NOT been to this station, so unlike every other divider here this one is read off a picture rather than answered by someone who has stood there. Treat it as the weakest claim in the set.",
       "rows": [
         {
           "offset": 0,
@@ -987,7 +991,8 @@
             }
           ]
         }
-      ]
+      ],
+      "divider": "separador"
     },
     "TM0116": {
       "source": "Plano de ubicacion, Estacion Biblioteca, version noviembre de 2024.",
@@ -1126,6 +1131,21 @@
         }
       ],
       "divider": "ciclorruta"
+    }
+  },
+  "printed": {
+    "TM0069": {
+      "A": "1",
+      "B": "2",
+      "C": "3",
+      "D": "4",
+      "E": "5",
+      "F": "6"
+    },
+    "TM0013": {
+      "A": "1",
+      "D": "4",
+      "E": "5"
     }
   }
 }

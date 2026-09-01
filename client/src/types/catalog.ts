@@ -54,7 +54,7 @@ export interface CatalogStation {
     /** What physically separates the two platforms, where someone has checked —
      *  a busway, a ciclorruta or a caño. Absent means nobody has, and the
      *  drawing then separates them without naming what lies between. */
-    divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren';
+    divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador';
     rows: Array<{
       /** Stagger, in vagón columns, for a platform that does not line up with
        *  the one above it. */

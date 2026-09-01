@@ -2527,6 +2527,25 @@ body.sidebar-collapsed .sidebar-fab {
     );
 }
 
+/* A green median. Calle 187 is the only one, and the only divider in the set
+   read off satellite imagery rather than answered by someone who has been
+   there — grass and trees, with the carriageways outside both platforms. */
+.pvg-divider-separador {
+  color: var(--text-tertiary);
+}
+
+.pvg-divider-separador::before,
+.pvg-divider-separador::after {
+  background: repeating-linear-gradient(
+    to right,
+    var(--tm-green, #7AB929) 0,
+    var(--tm-green, #7AB929) calc(3px * var(--tm-scale, 1)),
+    transparent calc(3px * var(--tm-scale, 1)),
+    transparent calc(9px * var(--tm-scale, 1))
+  );
+  opacity: 0.55;
+}
+
 /* ── The corridor, named once at each edge ───────────────────────────────
    The sheet prints the corridor along the top and bottom of the drawing, not
    on every segment. Hoisted here on the same condition: only when every vagón

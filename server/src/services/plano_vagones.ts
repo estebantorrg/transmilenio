@@ -7,14 +7,19 @@
  * official planos for Sevillana, León XIII, Bosa, General Santander, Calle 40
  * Sur, San Mateo and — on four vagones each — Granja-Carrera 77 and Suba-TV 91.
  *
- * It is NOT universal. It fails exactly where the catalog groups platforms
- * differently from the signage: Calle 161 (catalog 2 wagons, plano prints 4, so
- * catalog `A` mixes printed vagones 1 and 3) and Av. Jiménez (catalog 5, plano
- * prints 3). Both are caught by comparing the catalog's wagon count against the
- * plate count counted off each plano and committed to `data/plano_vagones.json`
- * — a predicate that agreed with ground truth on 9 of the 10 stations checked,
- * and whose one miss errs toward silence. 93 of 139 stations get a number, 46
- * fall back to a neutral label.
+ * It is NOT universal. It fails where the catalog groups platforms differently
+ * from the signage: Calle 161 files 4 printed vagones under 2 wagons, so its
+ * `A` mixes printed vagones 1 and 3. Most such cases are caught by comparing
+ * the catalog's wagon count against the plate count counted off each plano and
+ * committed to `data/plano_vagones.json`.
+ *
+ * That comparison is a PROXY, and Av. Jiménez is where it fails silently: five
+ * wagons, five printed vagones across its two sheets, and the mapping still is
+ * not one-to-one, because its wagons B and C are split by DIRECTION rather than
+ * by platform and each spans two vagones. Equal counts would have passed it and
+ * printed a wrong platform. `printed` in the same file is the answer for
+ * stations like that — the mapping read off the sheet, which outranks the
+ * counts wherever it exists.
  *
  * Sending a rider to "Vagón 1" when the sign says 3 is a real wrong answer, so
  * where the counts disagree no number is published at all. Resolved here rather
@@ -81,13 +86,14 @@ export interface PlanoLayout {
    * Absent where nobody has checked: the drawing then separates the platforms
    * without naming what lies between them.
    */
-  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren';
+  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador';
 }
 
 const PLANO_FILE: {
   counts?: Record<string, number>;
   wagons?: Record<string, Record<string, string>>;
   layouts?: Record<string, PlanoLayout>;
+  printed?: Record<string, Record<string, string>>;
 } = (() => {
   try {
     return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_vagones.json'), 'utf-8'));
@@ -164,6 +170,24 @@ export function plateWagon(stationCode: unknown, codigo: unknown): string | unde
 }
 
 /**
+ * Wagon letter → the vagón number that wagon actually boards, read off the
+ * sheet, for the stations where the A→1 arithmetic is not the answer.
+ *
+ * The count gate below is a PROXY: equal counts are taken as evidence that the
+ * catalog's letters and the station's plates line up in order. Usually they do.
+ * Av. Jiménez is the case that proves the proxy can pass and still be wrong —
+ * five wagons, five printed vagones, and the mapping is not one-to-one. Its
+ * wagons B and C each carry half of Vagón 2 and half of Vagón 3, split by
+ * DIRECTION rather than by platform: C holds everything northbound across both,
+ * B everything southbound. So counting alone would print "Vagón 2" for a wagon
+ * whose riders are standing at Vagón 3 half the time.
+ *
+ * Where an entry exists here it is the answer and the counts are not consulted.
+ * A wagon that straddles two vagones is simply left out, and takes no number.
+ */
+const PLANO_PRINTED: Record<string, Record<string, string>> = PLANO_FILE.printed ?? {};
+
+/**
  * Wagon key → the number printed on that platform's sign, for the keys where it
  * can be trusted. Returns `undefined` when nothing can be published, so the
  * field simply doesn't ship rather than shipping an empty object.
@@ -177,7 +201,12 @@ export function printedVagonLabels(
   wagonKeys: string[],
   letteredWagons: number
 ): Record<string, string> | undefined {
-  const plates = PLANO_VAGONES[String(stationCode).toUpperCase()];
+  const code = String(stationCode).toUpperCase();
+  const plates = PLANO_VAGONES[code];
+  // An answered mapping outranks the count, in both directions: it numbers a
+  // wagon the counts would have refused, and it withholds one the counts would
+  // have got wrong.
+  const printed = PLANO_PRINTED[code];
   const labels: Record<string, string> = {};
 
   for (const key of wagonKeys) {
@@ -185,6 +214,10 @@ export function printedVagonLabels(
     if (k === '0') continue;
     if (!/^[A-Z]$/.test(k)) {
       labels[key] = key; // `T3` and numeric keys are already as-printed
+      continue;
+    }
+    if (printed) {
+      if (printed[k]) labels[key] = printed[k];
       continue;
     }
     if (plates && plates === letteredWagons) labels[key] = String(k.charCodeAt(0) - 64);
