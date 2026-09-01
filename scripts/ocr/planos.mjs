@@ -80,7 +80,7 @@ const SETTLED = new Set([
   'TM0002', 'TM0016', 'TM0018', 'TM0019', 'TM0024', 'TM0026', 'TM0027',
   'TM0028', 'TM0031', 'TM0036', 'TM0046', 'TM0052', 'TM0059', 'TM0061',
   'TM0093', 'TM0103', 'TM0121', 'TM0122', 'TM0132', 'TM0137', 'TM0139',
-  'TM0143', 'TM90009', 'TM90010', 'TM90011',
+  'TM0143', 'TM0054', 'TM0111', 'TM90009', 'TM90010', 'TM90011',
 ]);
 
 /**
@@ -194,8 +194,8 @@ async function deckRegions(page, file) {
     const cols = [];
     for (const d of out.sort((a, b) => a.x - b.x)) {
       const c = cols.find((k) => Math.abs(k.x - d.x) <= 12 && Math.abs(k.w - d.w) <= 20);
-      if (c) c.parts++;
-      else cols.push({ x: d.x, w: d.w, parts: 1 });
+      if (c) { c.parts++; c.y0 = Math.min(c.y0, d.y); c.y1 = Math.max(c.y1, d.y + d.h); }
+      else cols.push({ x: d.x, w: d.w, y0: d.y, y1: d.y + d.h, parts: 1 });
     }
     return cols;
   }, { b64 });
@@ -366,7 +366,7 @@ for (const m of list) {
   try {
     const file = await imageFor(m);
     const { blobs, height } = await yellowBlobs(page, file);
-    const decks = await deckRegions(page, file);
+    const allDecks = await deckRegions(page, file);
     const plates = platesOf(blobs, height);
     const rows = rowsOf(plates, height);
     const aligned = rowsAligned(rows);
@@ -396,6 +396,19 @@ for (const m of list) {
     const pool = (station?.wagons?.['0'] ?? []).filter(
       (r) => r.tipoServicio === 'TRONCAL' || r.tipoServicio === 'PADRON'
     ).length;
+
+    // Only decks the platform actually occupies. A sheet draws its zonal
+    // arrival bays in the same pale grey — Granja's `5-1 Suba-Rincón` strip
+    // above and `5-4 Florida` below, Calle 40 Sur's `Llegada de Pasajeros` —
+    // and counting those made two ordinary stations look like they had a
+    // platform nobody had labelled. The plates say where the platform band is,
+    // so a slab that does not reach it is not part of it.
+    const band = plates.length
+      ? { y0: Math.min(...plates.map((p) => p.y)), y1: Math.max(...plates.map((p) => p.y + p.h)) }
+      : null;
+    const decks = band
+      ? allDecks.filter((d) => d.y0 <= band.y1 && d.y1 >= band.y0)
+      : allDecks;
 
     const { count, sure } = confidence(decks.length, printed);
     const flags = [];
