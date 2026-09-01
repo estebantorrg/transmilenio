@@ -262,7 +262,7 @@ function buildStationLayoutHtml(
           `<div class="pvg-deck">` +
           `<span class="pvg-doors" aria-hidden="true"></span>` +
           `<div class="pvg-plate"><span class="pvg-name">Vagón ${escapeHTML(vagon.vagon)}</span>` +
-          `<span class="pvg-sub">${count}</span></div>` +
+          `<span class="pvg-sub" data-n="${count}">${count}</span></div>` +
           `<span class="pvg-doors" aria-hidden="true"></span>` +
           `</div>`;
         return (
@@ -309,6 +309,7 @@ function buildStationLayoutHtml(
     busway: 'calzada',
     ciclorruta: 'ciclorruta',
     cano: 'caño',
+    tren: 'vía férrea',
   };
   const label = layout.divider ? DIVIDERS[layout.divider] : '';
   const divider =
@@ -475,7 +476,7 @@ function buildStationPlanoHtml(
     const deck =
       `<div class="pvg-deck">` +
       `<span class="pvg-doors" aria-hidden="true"></span>` +
-      `<div class="pvg-plate"><span class="pvg-name">${name}</span><span class="pvg-sub">${count}</span></div>` +
+      `<div class="pvg-plate"><span class="pvg-name">${name}</span><span class="pvg-sub" data-n="${count}">${count}</span></div>` +
       `<span class="pvg-doors" aria-hidden="true"></span>` +
       `</div>`;
     return (
@@ -873,8 +874,18 @@ export function getStationPageData(code: string): StationPageData | null {
     // above a drawing of four. A page must not contradict itself about the
     // station it is describing, and between the catalog's grouping and the sign
     // on the platform, the sign is what the rider is standing in front of.
+    // DISTINCT vagón numbers, not drawn boxes. Two shapes are drawn as two rows
+    // and they mean opposite things: Gobernación's rows are four different
+    // vagones (2 and 1 up, 4 and 3 down), while NQS Calle 75 and Av. Chile draw
+    // the SAME vagones once per carriageway — both their rows read "Vagón 2,
+    // Vagón 1", because one vagón spans the railway with a face on each side.
+    // Counting boxes would call Av. Chile a six-vagón station; it has three.
     platformCount: station.planoLayout
-      ? (station.planoLayout.rows ?? []).reduce((n, row) => n + (row.vagones?.length ?? 0), 0)
+      ? new Set(
+          (station.planoLayout.rows ?? []).flatMap((row) =>
+            (row.vagones ?? []).map((v) => String(v.vagon))
+          )
+        ).size
       : Object.keys(wagons).filter((key) => key !== '0').length,
     nodes: platforms.map((p) => p.stationNode).filter(Boolean),
     wifi: feature?.attributes.componente_wifi === 'SI',

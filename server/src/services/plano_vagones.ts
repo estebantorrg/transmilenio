@@ -81,7 +81,7 @@ export interface PlanoLayout {
    * Absent where nobody has checked: the drawing then separates the platforms
    * without naming what lies between them.
    */
-  divider?: 'busway' | 'ciclorruta' | 'cano';
+  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren';
 }
 
 const PLANO_FILE: {

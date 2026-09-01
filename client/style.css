@@ -2461,7 +2461,8 @@ body.sidebar-collapsed .sidebar-fab {
 
    It is NOT always a busway, which is what this drawing used to call every
    one of them on no evidence. El Tiempo, AV. Rojas and Tygua are split by a
-   ciclorruta; Guatoque by a caño, an open water channel. Each is named only
+   ciclorruta; Guatoque by a caño, an open water channel; La Castellana, NQS
+   Calle 75 and Av. Chile by the railway down the NQS. Each is named only
    where someone has checked, and an unchecked station gets `-plain`: a divider
    that separates without claiming what it is. */
 .pvg-divider {
@@ -2500,6 +2501,30 @@ body.sidebar-collapsed .sidebar-fab {
 .pvg-divider-cano::after {
   background: var(--tm-blue);
   opacity: 0.5;
+}
+
+/* Train tracks. La Castellana, NQS Calle 75 and Av. Chile sit either side of
+   the railway that runs down the NQS, so the sheet's grey band between their
+   platforms is a rail corridor, not a road. Drawn as a solid rail pair rather
+   than the dashed carriageway, because it is not something a rider crosses at
+   all — the two platforms are reached by separate entrances. */
+.pvg-divider-tren {
+  color: var(--text-secondary);
+}
+
+.pvg-divider-tren::before,
+.pvg-divider-tren::after {
+  height: calc(5px * var(--tm-scale, 1));
+  background:
+    linear-gradient(var(--border-card), var(--border-card)) top / 100% 1.5px no-repeat,
+    linear-gradient(var(--border-card), var(--border-card)) bottom / 100% 1.5px no-repeat,
+    repeating-linear-gradient(
+      to right,
+      var(--border-medium) 0,
+      var(--border-medium) calc(2px * var(--tm-scale, 1)),
+      transparent calc(2px * var(--tm-scale, 1)),
+      transparent calc(7px * var(--tm-scale, 1))
+    );
 }
 
 /* ── The corridor, named once at each edge ───────────────────────────────
@@ -5335,6 +5360,12 @@ body.native-app .route-detail-close:active {
    already does. */
 .station-plano .pvg-sub::after {
   content: ' servicios';
+}
+
+/* One service is "1 servicio". The plural lived in CSS, so every plate with a
+   single service read "1 servicios" — La Castellana printed it twice. */
+.station-plano .pvg-sub[data-n="1"]::after {
+  content: ' servicio';
 }
 
 .station-services {
