@@ -2546,6 +2546,28 @@ body.sidebar-collapsed .sidebar-fab {
   opacity: 0.55;
 }
 
+/* A pedestrian tunnel. The only divider here that is a CONNECTION rather
+   than a barrier: at Ricaurte the two halves are different troncals and the
+   tunnel is how a rider gets between them, so it is drawn as a continuous
+   line rather than a broken one. Av. Jimenez has a tunnel too and does not
+   get this: its sheet marks it closed. */
+.pvg-divider-tunel {
+  color: var(--text-secondary);
+}
+
+.pvg-divider-tunel::before,
+.pvg-divider-tunel::after {
+  background: var(--border-card);
+  opacity: 0.75;
+}
+
+/* Each half of a two-troncal station names its own corridor, so the labels
+   sit tighter to their own row than a single shared pair would. */
+.pvg-row + .pvg-axis-b,
+.pvg-axis-a + .pvg-row {
+  margin-top: calc(1px * var(--tm-scale, 1));
+}
+
 /* ── The corridor, named once at each edge ───────────────────────────────
    The sheet prints the corridor along the top and bottom of the drawing, not
    on every segment. Hoisted here on the same condition: only when every vagón

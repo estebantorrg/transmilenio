@@ -1131,6 +1131,207 @@
         }
       ],
       "divider": "ciclorruta"
+    },
+    "TM0069": {
+      "source": "Dos planos: \"E | Estacion Ricaurte\" (NQS Central, diciembre 2025) y \"F | Estacion Ricaurte\" (Americas, agosto 2026).",
+      "why": "Ricaurte is TWO stations the catalog files as one. Sheet E prints Vagon 3, 2, 1 on the NQS Central platform; sheet F prints Vagon 4, 5, 6 on the Americas platform; they are joined by a pedestrian tunnel and by nothing else. Drawing them merged, sharing one pair of direction labels, told half the station the other half's directions — vagones 1-3 face AutoNorte/Suba/Calle 80/NQS Central against Caracas Sur/Carrera 10/NQS Sur, while vagones 4-6 face Americas/AV. Ciudad de Cali against Suba/Caracas/Carrera 7/Eje Ambiental. Each row now names its own troncal. The six vagones map one-to-one onto the six catalog wagons, service for service and edge for edge, and the direction plan agrees independently on every one. Sheet E prints G43 and G48 where the catalog files S43 and S48, both to San Mateo — the Soacha re-lettering.",
+      "rows": [
+        {
+          "offset": 0,
+          "eje": {
+            "arriba": "NQS Central · norte",
+            "abajo": "NQS Central · sur"
+          },
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "E48",
+                "K43"
+              ],
+              "abajo": [
+                "G11",
+                "G12"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "C25",
+                "D21"
+              ],
+              "abajo": [
+                "S43",
+                "S48"
+              ],
+              "destinos": {
+                "4": "Héroes"
+              }
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B11",
+                "B12"
+              ],
+              "abajo": [
+                "4",
+                "H21",
+                "L25"
+              ],
+              "destinos": {
+                "4": "Portal Sur"
+              }
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "eje": {
+            "arriba": "Américas · occidente",
+            "abajo": "Américas · oriente"
+          },
+          "vagones": [
+            {
+              "vagon": "4",
+              "arriba": [
+                "F51",
+                "F60"
+              ],
+              "abajo": [
+                "A60",
+                "M51"
+              ]
+            },
+            {
+              "vagon": "5",
+              "arriba": [
+                "F19",
+                "F23"
+              ],
+              "abajo": [
+                "C19",
+                "J23"
+              ]
+            },
+            {
+              "vagon": "6",
+              "arriba": [
+                "5",
+                "Z61"
+              ],
+              "abajo": [
+                "5",
+                "A61"
+              ],
+              "destinos": {
+                "5": "Portal Américas"
+              },
+              "destinosAbajo": {
+                "5": "Av. Jiménez"
+              }
+            }
+          ]
+        }
+      ],
+      "divider": "tunel"
+    },
+    "TM0013": {
+      "source": "Dos planos: \"A | Estacion temporal Av. Jimenez\" (Caracas, enero 2026) y \"F | Estacion Av. Jimenez\" (Americas, enero 2026).",
+      "why": "Av. Jimenez is TWO stations the catalog files as one, and its halves do NOT carry the same services: the Caracas half (Vagon 3, 2, 1) and the Americas half (Vagon 4, 5) share only route 5, which terminates here. Each row names its own troncal for that reason. THE DIVIDER IS DELIBERATELY UNNAMED. There is a pedestrian tunnel between the halves and sheet F strikes it through in red, CIERRE, closed — so it is not drawn. Naming a crossing nobody can use is worse than naming nothing, and the maintainer settled it: no reason to display something people cannot cross. Ricaurte, whose tunnel is open, does get the label. On the numbering see printed_why: wagons B and C each straddle Vagon 2 and Vagon 3 split by direction, C northbound and B southbound, so only A, D and E take a number. Route 5 is drawn on BOTH halves because both sheets print it — it arrives along Americas and terminates on the Caracas platform.",
+      "rows": [
+        {
+          "offset": 0,
+          "eje": {
+            "arriba": "Caracas · norte",
+            "abajo": "Caracas · sur"
+          },
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "3",
+                "5",
+                "8"
+              ],
+              "abajo": [
+                "3",
+                "5",
+                "8"
+              ],
+              "destinos": {
+                "3": "Corferias",
+                "5": "Portal Américas",
+                "8": "Terminal"
+              },
+              "destinosAbajo": {
+                "3": "Portal Tunal",
+                "5": "Av. Jiménez",
+                "8": "Guatoque"
+              }
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B18",
+                "B27",
+                "B75"
+              ],
+              "abajo": [
+                "H54",
+                "H75",
+                "H76"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C15",
+                "J76",
+                "K54"
+              ],
+              "abajo": [
+                "H15",
+                "H27",
+                "L18"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "eje": {
+            "arriba": "Américas · occidente",
+            "abajo": "Américas · oriente"
+          },
+          "vagones": [
+            {
+              "vagon": "4",
+              "arriba": [
+                "F23",
+                "F51"
+              ],
+              "abajo": [
+                "J70"
+              ]
+            },
+            {
+              "vagon": "5",
+              "arriba": [
+                "5"
+              ],
+              "abajo": [
+                "J23",
+                "M51"
+              ],
+              "destinos": {
+                "5": "Portal Américas"
+              }
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {

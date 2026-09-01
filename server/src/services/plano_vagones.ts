@@ -62,6 +62,21 @@ export interface PlanoLayoutVagon {
    * picking by array order would be a coin toss printed as a fact (§1).
    */
   destinos?: Record<string, string>;
+  /**
+   * `destinos` for the LOWER edge, where one vagón carries the same código on
+   * both of its edges bound for different places.
+   *
+   * Ricaurte's Vagón 6 has route `5` above and below: `5` to Portal Américas on
+   * the Américas side, `5` to Av. Jiménez on the other. One `destinos` names one
+   * of them and would print it on both edges. Normally the direction filter
+   * separates such a pair on its own, but not here — that half of the station
+   * runs occidente↔oriente while the station's corridor is norte↔sur, so
+   * neither variant matches either side, the filter correctly declines to drop
+   * anything, and `destinos` then picks the same one twice.
+   *
+   * Falls back to `destinos` when absent, so every existing layout is unchanged.
+   */
+  destinosAbajo?: Record<string, string>;
 }
 /** One platform: a run of vagones, in the order the sheet draws them. */
 export interface PlanoLayoutRow {
@@ -69,6 +84,22 @@ export interface PlanoLayoutRow {
    *  between two platforms that do not line up, as the sheet draws it. */
   offset: number;
   vagones: PlanoLayoutVagon[];
+  /**
+   * What this row's two long edges face, where the row does not share the
+   * station's corridor.
+   *
+   * Most layouts are two platforms of ONE troncal, so the drawing names it once
+   * around the whole thing. Ricaurte and Av. Jiménez are not: each is two
+   * platform groups on DIFFERENT troncals, published as two separate sheets and
+   * joined underground. Ricaurte's vagones 1–3 face AutoNorte / Suba / Calle 80
+   * / NQS Central against Caracas Sur / Carrera 10 / NQS Sur, while its vagones
+   * 4–6 face Américas / AV. Ciudad de Cali against Suba / Caracas / Carrera 7 /
+   * Eje Ambiental. A single shared pair of labels would tell half the station
+   * the other half's directions, which is worse than saying nothing.
+   *
+   * Set it on a row and the labels are drawn around that row alone.
+   */
+  eje?: { arriba: string; abajo: string };
 }
 export interface PlanoLayout {
   rows: PlanoLayoutRow[];
@@ -86,7 +117,7 @@ export interface PlanoLayout {
    * Absent where nobody has checked: the drawing then separates the platforms
    * without naming what lies between them.
    */
-  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador';
+  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador' | 'tunel';
 }
 
 const PLANO_FILE: {

@@ -54,11 +54,15 @@ export interface CatalogStation {
     /** What physically separates the two platforms, where someone has checked —
      *  a busway, a ciclorruta or a caño. Absent means nobody has, and the
      *  drawing then separates them without naming what lies between. */
-    divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador';
+    divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador' | 'tunel';
     rows: Array<{
       /** Stagger, in vagón columns, for a platform that does not line up with
        *  the one above it. */
       offset: number;
+      /** What this row's two edges face, for a station whose platforms are on
+       *  DIFFERENT troncals (Ricaurte, Av. Jiménez) and so cannot share one pair
+       *  of direction labels. Absent on every single-corridor station. */
+      eje?: { arriba: string; abajo: string };
       vagones: Array<{
         vagon: string;
         /** Códigos on each long edge, per vagón: one vagón can serve a single
@@ -68,6 +72,10 @@ export interface CatalogStation {
         /** código → the destination whose variant boards this vagón, where the
          *  catalog files that código here more than once. */
         destinos?: Record<string, string>;
+        /** `destinos` for the LOWER edge only, where one vagón carries the same
+         *  código on both edges bound for different places. Falls back to
+         *  `destinos`. */
+        destinosAbajo?: Record<string, string>;
       }>;
     }>;
   };

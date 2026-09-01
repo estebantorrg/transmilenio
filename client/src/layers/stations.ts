@@ -86,7 +86,10 @@ function destinationKey(nombre: string | null | undefined): string {
   return normalizeStationName(String(nombre ?? '').replace(/^\s*P\.\s*/i, 'PORTAL '));
 }
 
-function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
+function groupCatalogRoutesByDirection(
+  routes: CatalogRoute[],
+  byCodeOnly = false
+): Array<{ code: string; primary: CatalogRoute; routes: CatalogRoute[] }> {
   const groups = new Map<string, { code: string; primary: CatalogRoute; routes: CatalogRoute[] }>();
 
   for (const route of routes) {
@@ -97,7 +100,15 @@ function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: st
     // in both directions — common for rutas fáciles like "1" → Universidades /
     // Portal Eldorado — must keep each end as its own clickable tag instead of
     // collapsing into a single tag that can only reach one direction.
-    const key = `${codeKey}|${destinationKey(route.nombre)}`;
+    // One edge of one plate prints ONE chip per código, whatever the catalog
+    // files behind it, so a drawing copied from a sheet keys on the código
+    // alone. Ricaurte's Vagón 5 carries F19 and F23 each in two variants —
+    // full length to Portal Américas and a short turn ending at Banderas —
+    // and keyed per destination that plate read "F19 F19 F23 F23", four
+    // chips under a sign that prints two. Collapsed, the tag links to the
+    // código and names every variant in its tooltip, which is the honest
+    // answer where the plate does not say which one you are boarding.
+    const key = byCodeOnly ? codeKey : `${codeKey}|${destinationKey(route.nombre)}`;
 
     const group = groups.get(key);
     if (group) {
@@ -113,8 +124,8 @@ function groupCatalogRoutesByDirection(routes: CatalogRoute[]): Array<{ code: st
   );
 }
 
-function formatRouteTags(routes: CatalogRoute[], limit = 28): string {
-  const groups = groupCatalogRoutesByDirection(routes);
+function formatRouteTags(routes: CatalogRoute[], limit = 28, byCodeOnly = false): string {
+  const groups = groupCatalogRoutesByDirection(routes, byCodeOnly);
   const visibleGroups = groups.slice(0, limit);
   const hiddenCount = groups.length - visibleGroups.length;
   const tags = visibleGroups
@@ -228,7 +239,12 @@ function buildStationLayoutHtml(
         // the same código twice on this edge, the sheet's chip names one of them
         // and `destinos` says which — two chips under one sign would claim two
         // boardable services where a rider sees one.
-        const wanted = vagon.destinos ?? {};
+        // The lower edge may name its own variants: Ricaurte's Vagon 6 carries
+        // route 5 on both edges, bound for two different places, and that half
+        // of the station runs east-west while the corridor runs north-south, so
+        // the direction filter cannot tell the two apart.
+        const wantedFor = (side: 'a' | 'b'): Record<string, string> =>
+          (side === 'b' ? vagon.destinosAbajo ?? vagon.destinos : vagon.destinos) ?? {};
         const membersFor = (codigos: string[] | undefined, side: 'a' | 'b'): CatalogRoute[] =>
           (codigos ?? []).flatMap((codigo) => {
             const all = routesByCode.get(codigo.toUpperCase()) ?? [];
@@ -241,6 +257,7 @@ function buildStationLayoutHtml(
             // was copied from.
             const byDirection = all.filter((r) => boardsOn(r, side));
             const variants = byDirection.length > 0 ? byDirection : all;
+            const wanted = wantedFor(side);
             const destino = wanted[codigo] ?? wanted[codigo.toUpperCase()];
             if (!destino) return variants;
             const picked = variants.filter(
@@ -253,10 +270,11 @@ function buildStationLayoutHtml(
         const below = membersFor(vagon.abajo, 'b');
         if (above.length === 0 && below.length === 0) return '';
         const count =
-          groupCatalogRoutesByDirection(above).length + groupCatalogRoutesByDirection(below).length;
+          groupCatalogRoutesByDirection(above, true).length +
+          groupCatalogRoutesByDirection(below, true).length;
         const tags = (members: CatalogRoute[]): string =>
           members.length
-            ? `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members)}</div></div>`
+            ? `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members, 28, true)}</div></div>`
             : '';
         const deck =
           `<div class="pvg-deck">` +
@@ -274,28 +292,38 @@ function buildStationLayoutHtml(
         );
       })
       .filter(Boolean);
-    if (decks.length === 0) return '';
+    if (decks.length === 0) return null;
+    // Adjacent vagones are NOT one continuous platform. Every sheet draws a
+    // darker block between them carrying the pedestrian mark — the crossing
+    // a rider walks through to reach the next vagón — and Guatoque makes the
+    // cost of leaving it out plain: drawn flush, its Vagón 4 and Vagón 3 read
+    // as one long deck, when the sheet draws two with a way through between.
+    // The bar drawing has always joined its columns with this; the layout
+    // drawing never did.
+    const crossing =
+      '<div class="pvg-gap" aria-hidden="true"><div class="pvg-gap-deck"><span class="pvg-gap-mark"></span></div></div>';
     // The stagger, in vagón columns. Drawing the two platforms flush would say
     // they face each other across the road, which at a staggered station is the
     // one thing they do not do.
     const offset = Number(row.offset) || 0;
     const style = offset > 0 ? ` style="--pvg-offset:${offset}"` : '';
-    return `<div class="pvg-row"${style}><div class="popup-plano-cols">${decks.join('')}</div></div>`;
+    return {
+      row,
+      html: `<div class="pvg-row"${style}><div class="popup-plano-cols">${decks.join(crossing)}</div></div>`,
+      usesA: row.vagones.some((v) => (v.arriba ?? []).length > 0),
+      usesB: row.vagones.some((v) => (v.abajo ?? []).length > 0),
+    };
   });
 
-  const drawn = rows.filter(Boolean);
+  const drawn = rows.filter((r): r is NonNullable<typeof r> => r !== null);
   if (drawn.length === 0) return null;
 
   // The corridor, named once at each long edge, exactly as the bar does it and
   // as the sheet does it. A layout's sides ARE the corridor's two directions —
   // that is what `arriba`/`abajo` mean and what `boardsOn` filters on — so the
   // labels are the same two words, and drawn only where a side carries chips.
-  const used = (side: 'a' | 'b'): boolean =>
-    (layout.rows ?? []).some((r) =>
-      (r.vagones ?? []).some((v) => ((side === 'a' ? v.arriba : v.abajo) ?? []).length > 0)
-    );
-  const axis = (name: string | undefined, side: 'a' | 'b'): string =>
-    name && used(side)
+  const axis = (name: string | undefined, side: 'a' | 'b', show: boolean): string =>
+    name && show
       ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
       : '';
 
@@ -311,6 +339,12 @@ function buildStationLayoutHtml(
     cano: 'caño',
     tren: 'vía férrea',
     separador: 'separador verde',
+    // The one divider that is a CONNECTION rather than a barrier: at Ricaurte
+    // the two halves are different troncals and the tunnel is how you get
+    // between them. Av. Jiménez has a tunnel too and does NOT get this label —
+    // its sheet marks it CIERRE, closed, and drawing a crossing nobody can use
+    // is worse than drawing nothing.
+    tunel: 'túnel peatonal',
   };
   const label = layout.divider ? DIVIDERS[layout.divider] : '';
   const divider =
@@ -318,12 +352,28 @@ function buildStationLayoutHtml(
     (label ? `<span class="pvg-divider-name">${escapeHTML(label)}</span>` : '') +
     `</div>`;
 
+  // A station on ONE corridor names it once, top and bottom, around the whole
+  // drawing. Ricaurte and Av. Jiménez are not on one corridor: each is two
+  // platform groups on DIFFERENT troncals, and Ricaurte's northern half runs
+  // AutoNorte↔NQS Sur while its other half runs Américas↔Eje Ambiental. One
+  // shared pair of labels would tell half the station the other half's
+  // directions, so a row that names its own axis gets it drawn around that row
+  // alone, and the shared pair is dropped.
+  const perRow = drawn.some(({ row }) => row.eje);
+  const body = perRow
+    ? drawn
+        .map(({ row, html, usesA, usesB }) =>
+          axis(row.eje?.arriba, 'a', usesA) + html + axis(row.eje?.abajo, 'b', usesB)
+        )
+        .join(divider)
+    : axis(sentidos?.positive, 'a', drawn.some((r) => r.usesA)) +
+      drawn.map((r) => r.html).join(divider) +
+      axis(sentidos?.negative, 'b', drawn.some((r) => r.usesB));
+
   return (
     `<div class="popup-plano popup-plano-split" role="group" aria-label="Plano de la estación" tabindex="0">` +
     `<div class="popup-plano-inner">` +
-    axis(sentidos?.positive, 'a') +
-    drawn.join(divider) +
-    axis(sentidos?.negative, 'b') +
+    body +
     `</div></div>`
   );
 }
