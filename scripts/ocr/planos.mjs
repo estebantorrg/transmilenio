@@ -177,14 +177,20 @@ function platesOf(blobs, height) {
   // row of plates. Without the size test, Bicentenario's `Piso 1` label pairs
   // with the `Zona Llegada de pasajeros` banner 17px below it and the two admit
   // each other as a platform.
-  const bandOf = (b) =>
-    bars.filter((o) => Math.abs(o.y - b.y) <= tol && Math.abs(o.w - b.w) / b.w <= 0.25);
+  //
+  // Height is tested as well as width because on the AV. 1° de Mayo template a
+  // `Salida` tab sits only 15px below the plates and within 17% of their width,
+  // so width alone let it into the row and counted a fourth vagón. It is a
+  // third shorter than they are.
+  const like = (a, b) => Math.abs(a.w - b.w) / b.w <= 0.25 && Math.abs(a.h - b.h) / b.h <= 0.15;
+  const bandOf = (b) => bars.filter((o) => Math.abs(o.y - b.y) <= tol && like(o, b));
   let best = null;
   for (const seed of bars) {
     const band = bandOf(seed);
     const width = band.reduce((t, b) => t + b.w, 0) / band.length;
+    const tall = band.reduce((t, b) => t + b.h, 0) / band.length;
     if (!best || band.length > best.band.length || (band.length === best.band.length && width > best.width)) {
-      best = { band, width };
+      best = { band, width, height: tall };
     }
   }
 
@@ -195,8 +201,9 @@ function platesOf(blobs, height) {
   // platform is 14% off and comes as a pair.
   return bars
     .filter((b) => {
-      const off = Math.abs(b.w - best.width) / best.width;
-      return off <= 0.12 || (off <= 0.25 && bandOf(b).length >= 2);
+      const dw = Math.abs(b.w - best.width) / best.width;
+      const dh = Math.abs(b.h - best.height) / best.height;
+      return (dw <= 0.12 && dh <= 0.12) || (dw <= 0.25 && dh <= 0.25 && bandOf(b).length >= 2);
     })
     .sort((a, b) => a.y - b.y || a.x - b.x);
 }
