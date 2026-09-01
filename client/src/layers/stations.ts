@@ -13,7 +13,7 @@ import { showPopup } from './popup';
 import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor } from '../utils/routeColors';
-import type { MasterCatalog, CatalogRoute, CatalogPlanGroup } from '../types/catalog';
+import type { MasterCatalog, CatalogRoute, CatalogPlanGroup, CatalogStation } from '../types/catalog';
 import {
   buildStationKey,
   normalizeStationName,
@@ -28,6 +28,7 @@ import { isStationStopCode } from '../data/routeCatalog';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
+import { buildStationDetalleHtml } from './stationDetalle';
 import {
   platformForMatchMethod,
   platformStation,
@@ -60,6 +61,24 @@ function platformAllowedCodes(resolved: ResolvedCatalogStation | undefined): str
   }
   return Array.from(codes);
 }
+
+/**
+ * What a divider is called, for both drawings.
+ *
+ * `tunel` is the only one that is a CONNECTION rather than a barrier: at
+ * Ricaurte the two halves are different troncals and the tunnel is how you get
+ * between them. Av. Jiménez has one too and does NOT get the label — its sheet
+ * marks it CIERRE, closed, and drawing a crossing nobody can use is worse than
+ * drawing nothing.
+ */
+const DIVIDER_NAMES: Record<string, string> = {
+  busway: 'calzada',
+  ciclorruta: 'ciclorruta',
+  cano: 'caño',
+  tren: 'vía férrea',
+  separador: 'separador verde',
+  tunel: 'túnel peatonal',
+};
 
 const STATION_LAYERS = [
   'stations-circle',
@@ -224,7 +243,12 @@ function buildStationLayoutHtml(
   routesByCode: Map<string, CatalogRoute[]>,
   sentidoById: Map<string, string>,
   sentidos?: { positive: string; negative: string },
-  presentWagons?: Set<string>
+  presentWagons?: Set<string>,
+  /** Filled with the finished HTML of every vagón it draws, keyed by vagón
+   *  number. The detailed drawing PLACES these rather than rebuilding them:
+   *  a vagón rendered twice from two code paths is a vagón that can end up
+   *  saying two different things. */
+  cellsOut?: Map<string, string>
 ): string | null {
   // Only the half you are standing on. Ricaurte and Av. Jimenez are each TWO
   // stations under one catalog stop, and the map already resolves them to two
@@ -307,13 +331,14 @@ function buildStationLayoutHtml(
           `<span class="pvg-sub" data-n="${count}">${count}</span></div>` +
           `<span class="pvg-doors" aria-hidden="true"></span>` +
           `</div>`;
-        return (
+        const cell =
           `<section class="pvg" aria-label="Vagón ${escapeHTML(vagon.vagon)}">` +
           `<div class="pvg-side pvg-side-a">${tags(above)}</div>` +
           deck +
           `<div class="pvg-side pvg-side-b">${tags(below)}</div>` +
-          `</section>`
-        );
+          `</section>`;
+        cellsOut?.set(String(vagon.vagon), cell);
+        return cell;
       })
       .filter(Boolean);
     if (decks.length === 0) return null;
@@ -357,7 +382,8 @@ function buildStationLayoutHtml(
   // caño — an open water channel. Sending a rider across the wrong one is a
   // confident wrong answer, so an unchecked station gets a plain separator with
   // no claim attached.
-  const DIVIDERS: Record<string, string> = {
+  const DIVIDERS = DIVIDER_NAMES;
+  const _unusedDividers: Record<string, string> = {
     busway: 'calzada',
     ciclorruta: 'ciclorruta',
     cano: 'caño',
@@ -646,6 +672,11 @@ function stationTunnelHtml(codigo: string | undefined): string {
 }
 
 export interface StationWagonView {
+  /** True when {@link plano} is the FULL station — accesses, taquillas,
+   *  torniquetes and salidas included — rather than the platforms alone. The
+   *  page prints a different note for each, because the compact note says the
+   *  drawing leaves that furniture out, and for these stations it does not. */
+  detallado: boolean;
   /** The drawn platform plan, or null where the catalog ships no plan for it. */
   plano: string | null;
   /** The labelled service sections (the lettered platforms only appear here when
@@ -667,7 +698,8 @@ export function buildStationWagonView(
   wagonPlan: Record<string, CatalogPlanGroup[]> = {},
   sentidos?: { positive: string; negative: string },
   layout?: StationPlanoLayout,
-  codigo?: string
+  codigo?: string,
+  detalle?: CatalogStation['planoDetalle']
 ): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -722,10 +754,27 @@ export function buildStationWagonView(
       for (const id of group.ids) sentidoById.set(String(id), group.sentido);
     }
   }
+  // The compact drawing is built either way: the detailed one is made of its
+  // vagones, and every station without a read sheet still needs it.
+  const cells = new Map<string, string>();
   const drawn = layout
-    ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos, presentWagons)
+    ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos, presentWagons, cells)
     : null;
-  const planoDrawing = drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  // The full station, where its sheet has been read element by element. Only
+  // the estación page asks for it — the popup is a glance, and a glance does
+  // not need to know where the taquilla is.
+  const detallado =
+    detalle && drawn
+      ? buildStationDetalleHtml({
+          detalle,
+          divider: layout?.divider,
+          dividerLabel: layout?.divider ? DIVIDER_NAMES[layout.divider] : '',
+          cell: (v) => (v ? cells.get(String(v)) ?? '' : ''),
+          ejeArriba: sentidos?.positive,
+          ejeAbajo: sentidos?.negative,
+        })
+      : null;
+  const planoDrawing = detallado ?? drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
   // Under the drawing rather than inside it, so it reads the same whether the
   // station was drawn from a sheet or from the catalog's letters — Las Aguas
   // has no layout at all and still has a tunnel to Universidades.
@@ -810,7 +859,7 @@ export function buildStationWagonView(
     sections.flatMap(({ routes }) => routes)
   ).length;
 
-  return { plano, sections: html, serviceCount, sectionCount };
+  return { plano, detallado: detallado !== null, sections: html, serviceCount, sectionCount };
 }
 
 /**
@@ -964,6 +1013,7 @@ export interface StationPageData {
   corridorSentidos?: { positive: string; negative: string };
   /** The station's drawn shape, where the catalog's wagons cannot express it. */
   planoLayout?: StationPlanoLayout;
+  planoDetalle?: import('../types/catalog').CatalogStation['planoDetalle'];
   coordinate: [number, number];
   wagons: ResolvedCatalogWagons;
   vagonLabels: Record<string, string>;
@@ -1026,6 +1076,7 @@ export function getStationPageData(code: string): StationPageData | null {
     corridorLetter: station.corridor?.letra || '',
     corridorSentidos: station.corridor?.sentidos,
     planoLayout: station.planoLayout,
+    planoDetalle: station.planoDetalle,
     coordinate: [lng, lat],
     wagons,
     vagonLabels: station.vagonLabels ?? {},

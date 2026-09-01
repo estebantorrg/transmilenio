@@ -34,7 +34,10 @@
     "printed_why": "Av. Jimenez is the case that proves the proxy can pass and still be wrong. FIVE catalog wagons, FIVE printed vagones, and the mapping is not one-to-one: wagon A is Vagon 1, D is Vagon 4 and E is Vagon 5, but B and C each carry half of Vagon 2 and half of Vagon 3, split by DIRECTION rather than by platform — C holds everything northbound across both vagones, B everything southbound. Counting alone would print \"Vagon 2\" for a wagon whose riders are standing at Vagon 3 half the time, and the counts would have agreed. B and C are therefore left out and take no number, while A, D and E are numbered from the sheet.",
     "the_five_missing_sheets": "The five stations whose planos never resolved from the maps API were supplied by the maintainer on 2026-09-01, and they close the two cases this dataset had written off as unreconcilable. RICAURTE and AV. JIMENEZ are each published as TWO sheets, one per troncal, joined by a pedestrian tunnel — which is exactly why no single sheet could ever match the catalog and why both were recorded as \"no sheet can reconcile this\". RICAURTE: sheet E (NQS Central, diciembre 2025) prints Vagon 3, 2, 1 and sheet F (Americas, agosto 2026) prints Vagon 4, 5, 6, six vagones against six catalog wagons, and the match is exact service for service — C is Vagon 3, B is Vagon 2, A is Vagon 1, D is Vagon 4, E is Vagon 5, F is Vagon 6. Its stored count goes 3 -> 6 and it is numbered for the first time. Sheet E prints G43 and G48 where the catalog files S43 and S48, both running to San Mateo: the same Soacha re-lettering seen at El Tiempo, Salitre El Greco, Modelia and Tygua. AV. JIMENEZ: sheet A (Estacion temporal, Caracas, enero 2026) prints Vagon 3, 2, 1 and sheet F (Americas, enero 2026) prints Vagon 4 and 5, five against five — but see printed_why, the mapping is not one-to-one. Its sheet F also marks the pedestrian tunnel to the Caracas half CIERRE (closed), so the two halves are not walkable between. TIBANICA - PRIMAVERA, LOS LAURELES and ISLANDIA each print two vagones and each CONFIRMS the count and the A->1 B->2 mapping already on file: at Tibanica wagon A is Vagon 1 (Z61 north, F63 south) and B is Vagon 2 (Z63 north, A61 south), while at Laureles and Islandia both Z services sit on Vagon 2 and F63 with A61 on Vagon 1. Nothing changed for those three; they are recorded because \"confirmed by the sheet\" and \"never checked\" are not the same state.",
     "ricaurte_jimenez_no_layout_yet": "Ricaurte and Av. Jimenez are NUMBERED from their sheets but not yet DRAWN, and the reason is the axis. Every layout on file is two platforms of ONE corridor, so the drawing names that corridor once along each long edge. These two are not that: each is two platform complexes on DIFFERENT troncals joined by a pedestrian tunnel. Ricaurte vagones 1-3 face AutoNorte/Suba/Calle 80/NQS Central against Caracas Sur/Carrera 10/NQS Sur, while vagones 4-6 face Americas/AV. Ciudad de Cali against Suba/Caracas/Carrera 7/Eje Ambiental. One shared axis pair would label half of each station with the other half's directions. Drawing them needs a per-row axis, which is a renderer change, not a data one. The full readings are in the_five_missing_sheets so no re-reading is needed when that lands. Note also for whoever does it: Av. Jimenez sheet F marks its tunnel to the Caracas half CIERRE (closed), so the two halves are NOT walkable between and a drawing must not imply they are.",
-    "rows_wagones": "A layout row may name the catalog wagons it IS. Only the two stations the catalog files as one stop while the map resolves them as two need it — Ricaurte (NQS = A,B,C; Calle 13 = D,E,F) and Av. Jimenez (Caracas = A,B,C; Calle 13 = D,E), matching the verified splits in stationCatalogResolver. A popup opened on one platform then draws only that platform. Knowing which codigos resolve is NOT enough to decide it: route 5 terminates at Av. Jimenez, the catalog files it under a Caracas wagon, and the Calle 13 sheet also prints it on Vagon 5, so the Caracas half drew a stray Vagon 5 belonging to the platform across the tunnel. The estacion page holds every wagon of the stop and so still shows both halves, each under its own troncal label."
+    "rows_wagones": "A layout row may name the catalog wagons it IS. Only the two stations the catalog files as one stop while the map resolves them as two need it — Ricaurte (NQS = A,B,C; Calle 13 = D,E,F) and Av. Jimenez (Caracas = A,B,C; Calle 13 = D,E), matching the verified splits in stationCatalogResolver. A popup opened on one platform then draws only that platform. Knowing which codigos resolve is NOT enough to decide it: route 5 terminates at Av. Jimenez, the catalog files it under a Caracas wagon, and the Calle 13 sheet also prints it on Vagon 5, so the Caracas half drew a stray Vagon 5 belonging to the platform across the tunnel. The estacion page holds every wagon of the stop and so still shows both halves, each under its own troncal label.",
+    "detalle_what": "The station as its plano de ubicacion actually draws it: not only the platforms and their services, but the furniture around them — vestibules, torniquetes, taquillas, salidas with the street they come out on, pedestrian bridges, ramps and stairs. Used ONLY by the estacion page. The popup keeps the compact drawing, because a popup is a glance and a page is the thing you study before you travel.",
+    "detalle_why": "Because the furniture answers questions the platforms cannot. Guatoque is the case that makes it plain: a cano separates its two platforms, and drawing only the platforms and the cano tells a rider there is no way across. There is — the sheet draws the cano starting AFTER a vestibule that spans both rows, and that vestibule, with its torniquetes and its Carrera 27 exit, is exactly how you get from Vagon 4 to Vagon 2. Leaving it out did not simplify the drawing, it made it say something false.",
+    "detalle_shape": "A drawing is a sequence of COLUMNS, left to right as the sheet draws them, not two independent rows: only columns can express a vestibule that spans both platforms while the cano between them does not. Column kinds: \"vestibulo\" (a full-height access block, carrying salidas and icons per fila), \"vagones\" (a platform column, naming the vagon ABOVE and the one BELOW), \"paso\" (the crossing between adjacent vagones), \"puente\" (a pedestrian bridge). A vagones column names its vagones by NUMBER and the services come from `layouts` — the services are stated once, in one place, so the two drawings cannot drift apart."
   },
   "counts": {
     "TM0001": 3,
@@ -1367,6 +1370,48 @@
       "A": "1",
       "D": "4",
       "E": "5"
+    }
+  },
+  "detalle": {
+    "TM0147": {
+      "source": "Plano de ubicacion, Estacion Guatoque - Veraguas, version noviembre de 2024.",
+      "why": "The vestibule at the west end is the whole point of drawing this station in full: the cano splits the platforms, and the sheet starts it AFTER the vestibule, which is therefore the only way between Vagon 4 and Vagon 2. It carries the Carrera 27 exit, a taquilla on each side and the torniquetes between them.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 27",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "taquilla",
+            "rampa"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "rampa"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "4",
+          "abajo": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3",
+          "abajo": "1"
+        }
+      ]
     }
   }
 }

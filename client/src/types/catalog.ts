@@ -83,6 +83,33 @@ export interface CatalogStation {
       }>;
     }>;
   };
+  /**
+   * The station as its plano actually draws it — the platforms AND the
+   * furniture around them: vestibules, torniquetes, taquillas, salidas with
+   * the street they come out on, bridges, ramps.
+   *
+   * Drawn on the estación page only. The furniture answers questions the
+   * platforms cannot: at Guatoque a caño splits the two platforms and the
+   * sheet starts it AFTER a vestibule spanning both, so that vestibule is
+   * how a rider crosses. Drawing the caño without it says there is no way.
+   *
+   * A `vagones` column names vagón NUMBERS; the services behind them come
+   * from `planoLayout`, stated once so the two drawings cannot disagree.
+   */
+  planoDetalle?: {
+    columnas: Array<
+      | {
+          t: 'vestibulo';
+          salidas?: Array<{ calle: string; hacia?: 'izq' | 'der'; fila?: 'arriba' | 'abajo' | 'ambas' }>;
+          arriba?: string[];
+          centro?: string[];
+          abajo?: string[];
+        }
+      | { t: 'vagones'; arriba?: string; abajo?: string }
+      | { t: 'paso' }
+      | { t: 'puente'; nombre?: string }
+    >;
+  };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own
    *  A/B/C grouping. Resolved server-side in `printedVagonLabels` and shipped on

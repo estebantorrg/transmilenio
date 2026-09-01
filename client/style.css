@@ -2588,6 +2588,171 @@ body.sidebar-collapsed .sidebar-fab {
   margin-top: calc(1px * var(--tm-scale, 1));
 }
 
+/* ── The full station, as its own plano draws it ─────────────────────────
+   The estación page only. COLUMNS, not rows: a vestibule spans both
+   platforms while the caño between them does not, and only a column can say
+   that. Guatoque is the station that forced it — its caño starts after the
+   vestibule, so the vestibule is how a rider crosses, and a drawing that
+   left it out said there was no way across at all. */
+.popup-plano-detalle .popup-plano-inner {
+  display: flex;
+  flex-direction: column;
+  width: max-content;
+}
+
+.pdt-grid {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+}
+
+.pdt-col {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+}
+
+/* The three bands every column shares, so a taquilla on the upper platform
+   sits at the same height as the vagón beside it. */
+.pdt-band {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pdt-band-mid {
+  height: calc(19px * var(--tm-scale, 1));
+  gap: calc(6px * var(--tm-scale, 1));
+}
+
+/* The vestibule: the access hall. Drawn as one solid block through all three
+   bands, because that is what makes it read as a place you walk through
+   rather than as two separate doors. */
+.pdt-vestibulo {
+  background: var(--surface-2, rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(3px * var(--tm-scale, 1));
+  padding: calc(4px * var(--tm-scale, 1)) calc(7px * var(--tm-scale, 1));
+  gap: calc(4px * var(--tm-scale, 1));
+}
+
+.pdt-iconos {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5px * var(--tm-scale, 1));
+  color: var(--text-secondary);
+}
+
+.pdt-icono {
+  display: inline-flex;
+  width: calc(15px * var(--tm-scale, 1));
+  height: calc(15px * var(--tm-scale, 1));
+}
+
+.pdt-icono svg { width: 100%; height: 100%; }
+
+/* A way out, and the street it comes out on. The street is the whole value:
+   every station has a "Salida", only this one has Carrera 27. */
+.pdt-salida {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--tm-scale, 1));
+  padding: calc(2px * var(--tm-scale, 1)) calc(5px * var(--tm-scale, 1));
+  border-radius: calc(2px * var(--tm-scale, 1));
+  background: var(--tm-yellow, #F5C518);
+  color: #1A1A1A;
+  font-size: calc(8px * var(--tm-scale, 1));
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.pdt-salida-der { flex-direction: row-reverse; }
+
+.pdt-salida-arrow {
+  width: 0;
+  height: 0;
+  border-top: calc(3.5px * var(--tm-scale, 1)) solid transparent;
+  border-bottom: calc(3.5px * var(--tm-scale, 1)) solid transparent;
+  border-right: calc(4px * var(--tm-scale, 1)) solid currentColor;
+}
+
+.pdt-salida-der .pdt-salida-arrow {
+  border-right: 0;
+  border-left: calc(4px * var(--tm-scale, 1)) solid currentColor;
+}
+
+.pdt-salida-txt { display: inline-flex; flex-direction: column; }
+.pdt-salida-tag { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.pdt-salida-calle { font-weight: 600; opacity: 0.85; }
+
+/* The crossing between two vagones — the same mark the compact drawing uses,
+   because it is the same thing on the sheet. */
+.pdt-paso { width: calc(26px * var(--tm-scale, 1)); }
+
+.pdt-paso .pdt-band-a,
+.pdt-paso .pdt-band-b {
+  flex: 1 1 auto;
+  background: var(--surface-3, rgba(255, 255, 255, 0.07));
+  border-radius: calc(2px * var(--tm-scale, 1));
+}
+
+.pdt-paso-mark {
+  width: calc(7px * var(--tm-scale, 1));
+  height: calc(7px * var(--tm-scale, 1));
+  border-radius: 50%;
+  border: 1.2px solid var(--text-tertiary);
+}
+
+/* A pedestrian bridge: drawn upright at the end of the platform, the way the
+   sheet draws it, because it is a structure and not a doorway. */
+.pdt-puente {
+  align-items: center;
+  justify-content: center;
+  gap: calc(5px * var(--tm-scale, 1));
+  padding: 0 calc(6px * var(--tm-scale, 1));
+  border-left: 1px dashed var(--border-medium);
+  color: var(--text-tertiary);
+}
+
+.pdt-puente-mark {
+  width: calc(14px * var(--tm-scale, 1));
+  height: calc(10px * var(--tm-scale, 1));
+  border: 1.4px solid currentColor;
+  border-bottom: 0;
+  border-radius: calc(8px * var(--tm-scale, 1)) calc(8px * var(--tm-scale, 1)) 0 0;
+}
+
+.pdt-puente-txt {
+  writing-mode: vertical-rl;
+  font-size: calc(7.5px * var(--tm-scale, 1));
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+/* The divider runs across the platform columns and STOPS at the vestibule.
+   `--pdt-skip` is how many columns it does not cross — at Guatoque exactly
+   one, which is the difference between "no way across" and the truth. */
+/* The divider is a BAND inside every column it crosses, so it begins exactly
+   where the platforms do and the vestibule beside it stays dry. It used to be
+   one absolutely-positioned bar told how far along to start, in pixels — a
+   number that happened to fit Guatoque and would have been wrong everywhere
+   else. */
+.pdt-divider {
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* No rounded ends: the band is drawn once per column, so a radius on each
+   one notched the water at every column boundary and read as a break in it. */
+.pdt-divider-cano {
+  background: linear-gradient(180deg, #4FC3F7 0%, #29A8DC 55%, #1B87B8 100%);
+  color: #FFFFFF;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(4, 40, 58, 0.45);
+}
+
 /* ── The way out on foot ─────────────────────────────────────────────────
    A pedestrian tunnel is the one thing on a plano that is not part of the
    station: it is how you leave it for another one. Ricaurte and Av. Jiménez

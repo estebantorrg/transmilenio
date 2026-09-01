@@ -135,11 +135,73 @@ export interface PlanoLayout {
   divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador' | 'tunel';
 }
 
+/** One icon a plano draws on an access block. The legend on every sheet. */
+export type PlanoIcono =
+  | 'taquilla'
+  | 'torniquete'
+  | 'rampa'
+  | 'escalera'
+  | 'ascensor'
+  | 'emergencia'
+  | 'bici'
+  | 'cable'
+  | 'zonal';
+
+/** A way out, and the street it comes out on. */
+export interface PlanoSalida {
+  /** The street as the sheet prints it under "Salida / Exit". */
+  calle: string;
+  /** Which way the sheet's arrow points. */
+  hacia?: 'izq' | 'der';
+  /** Which platform it serves, where the sheet draws one per row. */
+  fila?: 'arriba' | 'abajo' | 'ambas';
+}
+
+/**
+ * One column of the drawing, left to right as the sheet draws them.
+ *
+ * Columns rather than rows because only columns can say that a vestibule
+ * spans BOTH platforms while the caño between them does not — which at
+ * Guatoque is the difference between "there is no way across" and the truth.
+ */
+export type PlanoColumna =
+  | {
+      t: 'vestibulo';
+      salidas?: PlanoSalida[];
+      /** Icons on the upper platform, between the platforms, and on the
+       *  lower one — the sheet places them per band, not per column. */
+      arriba?: PlanoIcono[];
+      centro?: PlanoIcono[];
+      abajo?: PlanoIcono[];
+    }
+  | {
+      t: 'vagones';
+      /** Vagón NUMBERS, not services. The services are stated once, in
+       *  `layouts`, so the compact drawing and this one cannot disagree. */
+      arriba?: string;
+      abajo?: string;
+    }
+  | { t: 'paso' }
+  | { t: 'puente'; nombre?: string };
+
+/**
+ * The station as its plano actually draws it — platforms AND the furniture
+ * around them. Read for the estación page only; the popup keeps the compact
+ * drawing, because a popup is a glance and a page is what you study before
+ * you travel.
+ */
+export interface PlanoDetalle {
+  source?: string;
+  why?: string;
+  columnas: PlanoColumna[];
+}
+
 const PLANO_FILE: {
   counts?: Record<string, number>;
   wagons?: Record<string, Record<string, string>>;
   layouts?: Record<string, PlanoLayout>;
   printed?: Record<string, Record<string, string>>;
+  detalle?: Record<string, PlanoDetalle>;
 } = (() => {
   try {
     return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_vagones.json'), 'utf-8'));
@@ -207,6 +269,16 @@ export function layoutServices(layout: PlanoLayout): Set<string> {
     }
   }
   return codes;
+}
+
+/**
+ * The full drawn station, for the stations whose sheet has been read element
+ * by element. Absent for the rest, and the page then draws the compact plan.
+ */
+const PLANO_DETALLE: Record<string, PlanoDetalle> = PLANO_FILE.detalle ?? {};
+
+export function planoDetalle(stationCode: unknown): PlanoDetalle | undefined {
+  return PLANO_DETALLE[String(stationCode ?? '').trim().toUpperCase()];
 }
 
 export function plateWagon(stationCode: unknown, codigo: unknown): string | undefined {

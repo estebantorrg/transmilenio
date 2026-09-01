@@ -17,9 +17,11 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import {
   layoutServices,
+  planoDetalle,
   planoLayout,
   plateWagon,
   printedVagonLabels,
+  type PlanoDetalle,
   type PlanoLayout,
 } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
@@ -600,6 +602,18 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // of a platform is worse than no drawing at all.
       const layout = planoLayout(station.codigo);
       let planoLayoutOut: PlanoLayout | undefined;
+      // The full drawn station, for the estación page. Not gated against the
+      // catalog the way the layout is: it carries no services of its own —
+      // its vagones are numbers, and the services behind them come from the
+      // layout, which IS gated. Furniture cannot drift out of date the way a
+      // service list can; a taquilla is where the sheet put it.
+      // Columns only. Its `source` and `why` are why the furniture is on file,
+      // which belongs in the file and not in a payload every visitor downloads —
+      // the same rule the layout above follows.
+      const detalleRead = planoDetalle(station.codigo);
+      const detalleOut: PlanoDetalle | undefined = detalleRead
+        ? { columnas: detalleRead.columnas }
+        : undefined;
       if (layout) {
         const claimed = layoutServices(layout);
         // Every service the station files, wagon "0" included. A sheet places
@@ -684,6 +698,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ...(vagonLabels ? { vagonLabels } : {}),
         ...(wagonPlan ? { wagonPlan } : {}),
         ...(planoLayoutOut ? { planoLayout: planoLayoutOut } : {}),
+        ...(detalleOut ? { planoDetalle: detalleOut } : {}),
         wagons: cleanWagons,
       };
     } else {
