@@ -602,14 +602,27 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       let planoLayoutOut: PlanoLayout | undefined;
       if (layout) {
         const claimed = layoutServices(layout);
+        // Every service the station files, wagon "0" included. A sheet places
+        // what the catalog left unplaced — that is half the reason to read one —
+        // so measuring the layout only against the LETTERED wagons rejected it
+        // for "extra" códigos that are in fact filed here, just without a
+        // platform. El Tiempo puts K86 and M86 on vagones the catalog leaves
+        // blank, and its layout was refused for saying so.
         const served = new Set<string>();
+        const boards = new Set<string>();
         for (const [wagon, routes] of Object.entries(cleanWagons)) {
-          if (wagon === '0') continue;
           for (const route of routes) {
-            if (route.codigo) served.add(String(route.codigo).trim().toUpperCase());
+            const code = String(route.codigo ?? '').trim().toUpperCase();
+            if (!code) continue;
+            served.add(code);
+            // Only a service that boards a platform must appear in the drawing.
+            // A zonal parked in the integration zone has no vagón to be drawn on
+            // and its absence is not the sheet drifting.
+            const troncal = route.tipoServicio === 'TRONCAL' || route.tipoServicio === 'PADRON';
+            if (wagon !== '0' || troncal) boards.add(code);
           }
         }
-        const missing = [...served].filter((c) => !claimed.has(c));
+        const missing = [...boards].filter((c) => !claimed.has(c));
         const extra = [...claimed].filter((c) => !served.has(c));
         if (missing.length === 0 && extra.length === 0) {
           // Rows only. The entry's `source` and `why` are why the shape is on
@@ -889,8 +902,21 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
       tracesCarried++;
     }
 
+    // An id the fresh listing carries under THIS código has been re-listed, so
+    // whatever name it used to have is superseded. Variants are keyed by name,
+    // so without this a rename in place leaves the old name behind as a second
+    // service that never existed: M86 #1185 was re-listed as `KR 7 - CLL 107A`
+    // and its former `KR 7 - CLL 116` went on printing a phantom chip at 44
+    // stations, 19-9 #2253 at 28 more. The id-keyed purge above cannot see it
+    // because the código did not change.
+    const freshIds = new Set(freshVariants.map((v) => String(v.id ?? '').trim()).filter(Boolean));
+    const renamedInPlace = oldVariants.filter((v) => freshIds.has(String(v.id ?? '').trim()));
+
     const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
-    const retained = oldVariants.filter((v) => !freshKeys.has(cleanRouteName(v.nombre)));
+    const retained = oldVariants.filter(
+      (v) => !freshKeys.has(cleanRouteName(v.nombre)) && !renamedInPlace.includes(v)
+    );
+    renamedAway += renamedInPlace.length;
     const alive = retained.filter((v) => !isRetiredTwin(v, code));
     retiredTwins += retained.length - alive.length;
     const survivors = alive.filter((v) => !isRenamedAway(v, code));
@@ -1081,6 +1107,47 @@ export function expireUnseenVariants(catalog: MasterCatalog, now: number): numbe
  * retention window — and a whole re-sync is a ~70-minute round trip to apply a
  * fact that is already answered. Returns the number dropped.
  */
+/**
+ * Collapses variants that share a código AND an id.
+ *
+ * One id is one run of one route, so two entries under it are one entry and a
+ * stale name — upstream renamed it in place and the name-keyed variant map kept
+ * both. The newest `seenAt` is the current name; the rest are phantoms that
+ * print a duplicate chip wherever the route calls.
+ *
+ * `mergeCatalogs` now refuses these on the way in. This is the same answer
+ * applied to the catalog already on disk, so the fix does not wait on a
+ * seventy-minute re-fetch. Returns the number dropped.
+ */
+export function dropRenamedInPlace(catalog: MasterCatalog): number {
+  let dropped = 0;
+  for (const [code, variants] of Object.entries(catalog.routes || {})) {
+    const newest = new Map<string, number>();
+    for (const v of variants) {
+      const id = String(v.id ?? '').trim();
+      if (!id) continue;
+      newest.set(id, Math.max(newest.get(id) ?? 0, v.seenAt ?? 0));
+    }
+    const seen = new Set<string>();
+    const kept = variants.filter((v) => {
+      const id = String(v.id ?? '').trim();
+      if (!id) return true;
+      if ((v.seenAt ?? 0) < (newest.get(id) ?? 0)) return false;
+      // Two entries stamped identically: keep the first, drop the rest.
+      if (seen.has(id)) return false;
+      seen.add(id);
+      return true;
+    });
+    if (kept.length === variants.length) continue;
+    for (const v of variants) {
+      if (!kept.includes(v)) console.log(`[TM API]   dropped ${code} #${v.id} "${v.nombre}" (renamed in place)`);
+    }
+    dropped += variants.length - kept.length;
+    catalog.routes[code] = kept;
+  }
+  return dropped;
+}
+
 export function dropRetiredVariants(catalog: MasterCatalog): number {
   let dropped = 0;
   for (const [code, variants] of Object.entries(catalog.routes || {})) {
@@ -1164,6 +1231,10 @@ export function applyPlanoWagons(catalog: MasterCatalog): number {
  */
 export async function pruneCatalogFileInPlace(): Promise<number> {
   await loadCatalogFromDisk();
+  const renamed = dropRenamedInPlace(masterCatalog);
+  if (renamed > 0) {
+    console.log(`[TM API] Dropped ${renamed} route variant(s) whose id was re-listed under a new name.`);
+  }
   const retired = dropRetiredVariants(masterCatalog);
   if (retired > 0) {
     console.log(`[TM API] Dropped ${retired} route variant(s) filed as replaced in recorrido_corrections.json.`);
@@ -1173,7 +1244,7 @@ export async function pruneCatalogFileInPlace(): Promise<number> {
     console.log(`[TM API] Placed ${placed} unlettered mapping(s) on the vagón their plano prints.`);
   }
   const pruned = pruneUnservedStationRoutes(masterCatalog);
-  if (pruned > 0 || retired > 0 || placed > 0) {
+  if (pruned > 0 || retired > 0 || placed > 0 || renamed > 0) {
     await writeCatalogAtomically(masterCatalog);
     invalidateLightCatalog();
   }

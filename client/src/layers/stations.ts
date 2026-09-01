@@ -541,8 +541,13 @@ export function buildStationWagonView(
   // back to the labelled sections below, so a station is never left blank.
   // A station whose shape has been read off its plano is drawn from that and
   // not from the letters — the letters are what cannot describe it.
+  // Every service at the station, wagon "0" included — a layout's whole job is
+  // to place services the catalog left without a platform, so building this
+  // from the lettered wagons alone silently dropped them: El Tiempo's sheet
+  // puts K86 on Vagón 2 and M86 on Vagón 3, and both disappeared from the
+  // drawing that named them.
   const byCode = new Map<string, CatalogRoute[]>();
-  for (const { routes } of lettered) {
+  for (const { routes } of [...lettered, { routes: unlettered }, { routes: feeders }]) {
     for (const route of routes) {
       const key = String(route.codigo || '').trim().toUpperCase();
       if (!key) continue;
