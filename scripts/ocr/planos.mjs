@@ -97,6 +97,75 @@ async function imageFor(marker) {
   return file;
 }
 
+/**
+ * The platform decks: the pale grey slabs the vagones are drawn on.
+ *
+ * Counting plates alone UNDERCOUNTS, because a sheet can draw a platform and
+ * forget to label it. Boyacá does exactly that — one `Vagón 1` plate over two
+ * decks — and it was recorded as a one-vagón island until someone who had
+ * stood on the second one said otherwise.
+ *
+ * The decks also separate the two shapes that both print a single number:
+ *   • side by side, same y, different x  → two vagones (Boyacá, and the three
+ *     at Calle 100)
+ *   • stacked, same x, different y       → one vagón seen from both
+ *     carriageways, the true island (Terminal)
+ */
+async function deckRegions(page, file) {
+  const b64 = readFileSync(file).toString('base64');
+  return page.evaluate(async ({ b64 }) => {
+    const img = new Image();
+    img.src = 'data:image/jpeg;base64,' + b64;
+    await img.decode();
+    const cv = document.createElement('canvas');
+    cv.width = img.naturalWidth;
+    cv.height = img.naturalHeight;
+    const ctx = cv.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0);
+    const { data, width, height } = ctx.getImageData(0, 0, cv.width, cv.height);
+    const deck = (i) => {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      return Math.abs(r - g) < 6 && Math.abs(g - b) < 6 && r > 222 && r < 243;
+    };
+    const seen = new Uint8Array(width * height);
+    const out = [];
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const p = y * width + x;
+        if (seen[p] || !deck(p * 4)) continue;
+        let x0 = x, x1 = x, y0 = y, y1 = y, n = 0;
+        const stack = [p];
+        seen[p] = 1;
+        while (stack.length) {
+          const q = stack.pop();
+          const qx = q % width, qy = (q / width) | 0;
+          n++;
+          if (qx < x0) x0 = qx; if (qx > x1) x1 = qx;
+          if (qy < y0) y0 = qy; if (qy > y1) y1 = qy;
+          for (const r of [q - 1, q + 1, q - width, q + width]) {
+            if (r < 0 || r >= width * height || seen[r]) continue;
+            if (Math.abs((r % width) - qx) > 1) continue;
+            if (!deck(r * 4)) continue;
+            seen[r] = 1;
+            stack.push(r);
+          }
+        }
+        // Wide-ish slabs only: the tall narrow ones are pedestrian bridges.
+        if (n > 4000 && (x1 - x0) > (y1 - y0)) out.push({ x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 });
+      }
+    }
+    // A deck split across a turnstile row is one platform: merge slabs that
+    // share an x span.
+    const cols = [];
+    for (const d of out.sort((a, b) => a.x - b.x)) {
+      const c = cols.find((k) => Math.abs(k.x - d.x) <= 12 && Math.abs(k.w - d.w) <= 20);
+      if (c) c.parts++;
+      else cols.push({ x: d.x, w: d.w, parts: 1 });
+    }
+    return cols;
+  }, { b64 });
+}
+
 /** Every saturated-yellow blob on the sheet, with its bounding box. */
 async function yellowBlobs(page, file) {
   const b64 = readFileSync(file).toString('base64');
@@ -262,6 +331,7 @@ for (const m of list) {
   try {
     const file = await imageFor(m);
     const { blobs, height } = await yellowBlobs(page, file);
+    const decks = await deckRegions(page, file);
     const plates = platesOf(blobs, height);
     const rows = rowsOf(plates, height);
     const aligned = rowsAligned(rows);
@@ -306,8 +376,13 @@ for (const m of list) {
     if (staggered) flags.push('staggered platforms');
     if (printed > 0 && has !== undefined && printed !== has) flags.push(`stored count ${has}`);
     if (plates.length === 0) flags.push('no plates found');
+    // A deck the sheet drew but never labelled. Boyaca printed one plate over
+    // two of them and was recorded as a one-vagon island because of it.
+    if (decks.length > printed && printed > 0) {
+      flags.push(`${decks.length} platform decks drawn but only ${printed} labelled`);
+    }
 
-    report.push({ code, name: m.name, printed, plates: plates.length, rows: rows.length, aligned, staggered, wagons, pool, stored: has, flags });
+    report.push({ code, name: m.name, printed, plates: plates.length, decks: decks.length, rows: rows.length, aligned, staggered, wagons, pool, stored: has, flags });
     process.stderr.write(flags.length ? '!' : '.');
   } catch (e) {
     report.push({ code, name: m.name, error: String(e.message).slice(0, 60), flags: ['unreadable'] });
