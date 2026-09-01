@@ -100,6 +100,21 @@ export interface PlanoLayoutRow {
    * Set it on a row and the labels are drawn around that row alone.
    */
   eje?: { arriba: string; abajo: string };
+  /**
+   * The catalog wagon letters this platform IS, for a station the catalog
+   * files as one stop and the map resolves as two.
+   *
+   * Ricaurte and Av. Jiménez are each two stations across a tunnel, and the
+   * map already shows them as separate points. A popup opened on one of them
+   * must not draw the other, and knowing which códigos resolve is not enough
+   * to tell: route 5 terminates at Av. Jiménez, the catalog files it under a
+   * CARACAS wagon, and the Calle 13 sheet prints it on Vagón 5 — so the
+   * Caracas half drew a stray Vagón 5 from the platform across the tunnel.
+   *
+   * Absent on every station that is only one station, where it means "always
+   * draw this row".
+   */
+  wagones?: string[];
 }
 export interface PlanoLayout {
   rows: PlanoLayoutRow[];

@@ -217,8 +217,25 @@ function buildStationLayoutHtml(
   layout: StationPlanoLayout,
   routesByCode: Map<string, CatalogRoute[]>,
   sentidoById: Map<string, string>,
-  sentidos?: { positive: string; negative: string }
+  sentidos?: { positive: string; negative: string },
+  presentWagons?: Set<string>
 ): string | null {
+  // Only the half you are standing on. Ricaurte and Av. Jimenez are each TWO
+  // stations under one catalog stop, and the map already resolves them to two
+  // separate points — so a popup opened on "Ricaurte - NQS" must not draw the
+  // Calle 13 platform, which is a different station across a tunnel.
+  //
+  // Filtering by which códigos resolve is NOT enough, and Av. Jimenez proves
+  // it: route 5 terminates there, the catalog files it under a CARACAS wagon,
+  // and the Calle 13 sheet also prints it on Vagón 5 — so the Caracas half
+  // drew a stray Vagón 5 belonging to the platform across the tunnel. A row
+  // therefore declares which catalog wagons it IS, and a row whose wagons are
+  // all absent is not drawn. The estación page passes every wagon, so it
+  // still shows both halves; only a resolved single platform narrows.
+  const rowIsPresent = (row: StationPlanoLayout['rows'][number]): boolean =>
+    !presentWagons || !row.wagones?.length
+      ? true
+      : row.wagones.some((w) => presentWagons.has(String(w).trim().toUpperCase()));
   // Each edge of a vagón boards one direction, so the catalog's two variants of
   // a código are separated by the side they are drawn on. Both `G12`s at La
   // Castellana are southbound, which is why `destinos` exists as well: this
@@ -233,6 +250,7 @@ function buildStationLayoutHtml(
   };
 
   const rows = (layout.rows ?? []).map((row) => {
+    if (!rowIsPresent(row)) return null;
     const decks = row.vagones
       .map((vagon) => {
         // One chip per código, as the plate prints it. Where the catalog files
@@ -628,6 +646,14 @@ export function buildStationWagonView(
 
   lettered.sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }));
 
+  // The catalog wagons this view actually holds. For the estación page that is
+  // every wagon of the stop; for a popup opened on one platform of a split
+  // station it is only that platform's, which is what lets a layout drop the
+  // half you are not standing on.
+  const presentWagons = new Set(
+    Object.keys(wagons).map((k) => k.trim().toUpperCase())
+  );
+
   // The lettered platforms are drawn as the station's plan — the same view the
   // /estacion/ page carries. Where the catalog ships no plan for them, they fall
   // back to the labelled sections below, so a station is never left blank.
@@ -655,7 +681,9 @@ export function buildStationWagonView(
       for (const id of group.ids) sentidoById.set(String(id), group.sentido);
     }
   }
-  const drawn = layout ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos) : null;
+  const drawn = layout
+    ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos, presentWagons)
+    : null;
   const plano = drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
 
   // A layout places services by código, and it places them from a sheet that is

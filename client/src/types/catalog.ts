@@ -63,6 +63,10 @@ export interface CatalogStation {
        *  DIFFERENT troncals (Ricaurte, Av. Jiménez) and so cannot share one pair
        *  of direction labels. Absent on every single-corridor station. */
       eje?: { arriba: string; abajo: string };
+      /** The catalog wagon letters this platform IS, for a station the catalog
+       *  files as one stop and the map resolves as two (Ricaurte, Av. Jiménez).
+       *  A view holding none of them does not draw this row. */
+      wagones?: string[];
       vagones: Array<{
         vagon: string;
         /** Códigos on each long edge, per vagón: one vagón can serve a single
