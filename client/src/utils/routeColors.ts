@@ -21,6 +21,14 @@ export const TRONCAL_COLORS: Record<string, string> = {
   // ride and colour the same trunk. A colour of their own split one corridor into
   // two on the map.
   Z: '#FB2C17',
+  // Same cyan as `G`, for the same reason. The `S…` services (S41…S48) are the
+  // Soacha extension — everything running past Portal Sur to Bosa, La Despensa,
+  // León XIII, Terreros and San Mateo — and they ride the NQS Sur trunk out of
+  // the city. The stations get their own corridor NAME on the estación page
+  // ("Soacha", `station_corridors.json`), because that is what the signage and
+  // the rider call it; the trunk they ride is still G's, so giving S its own
+  // colour would draw one busway in two.
+  S: '#00B0E8',
 };
 
 /** The two networks a service can belong to — `RouteListItem['type']`. */
@@ -41,8 +49,10 @@ export const CABLE_COLOR = '#F97316';               // TransMiCable (orange)
 // Letters that name a corridor/zone, i.e. exactly the keys of TRONCAL_COLORS.
 // `Z` used to be missing here while the palette (and spec §5.4.3) declared
 // `Z: #EAB308`, so Z-coded routes could never reach their own colour and the
-// entry was unreachable config. Keep this class and TRONCAL_COLORS in step.
-const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPTZ]{1,2})(?=\d|-|\b)/;
+// entry was unreachable config. `S` was missing the same way the day the Soacha
+// services appeared, which would have drawn S41…S48 in the default red instead
+// of their trunk's cyan. Keep this class and TRONCAL_COLORS in step.
+const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPSTZ]{1,2})(?=\d|-|\b)/;
 const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
 
 function validHexColor(value: string | null | undefined): string | null {

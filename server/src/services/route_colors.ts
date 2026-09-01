@@ -21,13 +21,16 @@ export const TRONCAL_COLORS: Record<string, string> = {
   A: '#0C3A95', B: '#75C347', C: '#FFB741', D: '#6867B4', E: '#B76416',
   F: '#FB2C17', G: '#00B0E8', H: '#FF8525', J: '#E49DAA', K: '#D3AA78',
   L: '#00B0A9', M: '#852D89', P: '#25206F', T: '#808000', RF: '#000000',
-  Z: '#FB2C17',
+  // Z shares F's red and S shares G's cyan, deliberately — see the client's
+  // TRONCAL_COLORS for why: both are second directions or extensions of a trunk
+  // that is already drawn, and a colour of their own splits one busway in two.
+  Z: '#FB2C17', S: '#00B0E8',
 };
 
 const ALIMENTADOR_COLOR = '#009944';
 const DEFAULT_ZONAL_COLOR = '#00608B';
 const RUTA_FACIL_CODES = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
-const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPTZ]{1,2})(?=\d|-|\b)/;
+const ROUTE_ZONE_PREFIX_RE = /^(MP|RF|[A-HJ-MPSTZ]{1,2})(?=\d|-|\b)/;
 
 function normalizeRouteCodeForMatch(value: string | null | undefined): string {
   return (value ?? '')

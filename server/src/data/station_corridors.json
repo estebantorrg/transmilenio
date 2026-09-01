@@ -13,7 +13,8 @@
       "TM90009": "Av. Ciudad de Cali",
       "TM90010": "Av. Ciudad de Cali",
       "TM90011": "Av. Ciudad de Cali"
-    }
+    },
+    "soacha": "The five stations past Portal Sur — TM0149 Bosa, TM0100 La Despensa, TM0101 Leon XIII, TM0102 Terreros, TM0103 San Mateo — are filed under the corridor SOACHA with letter S, not under NQS Sur where the station-maps API still puts them. The operator has re-lettered the services that run out there: S41, S42, S43, S45, S46 and S48 all appear in the 2026-08-28 catalog, and Toberin's own plano now carries S Troncal Soacha in its legend. The letter S is deliberately given G's cyan rather than a colour of its own. These services ride the NQS Sur trunk out of the city; a separate colour would draw one busway as two, which is the same reasoning that keeps Z on F's red. What changes is the NAME on the estacion page, because that is what the signage and the rider call it."
   },
   "letters": {
     "Autonorte": "B",
@@ -28,7 +29,8 @@
     "Caracas Sur": "H",
     "Carrera 10": "L",
     "Carrera 7": "M",
-    "Av. Ciudad de Cali": "Z"
+    "Av. Ciudad de Cali": "Z",
+    "Soacha": "S"
   },
   "corridors": {
     "TM0031": "Autonorte",
@@ -134,10 +136,10 @@
     "TM0085": "Américas",
     "TM0086": "Américas",
     "TM0087": "Américas",
-    "TM0103": "NQS Sur",
-    "TM0102": "NQS Sur",
-    "TM0101": "NQS Sur",
-    "TM0100": "NQS Sur",
+    "TM0103": "Soacha",
+    "TM0102": "Soacha",
+    "TM0101": "Soacha",
+    "TM0100": "Soacha",
     "TM0099": "NQS Sur",
     "TM0098": "NQS Sur",
     "TM0097": "NQS Sur",
@@ -177,7 +179,7 @@
     "TM0137": "Carrera 10",
     "TM0136": "Carrera 10",
     "TM0146": "Carrera 7",
-    "TM0149": "NQS Sur",
+    "TM0149": "Soacha",
     "TM0151": "TransMICable",
     "TM0150": "TransMICable",
     "TM0152": "TransMICable",
