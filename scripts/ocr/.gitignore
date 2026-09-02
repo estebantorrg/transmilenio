@@ -4,3 +4,4 @@ _out/
 _planos/
 _census/
 _probe/
+_*.mjs
