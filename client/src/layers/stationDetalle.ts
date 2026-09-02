@@ -28,14 +28,15 @@ import type { CatalogStation } from '../types/catalog';
 type Detalle = NonNullable<CatalogStation['planoDetalle']>;
 type Columna = Detalle['columnas'][number];
 
+// Each mark carries its own colour, because on these sheets the colour IS
+// part of the mark: the emergency exit is green and the priority lift is
+// blue by law, and everything else is a black tile with a white glyph.
 function iconHtml(name: string): string {
   const icon = ICONOS[name];
   if (!icon) return '';
   return (
-    `<span class="pdt-icono" role="img" aria-label="${escapeHTML(icon.label)}" title="${escapeHTML(icon.label)}">` +
-    `<svg viewBox="${icon.vb}" fill="currentColor" aria-hidden="true">` +
-    icon.d.map((d) => `<path d="${d}"/>`).join('') +
-    `</svg></span>`
+    `<span class="pdt-icono" role="img" aria-label="${escapeHTML(icon.label)}" title="${escapeHTML(icon.label)}" style="background:${icon.bg}">` +
+    `<svg viewBox="0 0 24 24" aria-hidden="true">${icon.svg}</svg></span>`
   );
 }
 
@@ -53,11 +54,16 @@ function iconsHtml(names: string[] | undefined): string {
  */
 function salidaHtml(salida: { calle: string; hacia?: 'izq' | 'der' }): string {
   const arrow = salida.hacia === 'der' ? 'der' : 'izq';
+  // Two stacked bars, as printed: yellow "◀ Salida / Exit" over a black bar
+  // carrying the street. Squeezed into one chip the street read as a
+  // subtitle; on the sheet it is its own sign under the arrow.
   return (
     `<span class="pdt-salida pdt-salida-${arrow}">` +
+    `<span class="pdt-salida-top">` +
     `<span class="pdt-salida-arrow" aria-hidden="true"></span>` +
-    `<span class="pdt-salida-txt"><span class="pdt-salida-tag">Salida</span>` +
-    `<span class="pdt-salida-calle">${escapeHTML(salida.calle)}</span></span>` +
+    `<span class="pdt-salida-tag">Salida</span>` +
+    `</span>` +
+    `<span class="pdt-salida-calle">${escapeHTML(salida.calle)}</span>` +
     `</span>`
   );
 }
@@ -81,13 +87,25 @@ function midBand(divider: string | undefined, label: string, extra = ''): string
   );
 }
 
-/** The salidas the sheet draws on one band of a vestibule. */
+/**
+ * The salidas drawn on one band of a vestibule.
+ *
+ * A salida sits in the MIDDLE band whenever the middle band is otherwise
+ * empty — it is the widest, quietest place in the block and the sign reads
+ * best there. Where something already occupies the middle, as at Av. Chile
+ * whose torniquetes are between the platforms, it falls back to the band the
+ * sheet puts it on and never displaces what is already there.
+ */
 function salidasFor(
   col: Extract<Columna, { t: 'vestibulo' }>,
   fila: 'arriba' | 'abajo' | 'centro'
 ): string {
+  const centroLibre = (col.centro ?? []).length === 0;
   return (col.salidas ?? [])
-    .filter((s) => (s.fila ?? 'centro') === fila || (s.fila === 'ambas' && fila !== 'centro'))
+    .filter((s) => {
+      const suya = centroLibre ? 'centro' : s.fila ?? 'abajo';
+      return suya === fila || (suya === 'ambas' && fila !== 'centro');
+    })
     .map(salidaHtml)
     .join('');
 }

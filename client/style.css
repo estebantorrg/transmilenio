@@ -2662,38 +2662,52 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-primary);
 }
 
+/* The mark IS a tile: the operator prints a filled square with the glyph
+   knocked out of it, and the two colour-coded ones (green emergency exit,
+   blue priority lift) carry their colour here. On the sheet these tiles sit
+   on a light grey plan and on this one they sit on a dark plan, so each keeps
+   a hairline to hold its edge. */
 .pdt-icono {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(21px * var(--tm-scale, 1));
-  height: calc(21px * var(--tm-scale, 1));
-  border-radius: calc(3px * var(--tm-scale, 1));
-  background: rgba(255, 255, 255, 0.09);
-  border: 1px solid var(--border-subtle);
+  width: calc(22px * var(--tm-scale, 1));
+  height: calc(22px * var(--tm-scale, 1));
+  border-radius: calc(2px * var(--tm-scale, 1));
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
 }
 
 .pdt-icono svg {
-  width: calc(15px * var(--tm-scale, 1));
-  height: calc(15px * var(--tm-scale, 1));
+  width: calc(20px * var(--tm-scale, 1));
+  height: calc(20px * var(--tm-scale, 1));
 }
 
 /* A way out, and the street it comes out on. The street is the whole value:
    every station has a "Salida", only this one has Carrera 27. */
+/* Two stacked bars, as the sheet prints it: a yellow "◀ Salida / Exit" over a
+   black bar carrying the street. Squeezed into one chip the street read as a
+   subtitle, when on the wall it is its own sign under the arrow. */
 .pdt-salida {
   display: inline-flex;
-  align-items: center;
-  gap: calc(4px * var(--tm-scale, 1));
-  padding: calc(2px * var(--tm-scale, 1)) calc(5px * var(--tm-scale, 1));
+  flex-direction: column;
+  align-items: stretch;
   border-radius: calc(2px * var(--tm-scale, 1));
-  background: var(--tm-yellow, #F5C518);
-  color: #1A1A1A;
-  font-size: calc(8px * var(--tm-scale, 1));
-  line-height: 1.15;
+  overflow: hidden;
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  line-height: 1.2;
   white-space: nowrap;
 }
 
-.pdt-salida-der { flex-direction: row-reverse; }
+.pdt-salida-top {
+  display: flex;
+  align-items: center;
+  gap: calc(3px * var(--tm-scale, 1));
+  padding: calc(2px * var(--tm-scale, 1)) calc(5px * var(--tm-scale, 1));
+  background: #F5C518;
+  color: #1A1A1A;
+}
+
+.pdt-salida-der .pdt-salida-top { flex-direction: row-reverse; }
 
 .pdt-salida-arrow {
   width: 0;
@@ -2708,9 +2722,15 @@ body.sidebar-collapsed .sidebar-fab {
   border-left: calc(4px * var(--tm-scale, 1)) solid currentColor;
 }
 
-.pdt-salida-txt { display: inline-flex; flex-direction: column; }
 .pdt-salida-tag { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
-.pdt-salida-calle { font-weight: 600; opacity: 0.85; }
+
+.pdt-salida-calle {
+  padding: calc(2px * var(--tm-scale, 1)) calc(5px * var(--tm-scale, 1));
+  background: #101114;
+  color: #FFFFFF;
+  font-weight: 700;
+  text-align: center;
+}
 
 /* The crossing between two vagones — the same mark the compact drawing uses,
    because it is the same thing on the sheet. */
