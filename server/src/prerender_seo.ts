@@ -468,7 +468,9 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-band-a,#seo-prerender .pdt-band-b{flex:1 1 0}
 #seo-prerender .pdt-band-mid{height:19px;gap:6px}
 #seo-prerender .pdt-vestibulo{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:4px 8px;gap:4px}
-#seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-start;gap:5px}
+#seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-end;gap:5px}
+#seo-prerender .pdt-vestibulo .pdt-salida{margin-right:auto}
+#seo-prerender .pdt-canal{display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-left:3px;padding-left:5px;border-left:1px solid rgba(255,255,255,.08)}
 #seo-prerender .pdt-iconos{display:inline-flex;align-items:center;gap:4px}
 #seo-prerender .pdt-icono{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}
 #seo-prerender .pdt-icono svg{width:20px;height:20px}
@@ -487,9 +489,11 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-marca-izq{border-right:6px solid #fff}
 #seo-prerender .pdt-figura{display:inline-flex;width:15px;height:15px}
 #seo-prerender .pdt-figura svg{width:100%;height:100%}
-#seo-prerender .pdt-puente{align-items:center;justify-content:center;gap:6px;padding:6px 9px;border:1px dashed rgba(255,255,255,.14);border-radius:3px;color:rgba(255,255,255,.62);background:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 3px,transparent 3px,transparent 7px)}
-#seo-prerender .pdt-puente-deck{width:30px;height:8px;border:1.4px solid currentColor;border-bottom:0;border-radius:15px 15px 0 0;opacity:.8}
-#seo-prerender .pdt-puente-txt{max-width:46px;text-align:center;font-size:.6rem;line-height:1.25;text-transform:uppercase;letter-spacing:.05em}
+#seo-prerender .pdt-puente{align-items:center;justify-content:space-between;gap:4px;width:30px;padding:4px 0;border:1px dashed rgba(255,255,255,.14);border-radius:2px;background:rgba(255,255,255,.03);color:rgba(255,255,255,.5)}
+#seo-prerender .pdt-puente-sube,#seo-prerender .pdt-puente-baja{flex:0 0 auto;width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent}
+#seo-prerender .pdt-puente-sube{border-bottom:8px solid currentColor}
+#seo-prerender .pdt-puente-baja{border-top:8px solid currentColor}
+#seo-prerender .pdt-puente-txt{writing-mode:vertical-rl;transform:rotate(180deg);font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 #seo-prerender .pdt-divider{font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
 #seo-prerender .pdt-divider-cano{background:linear-gradient(180deg,#4FC3F7,#29A8DC 55%,#1B87B8);color:#fff;font-weight:700}
 #seo-prerender .pdt-divider-tren{background:linear-gradient(#4D5059,#4D5059) top/100% 1.5px no-repeat,linear-gradient(#4D5059,#4D5059) bottom/100% 1.5px no-repeat,repeating-linear-gradient(to right,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 2px,transparent 2px,transparent 7px)}

@@ -2644,11 +2644,28 @@ body.sidebar-collapsed .sidebar-fab {
   gap: calc(4px * var(--tm-scale, 1));
 }
 
-/* Left to right, in the order the sheet places them: the exit at the street
-   end, the taquilla beside it, the ramp last where the platform begins. */
+/* The equipment sits at the PLATFORM end of the access block, not the street
+   end: that is where the sheet draws every taquilla and every torniquete,
+   because that is where they are. The exit sign is the only thing at the
+   street end, so it is pushed there and everything else falls to the right. */
 .pdt-vestibulo .pdt-band {
-  justify-content: flex-start;
+  justify-content: flex-end;
   gap: calc(5px * var(--tm-scale, 1));
+}
+
+.pdt-vestibulo .pdt-salida { margin-right: auto; }
+
+/* The way through, at the very edge of the block. Its own column left a blank
+   band between the vestibule and the first vagón, and the sheet has no gap
+   there — the arrows and the figure are inside the access block. */
+.pdt-canal {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(3px * var(--tm-scale, 1));
+  margin-left: calc(3px * var(--tm-scale, 1));
+  padding-left: calc(5px * var(--tm-scale, 1));
+  border-left: 1px solid var(--border-subtle);
 }
 
 /* Big enough to read at plan size. The first pass drew these by hand at 15px
@@ -2775,88 +2792,43 @@ body.sidebar-collapsed .sidebar-fab {
 
 /* A pedestrian bridge: drawn upright at the end of the platform, the way the
    sheet draws it, because it is a structure and not a doorway. */
-/* A pedestrian bridge, drawn as a STRUCTURE spanning the whole height of the
-   drawing — the way it spans the road. Material Symbols has no bridge glyph,
-   and the first attempt (a small unlabelled arch) read as nothing at all, so
-   this is a named block carrying whatever gets you up onto it. */
+/* A pedestrian bridge, as the sheet draws it: a narrow DASHED column running
+   the full height of the drawing — taller than the platforms, because it
+   crosses the road they sit in — with a triangle up at the top and down at
+   the bottom for the ways onto it. The earlier version was a small arch and
+   read as nothing at all. */
 .pdt-puente {
   align-items: center;
-  justify-content: center;
-  gap: calc(6px * var(--tm-scale, 1));
-  padding: calc(6px * var(--tm-scale, 1)) calc(9px * var(--tm-scale, 1));
-  border: 1px dashed var(--border-medium);
-  border-radius: calc(3px * var(--tm-scale, 1));
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.05) 0,
-    rgba(255, 255, 255, 0.05) calc(3px * var(--tm-scale, 1)),
-    transparent calc(3px * var(--tm-scale, 1)),
-    transparent calc(7px * var(--tm-scale, 1))
-  );
-  color: var(--text-secondary);
-}
-
-/* The deck itself: the span that goes over the road. */
-.pdt-puente-deck {
+  justify-content: space-between;
+  gap: calc(4px * var(--tm-scale, 1));
   width: calc(30px * var(--tm-scale, 1));
-  height: calc(8px * var(--tm-scale, 1));
-  border: 1.4px solid currentColor;
-  border-bottom: 0;
-  border-radius: calc(15px * var(--tm-scale, 1)) calc(15px * var(--tm-scale, 1)) 0 0;
-  opacity: 0.8;
-}
-
-.pdt-puente-iconos { display: inline-flex; }
-
-.pdt-puente-txt {
-  max-width: calc(46px * var(--tm-scale, 1));
-  text-align: center;
-  font-size: calc(8px * var(--tm-scale, 1));
-  line-height: 1.25;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-/* The divider runs across the platform columns and STOPS at the vestibule.
-   `--pdt-skip` is how many columns it does not cross — at Guatoque exactly
-   one, which is the difference between "no way across" and the truth. */
-/* The other dividers, as bands. A caño is water and gets its own colour; a
-   railway is track; everything else is a line you are told the name of. */
-.pdt-divider-tren {
-  background:
-    linear-gradient(var(--border-card), var(--border-card)) top / 100% 1.5px no-repeat,
-    linear-gradient(var(--border-card), var(--border-card)) bottom / 100% 1.5px no-repeat,
-    repeating-linear-gradient(
-      to right,
-      var(--border-medium) 0,
-      var(--border-medium) calc(2px * var(--tm-scale, 1)),
-      transparent calc(2px * var(--tm-scale, 1)),
-      transparent calc(7px * var(--tm-scale, 1))
-    );
-  color: var(--text-secondary);
-}
-
-.pdt-divider-ciclorruta,
-.pdt-divider-busway,
-.pdt-divider-separador,
-.pdt-divider-tunel {
-  background: repeating-linear-gradient(
-    to right,
-    var(--border-medium) 0,
-    var(--border-medium) calc(9px * var(--tm-scale, 1)),
-    transparent calc(9px * var(--tm-scale, 1)),
-    transparent calc(18px * var(--tm-scale, 1))
-  ) center / 100% 2px no-repeat;
+  padding: calc(4px * var(--tm-scale, 1)) 0;
+  border: 1px dashed var(--border-medium);
+  border-radius: calc(2px * var(--tm-scale, 1));
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text-tertiary);
 }
 
-/* The name sits on the band, so it needs the drawing behind it, not the line. */
-.pdt-divider .pdt-divider-name {
-  padding: 0 calc(6px * var(--tm-scale, 1));
-  background: var(--surface-1, #14161A);
+.pdt-puente-sube,
+.pdt-puente-baja {
+  flex: 0 0 auto;
+  width: 0;
+  height: 0;
+  border-left: calc(6px * var(--tm-scale, 1)) solid transparent;
+  border-right: calc(6px * var(--tm-scale, 1)) solid transparent;
 }
 
-.pdt-divider-cano .pdt-divider-name { background: transparent; }
+.pdt-puente-sube { border-bottom: calc(8px * var(--tm-scale, 1)) solid currentColor; }
+.pdt-puente-baja { border-top: calc(8px * var(--tm-scale, 1)) solid currentColor; }
+
+.pdt-puente-txt {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: calc(7.5px * var(--tm-scale, 1));
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
 
 /* The divider is a BAND inside every column it crosses, so it begins exactly
    where the platforms do and the vestibule beside it stays dry. It used to be

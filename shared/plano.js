@@ -153,12 +153,14 @@ export const ICONOS = {
     label: 'Taquilla',
     bg: '#0E0E10',
     svg:
-      '<g transform="rotate(-20 12 11)"><rect x="5.6" y="4.4" width="12.8" height="12.8" rx="0.9" fill="none" stroke="' +
-      W +
-      '" stroke-width="2"/></g>' +
-      '<path d="M11.6 11.1c0-.75.6-1.35 1.35-1.35s1.35.6 1.35 1.35v2.85l1.5-.85c.6-.34 1.36-.13 1.7.47.34.6.13 1.36-.47 1.7l-3.3 1.9c-.3.17-.63.26-.97.26h-2.2c-1.05 0-1.9-.85-1.9-1.9v-3.05c0-.75.6-1.35 1.35-1.35h1.59z" fill="' +
-      W +
-      '"/>',
+      // A ticket window seen as a filled diamond, with a hand coming up from
+      // the bottom right and one finger curling into it. Drawn as an outline
+      // square with a blob beside it, nobody could tell what it was meant to be.
+      '<path d="M11 2.4 18.8 10.2 11 18 3.2 10.2z" fill="' + W + '"/>' +
+      '<path d="M13.7 9.2c-1.55-.5-3.15.35-3.6 1.9-.2.72-.05 1.42.35 2l-1.7 2.6' +
+      'c-.52.84-.26 1.94.58 2.46l3.6 2.26c.9.52 2.05.26 2.57-.62l2.3-3.9' +
+      'c.26-.46.36-1 .3-1.52l-.46-3.7-1.9.26.2 1.74-1.34-1.54z" fill="' + W +
+      '" stroke="#0E0E10" stroke-width="1.1" stroke-linejoin="round"/>',
   },
   torniquete: {
     label: 'Torniquetes',
@@ -302,20 +304,32 @@ function midBand(divider, label, extra) {
 
 function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
   if (col.t === 'vestibulo') {
+    // The way through, drawn ON the vestibule at its platform edge — which is
+    // where the sheet draws it. Given a column of its own it left a blank
+    // band between the vestibule and the first vagón, and the sheet has no
+    // such gap: the ramp arrows and the emergency figure sit inside the
+    // access block, at the end nearest the platform.
+    const paso = col.paso === false ? '' : '<span class="pdt-canal">' + marcasHtml() + '</span>';
     return (
       '<div class="pdt-col pdt-vestibulo">' +
-      '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + '</div>' +
+      '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + paso + '</div>' +
       midBand(undefined, '', salidasFor(col, 'centro') + iconsHtml(col.centro)) +
-      '<div class="pdt-band pdt-band-b">' + salidasFor(col, 'abajo') + iconsHtml(col.abajo) + '</div>' +
+      '<div class="pdt-band pdt-band-b">' + salidasFor(col, 'abajo') + iconsHtml(col.abajo) + paso + '</div>' +
       '</div>'
     );
   }
   if (col.t === 'puente') {
+    // As the sheet draws it: a narrow DASHED column running the full height of
+    // the drawing — taller than the platforms, because it crosses the road
+    // they sit in — with a triangle up at the top and down at the bottom for
+    // the ways onto it, and the name printed outside. An earlier version was
+    // a small arch nobody could read as a bridge.
     return (
-      '<div class="pdt-col pdt-puente">' +
-      '<span class="pdt-puente-deck" aria-hidden="true"></span>' +
-      '<span class="pdt-puente-iconos">' + iconsHtml(col.sube ?? ['escalera']) + '</span>' +
+      '<div class="pdt-col pdt-puente" role="img" aria-label="' +
+      escapeHtml(col.nombre || 'Puente peatonal') + '">' +
+      '<span class="pdt-puente-sube" aria-hidden="true"></span>' +
       '<span class="pdt-puente-txt">' + escapeHtml(col.nombre || 'Puente peatonal') + '</span>' +
+      '<span class="pdt-puente-baja" aria-hidden="true"></span>' +
       '</div>'
     );
   }
@@ -353,7 +367,9 @@ function convencionesHtml(columnas) {
       add(col.arriba);
       add(col.centro);
       add(col.abajo);
-    } else if (col.t === 'puente') add(col.sube ?? ['escalera']);
+    // A bridge draws its own triangles, not the stairs glyph, so it adds
+    // nothing to the key: a legend must name what the plan actually drew.
+    } else if (col.t === 'puente') { /* no mark of its own */ }
     else if (col.t === 'paso' || col.t === 'acceso') add(['rampa', 'emergencia']);
   }
   if (seen.length === 0) return '';
