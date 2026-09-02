@@ -2733,22 +2733,45 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* The crossing between two vagones — the same mark the compact drawing uses,
-   because it is the same thing on the sheet. */
-.pdt-paso { width: calc(26px * var(--tm-scale, 1)); }
+   because it is the same thing on the sheet. *//* The channel between two vagones, and the one between the vestibule and the
+   first of them. On the sheet they are the same thing — a grey lane carrying
+   the ramp arrows and the emergency figure — so they are drawn the same. */
+.pdt-paso,
+.pdt-acceso {
+  width: calc(30px * var(--tm-scale, 1));
+}
 
 .pdt-paso .pdt-band-a,
-.pdt-paso .pdt-band-b {
-  flex: 1 1 auto;
+.pdt-paso .pdt-band-b,
+.pdt-acceso .pdt-band-a,
+.pdt-acceso .pdt-band-b {
+  flex-direction: column;
+  gap: calc(3px * var(--tm-scale, 1));
   background: var(--surface-3, rgba(255, 255, 255, 0.07));
   border-radius: calc(2px * var(--tm-scale, 1));
 }
 
-.pdt-paso-mark {
-  width: calc(7px * var(--tm-scale, 1));
-  height: calc(7px * var(--tm-scale, 1));
-  border-radius: 50%;
-  border: 1.2px solid var(--text-tertiary);
+/* Wayfinding is a plain white mark straight on the grey, never a tile: the
+   tiles are equipment. A ramp is an arrow, and drawing it as a black tile put
+   a piece of machinery where the station has only a direction. */
+.pdt-marca {
+  width: 0;
+  height: 0;
+  border-top: calc(4px * var(--tm-scale, 1)) solid transparent;
+  border-bottom: calc(4px * var(--tm-scale, 1)) solid transparent;
+  opacity: 0.85;
 }
+
+.pdt-marca-der { border-left: calc(6px * var(--tm-scale, 1)) solid #FFFFFF; }
+.pdt-marca-izq { border-right: calc(6px * var(--tm-scale, 1)) solid #FFFFFF; }
+
+.pdt-figura {
+  display: inline-flex;
+  width: calc(15px * var(--tm-scale, 1));
+  height: calc(15px * var(--tm-scale, 1));
+}
+
+.pdt-figura svg { width: 100%; height: 100%; }
 
 /* A pedestrian bridge: drawn upright at the end of the platform, the way the
    sheet draws it, because it is a structure and not a doorway. */

@@ -479,9 +479,14 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-salida-der .pdt-salida-arrow{border-right:0;border-left:4px solid currentColor}
 #seo-prerender .pdt-salida-tag{font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 #seo-prerender .pdt-salida-calle{padding:2px 5px;background:#101114;color:#fff;font-weight:700;text-align:center}
-#seo-prerender .pdt-paso{width:26px}
-#seo-prerender .pdt-paso .pdt-band-a,#seo-prerender .pdt-paso .pdt-band-b{background:rgba(255,255,255,.07);border-radius:2px}
-#seo-prerender .pdt-paso-mark{width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,.35)}
+#seo-prerender .pdt-paso,#seo-prerender .pdt-acceso{width:30px}
+#seo-prerender .pdt-paso .pdt-band-a,#seo-prerender .pdt-paso .pdt-band-b,
+#seo-prerender .pdt-acceso .pdt-band-a,#seo-prerender .pdt-acceso .pdt-band-b{flex-direction:column;gap:3px;background:rgba(255,255,255,.07);border-radius:2px}
+#seo-prerender .pdt-marca{width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;opacity:.85}
+#seo-prerender .pdt-marca-der{border-left:6px solid #fff}
+#seo-prerender .pdt-marca-izq{border-right:6px solid #fff}
+#seo-prerender .pdt-figura{display:inline-flex;width:15px;height:15px}
+#seo-prerender .pdt-figura svg{width:100%;height:100%}
 #seo-prerender .pdt-puente{align-items:center;justify-content:center;gap:6px;padding:6px 9px;border:1px dashed rgba(255,255,255,.14);border-radius:3px;color:rgba(255,255,255,.62);background:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 3px,transparent 3px,transparent 7px)}
 #seo-prerender .pdt-puente-deck{width:30px;height:8px;border:1.4px solid currentColor;border-bottom:0;border-radius:15px 15px 0 0;opacity:.8}
 #seo-prerender .pdt-puente-txt{max-width:46px;text-align:center;font-size:.6rem;line-height:1.25;text-transform:uppercase;letter-spacing:.05em}

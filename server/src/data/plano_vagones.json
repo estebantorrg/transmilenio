@@ -1375,7 +1375,7 @@
   "detalle": {
     "TM0147": {
       "source": "Plano de ubicacion, Estacion Guatoque - Veraguas, version noviembre de 2024.",
-      "why": "The vestibule at the west end is the whole point of drawing this station in full: the cano splits the platforms, and the sheet starts it AFTER the vestibule, which is therefore the only way between Vagon 4 and Vagon 2. Read off the sheet at zoom: the taquilla sits in the upper band beside the Carrera 27 exit, and the torniquetes sit in the LOWER band, not between the platforms — which leaves the middle band free, so the exit sign is drawn there where it reads best.",
+      "why": "Read off the vestibule column at 3x, which settled placements two earlier passes got wrong. The taquilla is in the UPPER band beside the Carrera 27 exit, the TORNIQUETES are in the MIDDLE band — level with the cano, which is what a rider crosses there — and a second taquilla is in the LOWER band. The ramp arrows and the emergency figure are NOT in the vestibule at all: they sit in a narrow grey channel between it and Vagon 4, the same channel the sheet draws between Vagon 4 and Vagon 3. The cano crosses that second channel and stops short of the first.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -1387,14 +1387,17 @@
             }
           ],
           "arriba": [
-            "taquilla",
-            "rampa"
+            "taquilla"
           ],
-          "centro": [],
+          "centro": [
+            "torniquete"
+          ],
           "abajo": [
-            "torniquete",
-            "rampa"
+            "taquilla"
           ]
+        },
+        {
+          "t": "acceso"
         },
         {
           "t": "vagones",

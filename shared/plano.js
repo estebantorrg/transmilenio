@@ -238,6 +238,26 @@ function iconHtml(name) {
   );
 }
 
+/**
+ * The marks a plano draws ON the plan, as opposed to in its legend.
+ *
+ * The sheets use two registers and they are not interchangeable. Equipment —
+ * a taquilla, a torniquete — is a BLACK TILE with the glyph knocked out.
+ * Wayfinding — which way the ramp runs, where the emergency exit is — is a
+ * plain WHITE MARK straight on the grey: a triangle for the ramp, a running
+ * figure for the exit. The legend explains them with the fuller glyph; the
+ * plan itself uses the mark. Drawing a ramp as a black tile put a piece of
+ * equipment where the station has only an arrow.
+ */
+function marcasHtml() {
+  return (
+    '<span class="pdt-marca pdt-marca-der" aria-hidden="true"></span>' +
+    '<span class="pdt-figura" role="img" aria-label="Salida de emergencia" title="Salida de emergencia">' +
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONOS.emergencia.svg + '</svg></span>' +
+    '<span class="pdt-marca pdt-marca-izq" aria-hidden="true"></span>'
+  );
+}
+
 function iconsHtml(names) {
   const drawn = (names ?? []).map(iconHtml).filter(Boolean).join('');
   return drawn ? '<span class="pdt-iconos">' + drawn + '</span>' : '';
@@ -299,12 +319,18 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
       '</div>'
     );
   }
-  if (col.t === 'paso') {
+  if (col.t === 'paso' || col.t === 'acceso') {
+    // The crossing between two vagones, and the strip between the vestibule
+    // and the first of them: on the sheet they are the same thing, a grey
+    // channel carrying the ramp arrows and the emergency figure. The caño
+    // crosses the one between vagones and stops short of the one beside the
+    // vestibule, which is why only `paso` takes the divider.
+    const kind = col.t === 'paso' ? 'pdt-paso' : 'pdt-acceso';
     return (
-      '<div class="pdt-col pdt-paso">' +
-      '<div class="pdt-band pdt-band-a"><span class="pdt-paso-mark" aria-hidden="true"></span></div>' +
-      midBand(divider, '') +
-      '<div class="pdt-band pdt-band-b"><span class="pdt-paso-mark" aria-hidden="true"></span></div>' +
+      '<div class="pdt-col ' + kind + '">' +
+      '<div class="pdt-band pdt-band-a">' + marcasHtml() + '</div>' +
+      (col.t === 'paso' ? midBand(divider, '') : midBand(undefined, '')) +
+      '<div class="pdt-band pdt-band-b">' + marcasHtml() + '</div>' +
       '</div>'
     );
   }
@@ -328,6 +354,7 @@ function convencionesHtml(columnas) {
       add(col.centro);
       add(col.abajo);
     } else if (col.t === 'puente') add(col.sube ?? ['escalera']);
+    else if (col.t === 'paso' || col.t === 'acceso') add(['rampa', 'emergencia']);
   }
   if (seen.length === 0) return '';
   const items = seen
