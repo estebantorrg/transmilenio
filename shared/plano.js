@@ -153,14 +153,13 @@ export const ICONOS = {
     label: 'Taquilla',
     bg: '#0E0E10',
     svg:
-      // A ticket window seen as a filled diamond, with a hand coming up from
-      // the bottom right and one finger curling into it. Drawn as an outline
-      // square with a blob beside it, nobody could tell what it was meant to be.
-      '<path d="M11 2.4 18.8 10.2 11 18 3.2 10.2z" fill="' + W + '"/>' +
-      '<path d="M13.7 9.2c-1.55-.5-3.15.35-3.6 1.9-.2.72-.05 1.42.35 2l-1.7 2.6' +
-      'c-.52.84-.26 1.94.58 2.46l3.6 2.26c.9.52 2.05.26 2.57-.62l2.3-3.9' +
-      'c.26-.46.36-1 .3-1.52l-.46-3.7-1.9.26.2 1.74-1.34-1.54z" fill="' + W +
-      '" stroke="#0E0E10" stroke-width="1.1" stroke-linejoin="round"/>',
+      // The operator's own artwork, supplied by the maintainer rather than
+      // traced: the ticket window as a filled slab with a hand reaching into
+      // it. Three passes at redrawing this by eye all failed, because the
+      // shape is specific and an approximation of it is just a blob.
+      '<path d="M0 23.8C7.97333 15.88 15.84 7.85333 23.88 0C29.5467 5.14667 34.72 10.8133 40.2533 16.0933C36.4267 20.7733 31.8133 24.7333 27.64 29.1067C25.8267 26.4133 24.2267 23.5733 22.1867 21.04C19.44 17.7467 12.9333 20.5467 13.5333 24.8533C14.3467 29.6133 16.4933 34 17.8933 38.5867L17.2267 39.7333L15.8933 39.88C10.4533 34.68 5 29.44 0 23.8Z" fill="' + W + '"/>' +
+      '<path d="M16.2799 22.84C17.7732 21.3733 19.9865 21.8933 21.0399 23.56C23.1999 26.64 25.1465 29.88 27.0399 33.1333C31.3332 30.5333 33.7599 25.7466 38.1999 23.36C40.2399 31.32 37.6132 39.9066 40.3599 47.68C36.0799 49.7866 31.9599 52.2533 27.5332 54.0533C23.2665 46 20.3865 37.3333 16.9465 28.9066C16.3332 26.9733 14.9065 24.8 16.2799 22.84Z" fill="' + W + '"/>',
+    vb: '0 0 41 55',
   },
   torniquete: {
     label: 'Torniquetes',
@@ -236,7 +235,7 @@ function iconHtml(name) {
   return (
     '<span class="pdt-icono" role="img" aria-label="' + escapeHtml(icon.label) + '" title="' +
     escapeHtml(icon.label) + '" style="background:' + icon.bg + '">' +
-    '<svg viewBox="0 0 24 24" aria-hidden="true">' + icon.svg + '</svg></span>'
+    '<svg viewBox="' + (icon.vb || '0 0 24 24') + '" aria-hidden="true">' + icon.svg + '</svg></span>'
   );
 }
 
@@ -251,11 +250,25 @@ function iconHtml(name) {
  * plan itself uses the mark. Drawing a ramp as a black tile put a piece of
  * equipment where the station has only an arrow.
  */
+/**
+ * The figure in a crossing is a PERSON WALKING, and nothing more.
+ *
+ * It was drawn with the emergency-exit glyph and labelled as one, which was
+ * wrong twice over: the mark between two vagones is a pedestrian crossing —
+ * the way through — and an emergency exit is a different thing these sheets
+ * mark in green somewhere else. It earns no entry in the key either: a person
+ * walking across a gap needs no explaining.
+ */
+const PEATON =
+  '<circle cx="12.6" cy="3.8" r="2.1" fill="#FFFFFF"/>' +
+  '<path d="M11.4 7.2 8.2 11.6l1.6 1.2 2-2.7.9 3.3-3 6.6h2.1l2.3-4.9 1.7 4.9h2.1' +
+  'l-2.2-6.4-.9-3.3 2.4 1.6v3.1h1.9v-4.2l-4.1-2.7c-.5-.3-1.1-.4-1.6-.3z" fill="#FFFFFF"/>';
+
 function marcasHtml() {
   return (
     '<span class="pdt-marca pdt-marca-der" aria-hidden="true"></span>' +
-    '<span class="pdt-figura" role="img" aria-label="Salida de emergencia" title="Salida de emergencia">' +
-    '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONOS.emergencia.svg + '</svg></span>' +
+    '<span class="pdt-figura" role="img" aria-label="Paso peatonal">' +
+    '<svg viewBox="0 0 24 24" aria-hidden="true">' + PEATON + '</svg></span>' +
     '<span class="pdt-marca pdt-marca-izq" aria-hidden="true"></span>'
   );
 }
@@ -370,7 +383,7 @@ function convencionesHtml(columnas) {
     // A bridge draws its own triangles, not the stairs glyph, so it adds
     // nothing to the key: a legend must name what the plan actually drew.
     } else if (col.t === 'puente') { /* no mark of its own */ }
-    else if (col.t === 'paso' || col.t === 'acceso') add(['rampa', 'emergencia']);
+    else if (col.t === 'paso' || col.t === 'acceso') add(['rampa']);
   }
   if (seen.length === 0) return '';
   const items = seen

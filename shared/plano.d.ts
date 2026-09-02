@@ -18,8 +18,11 @@ export interface PlanoIcono {
   label: string;
   /** The tile behind the glyph, as the operator prints it. */
   bg: string;
-  /** SVG body on a 24×24 grid — the tile is drawn for it. */
+  /** SVG body — the tile is drawn for it. */
   svg: string;
+  /** Its own viewBox, where the artwork is not on a 24×24 grid. The taquilla is
+   *  the operator's own file and comes on 41×55. */
+  vb?: string;
 }
 
 export interface BuildSheetPlanoInput {
