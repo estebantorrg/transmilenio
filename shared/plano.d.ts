@@ -20,9 +20,12 @@ export interface PlanoIcono {
   bg: string;
   /** SVG body — the tile is drawn for it. */
   svg: string;
-  /** Its own viewBox, where the artwork is not on a 24×24 grid. The taquilla is
-   *  the operator's own file and comes on 41×55. */
+  /** Its own viewBox. The taquilla is the operator's own file and comes on
+   *  41×55; the Material Symbols come on 0 -960 960 960. */
   vb?: string;
+  /** The Material Symbols Rounded name, where the glyph came from there rather
+   *  than from the operator. Recorded so the source of each mark is legible. */
+  material?: string;
 }
 
 export interface BuildSheetPlanoInput {

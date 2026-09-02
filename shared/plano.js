@@ -143,10 +143,21 @@ export const DIVIDER_NAMES = {
 const W = '#FFFFFF';
 
 /**
- * The station furniture, traced from the *Convenciones* block every plano
- * prints down its left edge. Colour is part of the mark: the emergency exit is
- * green and the priority lift is blue by law, everything else is a black tile
- * with the glyph knocked out.
+ * The station furniture.
+ *
+ * The taquilla is the operator's own artwork — its shape is specific and every
+ * attempt at redrawing it by eye came out a blob. Everything else here is
+ * MATERIAL SYMBOLS ROUNDED, vendored as path data (Apache-2.0) rather than
+ * loaded from a font, so the drawing needs no network and cannot render as
+ * empty boxes while a webfont arrives. The walking figure in a crossing is
+ * custom too, and lives with the marks rather than here.
+ *
+ * Each is chosen for what is ACTUALLY at that spot rather than for the word: a
+ * torniquete is a barrier you pass through, so it is `toll`, the gate.
+ *
+ * Colour is part of the mark. The emergency exit is green and the priority
+ * lift is blue by law; everything else is a black tile with the glyph knocked
+ * out, which is how the sheets print them.
  */
 export const ICONOS = {
   taquilla: {
@@ -164,70 +175,67 @@ export const ICONOS = {
   torniquete: {
     label: 'Torniquetes',
     bg: '#0E0E10',
+    material: 'toll',
     svg:
-      '<rect x="4.6" y="7.6" width="4.6" height="11.4" rx="1.3" fill="' + W + '"/>' +
-      '<rect x="14.8" y="7.6" width="4.6" height="11.4" rx="1.3" fill="' + W + '"/>' +
-      '<path d="M5.3 10.6 6.9 7.9 8.5 10.6z" fill="#0E0E10"/>' +
-      '<path d="M15.5 10.6 17.1 7.9 18.7 10.6z" fill="#0E0E10"/>' +
-      '<path d="M9.4 13.1 14.6 15.6" stroke="' + W + '" stroke-width="1.5" stroke-linecap="round"/>',
+      '<path d="M373-253q-93-93-93-227t93-227q93-93 227-93t227 93q93 93 93 227t-93 227q-93 93-227 93t-227-93Zm-148 63q-84-39-134.5-117T40-480q0-95 50.5-173T225-770q21-10 38 1.5t17 37.5q0 10-6.5 19.5T257-697q-63 29-100 87.5T120-480q0 71 37 129.5T257-263q10 5 16.5 14t6.5 20q0 25-17 37t-38 2Zm375-290Zm170 170q70-70 70-170t-70-170q-70-70-170-70t-170 70q-70 70-70 170t70 170q70 70 170 70t170-70Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   rampa: {
     label: 'Rampa peatonal',
     bg: '#0E0E10',
+    material: 'accessible',
     svg:
-      '<path d="M4.4 19.2 19.6 5.6" stroke="' + W + '" stroke-width="2.1" stroke-linecap="round"/>' +
-      '<path d="M4.2 8.6 8.4 4.6M8.4 4.6H5.3M8.4 4.6v3.1" stroke="' + W + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
-      '<path d="M19.8 16.2 15.6 20.2M15.6 20.2h3.1M15.6 20.2v-3.1" stroke="' + W + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+      '<path d="M400-80q-83 0-141.5-58.5T200-280q0-51 23-94t61-70q14-10 30-7t26 17q10 14 7.5 30T331-378q-23 17-37 42.5T280-280q0 50 35 85t85 35q30 0 55.5-14t42.5-37q10-14 26-16.5t30 7.5q14 10 17 26t-7 30q-27 38-70 61t-94 23Zm291.5-11.5Q680-103 680-120v-160H480q-33 0-56.5-23.5T400-360v-240q0-33 23.5-56.5T480-680q24 0 41.5 10.5T559-636q45 54 81.5 79t78.5 33q17 3 29 15t12 29q0 17-12.5 28t-28.5 8q-44-8-85.5-28T560-518v138h120q33 0 56.5 23.5T760-300v180q0 17-11.5 28.5T720-80q-17 0-28.5-11.5Zm-268-652Q400-767 400-800t23.5-56.5Q447-880 480-880t56.5 23.5Q560-833 560-800t-23.5 56.5Q513-720 480-720t-56.5-23.5Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   escalera: {
     label: 'Escalera peatonal',
     bg: '#0E0E10',
+    material: 'stairs',
     svg:
-      '<path d="M4.4 19.4h3.6v-3.6h3.6v-3.6h3.6V8.6h3.6" stroke="' + W + '" stroke-width="2.1" fill="none" stroke-linejoin="round"/>' +
-      '<path d="M4.2 8.6 8.4 4.6M8.4 4.6H5.3M8.4 4.6v3.1" stroke="' + W + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>' +
-      '<path d="M19.8 16.2 15.6 20.2M15.6 20.2h3.1M15.6 20.2v-3.1" stroke="' + W + '" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+      '<path d="M417-373h63q17 0 28.5-11.5T520-413v-93h63q17 0 28.5-11.5T623-546v-94h57q17 0 28.5-11.5T720-680q0-17-11.5-28.5T680-720h-97q-17 0-28.5 11.5T543-680v93h-63q-17 0-28.5 11.5T440-547v93h-63q-17 0-28.5 11.5T337-414v94h-57q-17 0-28.5 11.5T240-280q0 17 11.5 28.5T280-240h97q17 0 28.5-11.5T417-280v-93ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0-560v560-560Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   emergencia: {
     label: 'Salida de emergencia',
     bg: '#2E9E4F',
+    material: 'directions_run',
     svg:
-      '<circle cx="13.6" cy="4.9" r="2" fill="' + W + '"/>' +
-      '<path d="M12.9 8.1c-.5.15-.95.45-1.3.85l-2.5 2.9c-.35.4-.35 1 .05 1.35.4.35 1 .3 1.35-.1l1.5-1.7.75 2.4-2.6 2.9c-.2.25-.3.55-.25.85l.6 3.3c.1.55.6.9 1.15.8.55-.1.9-.6.8-1.15l-.5-2.75 2.35-2.6 1.15 3.05c.1.3.35.55.65.65l2.6.75c.55.15 1.1-.15 1.25-.7.15-.55-.15-1.1-.7-1.25l-2.1-.6-1.7-4.7c-.2-.6-.55-1.1-1-1.5l-1.55-1.35c-.4-.35-.9-.5-1.45-.4z" fill="' + W + '"/>' +
-      '<path d="M8.2 8.6 5.1 9.8" stroke="' + W + '" stroke-width="1.7" stroke-linecap="round"/>',
+      '<path d="M520-80v-200l-84-80-31 138q-4 16-17.5 24.5T358-192l-198-40q-17-3-26-17t-6-31q3-17 17-26.5t31-5.5l152 32 64-324-72 28v96q0 17-11.5 28.5T280-440q-17 0-28.5-11.5T240-480v-122q0-12 6.5-21.5T264-638l134-58q35-15 51.5-19.5T480-720q21 0 39 11t29 29l40 64q21 34 54.5 59t77.5 33q17 3 28.5 15t11.5 29q0 17-11.5 28t-27.5 9q-54-8-101-33.5T540-540l-24 120 72 68q6 6 9 13.5t3 15.5v243q0 17-11.5 28.5T560-40q-17 0-28.5-11.5T520-80Zm-36.5-683.5Q460-787 460-820t23.5-56.5Q507-900 540-900t56.5 23.5Q620-853 620-820t-23.5 56.5Q573-740 540-740t-56.5-23.5Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   ascensor: {
     label: 'Ascensor prioritario',
     bg: '#1B5FA8',
+    material: 'elevator',
     svg:
-      '<circle cx="11.4" cy="4.8" r="2" fill="' + W + '"/>' +
-      '<path d="M9.6 8.2v5.1c0 .7.55 1.25 1.25 1.25h3.6l2.5 5.3" stroke="' + W + '" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>' +
-      '<path d="M15.9 13.6a5.4 5.4 0 1 1-6.6-4.1" stroke="' + W + '" stroke-width="1.9" fill="none" stroke-linecap="round"/>',
+      '<path d="M280-400v120q0 17 11.5 28.5T320-240h40q17 0 28.5-11.5T400-280v-120q11-11 25.5-17.5T440-440v-60q0-33-23.5-56.5T360-580h-40q-33 0-56.5 23.5T240-500v60q0 16 14.5 22.5T280-400Zm95.5-234.5Q390-649 390-670t-14.5-35.5Q361-720 340-720t-35.5 14.5Q290-691 290-670t14.5 35.5Q319-620 340-620t35.5-14.5ZM556-520h128q12 0 17.5-10.5T701-551l-64-102q-6-10-17-10t-17 10l-64 102q-6 10-.5 20.5T556-520Zm81 213 64-102q6-10 .5-20.5T684-440H556q-12 0-17.5 10.5t.5 20.5l64 102q6 10 17 10t17-10ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0 0v-560 560Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   bici: {
     label: 'TransMiBici',
     bg: '#0E0E10',
+    material: 'pedal_bike',
     svg:
-      '<path d="M4.4 5.9h10.2M9.5 5.9v12.4" stroke="' + W + '" stroke-width="2.4" stroke-linecap="round"/>' +
-      '<circle cx="14.6" cy="16.4" r="2.9" fill="none" stroke="' + W + '" stroke-width="1.5"/>' +
-      '<circle cx="20.1" cy="16.4" r="2.9" fill="none" stroke="' + W + '" stroke-width="1.5"/>' +
-      '<path d="M14.6 16.4 16.6 11.9h2.4" stroke="' + W + '" stroke-width="1.4" fill="none" stroke-linecap="round"/>',
+      '<path d="M200-160q-85 0-142.5-57.5T0-360q0-85 58.5-142.5T200-560q77 0 129.5 46T396-400h26l-72-200h-30q-17 0-28.5-11.5T280-640q0-17 11.5-28.5T320-680h120q17 0 28.5 11.5T480-640q0 17-11.5 28.5T440-600h-4l14 40h192l-58-160h-64q-17 0-28.5-11.5T480-760q0-17 11.5-28.5T520-800h64q26 0 46.5 14t29.5 38l68 186h32q83 0 141.5 58.5T960-362q0 84-58 143t-142 59q-72 0-126.5-45T564-320H396q-14 69-68 114.5T200-160Zm0-80q41 0 70.5-22.5T312-320h-72q-17 0-28.5-11.5T200-360q0-17 11.5-28.5T240-400h72q-12-36-41.5-58T200-480q-51 0-85.5 34.5T80-360q0 50 34.5 85t85.5 35Zm308-160h56q5-23 13.5-43t22.5-37H478l30 80Zm252 160q51 0 85.5-35t34.5-85q0-51-34.5-85.5T760-480h-4l26 69q6 16-1 30.5T758-360q-16 6-31-1t-21-23l-24-68q-20 17-31 40t-11 52q0 50 34.5 85t85.5 35ZM196-360Zm564 0Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   cable: {
     label: 'Conexión con TransMiCable',
     bg: '#0E0E10',
+    material: 'cable_car',
     svg:
-      '<path d="M8.2 4.8h7.6l3.4 3.4v7.6l-3.4 3.4H8.2L4.8 15.8V8.2z" fill="none" stroke="' + W + '" stroke-width="1.8" stroke-linejoin="round"/>' +
-      '<path d="M12.4 5.2h3.4l3.4 3.4v7.2l-3.4 3.4h-3.4z" fill="' + W + '"/>',
+      '<path d="M160-160q-17 0-28.5-11.5T120-200q0-17 11.5-28.5T160-240v-480q-17 0-28.5-11.5T120-760q0-17 11.5-28.5T160-800h93l18-53q4-12 14.5-19.5T309-880h342q13 0 23.5 7.5T689-853l18 53h93q17 0 28.5 11.5T840-760q0 17-11.5 28.5T800-720v480q17 0 28.5 11.5T840-200q0 17-11.5 28.5T800-160H680q0 17-11.5 28.5T640-120H320q-17 0-28.5-11.5T280-160H160Zm80-360h120v-140q0-25-17.5-42.5T300-720q-25 0-42.5 17.5T240-660v140Zm180 0h120v-140q0-25-17.5-42.5T480-720q-25 0-42.5 17.5T420-660v140Zm180 0h120v-140q0-25-17.5-42.5T660-720q-25 0-42.5 17.5T600-660v140ZM240-240h480v-200H240v200Zm282.5-57.5Q540-315 540-340t-17.5-42.5Q505-400 480-400t-42.5 17.5Q420-365 420-340t17.5 42.5Q455-280 480-280t42.5-17.5ZM240-440h480-480Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
   },
   zonal: {
     label: 'Conexión con servicio zonal',
     bg: '#0E0E10',
+    material: 'directions_bus',
     svg:
-      '<rect x="4.6" y="4.6" width="14.8" height="12.4" rx="1.6" fill="none" stroke="' + W + '" stroke-width="1.8"/>' +
-      '<path d="M4.6 9.4h14.8" stroke="' + W + '" stroke-width="1.6"/>' +
-      '<path d="M7.4 17.2v2.2M16.6 17.2v2.2" stroke="' + W + '" stroke-width="1.8" stroke-linecap="round"/>',
-  },
-};
+      '<path d="M320-200v20q0 25-17.5 42.5T260-120q-25 0-42.5-17.5T200-180v-62q-18-20-29-44.5T160-340v-380q0-83 77-121.5T480-880q172 0 246 37t74 123v380q0 29-11 53.5T760-242v62q0 25-17.5 42.5T700-120q-25 0-42.5-17.5T640-180v-20H320Zm162-560h224-448 224Zm158 280H240h480-80Zm-400-80h480v-120H240v120Zm142.5 222.5Q400-355 400-380t-17.5-42.5Q365-440 340-440t-42.5 17.5Q280-405 280-380t17.5 42.5Q315-320 340-320t42.5-17.5Zm280 0Q680-355 680-380t-17.5-42.5Q645-440 620-440t-42.5 17.5Q560-405 560-380t17.5 42.5Q595-320 620-320t42.5-17.5ZM258-760h448q-15-17-64.5-28.5T482-800q-107 0-156.5 12.5T258-760Zm62 480h320q33 0 56.5-23.5T720-360v-120H240v120q0 33 23.5 56.5T320-280Z" fill="' + W + '"/>',
+    vb: '0 -960 960 960',
+  },};
 
 function iconHtml(name) {
   const icon = ICONOS[name];
@@ -259,16 +267,16 @@ function iconHtml(name) {
  * mark in green somewhere else. It earns no entry in the key either: a person
  * walking across a gap needs no explaining.
  */
+/** Material Symbols Rounded `directions_walk`, on its own 960 grid. */
+const PEATON_VB = '0 -960 960 960';
 const PEATON =
-  '<circle cx="12.6" cy="3.8" r="2.1" fill="#FFFFFF"/>' +
-  '<path d="M11.4 7.2 8.2 11.6l1.6 1.2 2-2.7.9 3.3-3 6.6h2.1l2.3-4.9 1.7 4.9h2.1' +
-  'l-2.2-6.4-.9-3.3 2.4 1.6v3.1h1.9v-4.2l-4.1-2.7c-.5-.3-1.1-.4-1.6-.3z" fill="#FFFFFF"/>';
+  '<path d="M436-364 371-72q-3 14-14.5 23T330-40q-20 0-32-15t-8-34l102-515-72 28v96q0 17-11.5 28.5T280-440q-17 0-28.5-11.5T240-480v-122q0-12 6.5-21.5T264-638l178-76q14-6 29.5-7t29.5 4q14 5 26.5 14t20.5 23l40 64q13 20 30.5 38t39.5 31q14 8 31 14.5t34 9.5q16 3 26.5 14.5T760-480q0 17-12 28t-29 9q-56-8-100.5-35T541-543l-25 123 72 68q6 6 9 13.5t3 15.5v243q0 17-11.5 28.5T560-40q-17 0-28.5-11.5T520-80v-220l-84-64Zm47.5-399.5Q460-787 460-820t23.5-56.5Q507-900 540-900t56.5 23.5Q620-853 620-820t-23.5 56.5Q573-740 540-740t-56.5-23.5Z" fill="#FFFFFF"/>';
 
 function marcasHtml() {
   return (
     '<span class="pdt-marca pdt-marca-der" aria-hidden="true"></span>' +
     '<span class="pdt-figura" role="img" aria-label="Paso peatonal">' +
-    '<svg viewBox="0 0 24 24" aria-hidden="true">' + PEATON + '</svg></span>' +
+    '<svg viewBox="' + PEATON_VB + '" aria-hidden="true">' + PEATON + '</svg></span>' +
     '<span class="pdt-marca pdt-marca-izq" aria-hidden="true"></span>'
   );
 }
