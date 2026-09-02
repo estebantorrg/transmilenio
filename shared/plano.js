@@ -353,11 +353,16 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
     // crosses the one between vagones and stops short of the one beside the
     // vestibule, which is why only `paso` takes the divider.
     const kind = col.t === 'paso' ? 'pdt-paso' : 'pdt-acceso';
+    // The marks go in a box of their own rather than filling the band. Filling
+    // it, the crossing ran the whole height of the column — up past the deck
+    // and into the chips above it — so it read as taller than the vagones it
+    // sits between, which on the sheet it never is.
+    const caja = '<span class="pdt-canal-v">' + marcasHtml() + '</span>';
     return (
       '<div class="pdt-col ' + kind + '">' +
-      '<div class="pdt-band pdt-band-a">' + marcasHtml() + '</div>' +
-      (col.t === 'paso' ? midBand(divider, '') : midBand(undefined, '')) +
-      '<div class="pdt-band pdt-band-b">' + marcasHtml() + '</div>' +
+      '<div class="pdt-band pdt-band-a">' + caja + '</div>' +
+      (col.t === 'paso' ? midBand(divider, label) : midBand(undefined, '')) +
+      '<div class="pdt-band pdt-band-b">' + caja + '</div>' +
       '</div>'
     );
   }
@@ -522,7 +527,12 @@ export function buildSheetPlano(input) {
   // The full station, where its furniture has been read too.
   const columnas = input.detalle?.columnas ?? [];
   if (columnas.length > 0) {
-    const first = columnas.findIndex((c) => c.t === 'vagones' || c.t === 'paso');
+    // The name sits at the CENTRE of the run the divider actually crosses, not
+    // on the first column of it: at Guatoque the caño spans three columns and
+    // the word sat over the left-hand one, reading as a label for that vagón
+    // rather than for the water.
+    const cruza = columnas.map((c, i) => (c.t === 'vagones' || c.t === 'paso' ? i : -1)).filter((i) => i >= 0);
+    const first = cruza.length ? cruza[Math.floor((cruza.length - 1) / 2)] : -1;
     const cellArriba = (v) => (v ? cells.get('0:' + String(v)) ?? '' : '');
     const cellAbajo = (v) => (v ? cells.get('1:' + String(v)) ?? cells.get('0:' + String(v)) ?? '' : '');
     const html =

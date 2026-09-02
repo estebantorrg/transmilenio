@@ -482,8 +482,9 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-salida-tag{font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 #seo-prerender .pdt-salida-calle{padding:2px 5px;background:#101114;color:#fff;font-weight:700;text-align:center}
 #seo-prerender .pdt-paso,#seo-prerender .pdt-acceso{width:30px}
-#seo-prerender .pdt-paso .pdt-band-a,#seo-prerender .pdt-paso .pdt-band-b,
-#seo-prerender .pdt-acceso .pdt-band-a,#seo-prerender .pdt-acceso .pdt-band-b{flex-direction:column;gap:3px;background:rgba(255,255,255,.07);border-radius:2px}
+#seo-prerender .pdt-paso .pdt-band-a,#seo-prerender .pdt-acceso .pdt-band-a{align-items:flex-end;padding-bottom:7px}
+#seo-prerender .pdt-paso .pdt-band-b,#seo-prerender .pdt-acceso .pdt-band-b{align-items:flex-start;padding-top:7px}
+#seo-prerender .pdt-canal-v{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 0;width:100%;background:rgba(255,255,255,.07);border-radius:2px}
 #seo-prerender .pdt-marca{width:0;height:0;border-top:4px solid transparent;border-bottom:4px solid transparent;opacity:.85}
 #seo-prerender .pdt-marca-der{border-left:6px solid #fff}
 #seo-prerender .pdt-marca-izq{border-right:6px solid #fff}
