@@ -182,7 +182,15 @@ export type PlanoColumna =
       abajo?: string;
     }
   | { t: 'paso' }
-  | { t: 'puente'; nombre?: string };
+  | {
+      t: 'puente';
+      nombre?: string;
+      /** What gets a rider up to it — stairs, and a lift where the sheet
+       *  draws one. Material Symbols has no bridge glyph, and an unlabelled
+       *  arch read as nothing, so a bridge is drawn as a named structure
+       *  carrying its own accesses, which is how the sheets mark it too. */
+      sube?: string[];
+    };
 
 /**
  * The station as its plano actually draws it — platforms AND the furniture

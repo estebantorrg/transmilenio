@@ -2613,11 +2613,19 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* The three bands every column shares, so a taquilla on the upper platform
-   sits at the same height as the vagón beside it. */
+   sits at the same height as the vagón beside it — which is the point of
+   drawing it at all, and did not happen until the bands were made to STRETCH.
+   Left to themselves the vestibule's bands collapsed to their content and its
+   icons floated near the top of the drawing, level with nothing. */
 .pdt-band {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.pdt-band-a,
+.pdt-band-b {
+  flex: 1 1 0;
 }
 
 .pdt-band-mid {
@@ -2632,24 +2640,43 @@ body.sidebar-collapsed .sidebar-fab {
   background: var(--surface-2, rgba(255, 255, 255, 0.045));
   border: 1px solid var(--border-subtle);
   border-radius: calc(3px * var(--tm-scale, 1));
-  padding: calc(4px * var(--tm-scale, 1)) calc(7px * var(--tm-scale, 1));
+  padding: calc(4px * var(--tm-scale, 1)) calc(8px * var(--tm-scale, 1));
   gap: calc(4px * var(--tm-scale, 1));
 }
 
+/* Left to right, in the order the sheet places them: the exit at the street
+   end, the taquilla beside it, the ramp last where the platform begins. */
+.pdt-vestibulo .pdt-band {
+  justify-content: flex-start;
+  gap: calc(5px * var(--tm-scale, 1));
+}
+
+/* Big enough to read at plan size. The first pass drew these by hand at 15px
+   and they were unrecognisable; these are the real Material Symbols outlines,
+   on a chip so they read as objects placed in the station rather than as
+   decoration floating on the grey. */
 .pdt-iconos {
   display: inline-flex;
   align-items: center;
-  gap: calc(5px * var(--tm-scale, 1));
-  color: var(--text-secondary);
+  gap: calc(4px * var(--tm-scale, 1));
+  color: var(--text-primary);
 }
 
 .pdt-icono {
   display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(21px * var(--tm-scale, 1));
+  height: calc(21px * var(--tm-scale, 1));
+  border-radius: calc(3px * var(--tm-scale, 1));
+  background: rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--border-subtle);
+}
+
+.pdt-icono svg {
   width: calc(15px * var(--tm-scale, 1));
   height: calc(15px * var(--tm-scale, 1));
 }
-
-.pdt-icono svg { width: 100%; height: 100%; }
 
 /* A way out, and the street it comes out on. The street is the whole value:
    every station has a "Salida", only this one has Carrera 27. */
@@ -2705,33 +2732,89 @@ body.sidebar-collapsed .sidebar-fab {
 
 /* A pedestrian bridge: drawn upright at the end of the platform, the way the
    sheet draws it, because it is a structure and not a doorway. */
+/* A pedestrian bridge, drawn as a STRUCTURE spanning the whole height of the
+   drawing — the way it spans the road. Material Symbols has no bridge glyph,
+   and the first attempt (a small unlabelled arch) read as nothing at all, so
+   this is a named block carrying whatever gets you up onto it. */
 .pdt-puente {
   align-items: center;
   justify-content: center;
-  gap: calc(5px * var(--tm-scale, 1));
-  padding: 0 calc(6px * var(--tm-scale, 1));
-  border-left: 1px dashed var(--border-medium);
-  color: var(--text-tertiary);
+  gap: calc(6px * var(--tm-scale, 1));
+  padding: calc(6px * var(--tm-scale, 1)) calc(9px * var(--tm-scale, 1));
+  border: 1px dashed var(--border-medium);
+  border-radius: calc(3px * var(--tm-scale, 1));
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.05) 0,
+    rgba(255, 255, 255, 0.05) calc(3px * var(--tm-scale, 1)),
+    transparent calc(3px * var(--tm-scale, 1)),
+    transparent calc(7px * var(--tm-scale, 1))
+  );
+  color: var(--text-secondary);
 }
 
-.pdt-puente-mark {
-  width: calc(14px * var(--tm-scale, 1));
-  height: calc(10px * var(--tm-scale, 1));
+/* The deck itself: the span that goes over the road. */
+.pdt-puente-deck {
+  width: calc(30px * var(--tm-scale, 1));
+  height: calc(8px * var(--tm-scale, 1));
   border: 1.4px solid currentColor;
   border-bottom: 0;
-  border-radius: calc(8px * var(--tm-scale, 1)) calc(8px * var(--tm-scale, 1)) 0 0;
+  border-radius: calc(15px * var(--tm-scale, 1)) calc(15px * var(--tm-scale, 1)) 0 0;
+  opacity: 0.8;
 }
 
+.pdt-puente-iconos { display: inline-flex; }
+
 .pdt-puente-txt {
-  writing-mode: vertical-rl;
-  font-size: calc(7.5px * var(--tm-scale, 1));
+  max-width: calc(46px * var(--tm-scale, 1));
+  text-align: center;
+  font-size: calc(8px * var(--tm-scale, 1));
+  line-height: 1.25;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
 }
 
 /* The divider runs across the platform columns and STOPS at the vestibule.
    `--pdt-skip` is how many columns it does not cross — at Guatoque exactly
    one, which is the difference between "no way across" and the truth. */
+/* The other dividers, as bands. A caño is water and gets its own colour; a
+   railway is track; everything else is a line you are told the name of. */
+.pdt-divider-tren {
+  background:
+    linear-gradient(var(--border-card), var(--border-card)) top / 100% 1.5px no-repeat,
+    linear-gradient(var(--border-card), var(--border-card)) bottom / 100% 1.5px no-repeat,
+    repeating-linear-gradient(
+      to right,
+      var(--border-medium) 0,
+      var(--border-medium) calc(2px * var(--tm-scale, 1)),
+      transparent calc(2px * var(--tm-scale, 1)),
+      transparent calc(7px * var(--tm-scale, 1))
+    );
+  color: var(--text-secondary);
+}
+
+.pdt-divider-ciclorruta,
+.pdt-divider-busway,
+.pdt-divider-separador,
+.pdt-divider-tunel {
+  background: repeating-linear-gradient(
+    to right,
+    var(--border-medium) 0,
+    var(--border-medium) calc(9px * var(--tm-scale, 1)),
+    transparent calc(9px * var(--tm-scale, 1)),
+    transparent calc(18px * var(--tm-scale, 1))
+  ) center / 100% 2px no-repeat;
+  color: var(--text-tertiary);
+}
+
+/* The name sits on the band, so it needs the drawing behind it, not the line. */
+.pdt-divider .pdt-divider-name {
+  padding: 0 calc(6px * var(--tm-scale, 1));
+  background: var(--surface-1, #14161A);
+}
+
+.pdt-divider-cano .pdt-divider-name { background: transparent; }
+
 /* The divider is a BAND inside every column it crosses, so it begins exactly
    where the platforms do and the vestibule beside it stays dry. It used to be
    one absolutely-positioned bar told how far along to start, in pixels — a
@@ -2751,6 +2834,39 @@ body.sidebar-collapsed .sidebar-fab {
   color: #FFFFFF;
   font-weight: 700;
   text-shadow: 0 1px 1px rgba(4, 40, 58, 0.45);
+}
+
+/* The drawing's own Convenciones. Every official plano carries one, for the
+   reason this needed one: a glyph at plan size is recognisable once you have
+   been told what it is and guessable before, and a tooltip is no use to a
+   reader on a phone. Only the marks the drawing actually used are listed. */
+.pdt-convenciones {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: calc(4px * var(--tm-scale, 1)) calc(12px * var(--tm-scale, 1));
+  margin-top: calc(8px * var(--tm-scale, 1));
+  padding-top: calc(7px * var(--tm-scale, 1));
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pdt-conv-tag {
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+}
+
+.pdt-conv {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(5px * var(--tm-scale, 1));
+}
+
+.pdt-conv-txt {
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  color: var(--text-secondary);
 }
 
 /* ── The way out on foot ─────────────────────────────────────────────────

@@ -1412,6 +1412,85 @@
           "abajo": "1"
         }
       ]
+    },
+    "TM0061": {
+      "source": "Plano de ubicacion, Estacion Av. Chile, version noviembre de 2024.",
+      "why": "Read second, and deliberately: Guatoque has no bridge, so it could not show whether one was legible. Av. Chile has a puente peatonal at EACH end, drawn full height because that is what it does — it spans the road the station sits in. Between the bridges and the platforms sits a vestibule at either end: taquilla on the upper platform, torniquetes in the middle where you cross, and the street exit below (Calle 72 west, Calle 70 east). The three vagones are drawn once per carriageway either side of the railway, so both rows read 3, 2, 1.",
+      "columnas": [
+        {
+          "t": "puente",
+          "sube": [
+            "escalera"
+          ]
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 72",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla",
+            "rampa"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "rampa"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3",
+          "abajo": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 70",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "rampa",
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "rampa"
+          ]
+        },
+        {
+          "t": "puente",
+          "sube": [
+            "escalera"
+          ]
+        }
+      ]
     }
   }
 }

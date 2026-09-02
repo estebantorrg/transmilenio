@@ -279,7 +279,7 @@ function buildStationLayoutHtml(
     return sentido === undefined || sentido === want;
   };
 
-  const rows = (layout.rows ?? []).map((row) => {
+  const rows = (layout.rows ?? []).map((row, rowIndex) => {
     if (!rowIsPresent(row)) return null;
     const decks = row.vagones
       .map((vagon) => {
@@ -337,7 +337,12 @@ function buildStationLayoutHtml(
           deck +
           `<div class="pvg-side pvg-side-b">${tags(below)}</div>` +
           `</section>`;
-        cellsOut?.set(String(vagon.vagon), cell);
+        // Keyed by ROW and vagón, never by vagón alone. Av. Chile draws the
+        // same three vagones once per carriageway, so both its rows are
+        // "3, 2, 1" — keyed by number the second row overwrote the first and
+        // the detailed drawing showed one platform twice, losing D22 and E32
+        // entirely.
+        cellsOut?.set(rowIndex + ':' + String(vagon.vagon), cell);
         return cell;
       })
       .filter(Boolean);
@@ -769,7 +774,10 @@ export function buildStationWagonView(
           detalle,
           divider: layout?.divider,
           dividerLabel: layout?.divider ? DIVIDER_NAMES[layout.divider] : '',
-          cell: (v) => (v ? cells.get(String(v)) ?? '' : ''),
+          // `arriba` is the upper row of the layout, `abajo` the lower one.
+          cellArriba: (v) => (v ? cells.get('0:' + String(v)) ?? '' : ''),
+          cellAbajo: (v) =>
+            v ? cells.get('1:' + String(v)) ?? cells.get('0:' + String(v)) ?? '' : '',
           ejeArriba: sentidos?.positive,
           ejeAbajo: sentidos?.negative,
         })

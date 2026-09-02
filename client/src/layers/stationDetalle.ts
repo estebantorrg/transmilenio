@@ -22,65 +22,20 @@
  */
 
 import { escapeHTML } from '../utils/html';
+import { ICONOS } from './planoIconos';
 import type { CatalogStation } from '../types/catalog';
 
 type Detalle = NonNullable<CatalogStation['planoDetalle']>;
 type Columna = Detalle['columnas'][number];
-
-/**
- * The legend every sheet prints down its left edge, as inline SVG.
- *
- * Drawn rather than lettered because these are the marks a rider matches
- * against the wall, and a word in place of a glyph is a different sign. Each is
- * a 16×16 viewBox so they sit on the same baseline whatever the drawing scale.
- */
-const ICONOS: Record<string, { label: string; svg: string }> = {
-  taquilla: {
-    label: 'Taquilla',
-    svg: '<path d="M2 5.5h12v7H2z"/><path d="M4.5 8.5h3M4.5 10.5h5"/>',
-  },
-  torniquete: {
-    label: 'Torniquetes',
-    svg: '<path d="M3 3v10M13 3v10"/><circle cx="5.6" cy="6" r="1.4"/><circle cx="10.4" cy="6" r="1.4"/><path d="M4.2 13V9.2h2.8V13M9 13V9.2h2.8V13"/>',
-  },
-  rampa: {
-    label: 'Rampa peatonal',
-    svg: '<path d="M2 12.5h12"/><path d="M3 12.5 11 5"/><circle cx="9" cy="3.6" r="1.2"/>',
-  },
-  escalera: {
-    label: 'Escalera peatonal',
-    svg: '<path d="M2 13h3v-2.5h3V8h3V5.5h3"/>',
-  },
-  ascensor: {
-    label: 'Ascensor prioritario',
-    svg: '<path d="M3 2.5h10v11H3z"/><path d="M8 5v6M6 7l2-2 2 2M6 9l2 2 2-2"/>',
-  },
-  emergencia: {
-    label: 'Salida de emergencia',
-    svg: '<path d="M3 2.5h6v11H3z"/><path d="M10 8h4M12 6l2 2-2 2"/>',
-  },
-  bici: {
-    label: 'TransMiBici',
-    svg: '<circle cx="4.5" cy="10.5" r="2.6"/><circle cx="11.5" cy="10.5" r="2.6"/><path d="M4.5 10.5 7 5h3"/>',
-  },
-  cable: {
-    label: 'Conexión TransMiCable',
-    svg: '<path d="M1.5 4.5h13"/><path d="M6 4.5v2.2h4V4.5"/><path d="M5.5 6.7h5v4.6h-5z"/>',
-  },
-  zonal: {
-    label: 'Conexión con servicio zonal',
-    svg: '<path d="M3 3.5h10v7H3z"/><path d="M3 7h10"/><circle cx="5" cy="12" r="1"/><circle cx="11" cy="12" r="1"/>',
-  },
-};
 
 function iconHtml(name: string): string {
   const icon = ICONOS[name];
   if (!icon) return '';
   return (
     `<span class="pdt-icono" role="img" aria-label="${escapeHTML(icon.label)}" title="${escapeHTML(icon.label)}">` +
-    `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" ` +
-    `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icon.svg}</svg>` +
-    `</span>`
+    `<svg viewBox="${icon.vb}" fill="currentColor" aria-hidden="true">` +
+    icon.d.map((d) => `<path d="${d}"/>`).join('') +
+    `</svg></span>`
   );
 }
 
@@ -108,13 +63,6 @@ function salidaHtml(salida: { calle: string; hacia?: 'izq' | 'der' }): string {
 }
 
 /**
- * One column, with the two platform cells the caller has already drawn for it.
- *
- * `arriba`/`abajo` come in as finished HTML because the vagones themselves are
- * the compact drawing's job — this module places them, it does not rebuild
- * them. That is what keeps the two drawings from disagreeing about a service.
- */
-/**
  * The band between the platforms, for ONE column.
  *
  * The divider is drawn per column rather than as one bar across the drawing,
@@ -123,35 +71,57 @@ function salidaHtml(salida: { calle: string; hacia?: 'izq' | 'der' }): string {
  * a single absolutely-positioned bar it needed to be told how far along to
  * begin, in pixels, which was a guess that happened to fit one station.
  */
-function midBand(divider: string | undefined, label: string): string {
-  if (!divider) return '<div class="pdt-band pdt-band-mid"></div>';
+function midBand(divider: string | undefined, label: string, extra = ''): string {
+  const cls = divider ? ` pdt-divider pdt-divider-${escapeHTML(divider)}` : '';
   return (
-    `<div class="pdt-band pdt-band-mid pdt-divider pdt-divider-${escapeHTML(divider)}">` +
-    (label ? `<span class="pdt-divider-name">${escapeHTML(label)}</span>` : '') +
+    `<div class="pdt-band pdt-band-mid${cls}">` +
+    extra +
+    (divider && label ? `<span class="pdt-divider-name">${escapeHTML(label)}</span>` : '') +
     `</div>`
   );
 }
 
+/** The salidas the sheet draws on one band of a vestibule. */
+function salidasFor(
+  col: Extract<Columna, { t: 'vestibulo' }>,
+  fila: 'arriba' | 'abajo' | 'centro'
+): string {
+  return (col.salidas ?? [])
+    .filter((s) => (s.fila ?? 'centro') === fila || (s.fila === 'ambas' && fila !== 'centro'))
+    .map(salidaHtml)
+    .join('');
+}
+
 function columnaHtml(
   col: Columna,
-  cell: (vagon: string | undefined) => string,
+  cellArriba: (vagon: string | undefined) => string,
+  cellAbajo: (vagon: string | undefined) => string,
   divider: string | undefined,
   label: string
 ): string {
   if (col.t === 'vestibulo') {
-    const salidas = (col.salidas ?? []).map(salidaHtml).join('');
+    // The vestibule's own bands, so a taquilla on the upper platform sits level
+    // with the vagón beside it and the torniquetes sit between the two — which
+    // is where the sheet puts them, and the reason they are worth drawing.
     return (
       `<div class="pdt-col pdt-vestibulo">` +
-      `<div class="pdt-band pdt-band-a">${iconsHtml(col.arriba)}</div>` +
-      `<div class="pdt-band pdt-band-mid">${salidas}${iconsHtml(col.centro)}</div>` +
-      `<div class="pdt-band pdt-band-b">${iconsHtml(col.abajo)}</div>` +
+      `<div class="pdt-band pdt-band-a">${salidasFor(col, 'arriba')}${iconsHtml(col.arriba)}</div>` +
+      midBand(undefined, '', `${salidasFor(col, 'centro')}${iconsHtml(col.centro)}`) +
+      `<div class="pdt-band pdt-band-b">${salidasFor(col, 'abajo')}${iconsHtml(col.abajo)}</div>` +
       `</div>`
     );
   }
   if (col.t === 'puente') {
+    // A pedestrian bridge is a STRUCTURE, not a doorway, and Material Symbols
+    // has no glyph for one. The sheets mark it the same way this does: a named
+    // block carrying whatever gets you up to it — stairs, and a lift where
+    // there is one. The first attempt drew an unlabelled arch and nobody could
+    // tell it was a bridge.
+    const subidas = iconsHtml(col.sube ?? ['escalera']);
     return (
       `<div class="pdt-col pdt-puente">` +
-      `<span class="pdt-puente-mark" aria-hidden="true"></span>` +
+      `<span class="pdt-puente-deck" aria-hidden="true"></span>` +
+      `<span class="pdt-puente-iconos">${subidas}</span>` +
       `<span class="pdt-puente-txt">${escapeHTML(col.nombre || 'Puente peatonal')}</span>` +
       `</div>`
     );
@@ -167,13 +137,54 @@ function columnaHtml(
   }
   return (
     `<div class="pdt-col pdt-vagones">` +
-    `<div class="pdt-band pdt-band-a">${cell(col.arriba)}</div>` +
+    `<div class="pdt-band pdt-band-a">${cellArriba(col.arriba)}</div>` +
     midBand(divider, label) +
-    `<div class="pdt-band pdt-band-b">${cell(col.abajo)}</div>` +
+    `<div class="pdt-band pdt-band-b">${cellAbajo(col.abajo)}</div>` +
     `</div>`
   );
 }
 
+/**
+ * The drawing's own *Convenciones*, listing only the marks it actually used.
+ *
+ * Every official plano carries one, and for the same reason: a glyph at plan
+ * size is recognisable once you have been told what it is, and guessable
+ * before. A tooltip does not help a reader on a phone, so the key is on the
+ * page.
+ */
+function convencionesHtml(used: string[]): string {
+  if (used.length === 0) return '';
+  const items = used
+    .map((name) => {
+      const icon = ICONOS[name];
+      if (!icon) return '';
+      return (
+        `<span class="pdt-conv">${iconHtml(name)}` +
+        `<span class="pdt-conv-txt">${escapeHTML(icon.label)}</span></span>`
+      );
+    })
+    .filter(Boolean)
+    .join('');
+  return `<div class="pdt-convenciones"><span class="pdt-conv-tag">Convenciones</span>${items}</div>`;
+}
+
+/** Every icon the drawing placed, in legend order, without repeats. */
+function iconsUsed(columnas: Columna[]): string[] {
+  const seen: string[] = [];
+  const add = (names: string[] | undefined) => {
+    for (const n of names ?? []) if (ICONOS[n] && !seen.includes(n)) seen.push(n);
+  };
+  for (const col of columnas) {
+    if (col.t === 'vestibulo') {
+      add(col.arriba);
+      add(col.centro);
+      add(col.abajo);
+    } else if (col.t === 'puente') {
+      add(col.sube ?? ['escalera']);
+    }
+  }
+  return seen;
+}
 
 export interface DetalleInput {
   detalle: Detalle;
@@ -181,7 +192,8 @@ export interface DetalleInput {
   dividerLabel?: string;
   /** Finished HTML for one vagón cell, by vagón number — the compact drawing's
    *  own output, placed rather than rebuilt. */
-  cell: (vagon: string | undefined) => string;
+  cellArriba: (vagon: string | undefined) => string;
+  cellAbajo: (vagon: string | undefined) => string;
   ejeArriba?: string;
   ejeAbajo?: string;
 }
@@ -205,16 +217,13 @@ export function buildStationDetalleHtml(input: DetalleInput): string | null {
     `<div class="pdt-grid">` +
     columnas
       .map((c, i) =>
-        columnaHtml(
-          c,
-          input.cell,
-          input.divider,
-          i === firstPlatform ? input.dividerLabel ?? '' : ''
-        )
+        columnaHtml(c, input.cellArriba, input.cellAbajo, input.divider, i === firstPlatform ? input.dividerLabel ?? '' : '')
       )
       .join('') +
     `</div>` +
     axis(input.ejeAbajo, 'b') +
-    `</div></div>`
+    `</div>` +
+    convencionesHtml(iconsUsed(columnas)) +
+    `</div>`
   );
 }

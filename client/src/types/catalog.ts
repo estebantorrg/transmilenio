@@ -107,7 +107,7 @@ export interface CatalogStation {
         }
       | { t: 'vagones'; arriba?: string; abajo?: string }
       | { t: 'paso' }
-      | { t: 'puente'; nombre?: string }
+      | { t: 'puente'; nombre?: string; sube?: string[] }
     >;
   };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
