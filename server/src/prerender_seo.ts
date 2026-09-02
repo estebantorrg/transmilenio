@@ -34,6 +34,7 @@ import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLa
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
+import { buildSheetPlano } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
@@ -103,7 +104,14 @@ interface LightStation {
   tipoServicio?: string;
   /** The troncal this station sits on and its letter (`stationCorridor`),
    *  which is what colours this page and names its corridor. */
-  corridor?: { nombre: string; letra?: string };
+  corridor?: { nombre: string; letra?: string; sentidos?: { positive: string; negative: string } };
+  /** The station drawn from its own plano, where the sheet has been read
+   *  (`planoLayout`), and the furniture around it where that has been read
+   *  too (`planoDetalle`). Both ride on the light catalog already — this
+   *  page simply never drew them, which is why a search result opened on a
+   *  station that disagreed with the app about how many vagones it has. */
+  planoLayout?: unknown;
+  planoDetalle?: unknown;
   /** Wagon key → the number printed on that platform's sign, where the plano
    *  plate count backs it (`printedVagonLabels`). Absent keys get no number. */
   vagonLabels?: Record<string, string>;
@@ -428,6 +436,65 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .vg-side .svc{gap:5px}
 #seo-prerender .vg-side .svc li{font-size:.85rem;color:rgba(255,255,255,.8)}
 #seo-prerender .plano-note{color:rgba(255,255,255,.45);font-size:.8rem;margin:2px 0 0}
+/* The shared plan (shared/plano.js). Its markup is the app markup, so its
+   styling has to match — but scoped here and inlined, because this page is
+   read before any stylesheet the app ships. Written flat rather than with the
+   app scale variable: there is no zoom control on a page nobody has booted. */
+#seo-prerender .popup-plano{overflow-x:auto;padding-bottom:4px}
+#seo-prerender .popup-plano-inner{width:max-content;min-width:100%}
+#seo-prerender .pvg-row{display:flex;margin-left:calc(var(--pvg-offset,0) * 136px)}
+#seo-prerender .popup-plano-cols{display:flex;align-items:stretch}
+#seo-prerender .pvg{display:flex;flex-direction:column;min-width:136px;flex:1 0 auto}
+#seo-prerender .pvg-side{display:flex;flex-direction:column;justify-content:center;gap:4px;padding:5px 6px;min-height:26px}
+#seo-prerender .pvg-deck{display:flex;flex-direction:column;justify-content:center;gap:3px;background:rgba(255,255,255,.06);border-radius:2px;padding:5px 8px}
+#seo-prerender .pvg-doors{display:block;height:4px;background:repeating-linear-gradient(to right,rgba(255,255,255,.30) 0,rgba(255,255,255,.30) 7px,transparent 7px,transparent 13px)}
+#seo-prerender .pvg-plate{text-align:center;padding:2px 0}
+#seo-prerender .pvg-name{font-size:.82rem;font-weight:700}
+#seo-prerender .pvg-sub{font-size:.68rem;color:rgba(255,255,255,.42);margin-left:5px}
+#seo-prerender .pvg-sub::after{content:" servicios"}
+#seo-prerender .pvg-sub[data-n="1"]::after{content:" servicio"}
+#seo-prerender .pvg-gap{display:flex;align-items:center;justify-content:center;width:22px}
+#seo-prerender .pvg-gap-mark{width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,.35)}
+#seo-prerender .pvg-axis{display:flex;align-items:center;gap:5px;padding:2px 0;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.55)}
+#seo-prerender .pvg-divider{display:flex;align-items:center;justify-content:center;height:13px;margin:3px 0;font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.45)}
+#seo-prerender .pvg-divider-cano{background:linear-gradient(180deg,#4FC3F7,#29A8DC 55%,#1B87B8);color:#fff;font-weight:700}
+#seo-prerender .popup-route-tags{display:flex;flex-wrap:wrap;gap:4px;justify-content:center}
+#seo-prerender .route-tag{display:inline-block;padding:2px 6px;border-radius:3px;font-size:.72rem;font-weight:700;color:#fff;text-decoration:none}
+/* The full station: COLUMNS, so a vestibule spans both platforms while the
+   thing between them does not. */
+#seo-prerender .pdt-grid{display:flex;align-items:stretch}
+#seo-prerender .pdt-col{display:flex;flex-direction:column;flex:0 0 auto}
+#seo-prerender .pdt-band{display:flex;align-items:center;justify-content:center}
+#seo-prerender .pdt-band-a,#seo-prerender .pdt-band-b{flex:1 1 0}
+#seo-prerender .pdt-band-mid{height:19px;gap:6px}
+#seo-prerender .pdt-vestibulo{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:4px 8px;gap:4px}
+#seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-start;gap:5px}
+#seo-prerender .pdt-iconos{display:inline-flex;align-items:center;gap:4px}
+#seo-prerender .pdt-icono{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}
+#seo-prerender .pdt-icono svg{width:20px;height:20px}
+#seo-prerender .pdt-salida{display:inline-flex;flex-direction:column;border-radius:2px;overflow:hidden;font-size:.62rem;line-height:1.2;white-space:nowrap}
+#seo-prerender .pdt-salida-top{display:flex;align-items:center;gap:3px;padding:2px 5px;background:#F5C518;color:#1A1A1A}
+#seo-prerender .pdt-salida-der .pdt-salida-top{flex-direction:row-reverse}
+#seo-prerender .pdt-salida-arrow{width:0;height:0;border-top:3px solid transparent;border-bottom:3px solid transparent;border-right:4px solid currentColor}
+#seo-prerender .pdt-salida-der .pdt-salida-arrow{border-right:0;border-left:4px solid currentColor}
+#seo-prerender .pdt-salida-tag{font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+#seo-prerender .pdt-salida-calle{padding:2px 5px;background:#101114;color:#fff;font-weight:700;text-align:center}
+#seo-prerender .pdt-paso{width:26px}
+#seo-prerender .pdt-paso .pdt-band-a,#seo-prerender .pdt-paso .pdt-band-b{background:rgba(255,255,255,.07);border-radius:2px}
+#seo-prerender .pdt-paso-mark{width:7px;height:7px;border-radius:50%;border:1px solid rgba(255,255,255,.35)}
+#seo-prerender .pdt-puente{align-items:center;justify-content:center;gap:6px;padding:6px 9px;border:1px dashed rgba(255,255,255,.14);border-radius:3px;color:rgba(255,255,255,.62);background:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.05) 3px,transparent 3px,transparent 7px)}
+#seo-prerender .pdt-puente-deck{width:30px;height:8px;border:1.4px solid currentColor;border-bottom:0;border-radius:15px 15px 0 0;opacity:.8}
+#seo-prerender .pdt-puente-txt{max-width:46px;text-align:center;font-size:.6rem;line-height:1.25;text-transform:uppercase;letter-spacing:.05em}
+#seo-prerender .pdt-divider{font-size:.62rem;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+#seo-prerender .pdt-divider-cano{background:linear-gradient(180deg,#4FC3F7,#29A8DC 55%,#1B87B8);color:#fff;font-weight:700}
+#seo-prerender .pdt-divider-tren{background:linear-gradient(#4D5059,#4D5059) top/100% 1.5px no-repeat,linear-gradient(#4D5059,#4D5059) bottom/100% 1.5px no-repeat,repeating-linear-gradient(to right,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 2px,transparent 2px,transparent 7px)}
+#seo-prerender .pdt-divider-ciclorruta,#seo-prerender .pdt-divider-separador,#seo-prerender .pdt-divider-busway,#seo-prerender .pdt-divider-tunel{background:repeating-linear-gradient(to right,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 9px,transparent 9px,transparent 18px) center/100% 2px no-repeat}
+#seo-prerender .pdt-divider .pdt-divider-name{padding:0 6px;background:#0C0C0C}
+#seo-prerender .pdt-divider-cano .pdt-divider-name{background:transparent}
+#seo-prerender .pdt-convenciones{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}
+#seo-prerender .pdt-conv-tag{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45)}
+#seo-prerender .pdt-conv{display:inline-flex;align-items:center;gap:5px}
+#seo-prerender .pdt-conv-txt{font-size:.72rem;color:rgba(255,255,255,.7)}
 @media (max-width:560px){#seo-prerender .vg{flex-basis:170px;min-width:170px}}
 /* ── El rutero ──────────────────────────────────────────────────────────────
    The bus's own LED destination sign. The frame is its black bezel; the sign
@@ -810,7 +877,45 @@ ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
       </ul>`;
   };
 
-  const platformSection = platform.vagones.length
+  // ONE drawing, shared with the browser (`shared/plano.js`). This page used
+  // to build its own from the catalog alone, so Guatoque shipped as
+  // "Plataforma 1 / Plataforma 2" and "2 vagones" while the app, once booted,
+  // drew the four vagones its sheet actually prints. Same URL, two answers,
+  // and the wrong one was the one a search result showed first.
+  //
+  // Chips are real anchors here: `routeHref` is what keeps this page linked
+  // to the routes that serve it, which is half of the cross-linking that
+  // stops these pages being orphaned. The browser passes none and keeps its
+  // click handler.
+  const sheet = buildSheetPlano({
+    wagons: (station.wagons ?? {}) as Record<string, any[]>,
+    layout: station.planoLayout,
+    detalle: station.planoDetalle,
+    wagonPlan: station.wagonPlan as never,
+    sentidos: station.corridor?.sentidos,
+    tagColor: (r) => stopTagColor(r.codigo, r.color, isZonalService(r.sistema, r.tipoServicio)),
+    isZonal: (r) => isZonalService(r.sistema, r.tipoServicio),
+    routeHref: (r) => routeIndex.get(String(r.codigo).trim().toUpperCase()) ?? null,
+  });
+
+  // Distinct vagón numbers the sheet draws, not drawn boxes: Av. Chile prints
+  // the same three vagones once per carriageway and has three, not six.
+  const drawnVagones = new Set<string>();
+  for (const row of ((station.planoLayout as { rows?: Array<{ vagones?: Array<{ vagon?: string }> }> } | undefined)?.rows ?? [])) {
+    for (const v of row.vagones ?? []) if (v.vagon) drawnVagones.add(String(v.vagon));
+  }
+  const vagonCount = sheet && drawnVagones.size ? drawnVagones.size : platform.vagones.length;
+
+  const platformSection = sheet
+    ? `<section class="sec">
+<h2>Plano de la estación</h2>
+<p class="sub">${sheet.detallado
+        ? 'Dibujado a partir del plano de ubicación oficial: los vagones, los servicios de cada lado, y los accesos, taquillas, torniquetes y salidas que el plano señala.'
+        : 'Servicios troncales por vagón, separados por sentido, como los dibuja el plano de ubicación oficial de la estación.'}</p>
+${sheet.html}
+<p class="plano-note meta">No representa distancias ni la posición real de los andenes en la calle.</p>
+</section>`
+    : platform.vagones.length
     ? `<section class="sec">
 <h2>Plano de la estación</h2>
 <p class="sub">Servicios troncales por vagón, separados por sentido. Un vagón suele atender los dos sentidos: el rumbo indicado es el de salida hacia la siguiente parada.</p>
@@ -882,7 +987,11 @@ ${platform.feeders.map((s) => `      ${serviceRow(s)}`).join('\n')}
   const chips = [
     station.codigo,
     platform.vagones.length
-      ? `${platform.vagones.length} ${platform.vagones.length === 1 ? 'vagón' : 'vagones'}`
+      // The count the DRAWING shows, where a sheet was read. The catalog files
+      // Guatoque under two wagons and its plano prints four vagones, so this
+      // chip read "2 vagones" directly above a drawing of four — the same
+      // contradiction the app page had, on the page a stranger sees first.
+      ? `${vagonCount} ${vagonCount === 1 ? 'vagón' : 'vagones'}`
       : '',
     `${serviceCount} servicios`,
   ].filter(Boolean);

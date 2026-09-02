@@ -28,7 +28,7 @@ import { isStationStopCode } from '../data/routeCatalog';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
-import { buildStationDetalleHtml } from './stationDetalle';
+import { buildSheetPlano } from '../../../shared/plano.js';
 import {
   platformForMatchMethod,
   platformStation,
@@ -238,201 +238,6 @@ export type StationPlanoLayout = NonNullable<
  * entirely: that mapping exists to turn catalog letters into printed numbers,
  * and at these stations the letters are not the platforms.
  */
-function buildStationLayoutHtml(
-  layout: StationPlanoLayout,
-  routesByCode: Map<string, CatalogRoute[]>,
-  sentidoById: Map<string, string>,
-  sentidos?: { positive: string; negative: string },
-  presentWagons?: Set<string>,
-  /** Filled with the finished HTML of every vagón it draws, keyed by vagón
-   *  number. The detailed drawing PLACES these rather than rebuilding them:
-   *  a vagón rendered twice from two code paths is a vagón that can end up
-   *  saying two different things. */
-  cellsOut?: Map<string, string>
-): string | null {
-  // Only the half you are standing on. Ricaurte and Av. Jimenez are each TWO
-  // stations under one catalog stop, and the map already resolves them to two
-  // separate points — so a popup opened on "Ricaurte - NQS" must not draw the
-  // Calle 13 platform, which is a different station across a tunnel.
-  //
-  // Filtering by which códigos resolve is NOT enough, and Av. Jimenez proves
-  // it: route 5 terminates there, the catalog files it under a CARACAS wagon,
-  // and the Calle 13 sheet also prints it on Vagón 5 — so the Caracas half
-  // drew a stray Vagón 5 belonging to the platform across the tunnel. A row
-  // therefore declares which catalog wagons it IS, and a row whose wagons are
-  // all absent is not drawn. The estación page passes every wagon, so it
-  // still shows both halves; only a resolved single platform narrows.
-  const rowIsPresent = (row: StationPlanoLayout['rows'][number]): boolean =>
-    !presentWagons || !row.wagones?.length
-      ? true
-      : row.wagones.some((w) => presentWagons.has(String(w).trim().toUpperCase()));
-  // Each edge of a vagón boards one direction, so the catalog's two variants of
-  // a código are separated by the side they are drawn on. Both `G12`s at La
-  // Castellana are southbound, which is why `destinos` exists as well: this
-  // narrows a código to a direction, that one narrows it to a service.
-  const boardsOn = (route: CatalogRoute, side: 'a' | 'b'): boolean => {
-    if (!sentidos) return true;
-    const want = side === 'a' ? sentidos.positive : sentidos.negative;
-    const sentido = sentidoById.get(String(route.id ?? ''));
-    // No answer for this variant is not a reason to drop it: absence of a
-    // direction is not evidence of the opposite one (§1).
-    return sentido === undefined || sentido === want;
-  };
-
-  const rows = (layout.rows ?? []).map((row, rowIndex) => {
-    if (!rowIsPresent(row)) return null;
-    const decks = row.vagones
-      .map((vagon) => {
-        // One chip per código, as the plate prints it. Where the catalog files
-        // the same código twice on this edge, the sheet's chip names one of them
-        // and `destinos` says which — two chips under one sign would claim two
-        // boardable services where a rider sees one.
-        // The lower edge may name its own variants: Ricaurte's Vagon 6 carries
-        // route 5 on both edges, bound for two different places, and that half
-        // of the station runs east-west while the corridor runs north-south, so
-        // the direction filter cannot tell the two apart.
-        const wantedFor = (side: 'a' | 'b'): Record<string, string> =>
-          (side === 'b' ? vagon.destinosAbajo ?? vagon.destinos : vagon.destinos) ?? {};
-        const membersFor = (codigos: string[] | undefined, side: 'a' | 'b'): CatalogRoute[] =>
-          (codigos ?? []).flatMap((codigo) => {
-            const all = routesByCode.get(codigo.toUpperCase()) ?? [];
-            // Both filters below may only NARROW a código the sheet lists, never
-            // erase it. The sheet is what says this service boards this edge;
-            // the catalog's direction only helps choose between variants of it.
-            // `D10` leaves the corridor westward at Calle 85, so it matches
-            // neither `norte` nor `sur` and a strict filter dropped a service
-            // printed on the plate — the drawing then contradicted the sign it
-            // was copied from.
-            const byDirection = all.filter((r) => boardsOn(r, side));
-            const variants = byDirection.length > 0 ? byDirection : all;
-            const wanted = wantedFor(side);
-            const destino = wanted[codigo] ?? wanted[codigo.toUpperCase()];
-            if (!destino) return variants;
-            const picked = variants.filter(
-              (r) => normalizeStationName(r.nombre) === normalizeStationName(destino)
-            );
-            return picked.length > 0 ? picked : variants;
-          });
-
-        const above = membersFor(vagon.arriba, 'a');
-        const below = membersFor(vagon.abajo, 'b');
-        if (above.length === 0 && below.length === 0) return '';
-        const count =
-          groupCatalogRoutesByDirection(above, true).length +
-          groupCatalogRoutesByDirection(below, true).length;
-        const tags = (members: CatalogRoute[]): string =>
-          members.length
-            ? `<div class="pvg-group"><div class="popup-route-tags">${formatRouteTags(members, 28, true)}</div></div>`
-            : '';
-        const deck =
-          `<div class="pvg-deck">` +
-          `<span class="pvg-doors" aria-hidden="true"></span>` +
-          `<div class="pvg-plate"><span class="pvg-name">Vagón ${escapeHTML(vagon.vagon)}</span>` +
-          `<span class="pvg-sub" data-n="${count}">${count}</span></div>` +
-          `<span class="pvg-doors" aria-hidden="true"></span>` +
-          `</div>`;
-        const cell =
-          `<section class="pvg" aria-label="Vagón ${escapeHTML(vagon.vagon)}">` +
-          `<div class="pvg-side pvg-side-a">${tags(above)}</div>` +
-          deck +
-          `<div class="pvg-side pvg-side-b">${tags(below)}</div>` +
-          `</section>`;
-        // Keyed by ROW and vagón, never by vagón alone. Av. Chile draws the
-        // same three vagones once per carriageway, so both its rows are
-        // "3, 2, 1" — keyed by number the second row overwrote the first and
-        // the detailed drawing showed one platform twice, losing D22 and E32
-        // entirely.
-        cellsOut?.set(rowIndex + ':' + String(vagon.vagon), cell);
-        return cell;
-      })
-      .filter(Boolean);
-    if (decks.length === 0) return null;
-    // Adjacent vagones are NOT one continuous platform. Every sheet draws a
-    // darker block between them carrying the pedestrian mark — the crossing
-    // a rider walks through to reach the next vagón — and Guatoque makes the
-    // cost of leaving it out plain: drawn flush, its Vagón 4 and Vagón 3 read
-    // as one long deck, when the sheet draws two with a way through between.
-    // The bar drawing has always joined its columns with this; the layout
-    // drawing never did.
-    const crossing =
-      '<div class="pvg-gap" aria-hidden="true"><div class="pvg-gap-deck"><span class="pvg-gap-mark"></span></div></div>';
-    // The stagger, in vagón columns. Drawing the two platforms flush would say
-    // they face each other across the road, which at a staggered station is the
-    // one thing they do not do.
-    const offset = Number(row.offset) || 0;
-    const style = offset > 0 ? ` style="--pvg-offset:${offset}"` : '';
-    return {
-      row,
-      html: `<div class="pvg-row"${style}><div class="popup-plano-cols">${decks.join(crossing)}</div></div>`,
-      usesA: row.vagones.some((v) => (v.arriba ?? []).length > 0),
-      usesB: row.vagones.some((v) => (v.abajo ?? []).length > 0),
-    };
-  });
-
-  const drawn = rows.filter((r): r is NonNullable<typeof r> => r !== null);
-  if (drawn.length === 0) return null;
-
-  // The corridor, named once at each long edge, exactly as the bar does it and
-  // as the sheet does it. A layout's sides ARE the corridor's two directions —
-  // that is what `arriba`/`abajo` mean and what `boardsOn` filters on — so the
-  // labels are the same two words, and drawn only where a side carries chips.
-  const axis = (name: string | undefined, side: 'a' | 'b', show: boolean): string =>
-    name && show
-      ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
-      : '';
-
-  // What lies between the platforms is named only where someone has checked it.
-  // This drawing called every divider a busway on no evidence at all:
-  // El Tiempo, AV. Rojas and Tygua are split by a ciclorruta and Guatoque by a
-  // caño — an open water channel. Sending a rider across the wrong one is a
-  // confident wrong answer, so an unchecked station gets a plain separator with
-  // no claim attached.
-  const DIVIDERS = DIVIDER_NAMES;
-  const _unusedDividers: Record<string, string> = {
-    busway: 'calzada',
-    ciclorruta: 'ciclorruta',
-    cano: 'caño',
-    tren: 'vía férrea',
-    separador: 'separador verde',
-    // The one divider that is a CONNECTION rather than a barrier: at Ricaurte
-    // the two halves are different troncals and the tunnel is how you get
-    // between them. Av. Jiménez has a tunnel too and does NOT get this label —
-    // its sheet marks it CIERRE, closed, and drawing a crossing nobody can use
-    // is worse than drawing nothing.
-    tunel: 'túnel peatonal',
-  };
-  const label = layout.divider ? DIVIDERS[layout.divider] : '';
-  const divider =
-    `<div class="pvg-divider pvg-divider-${escapeHTML(layout.divider ?? 'plain')}">` +
-    (label ? `<span class="pvg-divider-name">${escapeHTML(label)}</span>` : '') +
-    `</div>`;
-
-  // A station on ONE corridor names it once, top and bottom, around the whole
-  // drawing. Ricaurte and Av. Jiménez are not on one corridor: each is two
-  // platform groups on DIFFERENT troncals, and Ricaurte's northern half runs
-  // AutoNorte↔NQS Sur while its other half runs Américas↔Eje Ambiental. One
-  // shared pair of labels would tell half the station the other half's
-  // directions, so a row that names its own axis gets it drawn around that row
-  // alone, and the shared pair is dropped.
-  const perRow = drawn.some(({ row }) => row.eje);
-  const body = perRow
-    ? drawn
-        .map(({ row, html, usesA, usesB }) =>
-          axis(row.eje?.arriba, 'a', usesA) + html + axis(row.eje?.abajo, 'b', usesB)
-        )
-        .join(divider)
-    : axis(sentidos?.positive, 'a', drawn.some((r) => r.usesA)) +
-      drawn.map((r) => r.html).join(divider) +
-      axis(sentidos?.negative, 'b', drawn.some((r) => r.usesB));
-
-  return (
-    `<div class="popup-plano popup-plano-split" role="group" aria-label="Plano de la estación" tabindex="0">` +
-    `<div class="popup-plano-inner">` +
-    body +
-    `</div></div>`
-  );
-}
-
 /**
  * The station drawn as a plan — the same view the prerendered `/estacion/` page
  * carries (spec §5.5.4): one continuous platform bar segmented per vagón, the
@@ -761,28 +566,24 @@ export function buildStationWagonView(
   }
   // The compact drawing is built either way: the detailed one is made of its
   // vagones, and every station without a read sheet still needs it.
-  const cells = new Map<string, string>();
-  const drawn = layout
-    ? buildStationLayoutHtml(layout, byCode, sentidoById, sentidos, presentWagons, cells)
-    : null;
-  // The full station, where its sheet has been read element by element. Only
-  // the estación page asks for it — the popup is a glance, and a glance does
-  // not need to know where the taquilla is.
-  const detallado =
-    detalle && drawn
-      ? buildStationDetalleHtml({
-          detalle,
-          divider: layout?.divider,
-          dividerLabel: layout?.divider ? DIVIDER_NAMES[layout.divider] : '',
-          // `arriba` is the upper row of the layout, `abajo` the lower one.
-          cellArriba: (v) => (v ? cells.get('0:' + String(v)) ?? '' : ''),
-          cellAbajo: (v) =>
-            v ? cells.get('1:' + String(v)) ?? cells.get('0:' + String(v)) ?? '' : '',
-          ejeArriba: sentidos?.positive,
-          ejeAbajo: sentidos?.negative,
-        })
-      : null;
-  const planoDrawing = detallado ?? drawn ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
+  // ONE drawing, shared with the prerenderer. There were two, and they
+  // disagreed: this one drew Guatoque from its sheet while the prerendered
+  // page drew its own from the catalog, so a search result opened on
+  // "Plataforma 1 / Plataforma 2" until the whole app had booted over it.
+  const sheet = buildSheetPlano({
+    wagons: wagons as Record<string, CatalogRoute[]>,
+    layout,
+    detalle,
+    wagonPlan,
+    sentidos,
+    presentWagons,
+    tagColor: (r) =>
+      safeColor(getStopTagColor(r.codigo, r.color, catalogRouteNetwork(r as CatalogRoute)), '#FB2C17'),
+    isZonal: (r) => isZonalService(r.sistema, r.tipoServicio),
+  });
+
+  const planoDrawing =
+    sheet?.html ?? buildStationPlanoHtml(lettered, vagonLabels, wagonPlan, sentidos);
   // Under the drawing rather than inside it, so it reads the same whether the
   // station was drawn from a sheet or from the catalog's letters — Las Aguas
   // has no layout at all and still has a tunnel to Universidades.
@@ -802,17 +603,8 @@ export function buildStationWagonView(
   //
   // The bar drawing needs none of this: it is built from the letters, so it
   // already shows every lettered service and nothing else.
-  const placed = new Set<string>();
-  if (drawn) {
-    for (const row of layout?.rows ?? []) {
-      for (const vagon of row.vagones ?? []) {
-        for (const codigo of [...(vagon.arriba ?? []), ...(vagon.abajo ?? [])]) {
-          placed.add(String(codigo).trim().toUpperCase());
-        }
-      }
-    }
-  }
-  const others = drawn
+  const placed = sheet?.placed ?? new Set<string>();
+  const others = sheet
     ? [...lettered.flatMap(({ routes }) => routes), ...unlettered].filter(
         (r) => !placed.has(String(r.codigo || '').trim().toUpperCase())
       )
@@ -831,12 +623,12 @@ export function buildStationWagonView(
     // platform for, and only the station's signage can say which.
     ...(others.length
       ? [{
-          label: lettered.length || drawn ? 'Otros servicios troncales' : 'Vagón único',
+          label: lettered.length || sheet ? 'Otros servicios troncales' : 'Vagón único',
           // No single wagon's plan describes this list once a layout has mixed
           // lettered and unlettered leftovers into it, so it goes out flat
           // rather than under a direction it cannot vouch for.
           routes: others,
-          plan: drawn ? undefined : wagonPlan['0'],
+          plan: sheet ? undefined : wagonPlan['0'],
         }]
       : []),
     // Feeders stay one flat list: the plan gives them no direction (they are
@@ -867,7 +659,7 @@ export function buildStationWagonView(
     sections.flatMap(({ routes }) => routes)
   ).length;
 
-  return { plano, detallado: detallado !== null, sections: html, serviceCount, sectionCount };
+  return { plano, detallado: sheet?.detallado === true, sections: html, serviceCount, sectionCount };
 }
 
 /**
