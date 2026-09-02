@@ -175,10 +175,16 @@ export const ICONOS = {
   torniquete: {
     label: 'Torniquetes',
     bg: '#0E0E10',
-    material: 'toll',
+    // Hand-drawn, and staying that way: two pillars notched at the top with
+    // the arm between them, traced from the Convenciones block. Material
+    // Symbols has no turnstile at all, and its nearest stand-in — `toll`, a
+    // toll gate — did not read as one. This is the mark on the wall.
     svg:
-      '<path d="M373-253q-93-93-93-227t93-227q93-93 227-93t227 93q93 93 93 227t-93 227q-93 93-227 93t-227-93Zm-148 63q-84-39-134.5-117T40-480q0-95 50.5-173T225-770q21-10 38 1.5t17 37.5q0 10-6.5 19.5T257-697q-63 29-100 87.5T120-480q0 71 37 129.5T257-263q10 5 16.5 14t6.5 20q0 25-17 37t-38 2Zm375-290Zm170 170q70-70 70-170t-70-170q-70-70-170-70t-170 70q-70 70-70 170t70 170q70 70 170 70t170-70Z" fill="' + W + '"/>',
-    vb: '0 -960 960 960',
+      '<rect x="4.6" y="7.6" width="4.6" height="11.4" rx="1.3" fill="' + W + '"/>' +
+      '<rect x="14.8" y="7.6" width="4.6" height="11.4" rx="1.3" fill="' + W + '"/>' +
+      '<path d="M5.3 10.6 6.9 7.9 8.5 10.6z" fill="#0E0E10"/>' +
+      '<path d="M15.5 10.6 17.1 7.9 18.7 10.6z" fill="#0E0E10"/>' +
+      '<path d="M9.4 13.1 14.6 15.6" stroke="' + W + '" stroke-width="1.5" stroke-linecap="round"/>',
   },
   rampa: {
     label: 'Rampa peatonal',
