@@ -342,8 +342,13 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
     // such gap: the ramp arrows and the emergency figure sit inside the
     // access block, at the end nearest the platform.
     const paso = col.paso === false ? '' : '<span class="pdt-canal">' + marcasHtml() + '</span>';
+    // Which side the platform is on. At the right-hand end of a drawing the
+    // access block is mirrored — its equipment and its way through sit on the
+    // LEFT, because that is the end nearest the platform, and the exit points
+    // out to the right. Av. Chile has one of each.
+    const lado = col.lado === 'der' ? ' pdt-vestibulo-der' : '';
     return (
-      '<div class="pdt-col pdt-vestibulo">' +
+      '<div class="pdt-col pdt-vestibulo' + lado + '">' +
       '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + paso + '</div>' +
       midBand(undefined, '', salidasFor(col, 'centro') + iconsHtml(col.centro)) +
       '<div class="pdt-band pdt-band-b">' + salidasFor(col, 'abajo') + iconsHtml(col.abajo) + paso + '</div>' +
@@ -564,9 +569,10 @@ export function buildSheetPlano(input) {
         .join('') +
       '</div>' +
       axisHtml(sentidos?.negative, 'b') +
-      '</div>' +
-      convencionesHtml(columnas) +
-      '</div>';
+      '</div></div>' +
+      // OUTSIDE the scroller. Inside it, the key scrolled away with the drawing
+      // — at Av. Chile, reading the right-hand end left the marks unexplained.
+      convencionesHtml(columnas);
     return { html, detallado: true, placed };
   }
 

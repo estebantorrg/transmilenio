@@ -2655,6 +2655,22 @@ body.sidebar-collapsed .sidebar-fab {
 
 .pdt-vestibulo .pdt-salida { margin-right: auto; }
 
+/* Mirrored, for an access block at the RIGHT end of a drawing: the platform
+   is on its left, so the equipment and the way through go there and the exit
+   points out to the right. */
+.pdt-vestibulo-der .pdt-band { flex-direction: row-reverse; }
+
+.pdt-vestibulo-der .pdt-salida { margin-right: 0; margin-left: auto; }
+
+.pdt-vestibulo-der .pdt-canal {
+  margin-left: 0;
+  margin-right: calc(3px * var(--tm-scale, 1));
+  padding-left: 0;
+  padding-right: calc(5px * var(--tm-scale, 1));
+  border-left: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+
 /* The way through, at the very edge of the block. Its own column left a blank
    band between the vestibule and the first vagón, and the sheet has no gap
    there — the arrows and the figure are inside the access block. */

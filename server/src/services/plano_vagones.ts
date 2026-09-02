@@ -167,6 +167,10 @@ export interface PlanoSalida {
 export type PlanoColumna =
   | {
       t: 'vestibulo';
+      /** Which side the platform is on. 'der' mirrors the block for one at the
+       *  RIGHT end of a drawing: its equipment and its way through sit on the
+       *  left, and its exit points out to the right. */
+      lado?: 'izq' | 'der';
       salidas?: PlanoSalida[];
       /** Icons on the upper platform, between the platforms, and on the
        *  lower one — the sheet places them per band, not per column. */

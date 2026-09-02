@@ -100,6 +100,9 @@ export interface CatalogStation {
     columnas: Array<
       | {
           t: 'vestibulo';
+          /** Which side the platform is on. 'der' mirrors the block for one at
+           *  the RIGHT end of a drawing. */
+          lado?: 'izq' | 'der';
           salidas?: Array<{ calle: string; hacia?: 'izq' | 'der'; fila?: 'arriba' | 'abajo' | 'ambas' }>;
           arriba?: string[];
           centro?: string[];

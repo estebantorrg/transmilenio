@@ -470,6 +470,9 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-vestibulo{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:4px 8px;gap:4px}
 #seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-end;gap:5px}
 #seo-prerender .pdt-vestibulo .pdt-salida{margin-right:auto}
+#seo-prerender .pdt-vestibulo-der .pdt-band{flex-direction:row-reverse}
+#seo-prerender .pdt-vestibulo-der .pdt-salida{margin-right:0;margin-left:auto}
+#seo-prerender .pdt-vestibulo-der .pdt-canal{margin-left:0;margin-right:3px;padding-left:0;padding-right:5px;border-left:0;border-right:1px solid rgba(255,255,255,.08)}
 #seo-prerender .pdt-canal{display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-left:3px;padding-left:5px;border-left:1px solid rgba(255,255,255,.08)}
 #seo-prerender .pdt-iconos{display:inline-flex;align-items:center;gap:4px}
 #seo-prerender .pdt-icono{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:2px;box-shadow:0 0 0 1px rgba(255,255,255,.16)}

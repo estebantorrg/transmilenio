@@ -1413,13 +1413,10 @@
     },
     "TM0061": {
       "source": "Plano de ubicacion, Estacion Av. Chile, version noviembre de 2024.",
-      "why": "Read second, and deliberately: Guatoque has no bridge, so it could not show whether one was legible. Av. Chile has a puente peatonal at EACH end, drawn full height because that is what it does — it spans the road the station sits in. Between the bridges and the platforms sits a vestibule at either end: taquilla on the upper platform, torniquetes in the middle where you cross, and the street exit below (Calle 72 west, Calle 70 east). The three vagones are drawn once per carriageway either side of the railway, so both rows read 3, 2, 1.",
+      "why": "Read off the sheet at both ends. A puente peatonal at each, drawn full height because it crosses the road the station sits in. Inside each bridge an access block: taquilla in the upper band, torniquetes in the middle where a rider crosses the railway, and the street exit below — Calle 72 west, Calle 70 east. The right-hand block is MIRRORED: its equipment and its way through sit on its LEFT, because that is the end nearest the platform, and its exit arrow points out to the right. The ramp arrows and the walking figure are not tiles in the block; they are the channel at its platform edge. The three vagones are drawn once per carriageway either side of the railway, so both rows read 3, 2, 1.",
       "columnas": [
         {
-          "t": "puente",
-          "sube": [
-            "escalera"
-          ]
+          "t": "puente"
         },
         {
           "t": "vestibulo",
@@ -1431,15 +1428,12 @@
             }
           ],
           "arriba": [
-            "taquilla",
-            "rampa"
+            "taquilla"
           ],
           "centro": [
             "torniquete"
           ],
-          "abajo": [
-            "rampa"
-          ]
+          "abajo": []
         },
         {
           "t": "vagones",
@@ -1464,6 +1458,7 @@
         },
         {
           "t": "vestibulo",
+          "lado": "der",
           "salidas": [
             {
               "calle": "Calle 70",
@@ -1472,21 +1467,15 @@
             }
           ],
           "arriba": [
-            "rampa",
             "taquilla"
           ],
           "centro": [
             "torniquete"
           ],
-          "abajo": [
-            "rampa"
-          ]
+          "abajo": []
         },
         {
-          "t": "puente",
-          "sube": [
-            "escalera"
-          ]
+          "t": "puente"
         }
       ]
     }
