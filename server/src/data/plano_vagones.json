@@ -1481,7 +1481,7 @@
     },
     "TM0030": {
       "source": "Plano de ubicacion, Estacion Calle 187, version noviembre de 2024.",
-      "why": "A bridge and one platform per carriageway, nothing else. The access block sits inside the bridge: taquilla beside the upper platform, torniquetes in the middle — drawn in the white gap between the two decks, which is the separador — the Calle 187 exit below them, and a second taquilla at the bottom. The sheet also draws four steps beside the torniquetes for the drop from the bridge; there is no column for a flight of stairs and it is left out rather than guessed at.",
+      "why": "A bridge and one platform per carriageway, nothing else. The access block sits inside the bridge: taquilla beside the upper platform, torniquetes in the middle — drawn in the white gap between the two decks, which is the separador — the Calle 187 exit below them, and a second taquilla at the bottom. Beside the torniquetes the sheet draws four steps, the way down off the bridge, and it draws NO ramp arrows and no walking figure at the platform edge: this is the one station in the set where the way through is stairs rather than a slope, so the block is marked as having no ramp channel.",
       "columnas": [
         {
           "t": "puente"
@@ -1499,11 +1499,13 @@
             "taquilla"
           ],
           "centro": [
-            "torniquete"
+            "torniquete",
+            "escalera"
           ],
           "abajo": [
             "taquilla"
-          ]
+          ],
+          "paso": false
         },
         {
           "t": "vagones",

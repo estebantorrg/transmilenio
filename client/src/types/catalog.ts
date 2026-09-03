@@ -102,6 +102,12 @@ export interface CatalogStation {
           t: 'vestibulo';
           /** Which side the platform is on. 'der' mirrors the block for one at
            *  the RIGHT end of a drawing. */
+          /** False where the sheet draws NO way through at the platform edge —
+           *  no ramp arrows, no walking figure. Calle 187 has stairs there
+           *  instead, and drawing the ramp marks anyway invented a slope that
+           *  is not on the sheet. */
+          paso?: boolean;
+
           lado?: 'izq' | 'der';
           salidas?: Array<{ calle: string; hacia?: 'izq' | 'der'; fila?: 'arriba' | 'abajo' | 'ambas' }>;
           arriba?: string[];

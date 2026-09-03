@@ -170,7 +170,13 @@ export type PlanoColumna =
       /** Which side the platform is on. 'der' mirrors the block for one at the
        *  RIGHT end of a drawing: its equipment and its way through sit on the
        *  left, and its exit points out to the right. */
-      lado?: 'izq' | 'der';
+      /** False where the sheet draws NO way through at the platform edge —
+   *  no ramp arrows, no walking figure. Calle 187 has stairs there
+   *  instead, and drawing the ramp marks anyway invented a slope that
+   *  is not on the sheet. */
+  paso?: boolean;
+
+  lado?: 'izq' | 'der';
       salidas?: PlanoSalida[];
       /** Icons on the upper platform, between the platforms, and on the
        *  lower one — the sheet places them per band, not per column. */
