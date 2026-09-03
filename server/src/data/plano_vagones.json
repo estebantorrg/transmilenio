@@ -1478,6 +1478,525 @@
           "t": "puente"
         }
       ]
+    },
+    "TM0030": {
+      "source": "Plano de ubicacion, Estacion Calle 187, version noviembre de 2024.",
+      "why": "A bridge and one platform per carriageway, nothing else. The access block sits inside the bridge: taquilla beside the upper platform, torniquetes in the middle — drawn in the white gap between the two decks, which is the separador — the Calle 187 exit below them, and a second taquilla at the bottom. The sheet also draws four steps beside the torniquetes for the drop from the bridge; there is no column for a flight of stairs and it is left out rather than guessed at.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 187",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0059": {
+      "source": "Plano de ubicacion, Estacion La Castellana, version diciembre de 2025.",
+      "why": "Staggered: the two platforms do not face each other, they follow one another along the street with the road between. So the columns are not shared — Vagon 4 and Vagon 3 exist only on the upper carriageway and Vagon 2 and Vagon 1 only on the lower, and each is named on one side of its column with the other left empty, which is what the drawing has to show. Between them, one access block and the bridge that reaches both: taquilla above, torniquetes level with the road, the Calle 83 exit printed vertically up the bridge, taquilla below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 83",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vagones",
+          "abajo": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0060": {
+      "source": "Plano de ubicacion, Estacion Calle 75 - Zona M, version noviembre de 2024.",
+      "why": "A bridge at the west end and the access block under it, then the two vagones drawn once per carriageway either side of the railway. The Calle 76 exit is printed twice, once per platform, and printed VERTICALLY with the arrow pointing up the bridge rather than out to a kerb; it is recorded facing the bridge, which is the way out.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 76",
+              "hacia": "izq",
+              "fila": "arriba"
+            },
+            {
+              "calle": "Calle 76",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0116": {
+      "source": "Plano de ubicacion, Estacion Biblioteca, version noviembre de 2024.",
+      "why": "One long platform per carriageway with the cano between them, and a single access block at the west end serving both. The block is drawn twice over, once per platform: taquilla then torniquetes, in that order, with the torniquetes nearest the platform. The Calle 51 Sur exit is likewise printed once per platform, because the cano gives no way across.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 51 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            },
+            {
+              "calle": "Calle 51 Sur",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla",
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0117": {
+      "source": "Plano de ubicacion, Estacion Parque, version noviembre de 2024.",
+      "why": "The same drawing as Biblioteca, one stop along the same cano: one platform per carriageway, one access block at the west end repeated per platform — taquilla then torniquetes — and the Calle 55 Sur exit printed on each, since the cano gives no way across.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 55 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            },
+            {
+              "calle": "Calle 55 Sur",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla",
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0128": {
+      "source": "Plano de ubicacion, Estacion Gobernacion, version noviembre de 2024.",
+      "why": "Two vagones per carriageway with the ciclorruta between them, then the access block at the east end and the bridge beyond it. The numbering does NOT repeat down the page here: the upper platform is Vagon 2 and Vagon 1, the lower is Vagon 4 and Vagon 3, four different platforms rather than two seen twice.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 51",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0129": {
+      "source": "Plano de ubicacion, Estacion CAN - British Council, version noviembre de 2025.",
+      "why": "The Calle 26 pattern: two vagones per carriageway across the ciclorruta, the access block at the east end, the bridge beyond. Four distinct platforms — 2 and 1 above, 4 and 3 below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 59",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0130": {
+      "source": "Plano de ubicacion, Estacion Salitre - El Greco - Vive Claro, version noviembre de 2025.",
+      "why": "The Calle 26 pattern, exit on Carrera 66. Four distinct platforms — 2 and 1 above, 4 and 3 below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 66",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0131": {
+      "source": "Plano de ubicacion, Estacion El Tiempo - Camara de Comercio de Bogota.",
+      "why": "The Calle 26 pattern, exit on Carrera 68B. The two taquillas were read off the sheet by eye: the scanner found both tiles and drew them at the right bands, but scored them a fraction outside the margin it needs to name a symbol, so it declined to. They are the same glyph as its neighbours on the same template.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 68B",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0132": {
+      "source": "Plano de ubicacion, Estacion AV. Rojas - UNISALESIANA, version noviembre de 2024.",
+      "why": "Three vagones per carriageway across the ciclorruta, six platforms in all — 3, 2, 1 above and 6, 5, 4 below. The bridge lands between the first and second of them rather than at either end, and the access block sits east of it: the KR 70 exit and a taquilla beside the upper platform, torniquetes level with the ciclorruta, a second taquilla below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "3",
+          "abajo": "6"
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "KR 70",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "5"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "4"
+        }
+      ]
+    },
+    "TM0134": {
+      "source": "Plano de ubicacion, Estacion Modelia.",
+      "why": "The Calle 26 pattern, exit on Carrera 82. Four distinct platforms — 2 and 1 above, 4 and 3 below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 82",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0148": {
+      "source": "Plano de ubicacion, Estacion Tygua - San Jose, version noviembre de 2024.",
+      "why": "An access block at each end, and both are drawn twice over — once per platform — because the ciclorruta between the two carriageways gives no way across: Carrera 19 west, Carrera 18 east, each printed on the upper platform and again on the lower. In each block the torniquetes stand nearest the platform and the taquilla behind them, which puts them on opposite sides of the two blocks. Both exit arrows point west, as the sheet draws them, including the eastern pair.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 19",
+              "hacia": "izq",
+              "fila": "arriba"
+            },
+            {
+              "calle": "Carrera 19",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla",
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Carrera 18",
+              "hacia": "izq",
+              "fila": "arriba"
+            },
+            {
+              "calle": "Carrera 18",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "torniquete",
+            "taquilla"
+          ],
+          "abajo": [
+            "torniquete",
+            "taquilla"
+          ]
+        }
+      ]
     }
   }
 }

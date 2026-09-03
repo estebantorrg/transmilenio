@@ -316,7 +316,13 @@ function runsOf(prof, min) {
       prev.w = prev.x1 - prev.x0 + 1;
       prev.pale = prev.pale.concat(r.pale);
     };
-    if (r.c === '.' && r.w < min && prev) { absorb(); continue; }
+    // Anything too thin to be a column belongs to the column before it —
+    // whatever it is made of. Absorbing only the white ones left a one-pixel
+    // hairline of footprint standing between two halves of the same platform;
+    // it was too narrow to survive the filter below, but while it was there the
+    // two halves could not merge, and the drawing gained a phantom vagón for
+    // every deck the sheet drew a seam across. Gobernación grew two.
+    if (r.w < min && prev) { absorb(); continue; }
     if (prev && prev.c === r.c) { absorb(); continue; }
     merged.push({ ...r });
   }
@@ -547,9 +553,35 @@ async function silhouette(page, file, box, polarity, N = 12) {
         if (all && on / all > 0.7) dark = false;
       }
       const ink = (x, y) => (dark ? lum(x, y) < 205 : lum(x, y) > 150);
+
+      // Trim a plan tile to its own black ground before reading the symbol off
+      // it. The tile is drawn touching the platform's black edge line, so the
+      // two come back as ONE component and the box runs off along the line —
+      // and since everything beyond the tile is pale, that pale ran straight
+      // into the symbol's silhouette. Five stations on the Calle 26 template
+      // lost both taquillas to it. A column belongs to the tile only if its
+      // dark ground is nearly as tall as the tile; the edge line is a few
+      // pixels and never is.
+      let X0 = box.x, X1 = box.x + box.w - 1, Y0 = box.y, Y1 = box.y + box.h - 1;
+      if (!dark) {
+        const tall = [];
+        for (let x = X0; x <= X1; x++) {
+          let n = 0;
+          for (let y = Y0; y <= Y1; y++) if (lum(x, y) < 205) n++;
+          if (n >= box.h * 0.5) tall.push(x);
+        }
+        if (tall.length >= 3) { X0 = tall[0]; X1 = tall[tall.length - 1]; }
+        const wide = [];
+        for (let y = Y0; y <= Y1; y++) {
+          let n = 0;
+          for (let x = X0; x <= X1; x++) if (lum(x, y) < 205) n++;
+          if (n >= (X1 - X0 + 1) * 0.5) wide.push(y);
+        }
+        if (wide.length >= 3) { Y0 = wide[0]; Y1 = wide[wide.length - 1]; }
+      }
       let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1;
-      for (let y = box.y; y < box.y + box.h; y++) {
-        for (let x = box.x; x < box.x + box.w; x++) {
+      for (let y = Y0; y <= Y1; y++) {
+        for (let x = X0; x <= X1; x++) {
           if (!ink(x, y)) continue;
           if (x < x0) x0 = x; if (x > x1) x1 = x;
           if (y < y0) y0 = y; if (y > y1) y1 = y;
@@ -805,7 +837,14 @@ async function readSheet(page, file, code) {
   for (const r of span.runs) {
     r.kind = decks.includes(r)
       ? 'deck'
-      : r.c === 'P' && r.deep > deckH * 1.2 && r.w < deckW * 0.6
+      // Depth tells a bridge from a platform — except where the platforms are
+      // themselves drawn nearly full height, as Calle 187's are, and the ratio
+      // has nowhere to move. There the position settles it: platform grey at
+      // the very edge of the drawing, carrying no plate and too narrow to be a
+      // platform, is the bridge onto the station. A vestibule is never drawn in
+      // platform grey, so nothing else can be mistaken for one.
+      : r.c === 'P' && r.w < deckW * 0.6 &&
+        (r.deep > deckH * 1.2 || r === span.runs[0] || r === span.runs[span.runs.length - 1])
         ? 'puente'
         : 'foot';
   }
@@ -829,11 +868,14 @@ async function readSheet(page, file, code) {
   // the platforms' own vertical extent is what decides.
   const top = bands[0].y0;
   const bot = bands[bands.length - 1].y1;
-  // Equipment never stands on a platform — it stands in the blocks and
-  // channels around them. Asking about a tile over a deck only ever produced
-  // noise: the black service chips crowd the deck columns, and every one of
-  // them came back as an unnamed symbol nobody had to answer for.
-  const onDeck = (cx) => decks.some((d) => cx >= d.x0 && cx <= d.x1);
+  // A tile sharing a column with a plate is a service chip, not equipment: the
+  // chips stack directly above and below the plate they belong to. Ruling out
+  // the whole deck COLUMN instead was too blunt — Tygua draws the strip its
+  // torniquetes stand in in platform grey, so it reads as deck, and all four
+  // were thrown away as chips.
+  const onPlate = (b) => plates.some(
+    (p) => b.x < p.x + p.w && b.x + b.w > p.x && Math.abs((b.x + b.w / 2) - (p.x + p.w / 2)) < p.w * 0.5
+  );
   // The arrow printed on a Salida tab is black, small and square, and is not a
   // piece of equipment — it is part of the tab, and the tab is read separately.
   const onTab = (b) => yellows.some(
@@ -843,14 +885,21 @@ async function readSheet(page, file, code) {
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     const ratio = b.w / b.h;
     return cx >= span.x0 && cx <= span.x1 && cy > top && cy < bot &&
-      ratio > 0.55 && ratio < 1.8 && b.w > minRun && !onDeck(cx) && !onTab(b);
+      ratio > 0.55 && ratio < 1.8 && b.w > minRun && !onPlate(b) && !onTab(b);
   });
 
   // The Salida tabs: yellow, but never a plate, and each carries a black box
   // under it naming the street. The box is what confirms the tab — a legend
   // swatch is yellow too and has nothing beneath it.
+  // Inside the drawing, vertically as well as across. The station name runs in
+  // a coloured masthead at the top of every sheet, and on the orange templates
+  // — Biblioteca, Parque — that masthead reads as one enormous yellow tab.
+  const tall = (bands[bands.length - 1].y1 - bands[0].y0) * 0.35;
   const tabs = yellows.filter(
-    (b) => !plates.includes(b) && b.x + b.w / 2 >= span.x0 && b.x + b.w / 2 <= span.x1 && b.w / b.h >= 1.6
+    (b) => !plates.includes(b) &&
+      b.x + b.w / 2 >= span.x0 && b.x + b.w / 2 <= span.x1 &&
+      b.y + b.h / 2 > bands[0].y0 - tall && b.y + b.h / 2 < bands[bands.length - 1].y1 + tall &&
+      b.w / b.h >= 1.6
   );
   const streetBox = (tab) =>
     blacks.find(
@@ -888,6 +937,7 @@ async function readSheet(page, file, code) {
 
   const legend = await legendFrom(page, file, leg.zooms.map((z) => ({ zoom: z, lines: read['legend' + z + '.png']?.lines })), leg.region);
   if (legend.length === 0) notes.push('legend unreadable — equipment left unnamed');
+  if (process.env.DEBUG) console.error('  tiles ' + JSON.stringify(tiles.map((t) => [t.x, t.y, t.w, t.h])) + ' blacks ' + JSON.stringify(blacks.filter((b) => b.x > span.x0 && b.x < span.x1).map((t) => [t.x, t.y, t.w, t.h])));
   if (process.env.DEBUG) console.error('  legend ' + legend.map((l) => l.name + (l.ocr ? '' : '?') + ' ' + JSON.stringify(l.box)).join('  '));
 
   const named = new Map();
@@ -955,8 +1005,29 @@ function buildColumns(read) {
   const decksAfter = (x) => { const d = deckRuns.find((r) => r.x0 > x); return d ? d.x0 : null; };
   const lastDeck = order.length - 1 - [...order].reverse().findIndex((r) => r.kind === 'deck');
 
+  /**
+   * How far out from an access block its furniture may stand.
+   *
+   * Not all of it stands ON the block. Tygua and Biblioteca draw the strip
+   * holding the torniquetes in PLATFORM grey, so it reads as part of the deck
+   * and every torniquete on those sheets fell outside the block and was thrown
+   * away in silence. Nothing but the block's own equipment lies between it and
+   * the first vagón plate, so the plate is the honest boundary — capped, so a
+   * long block cannot reach halfway down a platform for something to claim.
+   */
+  const catchment = (x0, x1) => {
+    const cap = (x1 - x0 + 1) * 1.2;
+    const right = plates.filter((p) => p.x > x1).map((p) => p.x - 1);
+    const left = plates.filter((p) => p.x + p.w < x0).map((p) => p.x + p.w + 1);
+    return [
+      left.length ? Math.max(x0 - cap, Math.max(...left)) : x0,
+      right.length ? Math.min(x1 + cap, Math.min(...right)) : x1,
+    ];
+  };
+
   /** The tiles and salidas standing over a stretch of the drawing. */
-  const furniture = (x0, x1, lado) => {
+  const furniture = (rawX0, rawX1, lado) => {
+    const [x0, x1] = catchment(rawX0, rawX1);
     const col = { t: 'vestibulo', salidas: [], arriba: [], centro: [], abajo: [] };
     if (lado === 'der') col.lado = 'der';
     for (const s of salidas) {

@@ -315,7 +315,12 @@ function salidaHtml(salida) {
  * back to its own band and never displaces what is there.
  */
 function salidasFor(col, fila) {
-  const centroLibre = (col.centro ?? []).length === 0;
+  // The middle band, but only for a lone exit. A block that prints its exit
+  // ONCE PER PLATFORM is saying there is no way across — Tygua, Biblioteca and
+  // Parque all do it, because a ciclorruta or a cano runs between the two
+  // carriageways — and moving both to the middle drew the pair side by side in
+  // one row, which says the opposite of what the sheet says.
+  const centroLibre = (col.centro ?? []).length === 0 && (col.salidas ?? []).length < 2;
   return (col.salidas ?? [])
     .filter((s) => {
       const suya = centroLibre ? 'centro' : s.fila ?? 'abajo';
