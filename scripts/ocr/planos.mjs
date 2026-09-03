@@ -90,6 +90,13 @@ const SETTLED = new Set([
   // counter, opposite in meaning, and only the second can be numbered.
   'TM0030', 'TM0035', 'TM0049', 'TM0051', 'TM0057', 'TM0060', 'TM0116',
   'TM0117', 'TM0128', 'TM0129', 'TM0130', 'TM0134', 'TM0148',
+  // Read by hand 2026-09-02. Normandia is the case the count gate was built
+  // for and had wrong: two catalog wagons, four printed plates, and a stored
+  // count of 2 that let it publish a vagon number for each wagon when every
+  // wagon there straddles two vagones. Las Aguas stays OFF this list on
+  // purpose — its second "Vagon 1" plate is the Universidades tunnel mouth,
+  // not a platform, and no rule about boxes will ever know that.
+  'TM0133',
 ]);
 
 /**

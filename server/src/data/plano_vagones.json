@@ -172,7 +172,7 @@
     "TM0130": 4,
     "TM0131": 4,
     "TM0132": 6,
-    "TM0133": 2,
+    "TM0133": 4,
     "TM0134": 4,
     "TM0135": 0,
     "TM0136": 2,
@@ -1355,6 +1355,49 @@
           ]
         }
       ]
+    },
+    "TM0133": {
+      "source": "Plano de ubicacion, Estacion Normandia, version noviembre de 2024.",
+      "why": "Four vagones across two platforms either side of the ciclorruta — Vagon 2 and Vagon 1 on the Calle 26 side, Vagon 4 and Vagon 3 on the Carrera 10 side — against TWO catalog wagons, so neither wagon names a platform: A is Vagon 1 (K43) plus Vagon 3 (S43), B is Vagon 2 (1, K10) plus Vagon 4 (1, L10). The stored plate count said 2, which matched the wagon count and let the gate publish \"Vagon 1\" for A and \"Vagon 2\" for B; it is corrected to 4 here and both labels are withheld. The sheet prints G43 where the catalog now files S43 — same service, re-lettered to Soacha in September 2026, as at Guatoque. Every service the catalog files at this station is placed and nothing is left over.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "1",
+                "K10"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "K43"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "4",
+              "abajo": [
+                "1",
+                "L10"
+              ]
+            },
+            {
+              "vagon": "3",
+              "abajo": [
+                "S43"
+              ]
+            }
+          ]
+        }
+      ],
+      "divider": "ciclorruta"
     }
   },
   "printed": {
@@ -1998,6 +2041,47 @@
             "torniquete",
             "taquilla"
           ]
+        }
+      ]
+    },
+    "TM0133": {
+      "source": "Plano de ubicacion, Estacion Normandia, version noviembre de 2024.",
+      "why": "The Calle 26 pattern drawn the other way round: the bridge and the access block are at the WEST end here, not the east, so the block is not mirrored — its platform is on its right. Taquilla beside the upper platform, torniquetes in the middle where a rider crosses the ciclorruta, a second taquilla below, and the Carrera 76 exit above them.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "KR 76",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2",
+          "abajo": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "3"
         }
       ]
     }
