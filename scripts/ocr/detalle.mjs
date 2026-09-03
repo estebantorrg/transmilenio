@@ -1039,13 +1039,15 @@ function buildColumns(read) {
       entry.hacia = s.hacia ?? (lado === 'der' ? 'der' : 'izq');
       col.salidas.push(entry);
     }
-    for (const t of tiles) {
+    const mine = tiles.filter((t) => {
       const cx = t.x + t.w / 2;
-      if (cx < x0 || cx > x1) continue;
-      const name = named.get(t);
-      if (!name) continue;
-      col[bandOf(t.y + t.h / 2, bands)].push(name);
-    }
+      return cx >= x0 && cx <= x1 && named.has(t);
+    });
+    // Left to right, as the sheet draws them, mirrored block or not: the
+    // flip that `lado: der` applies is on the BAND, and all the equipment
+    // rides inside a single child of it, so the flip never reaches the order
+    // of the icons themselves. Checked against the rendered page.
+    for (const t of mine) col[bandOf(t.y + t.h / 2, bands)].push(named.get(t));
     if (!col.salidas.length) delete col.salidas;
     return col;
   };
