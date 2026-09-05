@@ -371,11 +371,21 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
     // they sit in — with a triangle up at the top and down at the bottom for
     // the ways onto it, and the name printed outside. An earlier version was
     // a small arch nobody could read as a bridge.
+    // What the sheet draws INSIDE the bridge — the way up onto it. Most are
+    // an empty dashed box and get nothing, which is why this stayed unread for
+    // so long. Av. Rojas is the one that needs it: its sheet draws two long
+    // runs of parallel lines with a fan of radiating lines turning between
+    // them, which is a switchback RAMP, not stairs — step-free access, and a
+    // different statement from a staircase.
+    const nombre = col.nombre || 'Puente peatonal';
+    const sube = iconsHtml(col.sube);
+    const dice = (col.sube ?? []).map((n) => ICONOS[n]?.label).filter(Boolean).join(', ');
     return (
       '<div class="pdt-col pdt-puente" role="img" aria-label="' +
-      escapeHtml(col.nombre || 'Puente peatonal') + '">' +
+      escapeHtml(dice ? nombre + ' con ' + dice.toLowerCase() : nombre) + '">' +
       '<span class="pdt-puente-sube" aria-hidden="true"></span>' +
-      '<span class="pdt-puente-txt">' + escapeHtml(col.nombre || 'Puente peatonal') + '</span>' +
+      sube +
+      '<span class="pdt-puente-txt">' + escapeHtml(nombre) + '</span>' +
       '<span class="pdt-puente-baja" aria-hidden="true"></span>' +
       '</div>'
     );
@@ -419,9 +429,10 @@ function convencionesHtml(columnas) {
       add(col.arriba);
       add(col.centro);
       add(col.abajo);
-    // A bridge draws its own triangles, not the stairs glyph, so it adds
-    // nothing to the key: a legend must name what the plan actually drew.
-    } else if (col.t === 'puente') { /* no mark of its own */ }
+    // A bridge's triangles are its own and are not in the key. What it CARRIES
+    // is: where the sheet draws the way up onto a bridge, the plan draws that
+    // glyph and the key has to name it.
+    } else if (col.t === 'puente') { add(col.sube); }
     else if (col.t === 'paso' || col.t === 'acceso') add(['rampa']);
   }
   if (seen.length === 0) return '';

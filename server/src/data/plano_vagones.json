@@ -1892,7 +1892,7 @@
     },
     "TM0132": {
       "source": "Plano de ubicacion, Estacion AV. Rojas - UNISALESIANA, version noviembre de 2024.",
-      "why": "Three vagones per carriageway across the ciclorruta, six platforms in all — 3, 2, 1 above and 6, 5, 4 below. The bridge lands between the first and second of them rather than at either end, and the access block sits east of it: the KR 70 exit and a taquilla beside the upper platform, torniquetes level with the ciclorruta, a second taquilla below.",
+      "why": "Three vagones per carriageway across the ciclorruta, six platforms in all — 3, 2, 1 above and 6, 5, 4 below. The bridge lands between the first and second of them rather than at either end, and the access block sits east of it: the KR 70 exit and a taquilla beside the upper platform, torniquetes level with the ciclorruta, a second taquilla below. The bridge is reached by a switchback RAMP, not by stairs: the sheet draws two long runs of parallel lines with a fan of radiating lines turning between them, and the street confirms a continuous railed slope doubling back on itself with no treads. It is the only bridge among the read stations that draws its access at all — every other one is an empty dashed box.",
       "columnas": [
         {
           "t": "vagones",
@@ -1900,7 +1900,10 @@
           "abajo": "6"
         },
         {
-          "t": "puente"
+          "t": "puente",
+          "sube": [
+            "rampa"
+          ]
         },
         {
           "t": "vestibulo",
