@@ -1398,6 +1398,47 @@
         }
       ],
       "divider": "ciclorruta"
+    },
+    "TM0005": {
+      "source": "Plano de ubicacion, Estacion Temporal Calle 57, version agosto de 2026.",
+      "why": "ONE platform, not two: a single deck with Vagon 2 at the west end and Vagon 1 at the east, and services along both of its long edges. The catalog's two wagons do line up with the two vagones — A is Vagon 1, B is Vagon 2 — so the count gate's numbering is right here, but the letters are NOT clean groupings: each carries a few of the other's services (J24, J74, 8, H15 and H75 are filed under both) and B is missing F19 altogether. The sheet is what places them, as everywhere else; the catalog is only used to look up what a codigo is.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "A61",
+                "C15",
+                "C19",
+                "D24"
+              ],
+              "abajo": [
+                "F19",
+                "J24",
+                "J74",
+                "Z61"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "8",
+                "B23",
+                "B74",
+                "B75"
+              ],
+              "abajo": [
+                "8",
+                "H15",
+                "H75",
+                "K23"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -2085,6 +2126,54 @@
           "t": "vagones",
           "arriba": "1",
           "abajo": "3"
+        }
+      ]
+    },
+    "TM0005": {
+      "source": "Plano de ubicacion, Estacion Temporal Calle 57, version agosto de 2026.",
+      "why": "An access block at each end of the single platform. The western one has the Calle 59 exit above the deck, the torniquetes level with it and a taquilla below, with the ramp arrows and the walking figure at its platform edge. The eastern one has the Calle 57 exit and a taquilla and NOTHING else: no torniquetes, and no way-through marks at all, so it is marked as having no ramp channel rather than being given one it does not have.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 59",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "paso": false,
+          "salidas": [
+            {
+              "calle": "Calle 57",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "abajo": [
+            "taquilla"
+          ]
         }
       ]
     }

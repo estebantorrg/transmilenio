@@ -466,6 +466,12 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-col{display:flex;flex-direction:column;flex:0 0 auto}
 #seo-prerender .pdt-band{display:flex;align-items:center;justify-content:center}
 #seo-prerender .pdt-band-a,#seo-prerender .pdt-band-b{flex:1 1 0}
+#seo-prerender .pdt-band-solo{flex:1 1 0;width:100%}
+#seo-prerender .pdt-vestibulo-solo{flex-direction:row;align-items:stretch}
+#seo-prerender .pdt-vestibulo-der.pdt-vestibulo-solo{flex-direction:row-reverse}
+#seo-prerender .pdt-vestibulo-stack{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+#seo-prerender .pdt-canal-solo{justify-content:center}
+#seo-prerender .pdt-grid-solo .pdt-vestibulo .pdt-band-mid{height:30px}
 #seo-prerender .pdt-band-mid{height:19px;gap:6px}
 #seo-prerender .pdt-vestibulo{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:4px 8px;gap:4px}
 #seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-end;gap:5px}

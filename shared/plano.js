@@ -344,7 +344,17 @@ function midBand(divider, label, extra) {
   );
 }
 
-function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
+/**
+ * One column of the drawing.
+ *
+ * `solo` is a station with ONE platform rather than two facing ones — most of
+ * the network. There the three bands have nothing to divide: the platform is a
+ * single deck with services along both of its edges, and the deck cell already
+ * draws them itself. So its vagones and its crossings run the full height, and
+ * only the access blocks keep a stack — because the sheets draw one, with the
+ * exit at the top, the torniquetes level with the deck and the taquilla below.
+ */
+function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
   if (col.t === 'vestibulo') {
     // The way through, drawn ON the vestibule at its platform edge — which is
     // where the sheet draws it. Given a column of its own it left a blank
@@ -357,6 +367,23 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
     // LEFT, because that is the end nearest the platform, and the exit points
     // out to the right. Av. Chile has one of each.
     const lado = col.lado === 'der' ? ' pdt-vestibulo-der' : '';
+    const bandas =
+      '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + '</div>' +
+      midBand(undefined, '', salidasFor(col, 'centro') + iconsHtml(col.centro)) +
+      '<div class="pdt-band pdt-band-b">' + salidasFor(col, 'abajo') + iconsHtml(col.abajo) + '</div>';
+    if (solo) {
+      // With one platform the way through is drawn ONCE, running the height of
+      // the block at its platform edge — which is how the sheet draws it: one
+      // pair of ramp arrows with the torniquetes between them. Repeating it per
+      // band, as the two-platform drawing does, gave Calle 57 two sets of
+      // arrows where the sheet has one.
+      return (
+        '<div class="pdt-col pdt-vestibulo pdt-vestibulo-solo' + lado + '">' +
+        '<div class="pdt-vestibulo-stack">' + bandas + '</div>' +
+        (col.paso === false ? '' : '<span class="pdt-canal pdt-canal-solo">' + marcasHtml() + '</span>') +
+        '</div>'
+      );
+    }
     return (
       '<div class="pdt-col pdt-vestibulo' + lado + '">' +
       '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + paso + '</div>' +
@@ -402,11 +429,29 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label) {
     // and into the chips above it — so it read as taller than the vagones it
     // sits between, which on the sheet it never is.
     const caja = '<span class="pdt-canal-v">' + marcasHtml() + '</span>';
+    // With one platform there is nothing between two platforms to name, so the
+    // crossing is just the gap a rider walks through, drawn once.
+    if (solo) {
+      return (
+        '<div class="pdt-col ' + kind + '">' +
+        '<div class="pdt-band pdt-band-solo">' + caja + '</div>' +
+        '</div>'
+      );
+    }
     return (
       '<div class="pdt-col ' + kind + '">' +
       '<div class="pdt-band pdt-band-a">' + caja + '</div>' +
       (col.t === 'paso' ? midBand(divider, label) : midBand(undefined, '')) +
       '<div class="pdt-band pdt-band-b">' + caja + '</div>' +
+      '</div>'
+    );
+  }
+  if (solo) {
+    // The whole platform, once. Its services above and below its own deck are
+    // the cell's business, not the grid's.
+    return (
+      '<div class="pdt-col pdt-vagones">' +
+      '<div class="pdt-band pdt-band-solo">' + cellArriba(col.arriba ?? col.abajo) + '</div>' +
       '</div>'
     );
   }
@@ -578,15 +623,17 @@ export function buildSheetPlano(input) {
     // rather than for the water.
     const cruza = columnas.map((c, i) => (c.t === 'vagones' || c.t === 'paso' ? i : -1)).filter((i) => i >= 0);
     const first = cruza.length ? cruza[Math.floor((cruza.length - 1) / 2)] : -1;
+    // One drawn row means one platform: the drawing collapses to a single band.
+    const solo = drawn.length < 2;
     const cellArriba = (v) => (v ? cells.get('0:' + String(v)) ?? '' : '');
     const cellAbajo = (v) => (v ? cells.get('1:' + String(v)) ?? cells.get('0:' + String(v)) ?? '' : '');
     const html =
       '<div class="popup-plano popup-plano-detalle" role="group" aria-label="Plano de la estación" tabindex="0">' +
       '<div class="popup-plano-inner">' +
       axisHtml(sentidos?.positive, 'a') +
-      '<div class="pdt-grid">' +
+      '<div class="pdt-grid' + (solo ? ' pdt-grid-solo' : '') + '">' +
       columnas
-        .map((c, i) => columnaHtml(c, cellArriba, cellAbajo, layout.divider, i === first ? label : ''))
+        .map((c, i) => columnaHtml(c, cellArriba, cellAbajo, layout.divider, i === first ? label : '', solo))
         .join('') +
       '</div>' +
       axisHtml(sentidos?.negative, 'b') +

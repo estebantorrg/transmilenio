@@ -2628,6 +2628,33 @@ body.sidebar-collapsed .sidebar-fab {
   flex: 1 1 0;
 }
 
+/* A station with ONE platform. The vagones and the crossings run the full
+   height of the drawing; only the access blocks keep their three bands, and
+   those align to the deck cell beside them — exit at the top, torniquetes
+   level with the deck, taquilla below, as the sheets draw it. */
+.pdt-band-solo { flex: 1 1 0; width: 100%; }
+
+/* One platform: the block is a stack of bands with the way through beside
+   it, running the block's full height at the platform edge — one pair of
+   ramp arrows, as the sheet draws it. */
+.pdt-vestibulo-solo { flex-direction: row; align-items: stretch; }
+
+.pdt-vestibulo-der.pdt-vestibulo-solo { flex-direction: row-reverse; }
+
+.pdt-vestibulo-stack {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pdt-canal-solo { justify-content: center; }
+
+.pdt-grid-solo .pdt-vestibulo .pdt-band-mid { height: calc(30px * var(--tm-scale, 1)); }
+
+.pdt-grid-solo .pdt-paso .pdt-band-solo,
+.pdt-grid-solo .pdt-acceso .pdt-band-solo { align-items: center; }
+
 .pdt-band-mid {
   height: calc(19px * var(--tm-scale, 1));
   gap: calc(6px * var(--tm-scale, 1));
