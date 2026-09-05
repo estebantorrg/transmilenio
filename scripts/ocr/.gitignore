@@ -5,3 +5,5 @@ _planos/
 _census/
 _probe/
 _*.mjs
+_*.png
+_*.json
