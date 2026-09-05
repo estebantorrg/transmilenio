@@ -1207,7 +1207,19 @@ if (check) {
     for (const n of got.notes) console.log(`     · ${n}`);
   }
 } else {
-  writeFileSync(`${OUT}/detalle_draft.json`, JSON.stringify(drafts, null, 2) + '\n');
+  // MERGED, never replaced. Asked for one station, this used to write a file
+  // holding only that station and silently drop the other hundred and thirty —
+  // which looks exactly like the scanner having failed on all of them, and cost
+  // two rounds of chasing a regression that was not there.
+  const file = `${OUT}/detalle_draft.json`;
+  let all = {};
+  if (existsSync(file)) {
+    try { all = JSON.parse(readFileSync(file, 'utf8')); } catch { all = {}; }
+  }
+  // A station that was ASKED for and produced nothing loses its stale draft;
+  // one that was never asked for keeps whatever it had.
+  for (const r of report) delete all[r.code];
+  writeFileSync(file, JSON.stringify({ ...all, ...drafts }, null, 2) + '\n');
   const clean = report.filter((r) => r.shape && !r.notes.length);
   const iffy = report.filter((r) => r.shape && r.notes.length);
   const dead = report.filter((r) => !r.shape);
