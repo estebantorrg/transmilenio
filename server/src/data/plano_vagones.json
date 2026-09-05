@@ -1559,7 +1559,7 @@
     },
     "TM0059": {
       "source": "Plano de ubicacion, Estacion La Castellana, version diciembre de 2025.",
-      "why": "Staggered: the two platforms do not face each other, they follow one another along the street with the road between. So the columns are not shared — Vagon 4 and Vagon 3 exist only on the upper carriageway and Vagon 2 and Vagon 1 only on the lower, and each is named on one side of its column with the other left empty, which is what the drawing has to show. Between them, one access block and the bridge that reaches both: taquilla above, torniquetes level with the road, taquilla below — all three against the platform, on the block's left — and the Calle 83 exit printed vertically on its right, against the bridge, which is the way out. That is why the block is mirrored.",
+      "why": "Staggered: the two platforms do not face each other, they follow one another along the street with the road between. So the columns are not shared — Vagon 4 and Vagon 3 exist only on the upper carriageway and Vagon 2 and Vagon 1 only on the lower, and each is named on one side of its column with the other left empty, which is what the drawing has to show. Between them, one access block and the bridge that reaches both: taquilla above, torniquetes level with the road, taquilla below — all three against the platform, on the block's left — and the Calle 83 exit printed vertically on its right, against the bridge, which is the way out. That is why the block is mirrored. The via ferrea is NOT drawn across the access block, and that is correct rather than a shortcoming: the block is up on the bridge, over the railway, not beside it. Nothing crosses it at that level.",
       "columnas": [
         {
           "t": "vagones",
