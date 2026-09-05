@@ -70,6 +70,7 @@ import { chromium } from 'playwright';
 
 const OUT = '_planos';
 const PLATES = '../../server/src/data/plano_vagones.json';
+const CATALOG = '../../server/src/data/master_catalog.json';
 const MAPS_API = 'https://tramites.transmilenio.gov.co/station-maps/api/map';
 
 // Read by hand, checked against the sheet, and shipping. The generator does not
@@ -170,12 +171,37 @@ async function segment(page, file) {
       return r > 180 && g > 150 && b < 120 && r - b > 90 && g - b > 70;
     };
     const isBlack = (i) => data[i] < 78 && data[i + 1] < 78 && data[i + 2] < 78;
+    // A service chip: a solid block that is neither page white nor plan grey.
+    // Saturated for most of them, solid black for the "8" and "1" routes.
+    const isChip = (i) => {
+      const r = data[i], g = data[i + 1], b = data[i + 2];
+      if (r > 246 && g > 246 && b > 246) return false;
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      return mx - mn > 26 || mx < 70;
+    };
 
     return {
       width,
       height,
       yellows: comps(isYellow, 120).sort((x, y) => x.y - y.y || x.x - y.x),
       blacks: comps(isBlack, 60).sort((x, y) => x.x - y.x),
+      chips: comps(isChip, 320)
+        .filter((c) => c.w / c.h > 0.5 && c.w / c.h < 2.4 && c.h > 13)
+        .map((c) => {
+          // The tile's own colour, which is what says WHICH TRONCAL the service
+          // belongs to — the key prints the same colour against the letter. The
+          // white lettering is excluded so it cannot wash the colour out.
+          let r = 0, g = 0, b = 0, n = 0;
+          for (let y = c.y; y < c.y + c.h; y++) {
+            for (let x = c.x; x < c.x + c.w; x++) {
+              const i = (y * width + x) * 4;
+              if (data[i] > 212 && data[i + 1] > 212 && data[i + 2] > 212) continue;
+              r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
+            }
+          }
+          return n ? { ...c, rgb: [Math.round(r / n), Math.round(g / n), Math.round(b / n)] } : c;
+        })
+        .sort((x, y) => x.y - y.y || x.x - y.x),
     };
   }, { b64 });
 }
@@ -417,8 +443,18 @@ async function renderCrop(page, file, box, zoom, mode, out) {
         const d = ctx.getImageData(0, 0, cv.width, cv.height);
         for (let i = 0; i < d.data.length; i += 4) {
           const lum = 0.299 * d.data[i] + 0.587 * d.data[i + 1] + 0.114 * d.data[i + 2];
-          let v = mode === 'invert' ? 255 - lum : lum;
-          if (mode !== 'plain') v = v < 128 ? 0 : 255;
+          let v;
+          if (mode === 'chip') {
+            // A chip is WHITE text on a saturated tile, and luminance barely
+            // separates the two — white on yellow is not a step at all. What
+            // does separate them is nearness to white: on that tile the glyph
+            // is the only white thing. Read by luminance, four chips in six
+            // came back empty; read this way, twelve in sixteen came back.
+            v = d.data[i] > 212 && d.data[i + 1] > 212 && d.data[i + 2] > 212 ? 0 : 255;
+          } else {
+            v = mode === 'invert' ? 255 - lum : lum;
+            if (mode !== 'plain') v = v < 128 ? 0 : 255;
+          }
           d.data[i] = d.data[i + 1] = d.data[i + 2] = v;
           d.data[i + 3] = 255;
         }
@@ -457,6 +493,87 @@ function ocrDir(dir) {
  * sixth, and each missed one the other found. Pooling them read all six, so the
  * battery is the method rather than a fallback.
  */
+const CHIP_VARIANTS = [['chip', 6], ['chip', 10], ['chip', 14]];
+
+/**
+ * An OCR'd chip → the código it must be.
+ *
+ * The reading is never trusted on its own, and does not have to be: the
+ * catalog says exactly which services call at this station, so the question is
+ * never "what does this say" but "which of these fifteen is it". `874` against
+ * {B23, B74, B75, H15 …} has one answer. That is the same move that made the
+ * vagón número readable — choose from a known set rather than read freely.
+ *
+ * The substitutions are the ones this OCR actually makes on this artwork:
+ * B/8, C/(, K/1<, S/5, O/0, I/1, Z/2, G/6.
+ */
+const CONFUSE = [['B', '8'], ['K', '1'], ['C', '('], ['C', 'G'], ['K', 'X'], ['S', '5'], ['O', '0'], ['I', '1'], ['L', '1'], ['Z', '2'], ['G', '6'], ['D', '0'], ['J', 'I'], ['U', 'V']];
+const sameish = (a, b) => a === b || CONFUSE.some(([x, y]) => (a === x && b === y) || (a === y && b === x));
+
+function near(a, b) {
+  // Levenshtein, but a swap the OCR is known to make costs a fraction of one.
+  const n = a.length, m = b.length;
+  const d = Array.from({ length: n + 1 }, (_, i) => [i, ...Array(m).fill(0)]);
+  for (let j = 0; j <= m; j++) d[0][j] = j;
+  for (let i = 1; i <= n; i++) {
+    for (let j = 1; j <= m; j++) {
+      const sub = a[i - 1] === b[j - 1] ? 0 : sameish(a[i - 1], b[j - 1]) ? 0.25 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + sub);
+    }
+  }
+  return d[n][m];
+}
+
+const CLEAN = (t) => String(t || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** Every plausible código-shaped run inside a chip's OCR text. */
+function tokensOf(texts) {
+  const out = new Set();
+  for (const t of texts) {
+    const up = String(t || '').toUpperCase();
+    // The tile can carry a destination banner over the código (PORTAL USME).
+    for (const part of up.split(/[^A-Z0-9(<]+/)) {
+      const c = CLEAN(part);
+      if (c.length >= 1 && c.length <= 4) out.add(c);
+      if (part) out.add(CLEAN(part));
+    }
+    out.add(CLEAN(up));
+  }
+  return [...out].filter(Boolean);
+}
+
+function matchCodigo(texts, candidates) {
+  // Each reading is judged on its OWN merits, and the rival it has to beat is
+  // the second-best código for THAT reading. Pooling every reading's scores
+  // into one contest threw away a perfect answer: the B23 tile read as both
+  // "B23" and "823", the first matching B23 exactly and the second matching
+  // the route literally called "8" exactly, and two flawless answers a whole
+  // código apart looked like a tie.
+  const tried = [];
+  for (let tok of tokensOf(texts)) {
+    // A sheet older than September 2026 prints the Soacha services with a G.
+    // The catalog files them under S and has no G twin, so the tile reads
+    // perfectly and matches nothing — G41 at Guatoque, G43 at Normandía, both
+    // already corrected by hand in the data for exactly this reason.
+    const soacha = /^G(\d{2})$/.exec(tok);
+    if (soacha && candidates.includes('S' + soacha[1]) && !candidates.includes(tok)) tok = 'S' + soacha[1];
+    const ranked = candidates
+      .map((cand) => ({ cand, d: near(tok, CLEAN(cand)) }))
+      .sort((a, b) => a.d - b.d || b.cand.length - a.cand.length);
+    if (!ranked.length) continue;
+    const margin = ranked.length > 1 ? ranked[1].d - ranked[0].d : Infinity;
+    tried.push({ tok, cand: ranked[0].cand, d: ranked[0].d, margin });
+  }
+  if (!tried.length) return { value: null };
+  // The longest reading that fits wins: a chip printing B23 also yields the
+  // fragment "23", and the fragment is not what the tile says.
+  tried.sort((a, b) => a.d - b.d || b.tok.length - a.tok.length || b.margin - a.margin);
+  const best = tried[0];
+  const limit = best.cand.length <= 2 ? 0.51 : 1.01;
+  if (best.d > limit || best.margin < 0.7) return { value: null, best };
+  return { value: best.cand, d: best.d, tok: best.tok };
+}
+
 const VARIANTS = [
   ['raw', 6], ['raw', 10], ['binary', 4], ['binary', 12],
 ];
@@ -490,6 +607,32 @@ const pickStreet = (t) => {
   const s = t.replace(/\s+/g, ' ').trim();
   return /^[A-Za-zÁÉÍÓÚÑáéíóúñ.]{3,}(\s+[A-Za-zÁÉÍÓÚÑáéíóúñ.]+)*\s+\d{1,3}[A-Za-z]?( Sur| Bis)?$/.test(s) ? s : null;
 };
+
+/**
+ * The Convenciones key's troncal column: the letter each colour stands for.
+ *
+ * Read by NAME, not by letter. The key prints the letter inside its coloured
+ * square and Windows OCR will not read an isolated character — sixteen tiles,
+ * sixteen empty strings — but it reads "Caracas Sur" and "Eje Ambiental"
+ * beside them without trouble. The pairing of name to letter is the operator's
+ * own and is the same on every sheet.
+ */
+const TRONCALES = [
+  [/eje\s*ambient/i, 'J'],
+  [/caracas\s*sur/i, 'H'],
+  [/nqs\s*sur/i, 'G'],
+  [/nqs\s*central/i, 'E'],
+  [/ciudad\s*de\s*cali/i, 'Z'],
+  [/avenida\s*68/i, 'P'],
+  [/carrera\s*10/i, 'L'],
+  [/carrera\s*7/i, 'M'],
+  [/calle\s*80/i, 'D'],
+  [/calle\s*26/i, 'K'],
+  [/am[eé]ricas/i, 'F'],
+  [/caracas/i, 'A'],
+  [/norte/i, 'B'],
+  [/suba/i, 'C'],
+];
 
 const GRIDS = [6, 8, 10, 12];
 const LEGEND_ORDER = ['taquilla', 'torniquete', 'rampa', 'escalera', 'emergencia', 'ascensor', 'bici', 'cable', 'zonal'];
@@ -783,10 +926,10 @@ async function salidaHacia(page, file, tab) {
 }
 
 /** One sheet → a draft `detalle`, and everything that stopped it being surer. */
-async function readSheet(page, file, code) {
+async function readSheet(page, file, code, candidates) {
   const notes = [];
   const seg = await segment(page, file);
-  const { width, height, yellows, blacks } = seg;
+  const { width, height, yellows, blacks, chips } = seg;
 
   const plates = platesOf(yellows, height);
   if (plates.length === 0) return { notes: ['no vagón plates found — nothing to hang furniture on'] };
@@ -901,6 +1044,22 @@ async function readSheet(page, file, code) {
       b.y + b.h / 2 > bands[0].y0 - tall && b.y + b.h / 2 < bands[bands.length - 1].y1 + tall &&
       b.w / b.h >= 1.6
   );
+  // The service chips: the coloured squares stacked ABOVE and BELOW the
+  // drawing, which are the whole point of a plano — they say which services
+  // board which vagón, and on which of its two edges. Inside the platform band
+  // they would be the plates and the exit tabs, so only what lies outside it
+  // counts, and only within the drawing's own width — the Convenciones key is
+  // a column of the same coloured squares.
+  const chipsUp = [], chipsDown = [];
+  for (const c of chips) {
+    const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
+    if (cx < span.x0 || cx > span.x1) continue;
+    if (cy < bands[0].y0) chipsUp.push(c);
+    else if (cy > bands[bands.length - 1].y1) chipsDown.push(c);
+  }
+  chipsUp.sort((a, b) => a.x - b.x);
+  chipsDown.sort((a, b) => a.x - b.x);
+
   const streetBox = (tab) =>
     blacks.find(
       (b) => b.y > tab.y && b.y - (tab.y + tab.h) < tab.h * 1.2 && Math.abs(b.x - tab.x) < tab.w * 0.4 && b.w > tab.w * 0.5
@@ -931,6 +1090,33 @@ async function readSheet(page, file, code) {
       jobs.push({ kind: 'street', i, name });
     }
   }
+  for (const [i, c] of [...chipsUp, ...chipsDown].entries()) {
+    for (const [mode, zoom] of CHIP_VARIANTS) {
+      const name = 'chip' + i + '_' + mode + zoom + '.png';
+      // Inset by a pixel: the tile's own edge is not part of its lettering.
+      await renderCrop(page, file, { x: c.x + 1, y: c.y + 1, w: c.w - 2, h: c.h - 2 }, zoom, mode, dir + '/' + name);
+      jobs.push({ kind: 'chip', i, name });
+    }
+    // And the lower two thirds on its own. A tile bound for a portal carries a
+    // destination banner across its top — PORTAL USME, PORTAL TUNAL — and the
+    // OCR reads the banner and stops, so H75 came back as "USME". Cropped below
+    // it, the código is the only thing on the tile.
+    const low = 'chip' + i + '_low.png';
+    await renderCrop(page, file,
+      { x: c.x + 1, y: Math.round(c.y + c.h * 0.34), w: c.w - 2, h: Math.round(c.h * 0.62) },
+      10, 'chip', dir + '/' + low);
+    jobs.push({ kind: 'chip', i, name: low });
+  }
+  // The troncal key: the same coloured squares, in the Convenciones column,
+  // each holding one letter. Reading it gives letter → colour for THIS sheet,
+  // which is what tells C15 from H15 when the OCR drops the letter and leaves
+  // "15" — the two are amber and orange and nothing else separates them.
+  const keyChips = chips.filter((c) => c.x + c.w / 2 < span.x0 && c.rgb && c.h < height * 0.08);
+  for (const [i, c] of keyChips.entries()) {
+    await renderCrop(page, file, { x: c.x + 2, y: c.y + 2, w: c.w - 4, h: c.h - 4 }, 12, 'chip', dir + '/key' + i + '.png');
+    jobs.push({ kind: 'key', i, name: 'key' + i + '.png' });
+  }
+
   const read = ocrDir(dir);
   const textOf = (name) => (read[name]?.lines ?? []).map((l) => l.text).join(' ');
   const textsFor = (kind, i) => jobs.filter((j) => j.kind === kind && j.i === i).map((j) => textOf(j.name));
@@ -975,6 +1161,91 @@ async function readSheet(page, file, code) {
       (r.value ? ' (best "' + r.value + '", ' + r.votes + 'v vs ' + r.rival + 'v)' : ''));
   }
 
+  // Each chip to the vagón it stands over, and to the edge it stands on.
+  // A two-platform station only ever prints services on its OUTER edges — the
+  // inner ones face the caño or the ciclorruta and nothing boards there — so
+  // the chips above belong to the upper row and those below to the lower one.
+  // Each troncal name in the key, paired with the coloured square to its LEFT
+  // on the same row. Two columns of them on the wide template, so the row alone
+  // is not enough to say which square a name belongs to.
+  const byLetter = [];
+  for (const z of leg.zooms) {
+    for (const line of read['legend' + z + '.png']?.lines ?? []) {
+      const w0 = line.words?.[0];
+      if (!w0) continue;
+      const ly = leg.region.y + w0.y / z, lx = leg.region.x + w0.x / z;
+      for (const [re, letter] of TRONCALES) {
+        if (!re.test(line.text)) continue;
+        if (byLetter.some((k) => k.letter === letter)) continue;
+        const own = keyChips
+          .filter((c) => c.x + c.w < lx + 4 && Math.abs(c.y + c.h / 2 - ly) < c.h)
+          .sort((a, b) => (lx - a.x) - (lx - b.x))[0];
+        if (own?.rgb) byLetter.push({ letter, rgb: own.rgb });
+        break;
+      }
+    }
+  }
+  /** The troncal letter a tile's colour belongs to, where the key knows one. */
+  const letterOf = (rgb) => {
+    if (!rgb || !byLetter.length) return null;
+    const mx = Math.max(...rgb), mn = Math.min(...rgb);
+    // A black or grey tile is a numbered route, not a lettered one.
+    if (mx - mn < 24) return null;
+    const ranked = byLetter
+      .map((k) => ({ letter: k.letter, d: Math.hypot(rgb[0] - k.rgb[0], rgb[1] - k.rgb[1], rgb[2] - k.rgb[2]) }))
+      .sort((a, b) => a.d - b.d);
+    // The runner-up has to be a clear distance behind, and that guard is doing
+    // real work rather than being belt-and-braces: Carrera 7 (M) is now printed
+    // in the SAME teal as Carrera 10 (L), so on a current sheet the two are
+    // indistinguishable by colour and neither may be claimed from it. Measured
+    // on Calle 57's own key, where both come back 40,160,163.
+    return ranked[0].d < 46 && (ranked[1]?.d ?? 999) - ranked[0].d > 22 ? ranked[0].letter : null;
+  };
+
+  if (process.env.DEBUG) console.error('  keyChips ' + keyChips.length + ' -> ' + JSON.stringify(byLetter.map(k => k.letter + ':' + k.rgb.join(','))));
+  const chipRows = [new Map(), new Map()];
+  const chipNotes = [];
+  const all = [...chipsUp, ...chipsDown];
+  for (const [i, c] of all.entries()) {
+    const arriba = i < chipsUp.length;
+    const cx = c.x + c.w / 2;
+    const deck = decks.find((r) => cx >= r.x0 && cx <= r.x1) ??
+      decks.slice().sort((a, b) => Math.abs(cx - (a.x0 + a.x1) / 2) - Math.abs(cx - (b.x0 + b.x1) / 2))[0];
+    const plate = deck && plates.filter((p) => plateDeck.get(p) === deck)
+      .sort((a, b) => Math.abs(a.y - c.y) - Math.abs(b.y - c.y))[0];
+    const vagon = plate ? numbers.get(plate) : undefined;
+    // The reading first, unaided. Colour is brought in only to break a tie the
+    // text could not, never to overrule it — narrowing FIRST lost Z61, whose
+    // tile is the same red as Américas and whose own letter the key had not
+    // given up, so a chip that plainly read "Z61" was handed to F and dropped.
+    const texts = textsFor('chip', i);
+    let hit = matchCodigo(texts, candidates ?? []);
+    if (!hit.value) {
+      const letter = letterOf(c.rgb);
+      const pool = (candidates ?? []).filter((x) => letter && x.toUpperCase().startsWith(letter));
+      if (pool.length) hit = matchCodigo(texts, pool);
+    }
+    if (!hit.value && c.rgb && Math.max(...c.rgb) < 96) {
+      // A solid black tile carries a NUMBERED route — "1", "8" — and a lone
+      // digit is the one thing this OCR reliably will not read: sixteen key
+      // letters came back as sixteen empty strings. Where the station runs
+      // exactly one such route there is nothing to choose between, so the tile
+      // is named. Where it runs two, it is left alone.
+      const nums = (candidates ?? []).filter((x) => /^\d+$/.test(x));
+      if (nums.length === 1) hit = { value: nums[0], d: 0, tok: '(black tile)' };
+    }
+    if (!hit.value) {
+      chipNotes.push('chip at ' + c.x + ',' + c.y + ' unread' +
+        (hit.best ? ' (closest ' + hit.best.cand + ' from "' + hit.best.tok + '", d=' + hit.best.d.toFixed(2) + ')' : ''));
+      continue;
+    }
+    if (!vagon) { chipNotes.push('chip ' + hit.value + ' at ' + c.x + ',' + c.y + ' — no numbered platform under it'); continue; }
+    const row = chipRows[arriba || rows.length < 2 ? 0 : 1];
+    const key = (arriba ? 'a' : 'b') + ':' + vagon;
+    if (!row.has(key)) row.set(key, []);
+    if (!row.get(key).includes(hit.value)) row.get(key).push(hit.value);
+  }
+
   const salidas = [];
   for (const [i, tab] of tabs.entries()) {
     const box = streetBox(tab);
@@ -991,7 +1262,7 @@ async function readSheet(page, file, code) {
   rmSync(dir, { recursive: true, force: true });
   rmSync(dir + '.json', { force: true });
 
-  return { plates, rows, bands, span, plateDeck, tiles, named, numbers, salidas, notes };
+  return { plates, rows, bands, span, decks, plateDeck, tiles, named, numbers, salidas, notes, chipRows, chipNotes };
 }
 
 /** The read sheet → the `columnas` array `plano_vagones.json` holds. */
@@ -1133,7 +1404,59 @@ function buildColumns(read) {
   return columnas;
 }
 
+/**
+ * The chips, laid out as a `layout` — which services board which vagón, and
+ * on which of its edges. This is the half of a plano the scanner never used to
+ * attempt, and the half that answers the rider's actual question.
+ *
+ * The vagón ORDER comes from the drawing, left to right, so the row reads the
+ * way the sheet does. A vagón the chips gave nothing is still listed, empty,
+ * because a platform with no services on it is a thing worth seeing rather
+ * than a platform silently dropped.
+ */
+function buildLayout(read, columnas) {
+  const { chipRows, rows } = read;
+  const order = columnas.filter((c) => c.t === 'vagones');
+  const out = [];
+  for (const [ri] of (rows.length < 2 ? [[0]] : [[0], [1]]).entries()) {
+    const side = ri === 0 ? 'a' : 'b';
+    const vagones = [];
+    for (const col of order) {
+      const vagon = ri === 0 ? col.arriba ?? col.abajo : col.abajo ?? col.arriba;
+      if (!vagon) continue;
+      const arriba = chipRows[ri].get('a:' + vagon) ?? [];
+      const abajo = chipRows[ri].get('b:' + vagon) ?? [];
+      const v = { vagon: String(vagon) };
+      // One platform carries services along BOTH of its edges; two platforms
+      // face each other and carry them only on the outer one.
+      if (rows.length < 2) {
+        if (arriba.length) v.arriba = arriba;
+        if (abajo.length) v.abajo = abajo;
+      } else if (ri === 0) {
+        if (arriba.length) v.arriba = arriba;
+      } else if (abajo.length) v.abajo = abajo;
+      vagones.push(v);
+    }
+    if (vagones.length) out.push({ offset: 0, vagones });
+  }
+  return out.length ? { rows: out } : null;
+}
+
 const stored = JSON.parse(readFileSync(PLATES, 'utf8'));
+const catalog = JSON.parse(readFileSync(CATALOG, 'utf8'));
+
+/** The códigos the catalog says call at a station — the set to choose from. */
+function codigosOf(code) {
+  const st = catalog.stations?.[code];
+  if (!st) return [];
+  const out = new Set();
+  for (const routes of Object.values(st.wagons ?? {})) {
+    for (const r of routes ?? []) {
+      if (r.tipoServicio === 'TRONCAL' || r.tipoServicio === 'PADRON') out.add(String(r.codigo).trim().toUpperCase());
+    }
+  }
+  return [...out];
+}
 const list = (await markers()).filter((m) => {
   const code = String(m.code).toUpperCase();
   if (only.length) return only.includes(code);
@@ -1150,7 +1473,8 @@ for (const m of list) {
   const code = String(m.code).toUpperCase();
   try {
     const file = await imageFor(m);
-    const read = await readSheet(page, file, code);
+    const candidates = codigosOf(code);
+    const read = await readSheet(page, file, code, candidates);
     if (!read.span) {
       report.push({ code, name: m.name, notes: read.notes });
       process.stderr.write('x');
@@ -1164,16 +1488,30 @@ for (const m of list) {
         'single-row station — the renderer draws a `detalle` into two bands and there is only one, so this needs a layout with both carriageways before it can be used'
       );
     }
+    const layout = buildLayout(read, columnas);
+    // How much of the catalog the drawing accounts for. Every service the
+    // station runs should appear somewhere on its own plano; the ones that do
+    // not are either newer than the sheet or a chip nobody could read, and
+    // either way a person has to look.
+    const placed = new Set();
+    for (const row of layout?.rows ?? []) for (const v of row.vagones)
+      for (const c of [...(v.arriba ?? []), ...(v.abajo ?? [])]) placed.add(c);
+    const missing = candidates.filter((c) => !placed.has(c));
+    if (missing.length) read.chipNotes.push('catalog lists ' + missing.join(' ') + ' — not found on the sheet');
     drafts[code] = {
       name: m.name,
       draft: true,
       rows: read.rows.length,
       vagones: read.plates.length,
       shape,
+      layout,
+      placed: placed.size,
+      ofCatalog: candidates.length,
       columnas,
       notes: read.notes,
+      chipNotes: read.chipNotes,
     };
-    report.push({ code, name: m.name, shape, rows: read.rows.length, notes: read.notes, oneRow });
+    report.push({ code, name: m.name, shape, rows: read.rows.length, notes: read.notes, oneRow, placed: placed.size, ofCatalog: candidates.length, chipNotes: read.chipNotes });
     process.stderr.write(read.notes.length ? '!' : '.');
   } catch (e) {
     report.push({ code, name: m.name, notes: ['ERROR ' + String(e.message).slice(0, 90)] });
