@@ -2682,6 +2682,35 @@ body.sidebar-collapsed .sidebar-fab {
 
 .pdt-vestibulo .pdt-salida { margin-right: auto; }
 
+/* A block the divider runs THROUGH is drawn as two halves with the water or
+   the cycleway between them, because that is what it is: at Tygua and at
+   Biblioteca the station is cut in two and there is no way over. Drawn as one
+   solid block it said the opposite — that you could walk from one platform to
+   the other — which is why those sheets print their exit twice. */
+.pdt-vestibulo-parte {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  gap: 0;
+}
+
+.pdt-vestibulo-parte .pdt-band-a,
+.pdt-vestibulo-parte .pdt-band-b {
+  background: var(--surface-2, rgba(255, 255, 255, 0.045));
+  border: 1px solid var(--border-subtle);
+  padding: calc(4px * var(--tm-scale, 1)) calc(8px * var(--tm-scale, 1));
+}
+
+.pdt-vestibulo-parte .pdt-band-a {
+  border-bottom: 0;
+  border-radius: calc(3px * var(--tm-scale, 1)) calc(3px * var(--tm-scale, 1)) 0 0;
+}
+
+.pdt-vestibulo-parte .pdt-band-b {
+  border-top: 0;
+  border-radius: 0 0 calc(3px * var(--tm-scale, 1)) calc(3px * var(--tm-scale, 1));
+}
+
 /* Mirrored, for an access block at the RIGHT end of a drawing: the platform
    is on its left, so the equipment and the way through go there and the exit
    points out to the right. */

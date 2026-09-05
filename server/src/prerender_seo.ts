@@ -476,6 +476,10 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-vestibulo{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);border-radius:3px;padding:4px 8px;gap:4px}
 #seo-prerender .pdt-vestibulo .pdt-band{justify-content:flex-end;gap:5px}
 #seo-prerender .pdt-vestibulo .pdt-salida{margin-right:auto}
+#seo-prerender .pdt-vestibulo-parte{background:transparent;border:0;padding:0;gap:0}
+#seo-prerender .pdt-vestibulo-parte .pdt-band-a,#seo-prerender .pdt-vestibulo-parte .pdt-band-b{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.08);padding:4px 8px}
+#seo-prerender .pdt-vestibulo-parte .pdt-band-a{border-bottom:0;border-radius:3px 3px 0 0}
+#seo-prerender .pdt-vestibulo-parte .pdt-band-b{border-top:0;border-radius:0 0 3px 3px}
 #seo-prerender .pdt-vestibulo-der .pdt-band{flex-direction:row-reverse}
 #seo-prerender .pdt-vestibulo-der .pdt-salida{margin-right:0;margin-left:auto}
 #seo-prerender .pdt-vestibulo-der .pdt-canal{margin-left:0;margin-right:3px;padding-left:0;padding-right:5px;border-left:0;border-right:1px solid rgba(255,255,255,.08)}

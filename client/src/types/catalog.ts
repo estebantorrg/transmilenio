@@ -106,6 +106,12 @@ export interface CatalogStation {
            *  no ramp arrows, no walking figure. Calle 187 has stairs there
            *  instead, and drawing the ramp marks anyway invented a slope that
            *  is not on the sheet. */
+          /** True where the divider runs THROUGH this block rather than stopping
+           *  at it. A block the caño stops short of is how a rider crosses; one
+           *  the ciclorruta runs straight through is not, and those sheets print
+           *  their exit once per platform because there is no way over. */
+          divide?: boolean;
+
           paso?: boolean;
 
           lado?: 'izq' | 'der';

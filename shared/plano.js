@@ -385,9 +385,15 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
       );
     }
     return (
-      '<div class="pdt-col pdt-vestibulo' + lado + '">' +
+      '<div class="pdt-col pdt-vestibulo' + lado + (col.divide ? ' pdt-vestibulo-parte' : '') + '">' +
       '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + paso + '</div>' +
-      midBand(undefined, '', salidasFor(col, 'centro') + iconsHtml(col.centro)) +
+      // Whether the divider runs THROUGH the access block. Guatoque's caño
+      // stops short of its block, which is what makes that block the way
+      // across; Tygua's ciclorruta and Biblioteca's caño run edge to edge and
+      // cut the station in half, which is why those sheets print their exit
+      // twice, once per platform. The drawing has to say which, or it says the
+      // opposite of the truth.
+      midBand(col.divide ? divider : undefined, '', salidasFor(col, 'centro') + iconsHtml(col.centro)) +
       '<div class="pdt-band pdt-band-b">' + salidasFor(col, 'abajo') + iconsHtml(col.abajo) + paso + '</div>' +
       '</div>'
     );

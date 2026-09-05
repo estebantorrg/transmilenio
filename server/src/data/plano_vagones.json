@@ -1697,7 +1697,7 @@
     },
     "TM0116": {
       "source": "Plano de ubicacion, Estacion Biblioteca, version noviembre de 2024.",
-      "why": "One long platform per carriageway with the cano between them, and a single access block at the west end serving both. The block is drawn twice over, once per platform: taquilla then torniquetes, in that order, with the torniquetes nearest the platform. The Calle 51 Sur exit is likewise printed once per platform, because the cano gives no way across.",
+      "why": "One long platform per carriageway with the cano between them, and a single access block at the west end serving both. The block is drawn twice over, once per platform: taquilla then torniquetes, in that order, with the torniquetes nearest the platform. The Calle 51 Sur exit is likewise printed once per platform, because the cano gives no way across. The divider runs edge to edge THROUGH the access block, not up to it: the station is cut in two and there is no crossing anywhere on the sheet, which is exactly why the exit is printed once per platform.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -1720,7 +1720,8 @@
           "abajo": [
             "taquilla",
             "torniquete"
-          ]
+          ],
+          "divide": true
         },
         {
           "t": "vagones",
@@ -1731,7 +1732,7 @@
     },
     "TM0117": {
       "source": "Plano de ubicacion, Estacion Parque, version noviembre de 2024.",
-      "why": "The same drawing as Biblioteca, one stop along the same cano: one platform per carriageway, one access block at the west end repeated per platform — taquilla then torniquetes — and the Calle 55 Sur exit printed on each, since the cano gives no way across.",
+      "why": "The same drawing as Biblioteca, one stop along the same cano: one platform per carriageway, one access block at the west end repeated per platform — taquilla then torniquetes — and the Calle 55 Sur exit printed on each, since the cano gives no way across. The divider runs edge to edge THROUGH the access block, not up to it: the station is cut in two and there is no crossing anywhere on the sheet, which is exactly why the exit is printed once per platform.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -1754,7 +1755,8 @@
           "abajo": [
             "taquilla",
             "torniquete"
-          ]
+          ],
+          "divide": true
         },
         {
           "t": "vagones",
@@ -2024,7 +2026,7 @@
     },
     "TM0148": {
       "source": "Plano de ubicacion, Estacion Tygua - San Jose, version noviembre de 2024.",
-      "why": "An access block at each end, and both are drawn twice over — once per platform — because the ciclorruta between the two carriageways gives no way across: Carrera 19 west, Carrera 18 east, each printed on the upper platform and again on the lower. In each block the torniquetes stand nearest the platform and the taquilla behind them, which puts them on opposite sides of the two blocks. Both exit arrows point west, as the sheet draws them, including the eastern pair. Mirroring the block does NOT reverse its equipment: the flip is on the band, whose children are the exit, the equipment and the channel, and the equipment sits inside one of those — so both blocks list their equipment in the order the sheet draws it, left to right. Measured in the rendered page, not reasoned from the stylesheet.",
+      "why": "An access block at each end, and both are drawn twice over — once per platform — because the ciclorruta between the two carriageways gives no way across: Carrera 19 west, Carrera 18 east, each printed on the upper platform and again on the lower. In each block the torniquetes stand nearest the platform and the taquilla behind them, which puts them on opposite sides of the two blocks. Both exit arrows point west, as the sheet draws them, including the eastern pair. Mirroring the block does NOT reverse its equipment: the flip is on the band, whose children are the exit, the equipment and the channel, and the equipment sits inside one of those — so both blocks list their equipment in the order the sheet draws it, left to right. Measured in the rendered page, not reasoned from the stylesheet. The divider runs edge to edge THROUGH the access block, not up to it: the station is cut in two and there is no crossing anywhere on the sheet, which is exactly why the exit is printed once per platform.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -2047,7 +2049,8 @@
           "abajo": [
             "taquilla",
             "torniquete"
-          ]
+          ],
+          "divide": true
         },
         {
           "t": "vagones",
@@ -2084,7 +2087,8 @@
           "abajo": [
             "torniquete",
             "taquilla"
-          ]
+          ],
+          "divide": true
         }
       ]
     },
