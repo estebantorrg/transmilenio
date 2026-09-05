@@ -480,6 +480,11 @@ function convencionesHtml(columnas) {
       add(col.arriba);
       add(col.centro);
       add(col.abajo);
+      // The way through at the block's platform edge is drawn with the ramp
+      // arrows, so the key has to name them. Only a `paso` column used to,
+      // and Biblioteca and Parque have none — their crossing is the block's
+      // own channel — so both drew the arrows and explained nothing.
+      if (col.paso !== false) add(['rampa']);
     // A bridge's triangles are its own and are not in the key. What it CARRIES
     // is: where the sheet draws the way up onto a bridge, the plan draws that
     // glyph and the key has to name it.
