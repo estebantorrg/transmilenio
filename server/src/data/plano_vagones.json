@@ -1905,6 +1905,130 @@
           ]
         }
       ]
+    },
+    "TM0010": {
+      "source": "Plano de ubicacion, Estacion Calle 26 - Atrio, version junio de 2026.",
+      "why": "ONE platform, two vagones, services on both edges. The sheet draws route 6 twice — above Vagon 2 and below Vagon 1 — and the catalog does not run 6 at this station: it now turns back at Calle 72. It is therefore NOT recorded. Route 8, which the sheet draws on the other two edges, is. The scanner could not tell the two black tiles apart and named all four \"8\"; with four numbered tiles and one numbered route in the catalog, that is a guess, and it no longer makes it.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B74",
+                "C19",
+                "D20"
+              ],
+              "abajo": [
+                "8",
+                "H20",
+                "H27",
+                "L18"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "8",
+                "B18",
+                "B23",
+                "B27"
+              ],
+              "abajo": [
+                "F19",
+                "J74",
+                "K23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0017": {
+      "source": "Plano de ubicacion, Estacion Virrey, version noviembre de 2024.",
+      "why": "ONE platform, three vagones, services on both edges. The catalog's three letters do NOT map cleanly here — B carries B27 and A carries B18 and B74, and the sheet draws all three on other platforms — so the letters are a rough grouping and the sheet is what places each service. Its numbering happens to come out right all the same: C is Vagon 3, B is Vagon 2, A is Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "8",
+                "B50",
+                "B55"
+              ],
+              "abajo": [
+                "F26",
+                "G11"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B18",
+                "B26",
+                "B74"
+              ],
+              "abajo": [
+                "8",
+                "C50",
+                "D55"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B11",
+                "B27"
+              ],
+              "abajo": [
+                "H27",
+                "J74",
+                "L18"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0020": {
+      "source": "Plano de ubicacion, Estacion Pepe Sierra - UTEL Universidad, version abril de 2026.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. Route 8 boards the northbound edge of Vagon 2 and the southbound edge of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B55",
+                "B72"
+              ],
+              "abajo": [
+                "F28",
+                "K16",
+                "L18"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B16",
+                "B18",
+                "B28"
+              ],
+              "abajo": [
+                "8",
+                "D55",
+                "H72"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -3254,6 +3378,139 @@
           "salidas": [
             {
               "calle": "Cra. 65",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0010": {
+      "source": "Plano de ubicacion, Estacion Calle 26 - Atrio, version junio de 2026.",
+      "why": "An access block at each end, no bridges. Each carries its exit at the top — Calle 28 - DG 30 west, Calle 26 east — the torniquetes level with the deck in the channel at its platform edge, and a taquilla below. The eastern block is mirrored.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 28 - DG 30",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 26",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0017": {
+      "source": "Plano de ubicacion, Estacion Virrey, version noviembre de 2024.",
+      "why": "A bridge at the west end and one access block; the drawing simply stops after Vagon 1. The block carries THREE taquillas rather than the usual one: one above the platform band, one inside the block at its foot, and one below the band again — so the lower row holds two. The Calle 90 exit is at the top and the torniquetes are level with the deck in the channel.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 90",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0020": {
+      "source": "Plano de ubicacion, Estacion Pepe Sierra - UTEL Universidad, version abril de 2026.",
+      "why": "A bridge at the north end and one access block, nothing at the south. The block carries the Calle 116 exit at the top, the torniquetes level with the deck in the channel at its platform edge, and a taquilla below.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 116",
               "hacia": "izq",
               "fila": "arriba"
             }

@@ -885,9 +885,17 @@ function bandOf(y, bands) {
     if (y > bands[1].y0) return 'abajo';
     return 'centro';
   }
+  // One platform: the block's contents divide the PLATFORM BAND into thirds,
+  // rather than sitting above, on, or below it. On these sheets the exit, the
+  // torniquetes and the taquilla are all drawn within the platform's own height
+  // — stacked inside the block — so "inside the band" put every one of them in
+  // the middle and the stack collapsed. Measured against the four read by eye:
+  // Calle 100, Biblioteca Tintal, San Victorino and Museo Nacional all fall in
+  // the right third this way, and none of them did before.
   const only = bands[0];
-  if (y < only.y0) return 'arriba';
-  if (y > only.y1) return 'abajo';
+  const third = Math.max(1, (only.y1 - only.y0) / 3);
+  if (y < only.y0 + third) return 'arriba';
+  if (y > only.y1 - third) return 'abajo';
   return 'centro';
 }
 
@@ -1229,6 +1237,15 @@ async function readSheet(page, file, code, candidates) {
   };
 
   if (process.env.DEBUG) console.error('  keyChips ' + keyChips.length + ' -> ' + JSON.stringify(byLetter.map(k => k.letter + ':' + k.rgb.join(','))));
+  // How many black tiles the drawing carries. A numbered route is drawn on at
+  // most one edge per platform it serves, so two of them is the ordinary case —
+  // one per side. More than that means the sheet prints more than one numbered
+  // route, and naming any of them from the catalog's single candidate is a
+  // guess: Calle 26 - Atrio draws 6 and 8, twice each, and the catalog runs
+  // only 8 there, so all four came back as 8 and route 6 was invented onto two
+  // platforms it does not serve.
+  const blackTiles = [...chipsUp, ...chipsDown].filter((c) => c.rgb && Math.max(...c.rgb) < 96).length;
+
   const chipRows = [new Map(), new Map()];
   const chipNotes = [...chipNotesEarly];
   const all = [...chipsUp, ...chipsDown];
@@ -1259,7 +1276,7 @@ async function readSheet(page, file, code, candidates) {
       // is named. Where it runs two, it is left alone.
       const nums = (candidates ?? []).filter((x) => /^\d+$/.test(x));
       if (process.env.DEBUG) console.error('  [black] ' + c.x + ',' + c.y + ' rgb=' + JSON.stringify(c.rgb) + ' -> ' + JSON.stringify(nums));
-      if (nums.length === 1) hit = { value: nums[0], d: 0, tok: '(black tile)' };
+      if (nums.length === 1 && blackTiles <= 2) hit = { value: nums[0], d: 0, tok: '(black tile)' };
     }
     if (!hit.value) {
       chipNotes.push('chip at ' + c.x + ',' + c.y + ' unread' +
