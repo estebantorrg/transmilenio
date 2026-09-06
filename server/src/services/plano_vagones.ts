@@ -224,7 +224,7 @@ export interface PlanoDetalle {
    *  instead of one shared set. */
   filas?: Array<{ columnas: PlanoColumna[] }>;
   /** The zonal bay strip, where the sheet draws one beside the platform. */
-  zonal?: PlanoZonal;
+  zonal?: PlanoZonal | PlanoZonal[];
 }
 
 /**

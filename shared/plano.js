@@ -484,6 +484,11 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
  * the plan never claimed to hold real geometry.
  */
 function zonalHtml(zonal) {
+  // One strip or several: Granja - Carrera 77 draws a zonal platform on EACH
+  // side of the troncal one, with their own bays and their own equipment, and
+  // running them together as one strip would say there is a single platform
+  // where a rider has two to choose between.
+  if (Array.isArray(zonal)) return zonal.map(zonalHtml).join('');
   const items = zonal?.items ?? [];
   if (items.length === 0) return '';
   const cells = items
@@ -524,8 +529,10 @@ function convencionesHtml(columnas, zonal) {
   const add = (names) => {
     for (const n of names ?? []) if (ICONOS[n] && seen.indexOf(n) < 0) seen.push(n);
   };
-  for (const it of zonal?.items ?? []) {
-    if (it.t === 'bahia') { if (it.llegada) add(['zonal']); } else add(it.iconos);
+  for (const tira of Array.isArray(zonal) ? zonal : zonal ? [zonal] : []) {
+    for (const it of tira.items ?? []) {
+      if (it.t === 'bahia') { if (it.llegada) add(['zonal']); } else add(it.iconos);
+    }
   }
   for (const col of columnas) {
     if (col.t === 'vestibulo') {

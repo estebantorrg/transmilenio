@@ -94,8 +94,13 @@ for (const code of Object.keys(p.detalle)) {
   }
 
   // the zonal bay strip, where the sheet draws one
-  const zonal = D.zonal?.items ?? [];
-  const strip = h.split('<div class="pdz-strip">')[1]?.split('</div></div>')[0] ?? '';
+  // One strip or several — Granja draws a zonal platform on each side.
+  const zonal = (Array.isArray(D.zonal) ? D.zonal : D.zonal ? [D.zonal] : []).flatMap((t) => t.items ?? []);
+  // The strips only, never the key that follows them: the key draws the same
+  // glyphs, and a slice running into it makes "named but not drawn" unfirable.
+  const strip = h.includes('<div class="pdz"')
+    ? h.slice(h.indexOf('<div class="pdz"')).split('<div class="pdt-convenciones"')[0]
+    : '';
   const drawnBahias = (strip.match(/pdz-item pdz-bahia/g) ?? []).length;
   const wantBahias = zonal.filter((i) => i.t === 'bahia').length;
   if (drawnBahias !== wantBahias) say(drawnBahias + ' zonal bays drawn, data has ' + wantBahias);

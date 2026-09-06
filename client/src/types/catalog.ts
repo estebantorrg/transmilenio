@@ -14,6 +14,16 @@ export interface CatalogWagons {
   [wagonLabel: string]: CatalogRoute[];
 }
 
+/** One strip of zonal bays drawn beside the troncal platform. A station can
+ *  have more than one: Granja - Carrera 77 draws one on each side. */
+export interface CatalogPlanoZonal {
+  nombre?: string;
+  items: Array<
+    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
+    | { t: 'equipo'; iconos?: string[]; nota?: string }
+  >;
+}
+
 /** One column of the detailed station drawing, left to right as the sheet lays
  *  them out: an access block, a run of platform, the crossing between two runs,
  *  or a pedestrian bridge over the road. */
@@ -134,13 +144,7 @@ export interface CatalogStation {
     /** The zonal bay strip, where the sheet draws one beside the platform —
      *  Calle 40 Sur's four bays, Molinos's Estación Intermedia. Not vagones:
      *  no troncal código, different ground, so they are drawn apart. */
-    zonal?: {
-      nombre?: string;
-      items: Array<
-        | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
-        | { t: 'equipo'; iconos?: string[]; nota?: string }
-      >;
-    };
+    zonal?: CatalogPlanoZonal | CatalogPlanoZonal[];
   };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own
