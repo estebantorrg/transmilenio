@@ -14,6 +14,34 @@ export interface CatalogWagons {
   [wagonLabel: string]: CatalogRoute[];
 }
 
+/** One column of the detailed station drawing, left to right as the sheet lays
+ *  them out: an access block, a run of platform, the crossing between two runs,
+ *  or a pedestrian bridge over the road. */
+export type CatalogPlanoColumna =
+  | {
+      t: 'vestibulo';
+      /** True where the divider runs THROUGH this block rather than stopping
+       *  at it. A block the caño stops short of is how a rider crosses; one
+       *  the ciclorruta runs straight through is not, and those sheets print
+       *  their exit once per platform because there is no way over. */
+      divide?: boolean;
+      /** False where the sheet draws NO way through at the platform edge — no
+       *  ramp arrows, no walking figure. Calle 187 has stairs there instead,
+       *  and drawing the ramp marks anyway invented a slope that is not on the
+       *  sheet. */
+      paso?: boolean;
+      /** Which side the platform is on. 'der' mirrors the block for one at the
+       *  RIGHT end of a drawing. */
+      lado?: 'izq' | 'der';
+      salidas?: Array<{ calle: string; hacia?: 'izq' | 'der'; fila?: 'arriba' | 'abajo' | 'ambas' }>;
+      arriba?: string[];
+      centro?: string[];
+      abajo?: string[];
+    }
+  | { t: 'vagones'; arriba?: string; abajo?: string }
+  | { t: 'paso' }
+  | { t: 'puente'; nombre?: string; sube?: string[] };
+
 export interface CatalogStation {
   id: string;
   codigo: string;
@@ -97,33 +125,12 @@ export interface CatalogStation {
    * from `planoLayout`, stated once so the two drawings cannot disagree.
    */
   planoDetalle?: {
-    columnas: Array<
-      | {
-          t: 'vestibulo';
-          /** Which side the platform is on. 'der' mirrors the block for one at
-           *  the RIGHT end of a drawing. */
-          /** False where the sheet draws NO way through at the platform edge —
-           *  no ramp arrows, no walking figure. Calle 187 has stairs there
-           *  instead, and drawing the ramp marks anyway invented a slope that
-           *  is not on the sheet. */
-          /** True where the divider runs THROUGH this block rather than stopping
-           *  at it. A block the caño stops short of is how a rider crosses; one
-           *  the ciclorruta runs straight through is not, and those sheets print
-           *  their exit once per platform because there is no way over. */
-          divide?: boolean;
-
-          paso?: boolean;
-
-          lado?: 'izq' | 'der';
-          salidas?: Array<{ calle: string; hacia?: 'izq' | 'der'; fila?: 'arriba' | 'abajo' | 'ambas' }>;
-          arriba?: string[];
-          centro?: string[];
-          abajo?: string[];
-        }
-      | { t: 'vagones'; arriba?: string; abajo?: string }
-      | { t: 'paso' }
-      | { t: 'puente'; nombre?: string; sube?: string[] }
-    >;
+    columnas?: CatalogPlanoColumna[];
+    /** A SPLIT station: one código, two sheets. Ricaurte and Av. Jiménez are
+     *  each drawn on two separate planos — different troncal, different
+     *  platform, different furniture — so they carry one set of columns per
+     *  layout row instead of one shared set. */
+    filas?: Array<{ columnas: CatalogPlanoColumna[] }>;
   };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own

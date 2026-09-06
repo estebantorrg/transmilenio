@@ -37,14 +37,21 @@ for (const code of Object.keys(p.detalle)) {
     tagColor: () => '#888', isZonal: () => false,
   });
   const h = out.html;
-  const solo = L.rows.length < 2;
-  console.log(code + '  ' + (solo ? 'one row ' : 'two rows') + '  ' + D.columnas.map((c) => c.t).join(' '));
+  // A SPLIT station carries one set of columns per row (Ricaurte, Av. Jiménez):
+  // two sheets, not two carriageways, so each row is its own solo drawing and
+  // the checks below run over both sets end to end, in row order.
+  const columnas = D.filas ? D.filas.flatMap((f) => f.columnas) : D.columnas;
+  const solo = D.filas ? true : L.rows.length < 2;
+  console.log(
+    code + '  ' + (D.filas ? D.filas.length + ' sheets' : solo ? 'one row ' : 'two rows') +
+    '  ' + columnas.map((c) => c.t).join(' ')
+  );
 
   if (h.includes('pdt-grid-solo') !== solo) say('grid mode wrong');
 
   // column order as rendered
   const cols = [...h.matchAll(/class="pdt-col ([a-z- ]+)"/g)].map((m) => m[1].trim());
-  const want = D.columnas.map((c) =>
+  const want = columnas.map((c) =>
     c.t === 'vagones' ? 'pdt-vagones' :
     c.t === 'paso' ? 'pdt-paso' :
     c.t === 'puente' ? 'pdt-puente' :
@@ -60,7 +67,7 @@ for (const code of Object.keys(p.detalle)) {
   // last column's slice ran straight into it and counted them twice.
   const grid = h.split('<div class="pdt-convenciones"')[0];
   const blocks = grid.split('<div class="pdt-col ').slice(1).filter((x) => x.startsWith('pdt-vestibulo'));
-  const dataBlocks = D.columnas.filter((c) => c.t === 'vestibulo');
+  const dataBlocks = columnas.filter((c) => c.t === 'vestibulo');
   if (blocks.length !== dataBlocks.length) say('rendered ' + blocks.length + ' blocks, data has ' + dataBlocks.length);
   for (const [i, b] of blocks.entries()) {
     const d = dataBlocks[i]; if (!d) break;
@@ -79,7 +86,7 @@ for (const code of Object.keys(p.detalle)) {
 
   // bridges
   const bridges = [...h.matchAll(/<div class="pdt-col pdt-puente"[^>]*aria-label="([^"]+)"/g)].map((m) => m[1]);
-  const dataBridges = D.columnas.filter((c) => c.t === 'puente');
+  const dataBridges = columnas.filter((c) => c.t === 'puente');
   if (bridges.length !== dataBridges.length) say(bridges.length + ' bridges drawn, data has ' + dataBridges.length);
   for (const [i, br] of dataBridges.entries()) {
     const has = /con /.test(bridges[i] ?? '');

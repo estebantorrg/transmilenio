@@ -624,6 +624,45 @@ export function buildSheetPlano(input) {
   if (drawn.length === 0) return null;
 
   const label = layout.divider ? DIVIDER_NAMES[layout.divider] ?? '' : '';
+  const dividerHtml =
+    '<div class="pvg-divider pvg-divider-' + escapeHtml(layout.divider ?? 'plain') + '">' +
+    (label ? '<span class="pvg-divider-name">' + escapeHtml(label) + '</span>' : '') +
+    '</div>';
+
+  // A SPLIT station: two sheets, not two carriageways of one.
+  //
+  // Ricaurte and Av. Jiménez are each filed under one código and drawn on two
+  // separate planos — a different troncal, a different platform, a different
+  // set of blocks and bridges on each, joined only by a tunnel. So they cannot
+  // share one row of columns the way an ordinary station's two carriageways
+  // do: each half brings its own furniture, and each is a one-platform drawing
+  // in its own right. `filas` is that — one `columnas` per row of the layout,
+  // rendered as its own solo grid under its own pair of direction labels, with
+  // the divider between them naming what joins the halves.
+  const filas = input.detalle?.filas ?? [];
+  if (filas.length > 0) {
+    const bloques = drawn.map((r, ri) => {
+      const cols = filas[ri]?.columnas ?? [];
+      if (cols.length === 0) return axisHtml(r.row.eje?.arriba, 'a') + r.html + axisHtml(r.row.eje?.abajo, 'b');
+      // Each half is one platform, so every vagón cell comes from its OWN row.
+      const cell = (v) => (v ? cells.get(ri + ':' + String(v)) ?? '' : '');
+      return (
+        axisHtml(r.row.eje?.arriba ?? sentidos?.positive, 'a') +
+        '<div class="pdt-grid pdt-grid-solo">' +
+        cols.map((c) => columnaHtml(c, cell, cell, undefined, '', true)).join('') +
+        '</div>' +
+        axisHtml(r.row.eje?.abajo ?? sentidos?.negative, 'b')
+      );
+    });
+    return {
+      html:
+        '<div class="popup-plano popup-plano-detalle" role="group" aria-label="Plano de la estación" tabindex="0">' +
+        '<div class="popup-plano-inner">' + bloques.join(dividerHtml) + '</div></div>' +
+        convencionesHtml(filas.flatMap((f) => f.columnas ?? [])),
+      detallado: true,
+      placed,
+    };
+  }
 
   // The full station, where its furniture has been read too.
   const columnas = input.detalle?.columnas ?? [];
@@ -658,10 +697,7 @@ export function buildSheetPlano(input) {
   // Otherwise the platforms alone, with each row naming its own corridor where
   // the two halves are on different troncals (Ricaurte, Av. Jiménez).
   const perRow = drawn.some((r) => r.row.eje);
-  const divider =
-    '<div class="pvg-divider pvg-divider-' + escapeHtml(layout.divider ?? 'plain') + '">' +
-    (label ? '<span class="pvg-divider-name">' + escapeHtml(label) + '</span>' : '') +
-    '</div>';
+  const divider = dividerHtml;
   const body = perRow
     ? drawn
         .map((r) => axisHtml(r.row.eje?.arriba, 'a') + r.html + axisHtml(r.row.eje?.abajo, 'b'))

@@ -5603,6 +5603,204 @@
           ]
         }
       ]
+    },
+    "TM0069": {
+      "source": "Dos planos: \"E | Estacion Ricaurte\" (NQS Central, diciembre 2025) y \"F | Estacion Ricaurte\" (Americas, agosto 2026).",
+      "why": "TWO sheets, not two carriageways, so the furniture is read once per half and drawn as two platforms one above the other. Each half is a single platform whose services sit on both of its edges, and each opens the same way: the pedestrian tunnel to the OTHER half at its west end, three vagones, and one access block at its east end with the exit above, the taquilla below and the torniquetes on the channel — Calle 10 on the NQS side, Cr 27 on the Americas side. The tunnel is drawn on both sheets, once from each end, which is why it appears at the west end of both rows with the divider naming it between them; each sheet marks a staircase into it and prints the troncal it leads to. The one difference between the halves is that the Americas sheet puts a crossing between the tunnel and Vagon 4 and the NQS sheet does not: there the tunnel stands directly against the Vagon 3 deck.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "puente",
+              "nombre": "Túnel peatonal a Troncal Américas",
+              "sube": [
+                "escalera"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "3"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "2"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "1"
+            },
+            {
+              "t": "vestibulo",
+              "lado": "der",
+              "salidas": [
+                {
+                  "calle": "Calle 10",
+                  "hacia": "der",
+                  "fila": "arriba"
+                }
+              ],
+              "centro": [
+                "torniquete"
+              ],
+              "abajo": [
+                "taquilla"
+              ]
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "puente",
+              "nombre": "Túnel peatonal a Troncal NQS Central",
+              "sube": [
+                "escalera"
+              ]
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "4"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "5"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "6"
+            },
+            {
+              "t": "vestibulo",
+              "lado": "der",
+              "salidas": [
+                {
+                  "calle": "Cr 27",
+                  "hacia": "der",
+                  "fila": "arriba"
+                }
+              ],
+              "centro": [
+                "torniquete"
+              ],
+              "abajo": [
+                "taquilla"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0013": {
+      "source": "Dos planos: \"A | Estacion temporal Av. Jimenez\" (Caracas, enero 2026) y \"F | Estacion Av. Jimenez\" (Americas, enero 2026).",
+      "why": "TWO sheets, not two carriageways, so the furniture is read once per half and drawn as two platforms one above the other. The Caracas half is symmetrical: a block at each end with the exit above and the taquilla below — Calle 8 west, Calle 10 east — torniquetes on the channel, and three vagones with a crossing between each pair. The Americas half has that same block only at its east end, for Carrera 12; at its west end the sheet draws the vestibule that serves the tunnel to the Caracas half and then STRIKES THE TUNNEL THROUGH IN RED, CIERRE. So the vestibule is drawn, empty, as the sheet draws it, and the tunnel is not drawn at all, and the divider between the halves stays unnamed: there is no reason to display a crossing nobody can use.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vestibulo",
+              "salidas": [
+                {
+                  "calle": "Calle 8",
+                  "hacia": "izq",
+                  "fila": "arriba"
+                }
+              ],
+              "centro": [
+                "torniquete"
+              ],
+              "abajo": [
+                "taquilla"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "3"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "2"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "1"
+            },
+            {
+              "t": "vestibulo",
+              "lado": "der",
+              "salidas": [
+                {
+                  "calle": "Calle 10",
+                  "hacia": "der",
+                  "fila": "arriba"
+                }
+              ],
+              "centro": [
+                "torniquete"
+              ],
+              "abajo": [
+                "taquilla"
+              ]
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vestibulo",
+              "paso": false
+            },
+            {
+              "t": "vagones",
+              "arriba": "4"
+            },
+            {
+              "t": "paso"
+            },
+            {
+              "t": "vagones",
+              "arriba": "5"
+            },
+            {
+              "t": "vestibulo",
+              "lado": "der",
+              "salidas": [
+                {
+                  "calle": "Carrera 12",
+                  "hacia": "der",
+                  "fila": "arriba"
+                }
+              ],
+              "centro": [
+                "torniquete"
+              ],
+              "abajo": [
+                "taquilla"
+              ]
+            }
+          ]
+        }
+      ]
     }
   }
 }

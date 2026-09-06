@@ -217,7 +217,12 @@ export type PlanoColumna =
 export interface PlanoDetalle {
   source?: string;
   why?: string;
-  columnas: PlanoColumna[];
+  columnas?: PlanoColumna[];
+  /** A SPLIT station: one código, two sheets. Ricaurte and Av. Jiménez are each
+   *  drawn on two separate planos — different troncal, different platform,
+   *  different furniture — so they carry one set of columns per layout row
+   *  instead of one shared set. */
+  filas?: Array<{ columnas: PlanoColumna[] }>;
 }
 
 const PLANO_FILE: {
