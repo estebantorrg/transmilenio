@@ -1668,6 +1668,174 @@
           ]
         }
       ]
+    },
+    "TM0023": {
+      "source": "Plano de ubicacion, Estacion Alcala - Colegio S. Tomas Dominicos, version junio de 2025.",
+      "why": "ONE platform, three vagones — Vagon 3 north through Vagon 1 south — with services on both edges. The catalog's three letters map cleanly: C is Vagon 3, B is Vagon 2, A is Vagon 1. The sheet prints G46 where the catalog files S46, the September 2026 Soacha re-lettering. The scanner read the first two vagones and then lost the third: it could not number Vagon 1's plate, so four chips it had read correctly — B18, B46, 8, L18 — had no platform to hang on.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "B10",
+                "B16",
+                "B72"
+              ],
+              "abajo": [
+                "D10",
+                "K16",
+                "K23"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B23",
+                "B26"
+              ],
+              "abajo": [
+                "F26",
+                "H72",
+                "J70"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B18",
+                "B46"
+              ],
+              "abajo": [
+                "8",
+                "S46",
+                "L18"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0021": {
+      "source": "Plano de ubicacion, Estacion Calle 127, version marzo de 2026.",
+      "why": "ONE platform, two vagones, services on both edges. The catalog's two letters map cleanly — B is Vagon 2, A is Vagon 1 — so its numbering is right. Route 8 boards the northbound edge of Vagon 2 and the southbound edge of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B13",
+                "B23"
+              ],
+              "abajo": [
+                "F26",
+                "G12",
+                "L18"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B12",
+                "B18",
+                "B26"
+              ],
+              "abajo": [
+                "8",
+                "H13",
+                "J70",
+                "K23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0143": {
+      "source": "Plano de ubicacion, Estacion AV. 1° de Mayo, version julio de 2025.",
+      "why": "ONE platform of three vagones on Carrera 10, drawn under the zonal integration building it feeds. The catalog's three letters map cleanly — C is Vagon 3, B is Vagon 2, A is Vagon 1 — so its numbering is right. Route 2 boards the northbound edge of Vagon 3 and the southbound edge of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "2",
+                "C25"
+              ],
+              "abajo": [
+                "L18",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B18",
+                "K10",
+                "M83"
+              ],
+              "abajo": [
+                "H83",
+                "L10",
+                "L81"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "D81",
+                "M82"
+              ],
+              "abajo": [
+                "2",
+                "L82"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0146": {
+      "source": "Plano de ubicacion, Estacion Museo Nacional - FNG, version noviembre de 2025.",
+      "why": "ONE platform, two vagones, services on both edges. The catalog's two letters map cleanly — B is Vagon 2, A is Vagon 1 — so its numbering is right. Wagon A also holds M47 and M51, and wagon \"0\" holds M85, none of which this sheet draws; they are listed under the drawing rather than placed.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D81",
+                "M86"
+              ],
+              "abajo": [
+                "2",
+                "H83",
+                "L81"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "F51",
+                "M83",
+                "P85"
+              ],
+              "abajo": [
+                "K86",
+                "G47"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -2739,6 +2907,219 @@
         },
         {
           "t": "puente"
+        }
+      ]
+    },
+    "TM0023": {
+      "source": "Plano de ubicacion, Estacion Alcala - Colegio S. Tomas Dominicos, version junio de 2025.",
+      "why": "A bridge at each end with an access block inside it. The northern block carries the Calle 137 exit at the top, the torniquetes level with the deck in the channel at its platform edge, and a taquilla below; the southern one is mirrored and runs the other way, taquilla at the top and the Calle 134 A exit below.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 137",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 134 A",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0021": {
+      "source": "Plano de ubicacion, Estacion Calle 127, version marzo de 2026.",
+      "why": "A bridge at the north end and one access block, and nothing at all at the south end — the drawing simply stops after Vagon 1. The block carries a taquilla ABOVE the platform band and a second one below it, with the torniquetes level with the deck between them and the Calle 127 exit under those. The two taquillas are drawn outside the band the platforms occupy, so they are recorded in the block's top and bottom rows, which is where they read.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 127",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0143": {
+      "source": "Plano de ubicacion, Estacion AV. 1° de Mayo, version julio de 2025.",
+      "why": "An access block at each end, no bridges — the pedestrian tunnel and the zonal building above are not part of the platform and are not drawn. The northern block has the Calle 17 Sur exit at the top, torniquetes level with the deck in the channel at its platform edge, and a taquilla below; the southern one is mirrored, taquilla at the top and the AV 1° de Mayo exit below.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 17 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "AV 1° de Mayo",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0146": {
+      "source": "Plano de ubicacion, Estacion Museo Nacional - FNG, version noviembre de 2025.",
+      "why": "An access block at each end, each carrying MORE than the usual pair: an exit at the top (Calle 29 north, Calle 27 south), torniquetes level with the deck, a taquilla below, and — drawn as their own tiles rather than as the channel marks — a pedestrian staircase and a pedestrian ramp. The sheet draws BOTH: the grey arrows in the channel and the two black tiles beside them. Between the vagones it draws two crossings with an open stretch between; the drawing has one column for that and shows a single crossing.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 29",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete",
+            "escalera"
+          ],
+          "abajo": [
+            "taquilla",
+            "rampa"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 27",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "escalera",
+            "torniquete"
+          ],
+          "abajo": [
+            "rampa",
+            "taquilla"
+          ]
         }
       ]
     }
