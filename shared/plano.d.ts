@@ -64,4 +64,5 @@ export declare function escapeHtml(value: unknown): string;
 export declare function normalizeName(value: unknown): string;
 
 /** The station drawn from its sheet, or null where no sheet has been read. */
+export declare const nombreVagon: (v: unknown) => string;
 export declare function buildSheetPlano(input: BuildSheetPlanoInput): SheetPlano | null;

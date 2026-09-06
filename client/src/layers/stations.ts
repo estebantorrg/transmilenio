@@ -28,7 +28,7 @@ import { isStationStopCode } from '../data/routeCatalog';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
-import { buildSheetPlano } from '../../../shared/plano.js';
+import { buildSheetPlano, nombreVagon } from '../../../shared/plano.js';
 import {
   platformForMatchMethod,
   platformStation,
@@ -320,7 +320,7 @@ function buildStationPlanoHtml(
     // No number where the plate count doesn't back the catalog's grouping —
     // "Plataforma N" is vague but true, a wrong vagón number sends a rider to
     // the wrong side of the station.
-    const name = vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${index + 1}`;
+    const name = vagonLabels[key] ? nombreVagon(escapeHTML(vagonLabels[key])) : `Plataforma ${index + 1}`;
     const count = resolved.reduce((n, g) => n + groupCatalogRoutesByDirection(g.members).length, 0);
 
     if (sentidos) {
@@ -614,7 +614,7 @@ export function buildStationWagonView(
     ...(plano
       ? []
       : lettered.map(({ key, routes }, i) => ({
-          label: vagonLabels[key] ? `Vagón ${escapeHTML(vagonLabels[key])}` : `Plataforma ${i + 1}`,
+          label: vagonLabels[key] ? nombreVagon(escapeHTML(vagonLabels[key])) : `Plataforma ${i + 1}`,
           routes,
           plan: wagonPlan[key],
         }))),

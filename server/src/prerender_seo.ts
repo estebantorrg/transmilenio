@@ -34,7 +34,7 @@ import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLa
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
-import { buildSheetPlano } from '../../shared/plano.js';
+import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
@@ -962,7 +962,7 @@ ${platform.vagones
     // No number when the catalog's platform grouping doesn't line up with the
     // signage — "Plataforma" is vague but true, whereas a wrong vagón number
     // sends a rider to the wrong side of the station.
-    const name = v.label ? `Vagón ${escapeHtml(v.label)}` : `Plataforma ${i + 1}`;
+    const name = v.label ? nombreVagon(escapeHtml(v.label)) : `Plataforma ${i + 1}`;
     const count = v.directions.reduce((n, d) => n + d.services.length, 0);
     const [first, ...rest] = v.directions;
     return `    <section class="vg" aria-label="${escapeHtml(name)}">

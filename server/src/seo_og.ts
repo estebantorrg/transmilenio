@@ -28,6 +28,7 @@
  */
 
 import { Resvg } from '@resvg/resvg-js';
+import { nombreVagon } from '../../shared/plano.js';
 import wawoff from 'wawoff2';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -361,7 +362,7 @@ function stationCardSvg(station: OgStation): string {
       omitted += vagon.codigos.length;
       return;
     }
-    const name = vagon.label ? `Vagón ${vagon.label}` : `Plataforma ${i + 1}`;
+    const name = vagon.label ? nombreVagon(vagon.label) : `Plataforma ${i + 1}`;
     const heading = vagon.sentido ? `${name} · sentido ${vagon.sentido}` : name;
     chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="21" fill="${BLUE}">${esc(heading)}</text>`);
     const row = chipRow(vagon.codigos, 64, cy + 10);

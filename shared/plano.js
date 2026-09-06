@@ -533,7 +533,7 @@ function zonalHtml(zonal) {
  * name that is not a bare number is printed as it stands rather than as the
  * doubled "Vagón T7".
  */
-const nombreVagon = (v) => (/^\d+$/.test(String(v)) ? 'Vagón ' + v : String(v));
+export const nombreVagon = (v) => (/^\d+$/.test(String(v)) ? 'Vagón ' + v : String(v));
 
 function convencionesHtml(columnas, zonal) {
   const seen = [];
