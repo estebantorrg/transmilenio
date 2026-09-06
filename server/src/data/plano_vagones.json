@@ -2404,6 +2404,99 @@
           ]
         }
       ]
+    },
+    "TM0039": {
+      "source": "Plano de ubicacion, Estacion Niza - CL 127, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. Route 7 boards both edges of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C15",
+                "C25",
+                "C73"
+              ],
+              "abajo": [
+                "H15",
+                "J73",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "7",
+                "C17"
+              ],
+              "abajo": [
+                "7",
+                "H17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0120": {
+      "source": "Plano de ubicacion, Estacion Museo del Oro, version noviembre de 2025.",
+      "why": "ONE platform and ONE vagon on the Eje Ambiental, with J23 and J70 boarding its northern edge and F23 its southern. The catalog files a single lettered wagon and every service in it is drawn.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "J23",
+                "J70"
+              ],
+              "abajo": [
+                "F23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0062": {
+      "source": "Plano de ubicacion, Estacion 7 de Agosto, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. The sheet prints G42 where the catalog files S42, the Soacha re-lettering; G12 is not re-lettered. Route 4 boards both edges of Vagon 1. The station-maps marker still calls this stop \"Simon Bolivar\"; the catalog, the register and the sheet itself all call it 7 de Agosto.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C17",
+                "D21",
+                "E32"
+              ],
+              "abajo": [
+                "G12",
+                "S42"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "B12",
+                "E42"
+              ],
+              "abajo": [
+                "4",
+                "F32",
+                "H17",
+                "H21"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -4432,6 +4525,206 @@
         },
         {
           "t": "puente"
+        }
+      ]
+    },
+    "TM0039": {
+      "source": "Plano de ubicacion, Estacion Niza - CL 127, version noviembre de 2024.",
+      "why": "An access block at each end, no bridges, running opposite ways: the western has the Calle 127 D exit at the top and a taquilla below, the eastern a taquilla at the top and the Av. Calle 127 exit below. Torniquetes level with the deck in the channel at each platform edge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 127 D",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Av. Calle 127",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        }
+      ]
+    },
+    "TM0120": {
+      "source": "Plano de ubicacion, Estacion Museo del Oro, version noviembre de 2025.",
+      "why": "An access block at each end of the single platform, running opposite ways: Cra. 6 exit at the top of the western one with a taquilla below, a taquilla at the top of the eastern one with the Cra. 7 exit below. Torniquetes level with the deck in the channel at each platform edge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra. 6",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Cra. 7",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        }
+      ]
+    },
+    "TM0062": {
+      "source": "Plano de ubicacion, Estacion 7 de Agosto, version noviembre de 2024.",
+      "why": "A bridge at the north end and one access block: the Calle 63 G exit at the top, torniquetes level with the deck in the channel at its platform edge, and a taquilla below. Nothing at the south end.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 63 G",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0019": {
+      "source": "Plano de ubicacion, Estacion Calle 106, version junio de 2026.",
+      "why": "TWO bridges side by side in the middle of the station, which no other sheet in the set does, with a block between them carrying a taquilla above and another below. Outside them sits an access block each side: the western has its Calle 106 exit at the foot, the eastern has its at the head, and both have torniquetes level with the deck. The block between the bridges draws no way-through marks of its own, so it is recorded as having no ramp channel.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 106",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "paso": false,
+          "arriba": [
+            "taquilla"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 106",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
         }
       ]
     }
