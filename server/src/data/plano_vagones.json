@@ -437,7 +437,7 @@
     },
     "TM0024": {
       "source": "Plano de ubicacion, Estacion Calle 142, version noviembre de 2024.",
-      "why": "Four vagones on one line, split by the puente peatonal: Vagon 4 and Vagon 3 board southbound, Vagon 2 and Vagon 1 northbound. The catalog files TWO wagons and each pairs a vagon with the one across the bridge — A is Vagon 3 (8, C50, D55, H13, J70, J74) plus Vagon 1 (B12, B75); B is Vagon 2 (8, B13, B50, B55, B74) plus Vagon 4 (G12, H75). Both decompose exactly, so the sheet can be drawn. Same shape as Calle 106 and Calle 161.",
+      "why": "ONE strip of FOUR vagones, numbered 4 to 1 west to east, but it is really two platforms joined by the bridge in the middle: vagones 4 and 3 carry their chips BELOW, southbound, and vagones 2 and 1 carry theirs ABOVE, northbound. The two catalog letters therefore straddle the bridge rather than sitting side by side — B is Vagon 4 and Vagon 2, A is Vagon 3 and Vagon 1 — and each letter is covered exactly, with nothing left over.",
       "rows": [
         {
           "offset": 0,
@@ -2717,6 +2717,91 @@
                 "7",
                 "B50",
                 "H17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0089": {
+      "source": "Plano de ubicacion, Estacion Santa Isabel, version diciembre de 2025.",
+      "why": "ONE platform, two vagones, services on both edges. B is Vagon 2 and A is Vagon 1, and between them they take every chip on the sheet — B keeps B11 and G11 on Vagon 1 with A, which is why neither vagon is a whole letter on its own. Two chips are printed under codes that no longer exist: G48 is S48 in the old Soacha convention, and G52 is the service the catalog now calls G53. G53 is the only unplaced blue NQS Sur service here and this station is on its route, so the chip can only be that one; the other unplaced service, K53, is a Calle 26 code and would be drawn tan, not blue.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C30",
+                "D22",
+                "E48"
+              ],
+              "abajo": [
+                "G22",
+                "G30",
+                "S48"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "A52",
+                "B11"
+              ],
+              "abajo": [
+                "4",
+                "G11",
+                "G53"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0111": {
+      "source": "Plano de ubicacion, Estacion Calle 40 Sur, version junio de 2025.",
+      "why": "ONE platform, THREE vagones, services on both edges, and the three catalog letters land on them one for one with nothing left over: A is Vagon 1 (C15, K54, H15, H27), B is Vagon 2 (3, B13, B27, H13, H21), C is Vagon 3 (D20, D21, J76, H20, H54, H76). So the catalog numbering is right. The catalog also carries an empty wagon \"0\", which places nothing.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "D20",
+                "D21",
+                "J76"
+              ],
+              "abajo": [
+                "H20",
+                "H54",
+                "H76"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "3",
+                "B13",
+                "B27"
+              ],
+              "abajo": [
+                "3",
+                "H13",
+                "H21"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C15",
+                "K54"
+              ],
+              "abajo": [
+                "H15",
+                "H27"
               ]
             }
           ]
@@ -5348,6 +5433,174 @@
         },
         {
           "t": "puente"
+        }
+      ]
+    },
+    "TM0089": {
+      "source": "Plano de ubicacion, Estacion Santa Isabel, version diciembre de 2025.",
+      "why": "An access block at each end, both drawn the same way up rather than mirrored: taquilla at the top, torniquetes on the channel between block and deck, and the exit at the bottom — CL 2 west, CL 1F east. Between them the two vagones with a crossing. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 2",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "CL 1F",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0024": {
+      "source": "Plano de ubicacion, Estacion Calle 142, version noviembre de 2024.",
+      "why": "Everything is in the middle: vagones 4 and 3 with a crossing, then an access block, the pedestrian bridge, a second access block, then vagones 2 and 1 with a crossing. The two blocks are not a mirrored pair. The western one carries nothing but its Calle 145 exit, at the top, pointing east at the bridge; the eastern one carries the station's only taquilla, at the top, above its own Calle 145 exit, at the bottom, pointing west at the same bridge. Each has its torniquetes on the channel facing its own vagones. Both ends of the strip are bare.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 145",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 145",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0111": {
+      "source": "Plano de ubicacion, Estacion Calle 40 Sur, version junio de 2025.",
+      "why": "An access block at each end and three vagones between them, with a crossing between each neighbouring pair. The blocks are mirrored: west has the Calle 36 Sur exit at the top and the taquilla below, east has the taquilla at the top and the Calle 41 Sur exit below, and both keep their torniquetes on the channel against the deck. No bridge. The sheet also draws, below the platform and separate from it, the zonal bay strip — its own torniquetes, taquilla, stairs and ramp, and four bays for 7-1 Uribe Uribe, 7-3 Ingles and 7-2 Tunal plus an arrivals bay. That is a different facility from the troncal platform this drawing is of, and it is not drawn here.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 36 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 41 Sur",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
         }
       ]
     }
