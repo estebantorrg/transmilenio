@@ -2570,7 +2570,7 @@
     },
     "TM0067": {
       "source": "Plano de ubicacion, Estacion CAD, version diciembre de 2025.",
-      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1, B is Vagon 2, and both match the sheet. Two chips need a note. G48 is S48 in the old Soacha convention. G43 is a code the catalog no longer has: the service is now G53 \"Portal Sur\", blue NQS Sur like the chip and on exactly this corridor (Ciudad Universitaria - CAD - Santa Isabel), and it is the only wagon-B service the sheet would otherwise leave unplaced. It is a renumbering, not a reading error: Venecia, Alqueria and Madelena, three more G53 stops, all print the same blue G43 chip and none of them prints a G53. The S43 that the Soacha rule would give instead runs El Dorado to San Mateo by Ricaurte and does not call here at all. Wagon A also holds K53, which this sheet does not draw.",
+      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1, B is Vagon 2, and both match the sheet. Two chips on Vagon 2 need a note. G48 is S48 in the old Soacha convention, and the catalog runs S48 here. G43 is not a service at all: A chip's LETTER names the corridor that direction heads onto, not the service: the catalog files each direction of a service as its own codigo, and K53/G53, C30/G30, E42/S42, M47/G47 and B11/G11 are all exact mirrors of each other, same stations in reverse. So a chip printed on the lower edge under a letter the catalog has no codigo for is the reverse twin of the chip above it, NOT some other unplaced service that happens to share a colour. It is not drawn, by the same rule that leaves out any codigo the catalog does not run here. Here that twin is K43, printed above it on the same vagon. Wagon B also holds G53 and wagon A holds K53 — the two directions of one service — and this sheet draws neither.",
       "rows": [
         {
           "offset": 0,
@@ -2583,7 +2583,6 @@
               ],
               "abajo": [
                 "4",
-                "G53",
                 "S48"
               ]
             },
@@ -2725,7 +2724,7 @@
     },
     "TM0089": {
       "source": "Plano de ubicacion, Estacion Santa Isabel, version diciembre de 2025.",
-      "why": "ONE platform, two vagones, services on both edges. B is Vagon 2 and A is Vagon 1, and between them they take every chip on the sheet — B keeps B11 and G11 on Vagon 1 with A, which is why neither vagon is a whole letter on its own. Two chips are printed under codes that no longer exist: G48 is S48 in the old Soacha convention, and G52 is the service the catalog now calls G53. G53 is the only unplaced blue NQS Sur service here and this station is on its route, so the chip can only be that one; the other unplaced service, K53, is a Calle 26 code and would be drawn tan, not blue.",
+      "why": "ONE platform, two vagones, services on both edges. B is Vagon 2 and A is Vagon 1, and B keeps B11 and G11 on Vagon 1 with A, which is why neither vagon is a whole letter on its own. G48 on Vagon 2 is S48 in the old Soacha convention. G52 on Vagon 1 is not a service: A chip's LETTER names the corridor that direction heads onto, not the service: the catalog files each direction of a service as its own codigo, and K53/G53, C30/G30, E42/S42, M47/G47 and B11/G11 are all exact mirrors of each other, same stations in reverse. So a chip printed on the lower edge under a letter the catalog has no codigo for is the reverse twin of the chip above it, NOT some other unplaced service that happens to share a colour. It is not drawn, by the same rule that leaves out any codigo the catalog does not run here. Here that twin is A52, printed above it on the same vagon. Wagon A also holds G53 and K53, the two directions of one service, and this sheet draws neither.",
       "rows": [
         {
           "offset": 0,
@@ -2752,8 +2751,7 @@
               ],
               "abajo": [
                 "4",
-                "G11",
-                "G53"
+                "G11"
               ]
             }
           ]
