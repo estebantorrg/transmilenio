@@ -1267,6 +1267,27 @@ async function readSheet(page, file, code, candidates) {
     if (!row.get(key).includes(hit.value)) row.get(key).push(hit.value);
   }
 
+  // An access block drawn in PLATFORM grey merges into the deck beside it and
+  // vanishes from the shape — San Victorino's western block did, and the sheet
+  // plainly has one. The structure cannot see it, but its contents give it
+  // away: equipment or an exit standing beyond the outermost plate, still
+  // inside what was read as a platform.
+  for (const end of [decks[0], decks[decks.length - 1]]) {
+    if (!end) continue;
+    const own = plates.filter((p) => plateDeck.get(p) === end);
+    if (!own.length) continue;
+    const left = Math.min(...own.map((p) => p.x));
+    const right = Math.max(...own.map((p) => p.x + p.w));
+    const beyond = [...tiles, ...tabs].filter((b) => {
+      const cx = b.x + b.w / 2;
+      return cx >= end.x0 && cx <= end.x1 && (cx < left - (right - left) * 0.15 || cx > right + (right - left) * 0.15);
+    });
+    if (beyond.length >= 2) {
+      chipNotes.push('platform at x ' + end.x0 + '..' + end.x1 + ' holds ' + beyond.length +
+        ' pieces of furniture past its own plate — the sheet probably draws an access block there in platform grey, merged into the deck');
+    }
+  }
+
   const salidas = [];
   for (const [i, tab] of tabs.entries()) {
     const box = streetBox(tab);

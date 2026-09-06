@@ -1592,6 +1592,82 @@
           ]
         }
       ]
+    },
+    "TM0138": {
+      "source": "Plano de ubicacion, Estacion San Victorino, version junio de 2025.",
+      "why": "ONE platform, three vagones — Vagon 3 west through Vagon 1 east — with services on both edges. The catalog's three letters map cleanly (C is Vagon 3, B is Vagon 2, A is Vagon 1) so its numbering is right, but they do not account for the whole station: D81 and L81 sit in wagon \"0\", with no platform at all, and the sheet is what places them — D81 above Vagon 1, L81 below Vagon 2. Route 2 boards both edges of Vagon 2.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "M47",
+                "M83"
+              ],
+              "abajo": [
+                "H83",
+                "L10"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "2",
+                "K10"
+              ],
+              "abajo": [
+                "2",
+                "L81"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "D81"
+              ],
+              "abajo": [
+                "G47"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0103": {
+      "source": "Plano de ubicacion, Estacion San Mateo, version mayo de 2026.",
+      "why": "ONE platform of three vagones on the Autopista Sur, drawn above the intermodal building it feeds. Only Vagon 3 carries services on both edges; Vagon 2 and Vagon 1 are printed on their northbound side alone. The catalog's letters map cleanly — C is Vagon 3, B is Vagon 2, A is Vagon 1 — but it now files six Soacha services (S41, S42, S43, S45, S46, S48) that this sheet, stamped May 2026, predates entirely. They are NOT placed: the sheet does not draw them, and where a service boards is the one thing only the sheet can say. Re-read this plano when a newer version is published.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "K43"
+              ],
+              "abajo": [
+                "B46"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "E42"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "E48",
+                "G45",
+                "L41"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -2526,6 +2602,136 @@
               "hacia": "der",
               "fila": "abajo"
             }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0138": {
+      "source": "Plano de ubicacion, Estacion San Victorino, version junio de 2025.",
+      "why": "An access block at each end, no bridges. The western one has the Calle 13 exit at the top, the torniquetes level with the deck in the channel at its platform edge, and a taquilla below; the eastern one is mirrored and runs the other way — taquilla at the top, torniquetes level with the deck, the Calle 11 exit below. The scanner missed the western block entirely: the sheet draws it in the same pale grey as the platform, so it merged into Vagon 3.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 13",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 11",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0103": {
+      "source": "Plano de ubicacion, Estacion San Mateo, version mayo de 2026.",
+      "why": "A bridge at each end with an access block inside it — the CL 30C exit west, CL 30 east — and between Vagon 3 and Vagon 2 a third block that is not an entrance at all: a priority lift and a ramp, the way DOWN to the Zona de Integracion and Gran Plaza beneath. It draws no ramp arrows at its platform edge, so it is marked as having no channel; the crossing beside it is the way through.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 30C",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "paso": false,
+          "arriba": [
+            "ascensor"
+          ],
+          "abajo": [
+            "rampa"
+          ]
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "CL 30",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
           ],
           "centro": [
             "torniquete"
