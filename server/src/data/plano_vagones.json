@@ -3716,6 +3716,446 @@
           ]
         }
       ]
+    },
+    "TM0025": {
+      "source": "Plano de ubicacion, Estacion Calle 146, version noviembre de 2025.",
+      "why": "ONE platform, THREE vagones — and the catalog letters only partly line up with them, which is why the numbering here is published for A alone. A is Vagon 1 entire (B10, B11, B75, D10, G11, H75). B and C each straddle Vagones 3 and 2: C has B13, 8, H13 and J74 on Vagon 3 and B74 on Vagon 2, B has B28 on Vagon 3 and F28, J70 and 8 on Vagon 2. Equal counts would have printed both, and the printed map exists for exactly that.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "B13",
+                "B28"
+              ],
+              "abajo": [
+                "8",
+                "H13",
+                "J74"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B74"
+              ],
+              "abajo": [
+                "F28",
+                "J70"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B10",
+                "B11",
+                "B75"
+              ],
+              "abajo": [
+                "D10",
+                "G11",
+                "H75"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0107": {
+      "source": "Plano de ubicacion, Estacion Fucha, version junio de 2025.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (3, B72, H72), B is Vagon 2 (3, B75, D21, H21, H75). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D21",
+                "B75"
+              ],
+              "abajo": [
+                "3",
+                "H21",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "B72"
+              ],
+              "abajo": [
+                "H72"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0006": {
+      "source": "Plano de ubicacion, Estacion Temporal Marly, version septiembre de 2025.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (8, A60, B23, B75, H15, H75), B is Vagon 2 (8, C15, D24, F60, J24, K23). So the numbering is right. The sheet also prints route 6 on both edges of Vagon 2, and it is not drawn: the catalog runs neither of its variants past Calle 72, so 6 no longer reaches Marly and this September 2025 sheet is out of date on that one chip.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "C15",
+                "D24"
+              ],
+              "abajo": [
+                "F60",
+                "J24",
+                "K23"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "A60",
+                "B23",
+                "B75"
+              ],
+              "abajo": [
+                "8",
+                "H15",
+                "H75"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0190": {
+      "source": "Plano de ubicacion, Estacion Danubio, version marzo de 2025.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (C17, H17, H54, J76, M83), B is Vagon 2 (B75, H75, H76, H83, K54). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B75",
+                "K54"
+              ],
+              "abajo": [
+                "H75",
+                "H76",
+                "H83"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C17",
+                "J76",
+                "M83"
+              ],
+              "abajo": [
+                "H17",
+                "H54"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0044": {
+      "source": "Plano de ubicacion, Estacion La Campina, version julio de 2025.",
+      "why": "ONE platform, THREE vagones, and the three catalog letters land on them one for one with nothing left over: A is Vagon 1 (7, B50, C17, C50, H17), B is Vagon 2 (C25, C30, C73, G30, J73, L25), C is Vagon 3 (C15, C19, F19, H15). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "C15",
+                "C19"
+              ],
+              "abajo": [
+                "F19",
+                "H15"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "C25",
+                "C30",
+                "C73"
+              ],
+              "abajo": [
+                "G30",
+                "J73",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "7",
+                "C17",
+                "C50"
+              ],
+              "abajo": [
+                "7",
+                "B50",
+                "H17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0040": {
+      "source": "Plano de ubicacion, Estacion Suba - AV. Boyaca, version noviembre de 2024.",
+      "why": "ONE platform, two vagones — and this sheet numbers them the other way round from most, Vagon 1 at the WEST end and Vagon 2 at the east. The two catalog letters still cover them exactly: A is Vagon 1, route 7 alone on both edges, and B is Vagon 2 (C19, C25, C30, F19, G30, L25). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "7"
+              ],
+              "abajo": [
+                "7"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "F19",
+                "G30",
+                "L25"
+              ],
+              "abajo": [
+                "C19",
+                "C25",
+                "C30"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0075": {
+      "source": "Plano de ubicacion, Estacion Zona Industrial, version agosto de 2026.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (5, A61, Z61), B is Vagon 2 (B28, E32, F28, F32). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "F28",
+                "F32"
+              ],
+              "abajo": [
+                "B28",
+                "E32"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "5",
+                "Z61"
+              ],
+              "abajo": [
+                "5",
+                "A61"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0084": {
+      "source": "Plano de ubicacion, Estacion Transversal 86, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (5, E32, F32, F60), B is Vagon 2 (5, A60, B26, F26). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "5",
+                "F26"
+              ],
+              "abajo": [
+                "A60",
+                "B26"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "F60",
+                "F32"
+              ],
+              "abajo": [
+                "5",
+                "E32"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0081": {
+      "source": "Plano de ubicacion, Estacion Av. Americas - Av. Boyaca, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (F23, F51, J23, M51), B is Vagon 2 (5, B26, E32, F26, F32). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "5",
+                "F26",
+                "F32"
+              ],
+              "abajo": [
+                "5",
+                "B26",
+                "E32"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "F23",
+                "F51"
+              ],
+              "abajo": [
+                "M51",
+                "J23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0140": {
+      "source": "Plano de ubicacion, Estacion San Bernardo, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (B18, C25, L10, L18), B is Vagon 2 (2, K10, L25). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "2",
+                "K10"
+              ],
+              "abajo": [
+                "2",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B18",
+                "C25"
+              ],
+              "abajo": [
+                "L10",
+                "L18"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0003": {
+      "source": "Plano de ubicacion, Estacion Temporal Flores, version agosto de 2026.",
+      "why": "ONE platform, two vagones. A is Vagon 1 and the sheet covers it exactly (8, A61 shared with B, C19, D20, H13, H20). B is Vagon 2 and the sheet puts every one of its own services there, with only H20 — a codigo the catalog files under BOTH letters — drawn on Vagon 1. So the numbering is right. The G52 beside C19 on Vagon 1 is not a service: it is the return leg of the A52 the sheet draws on Vagon 2, and the catalog has no codigo for it.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "A61",
+                "B13"
+              ],
+              "abajo": [
+                "A52",
+                "F19",
+                "Z61"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "D20",
+                "C19"
+              ],
+              "abajo": [
+                "8",
+                "H13",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0011": {
+      "source": "Plano de ubicacion, Estacion temporal Calle 22, version agosto de 2026.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (3, 8, A61, B13, H20, Z61), B is Vagon 2 (3, 8, C15, D20, H13, H15). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "C15",
+                "D20"
+              ],
+              "abajo": [
+                "3",
+                "H13",
+                "H15"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "A61",
+                "B13"
+              ],
+              "abajo": [
+                "8",
+                "Z61",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -3733,6 +4173,9 @@
       "E": "5"
     },
     "TM0037": {
+      "A": "1"
+    },
+    "TM0025": {
       "A": "1"
     }
   },
@@ -8075,6 +8518,535 @@
           ],
           "centro": [
             "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0025": {
+      "source": "Plano de ubicacion, Estacion Calle 146, version noviembre de 2025.",
+      "why": "Three vagones with a crossing between each pair and a single access block at the north end: the Calle 150 exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. The south end is the bare end of the Vagon 1 deck, and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 150",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0107": {
+      "source": "Plano de ubicacion, Estacion Fucha, version junio de 2025.",
+      "why": "One access block, at the north end: the Calle 17 Sur exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The south end is the bare end of the Vagon 1 deck, and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 17 Sur.",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0006": {
+      "source": "Plano de ubicacion, Estacion Temporal Marly, version septiembre de 2025.",
+      "why": "An access block at each end, both with the exit at the top and the taquilla at the foot — Calle 50 north, Calle 48 south. They differ in one thing: the northern block has its torniquetes on the channel against the deck and the southern one has no channel and no torniquetes at all, its block drawn flush against the Vagon 1 deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 50",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "paso": false,
+          "salidas": [
+            {
+              "calle": "Calle 48",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0190": {
+      "source": "Plano de ubicacion, Estacion Danubio, version marzo de 2025.",
+      "why": "An access block at each end, mirrored: the northern one has its taquilla at the top and the Cra 5D-01 exit at the foot, the southern one the Cra 5A - 84 exit at the top and its taquilla at the foot. Both keep their torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra 5D-01",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cra 5A - 84",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0044": {
+      "source": "Plano de ubicacion, Estacion La Campina, version julio de 2025.",
+      "why": "Three vagones with a crossing between each pair and one access block, at the east end: the taquilla at the top, the Carrera 98B exit at the foot, torniquetes on the channel against the deck. The west end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Carrera 98B",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0040": {
+      "source": "Plano de ubicacion, Estacion Suba - AV. Boyaca, version noviembre de 2024.",
+      "why": "An access block at each end and two vagones between them with a crossing. Neither block puts its torniquetes on the deck edge: each has them INSIDE itself, on a short channel of its own, and its taquilla beyond that, drawn outside the block at the far corner — west, the Diagonal 129 exit above with the taquilla and torniquetes below it; east, the torniquetes and taquilla above with the Av. Boyaca exit below. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "paso": false,
+          "salidas": [
+            {
+              "calle": "Diagonal 129",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "abajo": [
+            "taquilla",
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "paso": false,
+          "salidas": [
+            {
+              "calle": "Av. Boyacá",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "torniquete",
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0075": {
+      "source": "Plano de ubicacion, Estacion Zona Industrial, version agosto de 2026.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Av. Cr 39 west, Av. Cr 38 east — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Av. Cr 39",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Av. Cr 38",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0084": {
+      "source": "Plano de ubicacion, Estacion Transversal 86, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Cra. 80 G exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them. The east end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra. 80 G",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0081": {
+      "source": "Plano de ubicacion, Estacion Av. Americas - Av. Boyaca, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Cra. 71 C exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them. The east end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra. 71 C",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0140": {
+      "source": "Plano de ubicacion, Estacion San Bernardo, version noviembre de 2024.",
+      "why": "An access block at each end, and they are not a pair: the northern one carries nothing but its Calle 2 exit, with the torniquetes on the channel beside it, while the southern one adds the station's single taquilla, in its top corner, above the Calle 1 exit. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 2",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 1",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0003": {
+      "source": "Plano de ubicacion, Estacion Temporal Flores, version agosto de 2026.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Calle 69 north, Calle 67 south — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 69",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 67",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0011": {
+      "source": "Plano de ubicacion, Estacion temporal Calle 22, version agosto de 2026.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Calle 24 north, Calle 22 south — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 24",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 22",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
           ]
         }
       ]
