@@ -2497,6 +2497,112 @@
           ]
         }
       ]
+    },
+    "TM0144": {
+      "source": "Plano de ubicacion, Estacion Country Sur, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges. The catalog letters map cleanly onto the sheet — B is Vagon 2 (2 above, L25 below), A is Vagon 1 (2, B18 and C25 with L18) — so its numbering is right. Its wagon \"0\" holds D81, L81, L82 and M82, and the sheet splits those four across BOTH vagones, which is exactly what an unlettered wagon means: the catalog never grouped them.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "2",
+                "D81",
+                "M82"
+              ],
+              "abajo": [
+                "L25",
+                "L82"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B18",
+                "C25"
+              ],
+              "abajo": [
+                "2",
+                "L18",
+                "L81"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0064": {
+      "source": "Plano de ubicacion, Estacion Campin - UAN, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges. The two catalog letters cover the station exactly — A is Vagon 1 (D21, E42, H21, L25), B is Vagon 2 (4, B11, C25, G11, S42) — so its numbering is right. The sheet prints S42 as G42 in the old Soacha convention.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "B11",
+                "C25"
+              ],
+              "abajo": [
+                "4",
+                "G11",
+                "S42"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "D21",
+                "E42"
+              ],
+              "abajo": [
+                "H21",
+                "L25"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0067": {
+      "source": "Plano de ubicacion, Estacion CAD, version diciembre de 2025.",
+      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1, B is Vagon 2, and both match the sheet. Two chips need a note. G48 is S48 in the old Soacha convention. G43 is a code the catalog no longer has: the service is now G53 \"Portal Sur\", blue NQS Sur like the chip and on exactly this corridor (Ciudad Universitaria - CAD - Santa Isabel), and it is the only wagon-B service the sheet would otherwise leave unplaced. It is a renumbering, not a reading error: Venecia, Alqueria and Madelena, three more G53 stops, all print the same blue G43 chip and none of them prints a G53. The S43 that the Soacha rule would give instead runs El Dorado to San Mateo by Ricaurte and does not call here at all. Wagon A also holds K53, which this sheet does not draw.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "E48",
+                "K43"
+              ],
+              "abajo": [
+                "4",
+                "G53",
+                "S48"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "C30",
+                "E32"
+              ],
+              "abajo": [
+                "F32",
+                "G30",
+                "J70"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -4725,6 +4831,159 @@
         {
           "t": "vagones",
           "arriba": "1"
+        }
+      ]
+    },
+    "TM0144": {
+      "source": "Plano de ubicacion, Estacion Country Sur, version noviembre de 2024.",
+      "why": "An access block at each end, and between them the two vagones with a crossing. The blocks are not a mirrored pair: the west one carries only its exit to Calle 27 Sur, with the torniquetes on the channel beside it, while the east one adds the station's single taquilla, in its top corner, above the exit to Calle 28 Sur. No bridge; the sheet draws none.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 27 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 28 Sur",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0064": {
+      "source": "Plano de ubicacion, Estacion Campin - UAN, version noviembre de 2024.",
+      "why": "An access block at each end, each with a taquilla and its torniquetes on the channel, and between them the two vagones with a crossing. The blocks run opposite ways: west has its exit to Calle 57 at the top and the taquilla below, east has the taquilla at the top and the exit to Calle 54 below. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 57",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 54",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0067": {
+      "source": "Plano de ubicacion, Estacion CAD, version diciembre de 2025.",
+      "why": "A pedestrian bridge at each end, then an access block, then the two vagones with a crossing between them. Each block carries one taquilla and one exit at opposite ends of itself — west: exit to Av. Americas above, taquilla below; east: taquilla above, exit to Calle 22 below — with the torniquetes on the channel between block and deck. Neither bridge is drawn with a way up onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "AV. Américas",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 22",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
         }
       ]
     }
