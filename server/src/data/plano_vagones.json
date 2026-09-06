@@ -4636,6 +4636,194 @@
           ]
         }
       ]
+    },
+    "TM0027": {
+      "source": "Plano de ubicacion, Estacion Calle 161, version noviembre de 2024.",
+      "why": "FOUR vagones under two catalog letters, and neither letter is a platform: A is spread over Vagones 3, 2 and 1 (8, D55, H13 on 3; 8, B50 on 2; B28, B55 on 1) and B over Vagones 4 and 2 (F28, C50 on 4; 8, B13 on 2). Four plates against two wagons, so the count gate refuses the numbering outright and none is published — which is the right answer here rather than a lucky one.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "4",
+              "abajo": [
+                "F28",
+                "C50"
+              ]
+            },
+            {
+              "vagon": "3",
+              "abajo": [
+                "8",
+                "D55",
+                "H13"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B13",
+                "B50"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B28",
+                "B55"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0096": {
+      "source": "Plano de ubicacion, Estacion Sevillana, version diciembre de 2025.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (4, E48, and G48 which is S48 in the old Soacha convention), B is Vagon 2 (D22, G22, G47, M47). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D22",
+                "M47"
+              ],
+              "abajo": [
+                "G22",
+                "G47"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "E48"
+              ],
+              "abajo": [
+                "4",
+                "S48"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0100": {
+      "source": "Plano de ubicacion, Estacion La Despensa, version diciembre de 2025.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly once the Soacha convention is undone: Vagon 1 is A — B46, E42 and K43 northbound, and G42, G43 and G46 southbound, which are S42, S43 and S46 — and Vagon 2 is B — E48 and G45 northbound, G45 and G48 southbound. Vagon 2 prints G45 TWICE, once per edge, because one of them is the real G45, to Portal Sur, and the other is S45, to San Mateo, under the old convention; the destinations settle which is which, since G45 runs north from here and S45 south.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "E48",
+                "G45"
+              ],
+              "abajo": [
+                "S45",
+                "S48"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B46",
+                "E42",
+                "K43"
+              ],
+              "abajo": [
+                "S42",
+                "S43",
+                "S46"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0057": {
+      "source": "Plano de ubicacion, Estacion Quirigua, version noviembre de 2024.",
+      "why": "ONE vagon, and the catalog agrees: a single wagon A holding 6, B55, D20, D55 and H20, every one of them on the sheet — 6, D20 and D55 above, 6, B55 and H20 below. So the numbering is right. The platform is drawn as two deck slabs meeting at a joint, with the one Vagon 1 plate over the eastern of them.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D20",
+                "D55"
+              ],
+              "abajo": [
+                "6",
+                "B55",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0113": {
+      "source": "Plano de ubicacion, Estacion Socorro, version mayo de 2025.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (B72, C17, H17, H72), B is Vagon 2 (B75, H75, H76, J76). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B75",
+                "J76"
+              ],
+              "abajo": [
+                "H75",
+                "H76"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B72",
+                "C17"
+              ],
+              "abajo": [
+                "H17",
+                "H72"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0049": {
+      "source": "Plano de ubicacion, Estacion Carrera 53, version noviembre de 2024.",
+      "why": "ONE vagon, and the catalog agrees: a single wagon A holding 6, B10 and D10, all three on the sheet — 6 and D10 above, 6 and B10 below. So the numbering is right. Like Quirigua, the platform is drawn as two deck slabs meeting at a joint with the one plate over the eastern of them.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D10"
+              ],
+              "abajo": [
+                "6",
+                "B10"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -10214,6 +10402,236 @@
           "centro": [
             "torniquete"
           ]
+        }
+      ]
+    },
+    "TM0027": {
+      "source": "Plano de ubicacion, Estacion Calle 161, version noviembre de 2024.",
+      "why": "Four vagones in two pairs, with the crossing inside each pair and the whole access apparatus in the middle: a block, the pedestrian bridge, a second block. Both blocks name the SAME exit, Calle 161, and both point it AWAY from the bridge — west block: taquilla at the top, exit at the foot pointing east; east block: exit at the top pointing west, taquilla at the foot. Each has its torniquetes on the channel facing its own vagones. Both ends of the strip are bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 161",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 161",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0096": {
+      "source": "Plano de ubicacion, Estacion Sevillana, version diciembre de 2025.",
+      "why": "Two vagones with a crossing between them, one access block at the east end and the bridge past it: the taquilla at the top of the block, the KR 63 exit at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 63",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0100": {
+      "source": "Plano de ubicacion, Estacion La Despensa, version diciembre de 2025.",
+      "why": "A pedestrian bridge at the north end, then the one access block — the CL 58 exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them. The south end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 58",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0057": {
+      "source": "Plano de ubicacion, Estacion Quirigua, version noviembre de 2024.",
+      "why": "One vagon, one access block at the east end and the bridge past it: the taquilla at the top of the block, the Carrera 94 exit at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it. The joint between the platform's two deck slabs carries no crossing marks, so none is drawn.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Carrera 94",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0113": {
+      "source": "Plano de ubicacion, Estacion Socorro, version mayo de 2025.",
+      "why": "Two vagones with a crossing between them and one access block, at the south end: the taquilla at the top, the Cra. 13a exit at the foot, torniquetes on the channel against the deck. The north end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cra.13ª",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0049": {
+      "source": "Plano de ubicacion, Estacion Carrera 53, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Cra 53 exit at the top, the taquilla at the foot, torniquetes on the channel — and then the single vagon. The east end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra 53",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
         }
       ]
     }
