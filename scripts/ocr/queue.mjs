@@ -64,12 +64,24 @@ const cerradas = new Set(
     .map(([c]) => c)
 );
 
+// Sheets the station-maps API files under a NEIGHBOUR's código, because that
+// is the marker they hang off. The catalog knows these three by a código of
+// their own, and the drawing is keyed to the catalog, so the sheet has to be
+// read under the catalog's name or it looks like an unread station forever.
+const ALIAS = { 'TM0085-1': 'TM90011', 'TM0085-2': 'TM90010', 'TM0087-2': 'TM90009' };
+
 const rows = [];
-for (const [code, d] of Object.entries(drafts)) {
+for (const [sheet, d] of Object.entries(drafts)) {
+  const code = ALIAS[sheet] ?? sheet;
   const shipped = Boolean(plates.detalle[code]);
   if (shipped !== done) continue;
   if (!d.layout && !done) continue;
   if (cerradas.has(code)) continue;
+  // A sheet with no catalog station behind it cannot be checked against
+  // anything: Patio Bonito and Juan Pablo II have planos but no troncal entry,
+  // and Ricaurte's and Av. Jiménez's second sheets are already drawn as the
+  // other half of their own station.
+  if (!catalog.stations?.[code]) continue;
   const nodo = registry[code]?.nodo;
   const dem = nodo ? byNodo.get(String(nodo)) : undefined;
   rows.push({

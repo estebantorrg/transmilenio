@@ -5245,6 +5245,85 @@
           ]
         }
       ]
+    },
+    "TM90011": {
+      "source": "Plano de ubicacion, Estacion Islandia, version agosto de 2026.",
+      "why": "ONE platform, two vagones, numbered west to east, and each carries its services on ONE edge only: Vagon 1 has F63 and A61 below it and nothing above, Vagon 2 has Z61 and Z63 above and nothing below. The two catalog letters cover them exactly — A is Vagon 1, B is Vagon 2 — so the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "F63",
+                "A61"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "Z61",
+                "Z63"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM90010": {
+      "source": "Plano de ubicacion, Estacion Los Laureles, version agosto de 2026.",
+      "why": "The same drawing as Islandia, one stop along: two vagones numbered west to east, each with its services on one edge only — F63 and A61 below Vagon 1, Z61 and Z63 above Vagon 2. A is Vagon 1 and B is Vagon 2, covered exactly, so the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "F63",
+                "A61"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "Z61",
+                "Z63"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM90009": {
+      "source": "Plano de ubicacion, Estacion Tibanica - Primavera, version agosto de 2026.",
+      "why": "Two vagones numbered west to east, and unlike Islandia and Los Laureles this one puts a service on EACH edge of each vagon: Z61 above Vagon 1 with F63 below it, Z63 above Vagon 2 with A61 below. The two catalog letters cover them exactly — A is Vagon 1 (F63, Z61), B is Vagon 2 (A61, Z63) — so the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "Z61"
+              ],
+              "abajo": [
+                "F63"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "Z63"
+              ],
+              "abajo": [
+                "A61"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -11498,6 +11577,156 @@
         {
           "t": "vagones",
           "arriba": "1"
+        }
+      ]
+    },
+    "TM90011": {
+      "source": "Plano de ubicacion, Estacion Islandia, version agosto de 2026.",
+      "why": "An access block at each end and two vagones between them with a crossing, numbered west to east. Neither block holds a taquilla. Both taquillas are OUTSIDE the station body, drawn clear of it and labelled \"Taquilla externa\" on the sheet — one above the western block, one below the eastern, diagonally opposite each other, the same arrangement as Biblioteca Tintal. The torniquetes are on the channel between each block and its deck. The exits are Calle 71A Sur at the west end and Calle 69 Sur at the east. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 71A Sur",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 69 Sur",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM90010": {
+      "source": "Plano de ubicacion, Estacion Los Laureles, version agosto de 2026.",
+      "why": "An access block at each end and two vagones between them with a crossing, numbered west to east. Neither block holds a taquilla. Both taquillas are OUTSIDE the station body, drawn clear of it and labelled \"Taquilla externa\" on the sheet — one above the western block, one below the eastern, diagonally opposite each other, the same arrangement as Biblioteca Tintal. The torniquetes are on the channel between each block and its deck. The exits are Carrera 81 at the west end and Carrera 80 J at the east. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 81",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Carrera 80 J",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM90009": {
+      "source": "Plano de ubicacion, Estacion Tibanica - Primavera, version agosto de 2026.",
+      "why": "An access block at each end and two vagones between them with a crossing, numbered west to east. Neither block holds a taquilla. Both taquillas are OUTSIDE the station body, drawn clear of it and labelled \"Taquilla externa\" on the sheet — one above the western block, one below the eastern, diagonally opposite each other, the same arrangement as Biblioteca Tintal. The torniquetes are on the channel between each block and its deck. The exits are Cra 78F at the west end and Cra 78A Sur at the east. No bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra 78F",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cra 78A Sur",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
         }
       ]
     }
