@@ -1051,6 +1051,7 @@ async function readSheet(page, file, code, candidates) {
   // counts, and only within the drawing's own width — the Convenciones key is
   // a column of the same coloured squares.
   const chipsUp = [], chipsDown = [];
+  const chipNotesEarly = [];
   for (const c of chips) {
     const cx = c.x + c.w / 2, cy = c.y + c.h / 2;
     if (cx < span.x0 || cx > span.x1) continue;
@@ -1059,6 +1060,25 @@ async function readSheet(page, file, code, candidates) {
   }
   chipsUp.sort((a, b) => a.x - b.x);
   chipsDown.sort((a, b) => a.x - b.x);
+  // Service chips are printed in ONE row per side. Anything off that line is
+  // not a chip: a bridge is drawn taller than the platforms, so the taquillas
+  // at its ends fall outside the platform band and into the chip rows, and
+  // Toberín's two came back as the route "8" — a black tile the numeric
+  // rescue could not tell from the black tile of a numbered route.
+  const online = (list) => {
+    if (list.length < 2) return list;
+    const ys = list.map((c) => c.y + c.h / 2).sort((a, b) => a - b);
+    const mid = ys[Math.floor(ys.length / 2)];
+    const tol = Math.max(10, list[0].h * 0.6);
+    const kept = list.filter((c) => Math.abs(c.y + c.h / 2 - mid) <= tol);
+    return kept.length ? kept : list;
+  };
+  const offRow = [...online(chipsUp), ...online(chipsDown)];
+  for (const c of [...chipsUp, ...chipsDown]) {
+    if (!offRow.includes(c)) chipNotesEarly.push('block at ' + c.x + ',' + c.y + ' sits off the chip row — read as equipment, not a service');
+  }
+  chipsUp.splice(0, chipsUp.length, ...online(chipsUp));
+  chipsDown.splice(0, chipsDown.length, ...online(chipsDown));
 
   const streetBox = (tab) =>
     blacks.find(
@@ -1204,7 +1224,7 @@ async function readSheet(page, file, code, candidates) {
 
   if (process.env.DEBUG) console.error('  keyChips ' + keyChips.length + ' -> ' + JSON.stringify(byLetter.map(k => k.letter + ':' + k.rgb.join(','))));
   const chipRows = [new Map(), new Map()];
-  const chipNotes = [];
+  const chipNotes = [...chipNotesEarly];
   const all = [...chipsUp, ...chipsDown];
   for (const [i, c] of all.entries()) {
     const arriba = i < chipsUp.length;
@@ -1232,6 +1252,7 @@ async function readSheet(page, file, code, candidates) {
       // exactly one such route there is nothing to choose between, so the tile
       // is named. Where it runs two, it is left alone.
       const nums = (candidates ?? []).filter((x) => /^\d+$/.test(x));
+      if (process.env.DEBUG) console.error('  [black] ' + c.x + ',' + c.y + ' rgb=' + JSON.stringify(c.rgb) + ' -> ' + JSON.stringify(nums));
       if (nums.length === 1) hit = { value: nums[0], d: 0, tok: '(black tile)' };
     }
     if (!hit.value) {

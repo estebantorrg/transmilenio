@@ -1485,6 +1485,113 @@
           ]
         }
       ]
+    },
+    "TM0102": {
+      "source": "Plano de ubicacion, Estacion Terreros - Hospital C.V., version diciembre de 2025.",
+      "why": "ONE platform, three vagones — Vagon 3 west, Vagon 2, Vagon 1 east — with services along both edges. The catalog's three wagons map cleanly: C is Vagon 3, B is Vagon 2, A is Vagon 1, so the count gate's numbering is right. The sheet prints G41, G46, G48, G42 and G43 where the catalog now files S41, S46, S48, S42 and S43 — the September 2026 Soacha re-lettering. G45 is NOT one of them: the catalog still runs a G45 as well as an S45, so it is recorded as drawn. S45 is newer than the sheet and is listed under the drawing.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "B46",
+                "E42"
+              ],
+              "abajo": [
+                "S41",
+                "S46"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "E48",
+                "G45"
+              ],
+              "abajo": [
+                "G45",
+                "S48"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "K43",
+                "L41"
+              ],
+              "abajo": [
+                "S42",
+                "S43"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0028": {
+      "source": "Plano de ubicacion, Estacion Toberin, version agosto de 2026.",
+      "why": "ONE platform, five vagones — Vagon 5 at the north end through Vagon 1 at the south. Vagon 5 and Vagon 4 carry services on their southbound edge only; the sheet prints nothing above them. This is the newest sheet in the set and already prints S46 itself, so no re-lettering is applied here.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "5",
+              "abajo": [
+                "H72"
+              ]
+            },
+            {
+              "vagon": "4",
+              "abajo": [
+                "8",
+                "J70",
+                "J74"
+              ]
+            },
+            {
+              "vagon": "3",
+              "arriba": [
+                "B16",
+                "B46",
+                "B74",
+                "B75"
+              ],
+              "abajo": [
+                "G11",
+                "H27",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8",
+                "B10",
+                "B72"
+              ],
+              "abajo": [
+                "G12",
+                "K16"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B11",
+                "B12",
+                "B27"
+              ],
+              "abajo": [
+                "D10",
+                "S46"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -2280,6 +2387,145 @@
           ],
           "arriba": [
             "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0102": {
+      "source": "Plano de ubicacion, Estacion Terreros - Hospital C.V., version diciembre de 2025.",
+      "why": "The bridge lands in the MIDDLE of the station, between Vagon 2 and Vagon 1, with an access block either side of it. The western block is mirrored — its platform is on its left — and carries its taquilla at the top, its torniquetes level with the deck and the CL 36 exit below, pointing east at the bridge. The eastern block faces the other way: the CL 36 exit at the top pointing west at the bridge, torniquetes level with the deck, taquilla below.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "CL 36",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 36",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0028": {
+      "source": "Plano de ubicacion, Estacion Toberin, version agosto de 2026.",
+      "why": "A bridge in the middle with an access block either side, and a third block at the south end before a second bridge. Every block carries its torniquetes level with the deck, in the channel at its platform edge, and its street exit — Calle 166 on both sides of the middle bridge, Calle 161 at the south end. The sheet also draws a taquilla at each END of the middle bridge, above and below the platforms: those are on the bridge itself, and the drawing has no band there, so they are not shown.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "5"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 166",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 166",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 161",
+              "hacia": "der",
+              "fila": "abajo"
+            }
           ],
           "centro": [
             "torniquete"
