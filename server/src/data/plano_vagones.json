@@ -5014,6 +5014,237 @@
           ]
         }
       ]
+    },
+    "TM0042": {
+      "source": "Plano de ubicacion, Estacion 21 Angeles, version noviembre de 2024.",
+      "why": "ONE platform, two vagones. A is Vagon 1 (7, B50, C50) and B is Vagon 2 (C19, C25, F19, L25), so the numbering is right. Vagon 1 also carries both services of the catalog's unlettered wagon \"0\" — C84 above and M84 below.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C19",
+                "C25"
+              ],
+              "abajo": [
+                "F19",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "7",
+                "C50",
+                "C84"
+              ],
+              "abajo": [
+                "7",
+                "B50",
+                "M84"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0124": {
+      "source": "Plano de ubicacion, Estacion Concejo de Bogota, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, numbered west to east — Vagon 1 first. A is Vagon 1 (1, 3, H54, K54) and B is Vagon 2 (B23, K23), so the numbering is right. Vagon 2 also carries both services of the catalog's unlettered wagon \"0\" — K86 above and M86 below.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "3",
+                "K54"
+              ],
+              "abajo": [
+                "1",
+                "3",
+                "H54"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "K23",
+                "K86"
+              ],
+              "abajo": [
+                "B23",
+                "M86"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0038": {
+      "source": "Plano de ubicacion, Estacion Humedal Cordoba, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1, route 7 alone on both edges, and B is Vagon 2 (C15 above, H15 below — the two directions of one service). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C15"
+              ],
+              "abajo": [
+                "H15"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "7"
+              ],
+              "abajo": [
+                "7"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0082": {
+      "source": "Plano de ubicacion, Estacion Mandalay, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (5, F51, M51), B is Vagon 2 (B26, C19, F19, F26). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "F19",
+                "F26"
+              ],
+              "abajo": [
+                "B26",
+                "C19"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "5",
+                "F51"
+              ],
+              "abajo": [
+                "5",
+                "M51"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0032": {
+      "source": "Plano de ubicacion, Estacion San Martin, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (C17 above, H17 below — the two directions of one service), B is Vagon 2 (7, C25, C73, J73, L25). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "7",
+                "C25",
+                "C73"
+              ],
+              "abajo": [
+                "7",
+                "J73",
+                "L25"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C17"
+              ],
+              "abajo": [
+                "H17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0047": {
+      "source": "Plano de ubicacion, Estacion Escuela Militar, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (6, 7, B11, B50, D24), B is Vagon 2 (4, 6, C50, G11, J24). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "C50",
+                "G11"
+              ],
+              "abajo": [
+                "4",
+                "6",
+                "J24"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "7",
+                "D24"
+              ],
+              "abajo": [
+                "7",
+                "B11",
+                "B50"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0041": {
+      "source": "Plano de ubicacion, Estacion Gratamira, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (C15 above, H15 below — the two directions of one service), B is Vagon 2, route 7 alone on both edges. So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "7"
+              ],
+              "abajo": [
+                "7"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C15"
+              ],
+              "abajo": [
+                "H15"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -11007,6 +11238,254 @@
           ],
           "centro": [
             "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0042": {
+      "source": "Plano de ubicacion, Estacion 21 Angeles, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them and one access block, at the east end: the taquilla at the top, the Calle 137 exit at the foot, torniquetes on the channel against the deck. The west end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 137",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0038": {
+      "source": "Plano de ubicacion, Estacion Humedal Cordoba, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them and one access block, at the east end: the taquilla at the top, the Calle 120 exit at the foot, torniquetes on the channel against the deck. The west end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 120",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0047": {
+      "source": "Plano de ubicacion, Estacion Escuela Militar, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them, one access block at the east end and the bridge past it: the taquilla at the top of the block, the Av. Kr 50 exit at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Av. Kr 50",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0041": {
+      "source": "Plano de ubicacion, Estacion Gratamira, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them, one access block at the east end and the bridge past it: the taquilla at the top of the block, the Calle 132 A exit at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 132 A",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0124": {
+      "source": "Plano de ubicacion, Estacion Concejo de Bogota, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the AV. NQS exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them, Vagon 1 first since this sheet numbers west to east. The east end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "AV. NQS",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        }
+      ]
+    },
+    "TM0082": {
+      "source": "Plano de ubicacion, Estacion Mandalay, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them, one access block at the east end and the bridge past it: the Cra. 73 exit at the top of the block, the taquilla at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cra. 73",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0032": {
+      "source": "Plano de ubicacion, Estacion San Martin, version noviembre de 2024.",
+      "why": "One access block, at the west end: the Calle 86 A exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The east end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 86 A",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
           ]
         },
         {
