@@ -3983,7 +3983,7 @@
     },
     "TM0143": {
       "source": "Plano de ubicacion, Estacion AV. 1° de Mayo, version julio de 2025.",
-      "why": "An access block at each end, no bridges — the pedestrian tunnel and the zonal building above are not part of the platform and are not drawn. The northern block has the Calle 17 Sur exit at the top, torniquetes level with the deck in the channel at its platform edge, and a taquilla below; the southern one is mirrored, taquilla at the top and the AV 1° de Mayo exit below.",
+      "why": "An access block at each end and no bridges. The northern block has the Calle 17 Sur exit at the top, torniquetes level with the deck in the channel at its platform edge, and a taquilla below; the southern one is mirrored, taquilla at the top and the AV 1 de Mayo exit below. Above the platform, reached by the pedestrian tunnel, the sheet draws a zonal building — and that IS drawn, as its own strip: the arrivals zone and then four bays, 13-2 Providencia with 13-5 Palermo Sur, 13-4 Diana Turbay - Lomas with 15-4 Ramajal, T27 Est. Av. 1 de Mayo with L822 Sidel, and 15-3 Horacio Orjuela with C149 Bilbao and K328 Puerta de Teja. Its concourse equipment is drawn as one group at the end rather than at the two levels the sheet puts it on, and its toilets are left out for want of a glyph.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -4036,7 +4036,83 @@
             "torniquete"
           ]
         }
-      ]
+      ],
+      "zonal": {
+        "nombre": "Zona de llegada de pasajeros (zonales)",
+        "items": [
+          {
+            "t": "bahia",
+            "llegada": true
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "13-2",
+                "destino": "Providencia"
+              },
+              {
+                "codigo": "13-5",
+                "destino": "Palermo Sur"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "13-4",
+                "destino": "Diana Turbay - Lomas"
+              },
+              {
+                "codigo": "15-4",
+                "destino": "Ramajal"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "T27",
+                "destino": "Est. Av. 1° de Mayo"
+              },
+              {
+                "codigo": "L822",
+                "destino": "Sidel"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "15-3",
+                "destino": "Horacio Orjuela"
+              },
+              {
+                "codigo": "C149",
+                "destino": "Bilbao"
+              },
+              {
+                "codigo": "K328",
+                "destino": "Puerta de Teja"
+              }
+            ]
+          },
+          {
+            "t": "equipo",
+            "iconos": [
+              "torniquete",
+              "escalera",
+              "taquilla",
+              "bici",
+              "rampa"
+            ],
+            "nota": "Acceso peatonal y acceso exclusivo a buses zonales"
+          }
+        ]
+      }
     },
     "TM0146": {
       "source": "Plano de ubicacion, Estacion Museo Nacional - FNG, version noviembre de 2025.",
