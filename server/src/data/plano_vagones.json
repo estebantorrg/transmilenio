@@ -2570,7 +2570,7 @@
     },
     "TM0067": {
       "source": "Plano de ubicacion, Estacion CAD, version diciembre de 2025.",
-      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1, B is Vagon 2, and both match the sheet. Two chips on Vagon 2 need a note. G48 is S48 in the old Soacha convention, and the catalog runs S48 here. G43 is not a service at all: A chip's LETTER names the corridor that direction heads onto, not the service: the catalog files each direction of a service as its own codigo, and K53/G53, C30/G30, E42/S42, M47/G47 and B11/G11 are all exact mirrors of each other, same stations in reverse. So a chip printed on the lower edge under a letter the catalog has no codigo for is the reverse twin of the chip above it, NOT some other unplaced service that happens to share a colour. It is not drawn, by the same rule that leaves out any codigo the catalog does not run here. Here that twin is K43, printed above it on the same vagon. Wagon B also holds G53 and wagon A holds K53 — the two directions of one service — and this sheet draws neither.",
+      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1, B is Vagon 2, and both match the sheet. Two chips on Vagon 2 need a note. G48 is S48 in the old Soacha convention. G43 is the old number of the service the catalog now files as G53: Quinta Paredes proves it, because there the G43 chip sits on the vagon that IS wagon A, and A holds G53 and not K43 — K43 is in wagon B and drawn on the other vagon. A newer sheet, Ciudad Universitaria of August 2026, prints G53 outright. It is NOT the return leg of K43; that reading fitted the wagons at CAD and Venecia only because those wagons happen to hold both codigos. Wagon A also holds K53, the northbound half of the same service, which this sheet does not draw.",
       "rows": [
         {
           "offset": 0,
@@ -2583,6 +2583,7 @@
               ],
               "abajo": [
                 "4",
+                "G53",
                 "S48"
               ]
             },
@@ -2927,7 +2928,7 @@
     },
     "TM0095": {
       "source": "Plano de ubicacion, Estacion Venecia, version diciembre de 2025.",
-      "why": "ONE platform, two vagones. B is Vagon 2 and the sheet covers it exactly (4, A52, E48, and G48 which is S48 in the old Soacha convention). A is Vagon 1 and the sheet covers only part of it — C30 and K43 above, G30 below — leaving D22, G22, G53 and K53 undrawn. Two chips on this sheet are not services at all: G52 under A52, and G43 under K43. A chip whose letter the catalog has no codigo for is the return leg of the chip above it — the catalog files each direction separately, lettered by the corridor that direction heads onto — so it is not drawn. Venecia is the sheet that proves it, because it prints BOTH of them, so they cannot be the one unplaced blue service the colours would otherwise suggest.",
+      "why": "ONE platform, two vagones. B is Vagon 2 and the sheet covers it exactly (4, A52, E48, and G48 which is S48 in the old Soacha convention). A is Vagon 1 — C30 and K43 above, G30 and G43 below — leaving D22, G22 and K53 undrawn. G43 is the old number of the service the catalog now files as G53: Quinta Paredes proves it, because there the G43 chip sits on the vagon that IS wagon A, and A holds G53 and not K43 — K43 is in wagon B and drawn on the other vagon. A newer sheet, Ciudad Universitaria of August 2026, prints G53 outright. It is NOT the return leg of K43; that reading fitted the wagons at CAD and Venecia only because those wagons happen to hold both codigos. The other odd chip here is the G52 under A52 on Vagon 2, and THAT one is a direction: the catalog has no G52 and no S52, and the route that calls at every station where a G52 chip appears is A52 itself. So Venecia prints both kinds of oddity on one sheet — a renumbered service and a return leg — which is why neither can be read from colour alone.",
       "rows": [
         {
           "offset": 0,
@@ -2951,7 +2952,8 @@
                 "K43"
               ],
               "abajo": [
-                "G30"
+                "G30",
+                "G53"
               ]
             }
           ]
@@ -3377,7 +3379,7 @@
     },
     "TM0093": {
       "source": "Plano de ubicacion, Estacion General Santander, version diciembre de 2025.",
-      "why": "ONE platform, THREE vagones, and the three catalog letters land on them one for one: A is Vagon 1 (A52, D22, E48, G22), B is Vagon 2 (4, G12, G30, K43, with K53 undrawn), C is Vagon 3 (4, B12, C30, and G48 which is S48 in the old Soacha convention, with G53 undrawn). So the numbering is right. Two chips are not services: G52 on Vagon 1 and G43 on Vagon 3. A chip whose letter the catalog has no codigo for is the return leg of another chip — the catalog files each direction separately, lettered by the corridor that direction heads onto — so it is not drawn. Their outbound halves are the A52 above the one and the K43 on Vagon 2 for the other — the two directions of a service need not board the same vagon. The catalog also carries an empty wagon \"0\", which places nothing.",
+      "why": "ONE platform, THREE vagones, and the three catalog letters land on them one for one: A is Vagon 1 (A52, D22, E48, G22), B is Vagon 2 (4, G12, G30, K43, with K53 undrawn), C is Vagon 3 (4, B12, C30, and G48 which is S48 in the old Soacha convention, plus G43). So the numbering is right. G43 is the old number of the service the catalog now files as G53: Quinta Paredes proves it, because there the G43 chip sits on the vagon that IS wagon A, and A holds G53 and not K43 — K43 is in wagon B and drawn on the other vagon. A newer sheet, Ciudad Universitaria of August 2026, prints G53 outright. It is NOT the return leg of K43; that reading fitted the wagons at CAD and Venecia only because those wagons happen to hold both codigos. Here that puts G53 on Vagon 3 with the rest of wagon C, while K43 stays on Vagon 2 with wagon B. The G52 on Vagon 1 is a different matter and IS a return leg — of the A52 printed above it, a codigo the catalog does not file. The catalog also carries an empty wagon \"0\", which places nothing.",
       "rows": [
         {
           "offset": 0,
@@ -3390,6 +3392,7 @@
               ],
               "abajo": [
                 "4",
+                "G53",
                 "S48"
               ]
             },
@@ -4819,6 +4822,193 @@
               "abajo": [
                 "6",
                 "B10"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0127": {
+      "source": "Plano de ubicacion, Estacion Quinta Paredes, version noviembre de 2025.",
+      "why": "ONE platform, two vagones. B is Vagon 2 (1, H54, K43, with K53 undrawn) and A is Vagon 1 (1, B16, K16, K54, G53), so the numbering is right. Vagon 2 also carries both services of the catalog's unlettered wagon \"0\", P85 above and M85 below. This is the sheet that settles what G43 means. G43 is the old number of the service the catalog now files as G53: Quinta Paredes proves it, because there the G43 chip sits on the vagon that IS wagon A, and A holds G53 and not K43 — K43 is in wagon B and drawn on the other vagon. A newer sheet, Ciudad Universitaria of August 2026, prints G53 outright. It is NOT the return leg of K43; that reading fitted the wagons at CAD and Venecia only because those wagons happen to hold both codigos.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "K43",
+                "P85"
+              ],
+              "abajo": [
+                "1",
+                "H54",
+                "M85"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "K16",
+                "K54"
+              ],
+              "abajo": [
+                "B16",
+                "G53"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0077": {
+      "source": "Plano de ubicacion, Estacion Puente Aranda, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1, route 5 alone on both edges, and B is Vagon 2 (E32, F23, F32, J23). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "F23",
+                "F32"
+              ],
+              "abajo": [
+                "E32",
+                "J23"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "5"
+              ],
+              "abajo": [
+                "5"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0142": {
+      "source": "Plano de ubicacion, Estacion Ciudad Jardin - UAN, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (K10 above, L10 below — the two directions of one service), B is Vagon 2, route 2 alone on both edges. So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "2"
+              ],
+              "abajo": [
+                "2"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "K10"
+              ],
+              "abajo": [
+                "L10"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0114": {
+      "source": "Plano de ubicacion, Estacion Consuelo, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (B75, H75, H76, J76), B is Vagon 2 (C17, H17, H83, M83). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C17",
+                "M83"
+              ],
+              "abajo": [
+                "H17",
+                "H83"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B75",
+                "J76"
+              ],
+              "abajo": [
+                "H75",
+                "H76"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0051": {
+      "source": "Plano de ubicacion, Estacion Ferias, version noviembre de 2024.",
+      "why": "ONE vagon, and the catalog agrees: a single wagon A holding 6, B55, D20, D55 and H20, every one of them on the sheet — 6, D20 and D55 above, 6, B55 and H20 below. So the numbering is right. Like Quirigua and Carrera 53, the platform is drawn as two deck slabs meeting at a joint, with the one plate over the eastern of them.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D20",
+                "D55"
+              ],
+              "abajo": [
+                "6",
+                "B55",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0048": {
+      "source": "Plano de ubicacion, Estacion Carrera 47, version noviembre de 2024.",
+      "why": "ONE platform, two vagones. A is Vagon 1 (6, D24, J24) and B is Vagon 2 (B10, D10, D22, G22), so the numbering is right. Vagon 1 also carries both services of the catalog's unlettered wagon \"0\" — D81 above and L81 below.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D10",
+                "D22"
+              ],
+              "abajo": [
+                "B10",
+                "G22"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D24",
+                "D81"
+              ],
+              "abajo": [
+                "6",
+                "J24",
+                "L81"
               ]
             }
           ]
@@ -10628,6 +10818,203 @@
           "abajo": [
             "taquilla"
           ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0127": {
+      "source": "Plano de ubicacion, Estacion Quinta Paredes, version noviembre de 2025.",
+      "why": "Two vagones with a crossing between them, one access block at the east end and the bridge past it: the KR 45 exit at the top of the block, the taquilla at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 45",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0077": {
+      "source": "Plano de ubicacion, Estacion Puente Aranda, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them and one access block, at the east end: the Cr 47 exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. The west end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cr 47",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0142": {
+      "source": "Plano de ubicacion, Estacion Ciudad Jardin - UAN, version noviembre de 2024.",
+      "why": "One access block, at the north end, and it carries nothing but its Calle 11 Sur exit — no taquilla anywhere on this sheet — with the torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The south end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 11 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0114": {
+      "source": "Plano de ubicacion, Estacion Consuelo, version noviembre de 2024.",
+      "why": "One access block, at the north end: the Cra 12 Sur exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The south end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra 12 Sur.",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0051": {
+      "source": "Plano de ubicacion, Estacion Ferias, version noviembre de 2024.",
+      "why": "One vagon, one access block at the east end and the bridge past it: the taquilla at the top of the block, the Trans 69 R exit at the foot, torniquetes on the channel against the deck. The west end is bare and the bridge has no way up drawn onto it. The joint between the platform's two deck slabs carries no crossing marks, so none is drawn.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Trans 69 R",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0048": {
+      "source": "Plano de ubicacion, Estacion Carrera 47, version noviembre de 2024.",
+      "why": "One access block, at the west end: the taquilla at the top, the Cra 58 exit at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The east end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra 58",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
         },
         {
           "t": "vagones",
