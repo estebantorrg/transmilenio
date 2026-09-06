@@ -2151,6 +2151,141 @@
           ]
         }
       ]
+    },
+    "TM0137": {
+      "source": "Plano de ubicacion, Estacion Las Nieves, version junio de 2025.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. Route 2 boards the northbound edge of Vagon 2 and the southbound edge of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "2",
+                "M47"
+              ],
+              "abajo": [
+                "F51",
+                "L10"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "K10",
+                "M51"
+              ],
+              "abajo": [
+                "2",
+                "G47"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0008": {
+      "source": "Plano de ubicacion, Estacion temporal AV. 39, version agosto de 2026.",
+      "why": "ONE platform, three vagones, services on both edges, and every service the catalog lists is drawn. The three letters map cleanly — C is Vagon 3, B is Vagon 2, A is Vagon 1. One of the stand-in stations for the Metro works on Caracas, which is why the ridership count has never heard of it: it carries seventeen services all the same.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "8",
+                "A60",
+                "A61"
+              ],
+              "abajo": [
+                "F60",
+                "K23",
+                "L18"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B23",
+                "C15",
+                "D24"
+              ],
+              "abajo": [
+                "8",
+                "H15",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B18",
+                "B74",
+                "B75"
+              ],
+              "abajo": [
+                "Z61",
+                "J24",
+                "J74"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0115": {
+      "source": "Plano de ubicacion, Estacion Molinos, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, drawn small at the west of a sheet that gives most of its room to the intermediate zonal station above. The two catalog letters map cleanly — B is Vagon 2, A is Vagon 1. H54 sits in wagon A and this sheet does not draw it, so it is listed under the drawing rather than placed.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B75",
+                "K54"
+              ],
+              "abajo": [
+                "H72",
+                "H75",
+                "H76"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B72",
+                "D20",
+                "J76"
+              ],
+              "abajo": [
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0121": {
+      "source": "Plano de ubicacion, Estacion Las Aguas - Centro Colombo Americano, version noviembre de 2025.",
+      "why": "ONE platform and ONE vagon, with services along its northern edge only. The sheet appears to draw two: the lower block carries a Vagon 1 plate of its own, in platform styling, and it is the mouth of the pedestrian tunnel to Universidades — no bus calls there. That is the trap `planos.mjs` has always warned about and no rule about boxes can see it. J23 is in the catalog and this sheet does not draw it, so it is listed under the drawing.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "F23",
+                "J70"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -3791,6 +3926,200 @@
         {
           "t": "vagones",
           "arriba": "1"
+        }
+      ]
+    },
+    "TM0137": {
+      "source": "Plano de ubicacion, Estacion Las Nieves, version junio de 2025.",
+      "why": "An access block at each end and they are not alike: the northern one carries only the Calle 19 exit and its torniquetes — no taquilla is drawn there — while the southern one has a taquilla at the top, torniquetes level with the deck and the Calle 17 exit below. The scanner missed the northern block entirely: the sheet draws it in the same pale grey as the platform, so it merged into Vagon 2.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 19",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 17",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        }
+      ]
+    },
+    "TM0008": {
+      "source": "Plano de ubicacion, Estacion temporal AV. 39, version agosto de 2026.",
+      "why": "An access block at each end, no bridges, and the two are built the same way round: exit at the top — Diagonal 40a west, Calle 37 east — torniquetes level with the deck in the channel at the platform edge, taquilla below.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Diagonal 40ª",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 37",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0115": {
+      "source": "Plano de ubicacion, Estacion Molinos, version noviembre de 2024.",
+      "why": "An access block at each end and a bridge beyond the eastern one. Neither block carries a taquilla — this sheet draws none on the troncal platform at all — so each is just its exit and its torniquetes: KR 9 at the top of the western block, KR 7 at the foot of the eastern one, with the torniquetes level with the deck in the channel at each platform edge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "KR 9",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "KR 7",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0121": {
+      "source": "Plano de ubicacion, Estacion Las Aguas - Centro Colombo Americano, version noviembre de 2025.",
+      "why": "An access block at each end, running opposite ways: the western one has the Calle 19 exit at the top and a taquilla below, the eastern one a taquilla at the top and the Calle 18 exit below, with the torniquetes level with the deck in the channel at each platform edge. The tunnel to Universidades leaves the south side and is carried as a link beneath the drawing, not as a column.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 19",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 18",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
         }
       ]
     }
