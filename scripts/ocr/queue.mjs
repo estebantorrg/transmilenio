@@ -52,11 +52,24 @@ const argv = process.argv.slice(2);
 const done = argv.includes('--done');
 const limit = Number(argv.find((a) => /^\d+$/.test(a))) || Infinity;
 
+// A station the catalog serves with NOTHING cannot be read: every chip on its
+// sheet would be a service the catalog says does not call there, and the rule
+// is that such a chip is not drawn. Calle 76 and Calle 34 are both of these —
+// closed for the Metro works, with the Temporal stations standing in for them
+// — and both sheets still print a full set of vagones. Calle 76 sat near the
+// top of this list on a ridership figure older than its closure.
+const cerradas = new Set(
+  Object.entries(catalog.stations ?? {})
+    .filter(([c, st]) => /^TM/.test(c) && Object.keys(st.wagons ?? {}).length === 0)
+    .map(([c]) => c)
+);
+
 const rows = [];
 for (const [code, d] of Object.entries(drafts)) {
   const shipped = Boolean(plates.detalle[code]);
   if (shipped !== done) continue;
   if (!d.layout && !done) continue;
+  if (cerradas.has(code)) continue;
   const nodo = registry[code]?.nodo;
   const dem = nodo ? byNodo.get(String(nodo)) : undefined;
   rows.push({
