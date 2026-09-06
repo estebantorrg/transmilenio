@@ -4272,6 +4272,370 @@
           ]
         }
       ]
+    },
+    "TM0125": {
+      "source": "Plano de ubicacion, Estacion Ciudad Universitaria, version agosto de 2026.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (1, 3, H54, K53, K54), B is Vagon 2 (B23, C73, G53, J73, K10, K23, L10). So the numbering is right. This is also the sheet that draws G53 outright, under its own code, where the older sheets along that corridor draw it not at all.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "J73",
+                "K10",
+                "K23"
+              ],
+              "abajo": [
+                "B23",
+                "C73",
+                "G53",
+                "L10"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "3",
+                "K53",
+                "K54"
+              ],
+              "abajo": [
+                "1",
+                "3",
+                "H54"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0126": {
+      "source": "Plano de ubicacion, Estacion Corferias, version noviembre de 2024.",
+      "why": "ONE platform, two vagones — numbered the other way round, Vagon 1 at the WEST end — and the catalog letters land on them SWAPPED: A is Vagon 2 (1, 3, H54, K54) and B is Vagon 1 (B16, K16, K43, and G43 which is S43 in the old Soacha convention). The count gate alone would have printed A as Vagon 1 and sent its riders to the wrong deck, so the mapping is stated outright. Vagon 2 also carries both services of the catalog's unlettered wagon \"0\", K86 and M86.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "K16",
+                "K43"
+              ],
+              "abajo": [
+                "B16",
+                "S43"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "1",
+                "3",
+                "K54",
+                "K86"
+              ],
+              "abajo": [
+                "1",
+                "3",
+                "H54",
+                "M86"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0066": {
+      "source": "Plano de ubicacion, Estacion AV. El Dorado, version noviembre de 2024.",
+      "why": "ONE platform, two vagones. A is Vagon 1 (4, B12, F32, H17) and B is Vagon 2 (4, C17, D22, E32, G12, G22), with E32 filed under both letters and drawn on Vagon 2. So the numbering is right. A's S43 and B's K43 are undrawn. The sheet also prints B16 above and K16 below on Vagon 1 — the two directions of one service — and neither is drawn: the catalog runs neither of them here any more, and this November 2024 sheet is out of date on that pair.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C17",
+                "D22",
+                "E32"
+              ],
+              "abajo": [
+                "4",
+                "G12",
+                "G22"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "B12"
+              ],
+              "abajo": [
+                "F32",
+                "H17"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0091": {
+      "source": "Plano de ubicacion, Estacion NQS - Calle 30 S., version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (B11, G11, L41, and G41 which is S41 in the old Soacha convention), B is Vagon 2 (4, A52). So the numbering is right. The G52 under A52 on Vagon 2 is not a service. A chip whose letter the catalog has no codigo for is the return leg of another chip — the catalog files each direction separately, lettered by the corridor that direction heads onto — so it is not drawn.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "A52"
+              ],
+              "abajo": [
+                "4"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B11",
+                "L41"
+              ],
+              "abajo": [
+                "G11",
+                "S41"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0076": {
+      "source": "Plano de ubicacion, Estacion Carrera 43 - COMAPAN, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (A60, F60), B is Vagon 2, which is route 5 alone on both edges. So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "5"
+              ],
+              "abajo": [
+                "5"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "F60"
+              ],
+              "abajo": [
+                "A60"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0072": {
+      "source": "Plano de ubicacion, Estacion San Facon - Cra. 22, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, and the catalog letters land on them SWAPPED: A is route 5 alone, which the sheet draws on Vagon 2, and B is F23 and J23, which it draws on Vagon 1. The count gate alone would have printed A as Vagon 1 and sent its riders to the wrong deck, so the mapping is stated outright.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "5"
+              ],
+              "abajo": [
+                "5"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "J23"
+              ],
+              "abajo": [
+                "F23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0123": {
+      "source": "Plano de ubicacion, Estacion Centro Memoria, version noviembre de 2025.",
+      "why": "ONE platform, two vagones. A is Vagon 1 (routes 1 and 3 on both edges) and B is Vagon 2 (C73, J73, K10, L10), so the numbering is right. Vagon 1 also carries both services of the catalog's unlettered wagon \"0\" — P85 above and M85 below.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "C73",
+                "K10"
+              ],
+              "abajo": [
+                "J73",
+                "L10"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "3",
+                "P85"
+              ],
+              "abajo": [
+                "1",
+                "3",
+                "M85"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0106": {
+      "source": "Plano de ubicacion, Estacion Narino, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (3, B72, H72), B is Vagon 2 (B75, C15, H15, H75). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B75",
+                "C15"
+              ],
+              "abajo": [
+                "H15",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "B72"
+              ],
+              "abajo": [
+                "3",
+                "H72"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0074": {
+      "source": "Plano de ubicacion, Estacion CDS - Cra 32, version agosto de 2026.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (5, A61, Z61), B is Vagon 2 (B28, C19, F19, F28). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "F19",
+                "F28"
+              ],
+              "abajo": [
+                "C19",
+                "B28"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "5",
+                "Z61"
+              ],
+              "abajo": [
+                "5",
+                "A61"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0033": {
+      "source": "Plano de ubicacion, Estacion Rionegro, version agosto de 2025.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (7, C15, C30, G30, H15), B is Vagon 2 (7, B50, C50). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "7",
+                "C50"
+              ],
+              "abajo": [
+                "7",
+                "B50"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C15",
+                "C30"
+              ],
+              "abajo": [
+                "G30",
+                "H15"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0141": {
+      "source": "Plano de ubicacion, Estacion Policarpa, version agosto de 2025.",
+      "why": "ONE platform, two vagones. A is Vagon 1, route 2 alone on both edges, and B is Vagon 2, where the sheet draws M83 above and H83 below and leaves B18 and L18 undrawn. So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "M83"
+              ],
+              "abajo": [
+                "H83"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "2"
+              ],
+              "abajo": [
+                "2"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -4293,6 +4657,14 @@
     },
     "TM0025": {
       "A": "1"
+    },
+    "TM0126": {
+      "A": "2",
+      "B": "1"
+    },
+    "TM0072": {
+      "A": "2",
+      "B": "1"
     }
   },
   "detalle": {
@@ -9357,6 +9729,481 @@
           "salidas": [
             {
               "calle": "Calle 33 Sur.",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0125": {
+      "source": "Plano de ubicacion, Estacion Ciudad Universitaria, version agosto de 2026.",
+      "why": "A pedestrian bridge at the west end, then an access block, the two vagones with a crossing, and a second block closing the east end. Both blocks are drawn the same way up: the exit at the top — Carrera 36 west, Carrera 33 east — and the taquilla at the foot, with the torniquetes on the channel against the deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 36",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Carrera 33",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0126": {
+      "source": "Plano de ubicacion, Estacion Corferias, version noviembre de 2024.",
+      "why": "One access block, at the west end: the Carrera 40 exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them — Vagon 1 first, since this sheet numbers west to east. The east end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 40",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        }
+      ]
+    },
+    "TM0066": {
+      "source": "Plano de ubicacion, Estacion AV. El Dorado, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Carrera 33 exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them. The east end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Carrera 33",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0091": {
+      "source": "Plano de ubicacion, Estacion NQS - Calle 30 S., version noviembre de 2024.",
+      "why": "One access block, at the north end: the CL 30 Sur exit at the top, the taquilla at the foot, torniquetes on the channel against the deck. Then the two vagones with a crossing between them. The south end is the bare end of the Vagon 1 deck, and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 30 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0076": {
+      "source": "Plano de ubicacion, Estacion Carrera 43 - COMAPAN, version noviembre de 2024.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Cr 43 west, Cr 42 A Bis east — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cr 43",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cr 42 A Bis",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0072": {
+      "source": "Plano de ubicacion, Estacion San Facon - Cra. 22, version noviembre de 2024.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Cr 21 west, Cr 23 east — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cr 21",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cr 23",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0074": {
+      "source": "Plano de ubicacion, Estacion CDS - Cra 32, version agosto de 2026.",
+      "why": "An access block at each end, both drawn the same way up: the exit at the top — Cr 18 west, Cr 16 east — and the taquilla at the foot, with the torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cr 18",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cr 16",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0123": {
+      "source": "Plano de ubicacion, Estacion Centro Memoria, version noviembre de 2025.",
+      "why": "A pedestrian bridge at the west end, then an access block, the two vagones with a crossing, and a second block closing the east end. Both blocks are drawn the same way up: the exit at the top — KR 24 west, KR 19B east — and the taquilla at the foot, with the torniquetes on the channel against the deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "KR 24",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "KR 19B",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0106": {
+      "source": "Plano de ubicacion, Estacion Narino, version noviembre de 2024.",
+      "why": "Two vagones with a crossing between them and one access block, at the south end: the taquilla at the top, the CL 11 Sur exit at the foot, torniquetes on the channel against the deck. The north end is bare and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "CL 11 Sur",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0033": {
+      "source": "Plano de ubicacion, Estacion Rionegro, version agosto de 2025.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Calle 93 exit at the top, the taquilla at the foot, torniquetes on the channel — and then the two vagones with a crossing between them. The east end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 93",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0141": {
+      "source": "Plano de ubicacion, Estacion Policarpa, version agosto de 2025.",
+      "why": "An access block at each end, and they are not a pair: the northern one carries nothing but its Calle 2 Sur exit, with the torniquetes on the channel beside it, while the southern one adds the station's single taquilla, in its top corner, above the Calle 4 Sur exit. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 2 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 4 Sur",
               "hacia": "der",
               "fila": "abajo"
             }
