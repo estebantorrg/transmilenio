@@ -2286,6 +2286,124 @@
           ]
         }
       ]
+    },
+    "TM0101": {
+      "source": "Plano de ubicacion, Estacion Leon XIII, version diciembre de 2025.",
+      "why": "ONE platform, two vagones. The two catalog letters map cleanly — B is Vagon 2, A is Vagon 1. The sheet prints G42, G43, G46 and G48 where the catalog files S42, S43, S46 and S48: the September 2026 Soacha re-lettering. G45 is NOT one of them — the catalog runs a G45 as well as an S45, as at Terreros — so it is recorded as drawn, on both edges of Vagon 1. S45 is newer than the sheet and is listed under the drawing.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B46",
+                "E42",
+                "K43"
+              ],
+              "abajo": [
+                "S42",
+                "S43",
+                "S46"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "E48",
+                "G45"
+              ],
+              "abajo": [
+                "G45",
+                "S48"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0068": {
+      "source": "Plano de ubicacion, Estacion Paloquemao, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. The sheet prints G42 where the catalog files S42, the Soacha re-lettering; G11 and G22 are NOT re-lettered and the catalog still runs both. Route 4 boards the northbound edge of Vagon 2 and the southbound edge of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "B11",
+                "B72"
+              ],
+              "abajo": [
+                "G11",
+                "G22",
+                "S42"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C17",
+                "D22",
+                "E42"
+              ],
+              "abajo": [
+                "4",
+                "H17",
+                "H72"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0065": {
+      "source": "Plano de ubicacion, Estacion Universidad Nacional, version noviembre de 2024.",
+      "why": "ONE platform, three vagones, services on both edges. The catalog's letters are a rough grouping rather than a mapping — B carries E42 and C carries E32, and the sheet draws each on the other platform, while C also holds B16 and K16 which the sheet does not draw at all — so the sheet is what places every service. Its numbering still comes out right: C is Vagon 3, B is Vagon 2, A is Vagon 1. The sheet prints G42 where the catalog files S42, the Soacha re-lettering; G12, G22 and G30 are not re-lettered.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "D22",
+                "E42"
+              ],
+              "abajo": [
+                "G22",
+                "S42"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "C30",
+                "E32"
+              ],
+              "abajo": [
+                "G12",
+                "G30"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "B12",
+                "C17"
+              ],
+              "abajo": [
+                "4",
+                "F32",
+                "H17"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -4120,6 +4238,200 @@
               "fila": "abajo"
             }
           ]
+        }
+      ]
+    },
+    "TM0101": {
+      "source": "Plano de ubicacion, Estacion Leon XIII, version diciembre de 2025.",
+      "why": "One access block, at the east end, with a bridge beyond it: taquilla at the top, torniquetes level with the deck in the channel at its platform edge, and the CL 47 exit below. The west end has nothing — the drawing simply starts at Vagon 2.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "CL 47",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0068": {
+      "source": "Plano de ubicacion, Estacion Paloquemao, version noviembre de 2024.",
+      "why": "A bridge at the west end and one access block: the AV. Calle 19 exit at the top, torniquetes level with the deck in the channel at its platform edge, and a taquilla below. Nothing at the east end.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "AV. Calle 19",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0016": {
+      "source": "Plano de ubicacion, Estacion Calle 85 - GATO DUMAS, version febrero de 2025.",
+      "why": "The bridge lands in the MIDDLE of the station, between Vagon 3 and Vagon 2, with an access block either side and both exits onto Calle 85 — the western one at the foot of its block, the eastern one at the head of its. Each block has torniquetes level with the deck and no taquilla of its own: the sheet draws a taquilla at each END of the bridge instead, above and below the platforms, where the drawing has no row for them.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "4"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 85",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 85",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0065": {
+      "source": "Plano de ubicacion, Estacion Universidad Nacional, version noviembre de 2024.",
+      "why": "A bridge at each end with an access block inside it, and the two run opposite ways: the western has the Calle 48 exit at the top and a taquilla below, the eastern a taquilla at the top and the Calle 45 A exit below. Torniquetes level with the deck in the channel at each platform edge.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 48",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 45 A",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
         }
       ]
     }
