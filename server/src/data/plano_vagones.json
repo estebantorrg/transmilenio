@@ -2029,6 +2029,128 @@
           ]
         }
       ]
+    },
+    "TM0108": {
+      "source": "Plano de ubicacion, Estacion Restrepo, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and every service the catalog lists is drawn. The two letters map cleanly — B is Vagon 2, A is Vagon 1. Route 3 boards both edges of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "B13",
+                "C17",
+                "D20"
+              ],
+              "abajo": [
+                "H13",
+                "H17",
+                "H20"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "3",
+                "J76",
+                "K54"
+              ],
+              "abajo": [
+                "3",
+                "H54",
+                "H76"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0122": {
+      "source": "Plano de ubicacion, Estacion Universidades - CityU, version abril de 2026.",
+      "why": "ONE platform, two vagones. The sheet draws route 6 twice — above Vagon 2 and below Vagon 1 — and the catalog does not run 6 at this station, so it is not recorded; route 1, on the other two edges, is. C73 sits above Vagon 1. The pedestrian tunnel to Las Aguas leaves the east end and is drawn under the plan rather than in it.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D24"
+              ],
+              "abajo": [
+                "1",
+                "H76",
+                "J76"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "1",
+                "C73",
+                "B74"
+              ],
+              "abajo": [
+                "J24",
+                "J73",
+                "J74"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0015": {
+      "source": "Plano de ubicacion, Estacion Heroes - Colmena Seguros, version febrero de 2026.",
+      "why": "ONE platform, three vagones, services on both edges, and every service the catalog lists is drawn. The three letters map cleanly — C is Vagon 3, B is Vagon 2, A is Vagon 1. FOUR numbered tiles here, not two: 8 above Vagon 3, 4 and 8 below Vagon 2, 4 above Vagon 1, so no rule about a single numbered route can name them and they were read off the sheet.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "8",
+                "B50",
+                "B55",
+                "B74"
+              ],
+              "abajo": [
+                "C50",
+                "F26",
+                "G11"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B11",
+                "B26",
+                "B27"
+              ],
+              "abajo": [
+                "4",
+                "8",
+                "D55"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "4",
+                "B75"
+              ],
+              "abajo": [
+                "H27",
+                "H75",
+                "J74"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -3528,6 +3650,143 @@
         },
         {
           "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0108": {
+      "source": "Plano de ubicacion, Estacion Restrepo, version noviembre de 2024.",
+      "why": "An access block at each end, no bridges, and the two run opposite ways: the northern one has the Calle 19 Sur exit at the top and a taquilla below, the southern one a taquilla at the top and the CL 22 Sur exit below. Torniquetes level with the deck in the channel at each platform edge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 19 Sur",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "CL 22 Sur",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0122": {
+      "source": "Plano de ubicacion, Estacion Universidades - CityU, version abril de 2026.",
+      "why": "One access block, at the west end: taquilla at the top, torniquetes level with the deck in the channel, and the Cr. 3 Calle 22 exit below. The east end has no block — it has the tunnel to Las Aguas, with its own stairs, which the drawing carries as a link beneath rather than as a column.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Cr. 3 Calle 22",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0015": {
+      "source": "Plano de ubicacion, Estacion Heroes - Colmena Seguros, version febrero de 2026.",
+      "why": "The bridge lands between Vagon 2 and Vagon 1, with an access block either side of it and both exits onto Calle 80. The western block is mirrored — platform on its left — and carries a taquilla at the top with its exit below, pointing east at the bridge; the eastern block has its exit at the top pointing west at the bridge and its torniquetes level with the deck.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "arriba": [
+            "taquilla"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 80",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 80",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ]
         },
         {
           "t": "vagones",
