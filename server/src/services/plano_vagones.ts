@@ -223,6 +223,23 @@ export interface PlanoDetalle {
    *  different furniture — so they carry one set of columns per layout row
    *  instead of one shared set. */
   filas?: Array<{ columnas: PlanoColumna[] }>;
+  /** The zonal bay strip, where the sheet draws one beside the platform. */
+  zonal?: PlanoZonal;
+}
+
+/**
+ * A strip of zonal bays drawn beside the troncal platform, in sheet order.
+ *
+ * Calle 40 Sur draws four bays under its platform; Molinos draws its whole
+ * Estación Intermedia above it and at an angle. They are not vagones — no
+ * troncal código, different ground — so they are held apart from `columnas`.
+ */
+export interface PlanoZonal {
+  nombre?: string;
+  items: Array<
+    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
+    | { t: 'equipo'; iconos?: string[]; nota?: string }
+  >;
 }
 
 const PLANO_FILE: {

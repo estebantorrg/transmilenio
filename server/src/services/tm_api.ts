@@ -612,9 +612,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // the same rule the layout above follows.
       const detalleRead = planoDetalle(station.codigo);
       const detalleOut: PlanoDetalle | undefined = detalleRead
-        ? detalleRead.filas
-          ? { filas: detalleRead.filas }
-          : { columnas: detalleRead.columnas }
+        ? {
+            ...(detalleRead.filas ? { filas: detalleRead.filas } : { columnas: detalleRead.columnas }),
+            ...(detalleRead.zonal ? { zonal: detalleRead.zonal } : {}),
+          }
         : undefined;
       if (layout) {
         const claimed = layoutServices(layout);

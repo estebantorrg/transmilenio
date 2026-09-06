@@ -131,6 +131,16 @@ export interface CatalogStation {
      *  platform, different furniture — so they carry one set of columns per
      *  layout row instead of one shared set. */
     filas?: Array<{ columnas: CatalogPlanoColumna[] }>;
+    /** The zonal bay strip, where the sheet draws one beside the platform —
+     *  Calle 40 Sur's four bays, Molinos's Estación Intermedia. Not vagones:
+     *  no troncal código, different ground, so they are drawn apart. */
+    zonal?: {
+      nombre?: string;
+      items: Array<
+        | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
+        | { t: 'equipo'; iconos?: string[]; nota?: string }
+      >;
+    };
   };
   /** Wagon key → the number printed on that platform's sign ("Vagón 3"), for the
    *  platforms where the official plano's plate count backs the catalog's own

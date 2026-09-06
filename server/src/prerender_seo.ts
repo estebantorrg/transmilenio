@@ -518,6 +518,19 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-conv-tag{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45)}
 #seo-prerender .pdt-conv{display:inline-flex;align-items:center;gap:5px}
 #seo-prerender .pdt-conv-txt{font-size:.72rem;color:rgba(255,255,255,.7)}
+#seo-prerender .pdz{margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}
+#seo-prerender .pdz-tag{display:block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45);margin-bottom:5px}
+#seo-prerender .pdz-strip{display:flex;align-items:stretch;gap:2px;overflow-x:auto;background:rgba(255,255,255,.06);border-radius:3px;padding:5px}
+#seo-prerender .pdz-item{display:flex;align-items:center;gap:5px;padding:3px 5px;flex:0 0 auto}
+#seo-prerender .pdz-bahia{flex-direction:column;align-items:flex-start;gap:3px;min-width:64px}
+#seo-prerender .pdz-borde{display:block;align-self:stretch;height:3px;border-radius:2px;background:rgba(255,255,255,.45)}
+#seo-prerender .pdz-ruta{display:inline-flex;align-items:center;gap:4px}
+#seo-prerender .pdz-barra{width:3px;align-self:stretch;min-height:15px;border-radius:1px;background:#2f7d32}
+#seo-prerender .pdz-ruta-txt{display:flex;flex-direction:column;line-height:1.15;font-size:.68rem;color:rgba(255,255,255,.7)}
+#seo-prerender .pdz-ruta-txt b{font-size:.72rem;color:#fff}
+#seo-prerender .pdz-destino{color:rgba(255,255,255,.45)}
+#seo-prerender .pdz-nota{font-size:.62rem;color:rgba(255,255,255,.45);max-width:110px;line-height:1.2}
+#seo-prerender .pdz-iconos{display:inline-flex;gap:3px}
 @media (max-width:560px){#seo-prerender .vg{flex-basis:170px;min-width:170px}}
 /* ── El rutero ──────────────────────────────────────────────────────────────
    The bus's own LED destination sign. The frame is its black bezel; the sign

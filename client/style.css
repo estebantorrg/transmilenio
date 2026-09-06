@@ -2974,6 +2974,108 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-secondary);
 }
 
+/* ── The zonal bays ──────────────────────────────────────────────────────
+   Some sheets draw two facilities: the troncal platform, and a strip of bays
+   where the zonal buses stop. Calle 40 Sur puts four under its platform;
+   Molinos draws its whole Estación Intermedia above it, at an angle. They are
+   not vagones — no troncal código, different ground — so they get their own
+   strip below the drawing, in the sheet's order, each bay naming what uses it.
+   The strip scrolls with the drawing above it rather than wrapping: a bay is
+   read in sequence, and a wrapped one reads as a second platform. */
+.pdz {
+  margin-top: calc(8px * var(--tm-scale, 1));
+  padding-top: calc(7px * var(--tm-scale, 1));
+  border-top: 1px solid var(--border-subtle);
+}
+
+.pdz-tag {
+  display: block;
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-tertiary);
+  margin-bottom: calc(5px * var(--tm-scale, 1));
+}
+
+.pdz-strip {
+  display: flex;
+  align-items: stretch;
+  gap: calc(2px * var(--tm-scale, 1));
+  overflow-x: auto;
+  background: var(--plano-deck, rgba(255, 255, 255, 0.06));
+  border-radius: calc(3px * var(--tm-scale, 1));
+  padding: calc(5px * var(--tm-scale, 1));
+}
+
+.pdz-item {
+  display: flex;
+  align-items: center;
+  gap: calc(5px * var(--tm-scale, 1));
+  padding: calc(3px * var(--tm-scale, 1)) calc(5px * var(--tm-scale, 1));
+  flex: 0 0 auto;
+}
+
+/* The bay itself: the sheet marks it with a door on the platform edge, so the
+   plan marks it with the same edge — a rule along the top of the cell. */
+.pdz-bahia {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: calc(3px * var(--tm-scale, 1));
+  min-width: calc(64px * var(--tm-scale, 1));
+}
+
+.pdz-borde {
+  display: block;
+  align-self: stretch;
+  height: calc(3px * var(--tm-scale, 1));
+  border-radius: calc(2px * var(--tm-scale, 1));
+  background: var(--text-tertiary);
+}
+
+.pdz-ruta {
+  display: inline-flex;
+  align-items: center;
+  gap: calc(4px * var(--tm-scale, 1));
+}
+
+.pdz-barra {
+  width: calc(3px * var(--tm-scale, 1));
+  align-self: stretch;
+  min-height: calc(15px * var(--tm-scale, 1));
+  border-radius: 1px;
+  background: #2f7d32;
+}
+
+.pdz-ruta-txt {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  font-size: calc(9px * var(--tm-scale, 1));
+  color: var(--text-secondary);
+}
+
+.pdz-ruta-txt b {
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  color: var(--text-primary);
+}
+
+.pdz-destino {
+  color: var(--text-tertiary);
+}
+
+.pdz-nota {
+  font-size: calc(8.5px * var(--tm-scale, 1));
+  color: var(--text-tertiary);
+  max-width: calc(110px * var(--tm-scale, 1));
+  line-height: 1.2;
+}
+
+.pdz-iconos {
+  display: inline-flex;
+  gap: calc(3px * var(--tm-scale, 1));
+}
+
 /* ── The way out on foot ─────────────────────────────────────────────────
    A pedestrian tunnel is the one thing on a plano that is not part of the
    station: it is how you leave it for another one. Ricaurte and Av. Jiménez

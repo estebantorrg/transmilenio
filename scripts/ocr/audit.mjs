@@ -65,7 +65,7 @@ for (const code of Object.keys(p.detalle)) {
   // two closing divs cut the channel off and reported it missing.
   // Only the drawing: the key that follows it carries the same icons, and the
   // last column's slice ran straight into it and counted them twice.
-  const grid = h.split('<div class="pdt-convenciones"')[0];
+  const grid = h.split('<div class="pdz"')[0].split('<div class="pdt-convenciones"')[0];
   const blocks = grid.split('<div class="pdt-col ').slice(1).filter((x) => x.startsWith('pdt-vestibulo'));
   const dataBlocks = columnas.filter((c) => c.t === 'vestibulo');
   if (blocks.length !== dataBlocks.length) say('rendered ' + blocks.length + ' blocks, data has ' + dataBlocks.length);
@@ -93,10 +93,24 @@ for (const code of Object.keys(p.detalle)) {
     if (!!(br.sube ?? []).length !== has) say('bridge ' + i + ': access drawn ' + has + ', data says ' + !!(br.sube ?? []).length);
   }
 
+  // the zonal bay strip, where the sheet draws one
+  const zonal = D.zonal?.items ?? [];
+  const strip = h.split('<div class="pdz-strip">')[1]?.split('</div></div>')[0] ?? '';
+  const drawnBahias = (strip.match(/pdz-item pdz-bahia/g) ?? []).length;
+  const wantBahias = zonal.filter((i) => i.t === 'bahia').length;
+  if (drawnBahias !== wantBahias) say(drawnBahias + ' zonal bays drawn, data has ' + wantBahias);
+  for (const it of zonal) {
+    for (const r of it.rutas ?? []) {
+      if (!strip.includes('<b>' + r.codigo + '</b>')) say('zonal route "' + r.codigo + '" not drawn');
+      if (r.destino && !strip.includes('>' + r.destino + '<')) say('zonal destination "' + r.destino + '" not drawn');
+    }
+  }
+
   // the key names exactly what was drawn
   const key = [...h.matchAll(/pdt-conv-txt">([^<]+)/g)].map((m) => m[1]);
   const drawn = new Set([...grid.matchAll(/pdt-icono" role="img" aria-label="([^"]+)"/g)].map((m) => m[1]));
   if (grid.includes('pdt-canal')) drawn.add('Rampa peatonal');
+  for (const l of strip.matchAll(/pdt-icono" role="img" aria-label="([^"]+)"/g)) drawn.add(l[1]);
   for (const k of key) if (!drawn.has(k)) say('key names "' + k + '" which is not drawn');
   for (const d of drawn) if (!key.includes(d)) say('"' + d + '" drawn but missing from the key');
 }

@@ -470,11 +470,63 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
   );
 }
 
-function convencionesHtml(columnas) {
+/**
+ * The zonal bay strip, where the sheet draws one.
+ *
+ * Some stations are two facilities on one sheet: the troncal platform, and
+ * beside it a strip of bays where the zonal buses stop — Calle 40 Sur draws
+ * four of them under its platform, Molinos draws its whole Estación Intermedia
+ * above and at an angle. The bays are the useful half for anyone changing to a
+ * zonal service, and the drawing above cannot hold them: they are not vagones,
+ * they carry no troncal código, and they are on a different piece of ground.
+ * So they get their own strip, in the order the sheet lays them out, each bay
+ * naming the services that use it. The angle Molinos is drawn at is not kept —
+ * the plan never claimed to hold real geometry.
+ */
+function zonalHtml(zonal) {
+  const items = zonal?.items ?? [];
+  if (items.length === 0) return '';
+  const cells = items
+    .map((it) => {
+      if (it.t === 'bahia') {
+        const rutas = it.llegada
+          ? '<span class="pdz-ruta pdz-llegada">' + iconHtml('zonal') +
+            '<span class="pdz-ruta-txt">Llegada de pasajeros</span></span>'
+          : (it.rutas ?? [])
+              .map(
+                (r) =>
+                  '<span class="pdz-ruta"><span class="pdz-barra" aria-hidden="true"></span>' +
+                  '<span class="pdz-ruta-txt"><b>' + escapeHtml(r.codigo) + '</b>' +
+                  (r.destino ? '<span class="pdz-destino">' + escapeHtml(r.destino) + '</span>' : '') +
+                  '</span></span>'
+              )
+              .join('');
+        return '<div class="pdz-item pdz-bahia"><span class="pdz-borde" aria-hidden="true"></span>' + rutas + '</div>';
+      }
+      return (
+        '<div class="pdz-item pdz-equipo">' +
+        '<span class="pdz-iconos">' + (it.iconos ?? []).map(iconHtml).join('') + '</span>' +
+        (it.nota ? '<span class="pdz-nota">' + escapeHtml(it.nota) + '</span>' : '') +
+        '</div>'
+      );
+    })
+    .join('');
+  return (
+    '<div class="pdz" role="group" aria-label="' +
+    escapeHtml(zonal.nombre ? 'Bahías zonales: ' + zonal.nombre : 'Bahías de servicio zonal') + '">' +
+    (zonal.nombre ? '<span class="pdz-tag">' + escapeHtml(zonal.nombre) + '</span>' : '') +
+    '<div class="pdz-strip">' + cells + '</div></div>'
+  );
+}
+
+function convencionesHtml(columnas, zonal) {
   const seen = [];
   const add = (names) => {
     for (const n of names ?? []) if (ICONOS[n] && seen.indexOf(n) < 0) seen.push(n);
   };
+  for (const it of zonal?.items ?? []) {
+    if (it.t === 'bahia') { if (it.llegada) add(['zonal']); } else add(it.iconos);
+  }
   for (const col of columnas) {
     if (col.t === 'vestibulo') {
       add(col.arriba);
@@ -658,7 +710,8 @@ export function buildSheetPlano(input) {
       html:
         '<div class="popup-plano popup-plano-detalle" role="group" aria-label="Plano de la estación" tabindex="0">' +
         '<div class="popup-plano-inner">' + bloques.join(dividerHtml) + '</div></div>' +
-        convencionesHtml(filas.flatMap((f) => f.columnas ?? [])),
+        zonalHtml(input.detalle?.zonal) +
+        convencionesHtml(filas.flatMap((f) => f.columnas ?? []), input.detalle?.zonal),
       detallado: true,
       placed,
     };
@@ -690,7 +743,8 @@ export function buildSheetPlano(input) {
       '</div></div>' +
       // OUTSIDE the scroller. Inside it, the key scrolled away with the drawing
       // — at Av. Chile, reading the right-hand end left the marks unexplained.
-      convencionesHtml(columnas);
+      zonalHtml(input.detalle?.zonal) +
+      convencionesHtml(columnas, input.detalle?.zonal);
     return { html, detallado: true, placed };
   }
 

@@ -4554,7 +4554,7 @@
     },
     "TM0115": {
       "source": "Plano de ubicacion, Estacion Molinos, version noviembre de 2024.",
-      "why": "An access block at each end and a bridge beyond the eastern one. Neither block carries a taquilla — this sheet draws none on the troncal platform at all — so each is just its exit and its torniquetes: KR 9 at the top of the western block, KR 7 at the foot of the eastern one, with the torniquetes level with the deck in the channel at each platform edge.",
+      "why": "An access block at each end and a bridge beyond the eastern one. Neither block carries a taquilla — this sheet draws none on the troncal platform at all — so each is just its exit and its torniquetes: KR 9 at the top of the western block, KR 7 at the foot of the eastern one, with the torniquetes level with the deck in the channel at each platform edge. The taquilla is on the OTHER facility: above the troncal platform the sheet draws the Estacion Intermedia Molinos, Plataforma 1, at an angle, and that is drawn here as its own strip — torniquetes at its west end, the arrivals bay, the two ramps signed Acceso a la Est. Intermedia Molinos, then the bays for 4-3 Molinos II, 4-1 Bochica with HH728, and 4-2 Diana Turbay, and at its east end the TransMiBici parking and the taquilla. The angle is not kept; the plan never claimed to hold real geometry.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -4597,7 +4597,67 @@
         {
           "t": "puente"
         }
-      ]
+      ],
+      "zonal": {
+        "nombre": "Estación intermedia Molinos · Plataforma 1",
+        "items": [
+          {
+            "t": "equipo",
+            "iconos": [
+              "torniquete"
+            ]
+          },
+          {
+            "t": "bahia",
+            "llegada": true
+          },
+          {
+            "t": "equipo",
+            "iconos": [
+              "rampa",
+              "rampa"
+            ],
+            "nota": "Acceso a la Est. Intermedia Molinos"
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "4-3",
+                "destino": "Molinos II"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "HH728"
+              },
+              {
+                "codigo": "4-1",
+                "destino": "Bochica"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "4-2",
+                "destino": "Diana Turbay"
+              }
+            ]
+          },
+          {
+            "t": "equipo",
+            "iconos": [
+              "bici",
+              "taquilla"
+            ]
+          }
+        ]
+      }
     },
     "TM0121": {
       "source": "Plano de ubicacion, Estacion Las Aguas - Centro Colombo Americano, version noviembre de 2025.",
@@ -5547,7 +5607,7 @@
     },
     "TM0111": {
       "source": "Plano de ubicacion, Estacion Calle 40 Sur, version junio de 2025.",
-      "why": "An access block at each end and three vagones between them, with a crossing between each neighbouring pair. The blocks are mirrored: west has the Calle 36 Sur exit at the top and the taquilla below, east has the taquilla at the top and the Calle 41 Sur exit below, and both keep their torniquetes on the channel against the deck. No bridge. The sheet also draws, below the platform and separate from it, the zonal bay strip — its own torniquetes, taquilla, stairs and ramp, and four bays for 7-1 Uribe Uribe, 7-3 Ingles and 7-2 Tunal plus an arrivals bay. That is a different facility from the troncal platform this drawing is of, and it is not drawn here.",
+      "why": "An access block at each end and three vagones between them, with a crossing between each neighbouring pair. The blocks are mirrored: west has the Calle 36 Sur exit at the top and the taquilla below, east has the taquilla at the top and the Calle 41 Sur exit below, and both keep their torniquetes on the channel against the deck. No bridge. Below the platform and separate from it the sheet draws the zonal bay strip, which is drawn here too: torniquetes at its west end, then the bays for 7-1 Uribe Uribe (A.M. and P.M. at the same door), 7-3 Ingles and 7-2 Tunal, a taquilla, the arrivals bay, and at its east end torniquetes with a staircase, a ramp and a second staircase.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -5600,7 +5660,67 @@
             "torniquete"
           ]
         }
-      ]
+      ],
+      "zonal": {
+        "items": [
+          {
+            "t": "equipo",
+            "iconos": [
+              "torniquete"
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "7-1",
+                "destino": "Uribe Uribe A.M."
+              },
+              {
+                "codigo": "7-1",
+                "destino": "Uribe Uribe P.M."
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "7-3",
+                "destino": "Inglés"
+              }
+            ]
+          },
+          {
+            "t": "bahia",
+            "rutas": [
+              {
+                "codigo": "7-2",
+                "destino": "Tunal"
+              }
+            ]
+          },
+          {
+            "t": "equipo",
+            "iconos": [
+              "taquilla"
+            ]
+          },
+          {
+            "t": "bahia",
+            "llegada": true
+          },
+          {
+            "t": "equipo",
+            "iconos": [
+              "torniquete",
+              "escalera",
+              "rampa",
+              "escalera"
+            ]
+          }
+        ]
+      }
     },
     "TM0069": {
       "source": "Dos planos: \"E | Estacion Ricaurte\" (NQS Central, diciembre 2025) y \"F | Estacion Ricaurte\" (Americas, agosto 2026).",
