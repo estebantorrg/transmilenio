@@ -1836,6 +1836,75 @@
           ]
         }
       ]
+    },
+    "TM0085": {
+      "source": "Plano de ubicacion, Estacion Biblioteca Tintal, version agosto de 2026.",
+      "why": "ONE platform, two vagones, services on both edges — and numbered the other way round from most of the network: Vagon 1 is the WESTERN half and Vagon 2 the eastern, so the numbers rise left to right rather than falling. The catalog's two letters map cleanly onto that (A is Vagon 1, B is Vagon 2) and every service it lists is drawn. Route 5 boards both edges of Vagon 1.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "5",
+                "F19",
+                "F28"
+              ],
+              "abajo": [
+                "5",
+                "B26",
+                "B28"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "F23",
+                "F26",
+                "F51"
+              ],
+              "abajo": [
+                "C19",
+                "J23",
+                "M51"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0079": {
+      "source": "Plano de ubicacion, Estacion Pradera - Plaza Central, version agosto de 2026.",
+      "why": "ONE platform, two vagones. The catalog's two letters map cleanly (B is Vagon 2, A is Vagon 1); F63 sits in wagon \"0\" with no platform at all and only the sheet places it, on the southbound edge of Vagon 2. Route 5 boards both edges of Vagon 2. The sheet ALSO draws Z63 on Vagon 2's northbound edge, and the catalog does not run Z63 at this station — it is a real route elsewhere on the network, so this is the sheet and the catalog disagreeing rather than a misprint. It is not recorded: drawing a service the station does not run is the one disagreement that invalidates a plano.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "5"
+              ],
+              "abajo": [
+                "5",
+                "F63"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "F23",
+                "F51"
+              ],
+              "abajo": [
+                "M51",
+                "J23"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -3120,6 +3189,92 @@
             "rampa",
             "taquilla"
           ]
+        }
+      ]
+    },
+    "TM0085": {
+      "source": "Plano de ubicacion, Estacion Biblioteca Tintal, version agosto de 2026.",
+      "why": "An access block at each end, and the taquilla in each sits at the block's OUTER corner, clear of the platform — not beside the vagones the way most sheets draw it. The two are diagonally opposite: west block taquilla at the top with the Calle 26 Sur exit under it, east block exit at the top with the Calle 2 taquilla under that. The torniquetes are level with the deck in the channel between block and platform.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "salidas": [
+            {
+              "calle": "Calle 26 Sur",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 2",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0079": {
+      "source": "Plano de ubicacion, Estacion Pradera - Plaza Central, version agosto de 2026.",
+      "why": "A bridge at the west end and one access block, and nothing at the east — the drawing stops after Vagon 1. The block carries the Cra. 65 exit at the top, the torniquetes level with the deck in the channel at its platform edge, and a taquilla below.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Cra. 65",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
         }
       ]
     }

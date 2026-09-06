@@ -569,7 +569,13 @@ function matchCodigo(texts, candidates) {
   // fragment "23", and the fragment is not what the tile says.
   tried.sort((a, b) => a.d - b.d || b.tok.length - a.tok.length || b.margin - a.margin);
   const best = tried[0];
-  const limit = best.cand.length <= 2 ? 0.51 : 1.01;
+  // Only substitutions this OCR is KNOWN to make may pass, and at most two of
+  // them: those cost a quarter each, a genuine misreading costs a whole one.
+  // A whole one used to be allowed, and Pradera paid for it — its Z63 sits one
+  // substitution from F63, both are red, and the tile was quietly filed as the
+  // wrong route on the wrong edge. A chip nobody can read is a note for a
+  // person; a chip read wrongly is a rider on the wrong platform.
+  const limit = best.cand.length <= 2 ? 0.26 : 0.6;
   if (best.d > limit || best.margin < 0.7) return { value: null, best };
   return { value: best.cand, d: best.d, tok: best.tok };
 }
