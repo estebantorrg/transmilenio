@@ -524,6 +524,17 @@ function zonalHtml(zonal) {
   );
 }
 
+/**
+ * What to call a platform on its plate.
+ *
+ * "Vagón 3" wherever the sheet prints a number, which is almost everywhere.
+ * Banderas is the exception: it signs its eight boarding zones T1 to T8 and
+ * prints no "Vagón" anywhere, and the catalog keys them the same way — so a
+ * name that is not a bare number is printed as it stands rather than as the
+ * doubled "Vagón T7".
+ */
+const nombreVagon = (v) => (/^\d+$/.test(String(v)) ? 'Vagón ' + v : String(v));
+
 function convencionesHtml(columnas, zonal) {
   const seen = [];
   const add = (names) => {
@@ -652,10 +663,14 @@ export function buildSheetPlano(input) {
             ? '<div class="pvg-group"><div class="popup-route-tags">' + formatTags(members, tagOpts, true) + '</div></div>'
             : '';
         const cell =
-          '<section class="pvg" aria-label="Vagón ' + escapeHtml(vagon.vagon) + '">' +
+          // "Vagón 3" where the plate is a number, but Banderas signs its eight
+          // boarding zones T1 to T8 and prints no "Vagón" anywhere on the
+          // sheet, so a name that is not a bare number is printed as it stands
+          // rather than as "Vagón T7".
+          '<section class="pvg" aria-label="' + escapeHtml(nombreVagon(vagon.vagon)) + '">' +
           '<div class="pvg-side pvg-side-a">' + tags(above) + '</div>' +
           '<div class="pvg-deck"><span class="pvg-doors" aria-hidden="true"></span>' +
-          '<div class="pvg-plate"><span class="pvg-name">Vagón ' + escapeHtml(vagon.vagon) + '</span>' +
+          '<div class="pvg-plate"><span class="pvg-name">' + escapeHtml(nombreVagon(vagon.vagon)) + '</span>' +
           '<span class="pvg-sub" data-n="' + count + '">' + count + '</span></div>' +
           '<span class="pvg-doors" aria-hidden="true"></span></div>' +
           '<div class="pvg-side pvg-side-b">' + tags(below) + '</div>' +

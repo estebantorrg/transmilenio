@@ -5324,6 +5324,114 @@
           ]
         }
       ]
+    },
+    "TM0031": {
+      "source": "Plano de ubicacion, Estacion Terminal, version noviembre de 2025.",
+      "why": "The true island: ONE vagon, seen from both carriageways, so the sheet draws it twice — once above the concourse and once below — and prints \"Vagon 1\" on each. Both catalog letters straddle the pair, A holding 8, B11 and B16 on the northbound side with 8, G11 and L18 on the southbound, B holding B16 and B18 against K16 and L18, so neither letter is a platform and the count gate refuses the numbering. B55 and D55 are filed here and drawn on neither side.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "arriba": [
+                "8",
+                "B11",
+                "B16",
+                "B18"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "1",
+              "abajo": [
+                "8",
+                "G11",
+                "K16",
+                "L18"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0083": {
+      "source": "Plano de ubicacion, Estacion Banderas, version agosto de 2026.",
+      "why": "An interchange, not a platform: EIGHT boarding zones along one stepped concourse, four on the northern edge and four on the southern, and the catalog names them the way the signs do — T1 to T8 rather than Vagon 1 to 8. They pair off across the concourse, T7 against T8 at the west end through to T1 against T2 at the east, and every letter lands exactly: T7 is 5 and F51, T5 is F28 and F32, T3 is F23 and F60, T1 is F19 and F26; T8 is B26 and B28, T6 is 5 and A60 (the catalog splits it as T6A and T6B), T4 is J23 and M51, T2 is C19 and E32. The catalog's unlettered wagon \"0\" holds F63 and Z63, and the sheet places both — Z63 on T7, F63 on T6. The sheet prints no \"Vagon\" plate at all, so the plate count is zero and no A-to-1 numbering is published; the T names are printed as they stand.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T7",
+              "arriba": [
+                "5",
+                "F51",
+                "Z63"
+              ]
+            },
+            {
+              "vagon": "T5",
+              "arriba": [
+                "F28",
+                "F32"
+              ]
+            },
+            {
+              "vagon": "T3",
+              "arriba": [
+                "F23",
+                "F60"
+              ]
+            },
+            {
+              "vagon": "T1",
+              "arriba": [
+                "F19",
+                "F26"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T8",
+              "abajo": [
+                "B26",
+                "B28"
+              ]
+            },
+            {
+              "vagon": "T6",
+              "abajo": [
+                "5",
+                "A60",
+                "F63"
+              ]
+            },
+            {
+              "vagon": "T4",
+              "abajo": [
+                "J23",
+                "M51"
+              ]
+            },
+            {
+              "vagon": "T2",
+              "abajo": [
+                "C19",
+                "E32"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -11729,6 +11837,200 @@
           ]
         }
       ]
+    },
+    "TM0031": {
+      "source": "Plano de ubicacion, Estacion Terminal, version noviembre de 2025.",
+      "why": "A pedestrian bridge at the west end, then the concourse between the two carriageways and the island platform east of it. The concourse is the whole access: the Calle 192 exit at its top with the northbound torniquetes beside it, and below them the taquilla with the southbound torniquetes. It is also the only way across, which is why the crossing marks are on it rather than between vagones — there is only one vagon to cross to. West of the bridge the sheet draws the bus retorno loop, which is roadway and not part of the station.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 192",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "arriba": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla",
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "1",
+          "abajo": "1"
+        }
+      ]
+    },
+    "TM0083": {
+      "source": "Plano de ubicacion, Estacion Banderas, version agosto de 2026.",
+      "why": "Three facilities on one sheet. The middle one is the troncal concourse: a pedestrian bridge at its west end, then the access block — taquilla above, torniquetes level with the platforms, TransMiBici below and the DG. 6b exit at its foot — and then the eight boarding zones in four pairs. The sheet draws NO crossing between those pairs, because it is one continuous stepped platform rather than four; the one break is between T5/T6 and T3/T4, where a cross-corridor carries a staircase and a priority lift down to the bridge over AV. de las Americas. North and south of the troncal platform the sheet draws a zonal platform each, and both are drawn here with their bays. The evacuation route the sheet marks across the concourse is a direction, not a piece of furniture, and is not drawn.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "DG. 6b",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "bici"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "T7",
+          "abajo": "T8"
+        },
+        {
+          "t": "vagones",
+          "arriba": "T5",
+          "abajo": "T6"
+        },
+        {
+          "t": "vestibulo",
+          "paso": false,
+          "centro": [
+            "escalera",
+            "ascensor"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "T3",
+          "abajo": "T4"
+        },
+        {
+          "t": "vagones",
+          "arriba": "T1",
+          "abajo": "T2"
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Plataforma zonal norte",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "8-3",
+                  "destino": "Castilla"
+                },
+                {
+                  "codigo": "8-5",
+                  "destino": "Biblioteca El Tintal"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "F423",
+                  "destino": "Favidi a.m."
+                },
+                {
+                  "codigo": "F424",
+                  "destino": "Favidi p.m."
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "taquilla",
+                "escalera",
+                "ascensor"
+              ]
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma zonal sur",
+          "items": [
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "F425",
+                  "destino": "Circular Timiza"
+                },
+                {
+                  "codigo": "8-6",
+                  "destino": "Timiza"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "8-2",
+                  "destino": "Hospital Kennedy"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "8-1",
+                  "destino": "Kennedy Central"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "8-4",
+                  "destino": "Corabastos"
+                }
+              ]
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "taquilla",
+                "escalera",
+                "ascensor"
+              ]
+            }
+          ]
+        }
+      ]
     }
+  },
+  "sinDetalle": {
+    "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone."
   }
 }
