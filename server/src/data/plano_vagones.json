@@ -2805,6 +2805,191 @@
           ]
         }
       ]
+    },
+    "TM0022": {
+      "source": "Plano de ubicacion, Estacion Prado, version diciembre de 2025.",
+      "why": "ONE platform, THREE vagones, services on both edges, and the three catalog letters land on them one for one with nothing left over: A is Vagon 1 (B23, B55, B74, D55, K23), B is Vagon 2 (8, J70, J74), C is Vagon 3 (B12, B28, B75, F28, G12, H75). So the catalog numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "B12",
+                "B28",
+                "B75"
+              ],
+              "abajo": [
+                "F28",
+                "G12",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "8"
+              ],
+              "abajo": [
+                "8",
+                "J70",
+                "J74"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B23",
+                "B55",
+                "B74"
+              ],
+              "abajo": [
+                "D55",
+                "K23"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0050": {
+      "source": "Plano de ubicacion, Estacion Avenida 68, version abril de 2025.",
+      "why": "ONE platform, two vagones, services on both edges. A is Vagon 1 and covers it exactly (6, B10, D20, D21, H20); B is Vagon 2, and the sheet puts the catalog's unlettered wagon \"0\" there too — D81 above and L81 below, alongside B's own D10, D22, G22 and H21. So the numbering is right and the sheet places what the catalog left unplaced.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D10",
+                "D22",
+                "D81"
+              ],
+              "abajo": [
+                "G22",
+                "H21",
+                "L81"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D20",
+                "D21"
+              ],
+              "abajo": [
+                "6",
+                "B10",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0112": {
+      "source": "Plano de ubicacion, Estacion Santa Lucia, version noviembre de 2024.",
+      "why": "ONE platform, two vagones, services on both edges, and the two catalog letters cover them exactly: A is Vagon 1 (3, B75, C17, H21, J76), B is Vagon 2 (3, D21, H17, H75, H76). So the numbering is right.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "3",
+                "D21"
+              ],
+              "abajo": [
+                "H17",
+                "H75",
+                "H76"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B75",
+                "C17",
+                "J76"
+              ],
+              "abajo": [
+                "3",
+                "H21"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0095": {
+      "source": "Plano de ubicacion, Estacion Venecia, version diciembre de 2025.",
+      "why": "ONE platform, two vagones. B is Vagon 2 and the sheet covers it exactly (4, A52, E48, and G48 which is S48 in the old Soacha convention). A is Vagon 1 and the sheet covers only part of it — C30 and K43 above, G30 below — leaving D22, G22, G53 and K53 undrawn. Two chips on this sheet are not services at all: G52 under A52, and G43 under K43. A chip whose letter the catalog has no codigo for is the return leg of the chip above it — the catalog files each direction separately, lettered by the corridor that direction heads onto — so it is not drawn. Venecia is the sheet that proves it, because it prints BOTH of them, so they cannot be the one unplaced blue service the colours would otherwise suggest.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "4",
+                "A52",
+                "E48"
+              ],
+              "abajo": [
+                "4",
+                "S48"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "C30",
+                "K43"
+              ],
+              "abajo": [
+                "G30"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0052": {
+      "source": "Plano de ubicacion, Estacion Boyaca, version noviembre de 2024.",
+      "why": "TWO vagones, and the sheet prints only ONE plate for them: \"Vagon 1\" is centred on the JOINT between the two deck slabs rather than on either. What says there are two is everything else — the two slabs, the two chip groups that split exactly at the joint, and the catalog's two wagons that split the same way: A is the eastern slab (6, D20, H20) and B the western (B10, D10, D22, G22). The eastern one carries the printed plate, so it is Vagon 1 and the western is Vagon 2.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "2",
+              "arriba": [
+                "D10",
+                "D22"
+              ],
+              "abajo": [
+                "B10",
+                "G22"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "6",
+                "D20"
+              ],
+              "abajo": [
+                "6",
+                "H20"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -5993,6 +6178,203 @@
               ]
             }
           ]
+        }
+      ]
+    },
+    "TM0022": {
+      "source": "Plano de ubicacion, Estacion Prado, version diciembre de 2025.",
+      "why": "Three vagones with a crossing between each pair, one access block at the north end and the bridge past it. The block carries a taquilla at the top, its torniquetes on the channel against the deck, and the Calle 134A exit at the foot. The south end of the strip is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 134A",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
+        }
+      ]
+    },
+    "TM0050": {
+      "source": "Plano de ubicacion, Estacion Avenida 68, version abril de 2025.",
+      "why": "Two vagones with a crossing between them and a single access block at the east end: taquilla at the top, torniquetes on the channel against the deck, the Cra 68C exit at the foot. The west end is the bare end of the Vagon 2 deck, and there is no bridge.",
+      "columnas": [
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Cra 68C",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        }
+      ]
+    },
+    "TM0112": {
+      "source": "Plano de ubicacion, Estacion Santa Lucia, version noviembre de 2024.",
+      "why": "An access block at each end, mirrored: the northern one has its taquilla at the top and the CL 45 B Sur exit at the foot, the southern one the Diag. 46 Sur exit at the top and its taquilla at the foot. Both keep their torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
+      "columnas": [
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "CL 45 B Sur",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Diag. 46 Sur",
+              "hacia": "der",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        }
+      ]
+    },
+    "TM0095": {
+      "source": "Plano de ubicacion, Estacion Venecia, version diciembre de 2025.",
+      "why": "Everything is at the north end: a pedestrian bridge, then the one access block — the KR 54 exit at the top, torniquetes on the channel, a taquilla at the foot — and then the two vagones with a crossing between them. The south end is the bare end of the Vagon 1 deck. The bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "KR 54",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        }
+      ]
+    },
+    "TM0052": {
+      "source": "Plano de ubicacion, Estacion Boyaca, version noviembre de 2024.",
+      "why": "A pedestrian bridge at the west end, then the one access block — the Av. Boyaca exit at the top, torniquetes on the channel, a taquilla at the foot — and then the platform. The platform is drawn as two slabs meeting at a joint, and the sheet draws NO crossing between them: no channel, no walking figure, just the joint, so none is drawn here either. The east end is bare and the bridge has no way up drawn onto it.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Av. Boyacá",
+              "hacia": "izq",
+              "fila": "arriba"
+            }
+          ],
+          "centro": [
+            "torniquete"
+          ],
+          "abajo": [
+            "taquilla"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
         }
       ]
     }
