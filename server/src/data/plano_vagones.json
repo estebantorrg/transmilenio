@@ -1439,6 +1439,52 @@
           ]
         }
       ]
+    },
+    "TM0018": {
+      "source": "Plano de ubicacion, Estacion Calle 100 - Marketmedios, version junio de 2025.",
+      "why": "ONE platform, three vagones along it — Vagon 3 west, Vagon 2, Vagon 1 east — with services on both of its long edges. The catalog's three wagons map to them cleanly for once: C is Vagon 3, B is Vagon 2, A is Vagon 1, each holding exactly what the sheet draws on that platform and nothing else, so the count gate's A/B/C numbering is right here. The sheet prints G46 where the catalog files S46 — the September 2026 Soacha re-lettering, as at Guatoque and Normandia.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "3",
+              "arriba": [
+                "8",
+                "B27",
+                "B26"
+              ],
+              "abajo": [
+                "D10",
+                "F26"
+              ]
+            },
+            {
+              "vagon": "2",
+              "arriba": [
+                "B10",
+                "B75"
+              ],
+              "abajo": [
+                "8",
+                "S46",
+                "H75"
+              ]
+            },
+            {
+              "vagon": "1",
+              "arriba": [
+                "B12",
+                "B46"
+              ],
+              "abajo": [
+                "G12",
+                "H27"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -2178,6 +2224,69 @@
           "abajo": [
             "taquilla"
           ]
+        }
+      ]
+    },
+    "TM0018": {
+      "source": "Plano de ubicacion, Estacion Calle 100 - Marketmedios, version junio de 2025.",
+      "why": "A bridge at each end and an access block inside each: the taquilla at the top of the block, the torniquetes level with the deck in the channel at its platform edge, and the street exit below — Calle 100 west, Calle 94 east. The eastern block is mirrored, its equipment and its way through on the LEFT because that is the end nearest the platform.",
+      "columnas": [
+        {
+          "t": "puente"
+        },
+        {
+          "t": "vestibulo",
+          "salidas": [
+            {
+              "calle": "Calle 100",
+              "hacia": "izq",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "3"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "2"
+        },
+        {
+          "t": "paso"
+        },
+        {
+          "t": "vagones",
+          "arriba": "1"
+        },
+        {
+          "t": "vestibulo",
+          "lado": "der",
+          "salidas": [
+            {
+              "calle": "Calle 94",
+              "hacia": "der",
+              "fila": "abajo"
+            }
+          ],
+          "arriba": [
+            "taquilla"
+          ],
+          "centro": [
+            "torniquete"
+          ]
+        },
+        {
+          "t": "puente"
         }
       ]
     }

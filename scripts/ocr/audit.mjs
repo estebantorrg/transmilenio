@@ -93,4 +93,5 @@ for (const code of Object.keys(p.detalle)) {
   for (const k of key) if (!drawn.has(k)) say('key names "' + k + '" which is not drawn');
   for (const d of drawn) if (!key.includes(d)) say('"' + d + '" drawn but missing from the key');
 }
-console.log(bad ? '\n' + bad + ' problems' : '\nall 16 render exactly what the data says');
+console.log(bad ? '\n' + bad + ' problems'
+  : '\nall ' + Object.keys(p.detalle).length + ' render exactly what the data says');
