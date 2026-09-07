@@ -107,6 +107,9 @@ export interface CatalogStation {
       wagones?: string[];
       vagones: Array<{
         vagon: string;
+        /** True where the sheet draws this boarding zone and does NOT name it
+         *  (Portal El Dorado, Portal 20 de Julio). Drawn with no plate. */
+        sinPlaca?: boolean;
         /** Códigos on each long edge, per vagón: one vagón can serve a single
          *  direction while its neighbour on the same platform serves both. */
         arriba?: string[];

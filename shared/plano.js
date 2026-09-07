@@ -663,15 +663,24 @@ export function buildSheetPlano(input) {
           members.length
             ? '<div class="pvg-group"><div class="popup-route-tags">' + formatTags(members, tagOpts, true) + '</div></div>'
             : '';
+        // "Vagón 3" where the plate is a number, but Banderas signs its eight
+        // boarding zones T1 to T8 and prints no "Vagón" anywhere on the sheet,
+        // so a name that is not a bare number is printed as it stands rather
+        // than as "Vagón T7".
+        //
+        // `sinPlaca` is the third case: a boarding zone the sheet draws and
+        // does NOT name. Portal El Dorado and Portal 20 de Julio each have
+        // two, carrying the services the catalog files under its unlettered
+        // wagon "0". Putting them on the named zone beside them would say a
+        // rider boards K86 at a platform the catalog never associates with it,
+        // and leaving them out would drop a service the sheet plainly draws —
+        // so the zone is drawn with no name on it, which is what the sheet has.
+        const nombre = vagon.sinPlaca ? '' : nombreVagon(vagon.vagon);
         const cell =
-          // "Vagón 3" where the plate is a number, but Banderas signs its eight
-          // boarding zones T1 to T8 and prints no "Vagón" anywhere on the
-          // sheet, so a name that is not a bare number is printed as it stands
-          // rather than as "Vagón T7".
-          '<section class="pvg" aria-label="' + escapeHtml(nombreVagon(vagon.vagon)) + '">' +
+          '<section class="pvg" aria-label="' + escapeHtml(nombre || 'Zona sin número') + '">' +
           '<div class="pvg-side pvg-side-a">' + tags(above) + '</div>' +
           '<div class="pvg-deck"><span class="pvg-doors" aria-hidden="true"></span>' +
-          '<div class="pvg-plate"><span class="pvg-name">' + escapeHtml(nombreVagon(vagon.vagon)) + '</span>' +
+          '<div class="pvg-plate">' + (nombre ? '<span class="pvg-name">' + escapeHtml(nombre) + '</span>' : '') +
           '<span class="pvg-sub" data-n="' + count + '">' + count + '</span></div>' +
           '<span class="pvg-doors" aria-hidden="true"></span></div>' +
           '<div class="pvg-side pvg-side-b">' + tags(below) + '</div>' +

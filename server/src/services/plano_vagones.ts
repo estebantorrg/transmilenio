@@ -52,6 +52,17 @@ export interface PlanoLayoutVagon {
   arriba?: string[];
   abajo?: string[];
   /**
+   * True where the sheet draws this boarding zone and does NOT name it.
+   *
+   * Portal El Dorado and Portal 20 de Julio each have two, carrying the
+   * services the catalog files under its unlettered wagon "0". Putting them on
+   * the named zone beside them would say a rider boards K86 at a platform the
+   * catalog never associates with it; leaving them out would drop a service the
+   * sheet plainly draws. So the deck is drawn with no plate, which is what the
+   * sheet has.
+   */
+  sinPlaca?: boolean;
+  /**
    * código → the destination whose variant boards this vagón, for a código the
    * catalog files more than once here.
    *

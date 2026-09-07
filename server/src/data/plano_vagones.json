@@ -5839,6 +5839,126 @@
           ]
         }
       ]
+    },
+    "TM0135": {
+      "source": "Plano de ubicacion, Portal Eldorado - C.C. NUESTRO BOGOTA, version febrero de 2025.",
+      "why": "A portal with ONE long platform rather than two or three, and its boarding zones alternate between the two edges — so the drawing is two rows, the northern zones above and the southern below. North: an unnamed zone for K86, then T3B (B23), T1 (B16) and T2 (G43). South: T4 (H54), T5 (L10), an unnamed zone for M86, then T6B (route 1). All six catalog platforms are on the sheet. G43 is the old number of G53, which is what the catalog files at T2; the rest of each platform's códigos — K23, K16, K43, K53, S43, K10, K54 — are the Calle 26 legs, which is how those services arrive. K86 and M86 are the two the catalog files under its unlettered wagon \"0\", and the sheet gives their zones no name.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "k86",
+              "sinPlaca": true,
+              "arriba": [
+                "K86"
+              ]
+            },
+            {
+              "vagon": "T3B",
+              "arriba": [
+                "B23"
+              ]
+            },
+            {
+              "vagon": "T1",
+              "arriba": [
+                "B16"
+              ]
+            },
+            {
+              "vagon": "T2",
+              "arriba": [
+                "G53"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T4",
+              "abajo": [
+                "H54"
+              ]
+            },
+            {
+              "vagon": "T5",
+              "abajo": [
+                "L10"
+              ]
+            },
+            {
+              "vagon": "m86",
+              "sinPlaca": true,
+              "abajo": [
+                "M86"
+              ]
+            },
+            {
+              "vagon": "T6B",
+              "abajo": [
+                "1"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0145": {
+      "source": "Plano de ubicacion, Portal 20 de Julio, version noviembre de 2024.",
+      "why": "A portal with ONE island platform, its boarding zones alternating between the two edges — so the drawing is two rows, the northern zones above and the southern below. North: T4 (C25) and T3 (K10). South: T7 (route 2), an unnamed zone for M82, T9 (B18) and a second unnamed zone for D81. All four catalog platforms are on the sheet. What is drawn is the leg a rider boards; L25, L10 and L18 — the Carrera 10 codes the catalog files alongside them — are how those services arrive, and so are L81 and L82, the partners of the D81 and M82 drawn on the unnamed zones. Those two are what the catalog files under its unlettered wagon \"0\", and the sheet gives their zones no name.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T4",
+              "arriba": [
+                "C25"
+              ]
+            },
+            {
+              "vagon": "T3",
+              "arriba": [
+                "K10"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T7",
+              "abajo": [
+                "2"
+              ]
+            },
+            {
+              "vagon": "m82",
+              "sinPlaca": true,
+              "abajo": [
+                "M82"
+              ]
+            },
+            {
+              "vagon": "T9",
+              "abajo": [
+                "B18"
+              ]
+            },
+            {
+              "vagon": "d81",
+              "sinPlaca": true,
+              "abajo": [
+                "D81"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -13851,11 +13971,339 @@
           ]
         }
       ]
+    },
+    "TM0135": {
+      "source": "Plano de ubicacion, Portal Eldorado - C.C. NUESTRO BOGOTA, version febrero de 2025.",
+      "why": "ONE platform, drawn here as two rows because its boarding zones alternate between its two edges — the northern four above, the southern four below. Two of the eight are drawn with NO plate, because the sheet names them nothing: they are where K86 and M86 board, the pair the catalog files under its unlettered wagon \"0\". At the western end an Acceso peatonal and an Entrada lead in past the taquillas; at the eastern end a second Entrada and the pedestrian bridge over AV. El Dorado. The zonal bays run along both outer edges — the northern strip for Engativá and the airport, the southern for Fontibón — each ending in an alimentador arrivals zone. NOT drawn: the C.C. Nuestro Bogotá and Hiper Centro Corora buildings, and the AV. El Dorado carriageways. One bay code needs a note: the sheet prints TC6 San Pablo de Jerico, and no TC6 exists — the catalog has K337, \"San Pablo Jerico\", which terminates at this portal and is the only service with that destination here, so the bay is drawn under the codigo a rider can look up.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vestibulo",
+              "paso": false,
+              "arriba": [
+                "taquilla",
+                "torniquete"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "k86"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T3B"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T1"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T2"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vestibulo",
+              "paso": false,
+              "arriba": [
+                "taquilla",
+                "torniquete"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "T4"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T5"
+            },
+            {
+              "t": "vagones",
+              "arriba": "m86"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T6B"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            }
+          ]
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Costado norte · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-5",
+                  "destino": "Villa Amalia"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-2",
+                  "destino": "Engativá Centro"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-6",
+                  "destino": "La Faena"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-3",
+                  "destino": "Tierra Grata"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-14",
+                  "destino": "Aeropuerto"
+                },
+                {
+                  "codigo": "16-4",
+                  "destino": "El Muelle"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            }
+          ]
+        },
+        {
+          "nombre": "Costado sur · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-10",
+                  "destino": "Villemar"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-9",
+                  "destino": "Fontibón Centro"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-8",
+                  "destino": "Zona Franca"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-7",
+                  "destino": "La Estancia"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "16-12",
+                  "destino": "Belén"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "K337",
+                  "destino": "San Pablo de Jericó"
+                },
+                {
+                  "codigo": "K300",
+                  "destino": "Puente Grande"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0145": {
+      "source": "Plano de ubicacion, Portal 20 de Julio, version noviembre de 2024.",
+      "why": "ONE island platform, drawn here as two rows because its boarding zones alternate between its two edges. TWO pedestrian bridges cross it, and they are what divide the zones: on the northern edge T4 west of the first and T3 between them; on the southern, T7 west of the first, the unnamed M82 zone between them, and T9 and the unnamed D81 zone east of the second. Two of the six zones carry no plate because the sheet names them nothing. The zonal bays are all on the southern platform, eight of them, and one code needs a note: the sheet prints 1420 San Isidro, which is no route — it is L820, whose bar merges into the digits at this resolution and which the catalog files here and names San Isidro. NOT drawn: the Plazoleta IPES and Super CADE concourse south of the platform with its taquilla and Acceso peatonal, the patio taller, and the Plataforma Norte arrivals area.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T4"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T3"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T7"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            },
+            {
+              "t": "vagones",
+              "arriba": "m82"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T9"
+            },
+            {
+              "t": "vagones",
+              "arriba": "d81"
+            }
+          ]
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Plataforma sur · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "L820",
+                  "destino": "San Isidro"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-10",
+                  "destino": "Villa del Cerro"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-8",
+                  "destino": "Altamira"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-7",
+                  "destino": "Península"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-12",
+                  "destino": "Los Libertadores"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-6",
+                  "destino": "Juan Rey"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-9",
+                  "destino": "Tihuaque"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "13-13",
+                  "destino": "Resurrección"
+                }
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "sinDetalle": {
-    "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone.",
-    "TM0135": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island.",
-    "TM0145": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island."
+    "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone."
   }
 }
