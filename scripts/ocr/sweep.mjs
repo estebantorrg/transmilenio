@@ -18,6 +18,7 @@ const c = JSON.parse(readFileSync('../../server/src/data/master_catalog.json', '
 
 let bad = 0;
 const say = (code, m) => { console.log('  x ' + code + ': ' + m); bad++; };
+const notes = [];
 
 /** Every código the catalog files at a station, wagon "0" included. */
 function servicios(code) {
@@ -97,6 +98,31 @@ for (const code of detalle) {
     for (const it of tira.items ?? []) {
       if (it.t === 'bahia' && !it.llegada && !(it.rutas ?? []).length) say(code, 'a zonal bay names nothing');
       for (const n of it.iconos ?? []) if (!ICONOS.includes(n)) say(code, 'unknown zonal icon "' + n + '"');
+      // A bay has to name a real service. That is the hard rule, and the one
+      // that matters: these codes are printed beside a coloured bar four
+      // pixels tall, and reading the bar as part of the code turns H728 into
+      // HH728 — a service that does not exist, on a page that says it does.
+      //
+      // The two SOFTER questions are noted rather than failed. A bay naming a
+      // route the catalog does not file at this station is almost always the
+      // catalog's gap, not the sheet's: the zonal routes are attached to
+      // troncal stations only patchily, and every one flagged so far names
+      // that very station in its own destination. And a destination that
+      // reads differently from the catalog's is usually the SHEET's wording,
+      // which is what this drawing reproduces — Molinos prints "Molinos II"
+      // where the catalog says "Molinos", and the sheet is what a rider is
+      // standing in front of.
+      for (const r of it.rutas ?? []) {
+        if (!c.routes?.[r.codigo]) { say(code, 'zonal bay names "' + r.codigo + '", which is not a route'); continue; }
+        if (!have.has(String(r.codigo).toUpperCase())) {
+          notes.push(code + ': bay ' + r.codigo + ' — catalog files no zonal link here (' +
+            [...new Set(c.routes[r.codigo].map((v) => String(v.nombre)))].join(' / ') + ')');
+        }
+        const nombres = new Set(c.routes[r.codigo].map((v) => String(v.nombre)));
+        if (r.destino && !nombres.has(r.destino)) {
+          notes.push(code + ': bay ' + r.codigo + ' drawn "' + r.destino + '", catalog "' + [...nombres].join(' / ') + '"');
+        }
+      }
     }
   }
 
@@ -144,5 +170,13 @@ for (const [code, st] of Object.entries(c.stations ?? {})) {
 }
 console.log('\nUNACCOUNTED FOR: ' + missing.length);
 for (const m of missing) console.log('  ' + m);
+
+// Noted, not failed: the two questions where the sheet and the catalog may
+// legitimately differ, kept visible so the difference is a decision rather
+// than something nobody looked at.
+if (notes.length) {
+  console.log('\nNOTED — ' + notes.length + ' (sheet and catalog differ; the sheet is what is drawn)');
+  for (const n of notes) console.log('  · ' + n);
+}
 
 console.log(bad ? '\n' + bad + ' problems' : '\nno problems');
