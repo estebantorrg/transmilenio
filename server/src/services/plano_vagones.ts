@@ -132,7 +132,7 @@ export interface PlanoLayout {
    * Absent where nobody has checked: the drawing then separates the platforms
    * without naming what lies between them.
    */
-  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador' | 'tunel';
+  divider?: 'busway' | 'ciclorruta' | 'cano' | 'tren' | 'separador' | 'tunel' | 'puente';
 }
 
 /** One icon a plano draws on an access block. The legend on every sheet. */

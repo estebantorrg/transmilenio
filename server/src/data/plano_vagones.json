@@ -5636,6 +5636,209 @@
           ]
         }
       ]
+    },
+    "TM0045": {
+      "source": "Plano de ubicacion, Portal Suba, version mayo de 2025.",
+      "why": "A portal: TWO platforms carrying EIGHT boarding zones, four each, named as the catalog names them. Plataforma 2 runs T5 (G30), T6 (H17), T7 (L25) and T8 (B50); Plataforma 1 runs T4 (F19), T3 (J73), T2 (route 7) and T1 (H15). All eight catalog platforms are on the sheet and every chip lands on the platform its letter names. What is drawn is the DEPARTING leg: the catalog files C30, C17, C25, C50, C19, C73 and C15 alongside them — the Suba codes, which are how the same services arrive — and a portal has no arrival platform to draw them on.",
+      "divider": "puente",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T5",
+              "arriba": [
+                "G30"
+              ]
+            },
+            {
+              "vagon": "T6",
+              "arriba": [
+                "H17"
+              ]
+            },
+            {
+              "vagon": "T7",
+              "arriba": [
+                "L25"
+              ]
+            },
+            {
+              "vagon": "T8",
+              "arriba": [
+                "B50"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T4",
+              "abajo": [
+                "F19"
+              ]
+            },
+            {
+              "vagon": "T3",
+              "abajo": [
+                "J73"
+              ]
+            },
+            {
+              "vagon": "T2",
+              "abajo": [
+                "7"
+              ]
+            },
+            {
+              "vagon": "T1",
+              "abajo": [
+                "H15"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0087": {
+      "source": "Plano de ubicacion, Estacion Portal Americas, version agosto de 2026.",
+      "why": "A portal with THREE platforms rather than two, carrying eight boarding zones named as the catalog names them. Plataforma 3 runs T8 (B26) and T9 (B28); Plataforma 2 runs T4 (M51), T5 (route 5) and T6 (J23); Plataforma 1 runs T2B (C19), T2A (A60) and T3 (E32). All eight catalog platforms are on the sheet and every chip lands on the platform its letter names. What is drawn is the DEPARTING leg: the catalog files F26, F28, F51, F23, F19, F60 and F32 alongside them — the Americas codes, which are how the same services arrive — and a portal has no arrival platform to draw them on.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T8",
+              "abajo": [
+                "B26"
+              ]
+            },
+            {
+              "vagon": "T9",
+              "abajo": [
+                "B28"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T4",
+              "abajo": [
+                "M51"
+              ]
+            },
+            {
+              "vagon": "T5",
+              "abajo": [
+                "5"
+              ]
+            },
+            {
+              "vagon": "T6",
+              "abajo": [
+                "J23"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T2B",
+              "abajo": [
+                "C19"
+              ]
+            },
+            {
+              "vagon": "T2A",
+              "abajo": [
+                "A60"
+              ]
+            },
+            {
+              "vagon": "T3",
+              "abajo": [
+                "E32"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0099": {
+      "source": "Plano de ubicacion, Portal Sur - JFK Coop Financiera, version noviembre de 2024.",
+      "why": "A portal with THREE platforms, carrying eight of the catalog's nine boarding zones. Plataforma 3 runs T9 (M47) and T7 (A52); Plataforma 2 runs T3 (D22), T5 (B11) and T4 (G45); Plataforma 1 runs T6 (B12), T2 (route 4) and T1 (C30). The ninth, T8, is G53 and K53 — the two directions of one service — and this November 2024 sheet draws it nowhere, which is the same story as every other sheet on that corridor: G53 is newer than they are. What is drawn on the rest is the leg a rider boards; the catalog files G47, G22, G11, S45, G12 and G30 alongside them, the NQS Sur codes, which are how those services arrive.",
+      "rows": [
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T9",
+              "arriba": [
+                "M47"
+              ]
+            },
+            {
+              "vagon": "T7",
+              "arriba": [
+                "A52"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T3",
+              "arriba": [
+                "D22"
+              ]
+            },
+            {
+              "vagon": "T5",
+              "arriba": [
+                "B11"
+              ]
+            },
+            {
+              "vagon": "T4",
+              "arriba": [
+                "G45"
+              ]
+            }
+          ]
+        },
+        {
+          "offset": 0,
+          "vagones": [
+            {
+              "vagon": "T6",
+              "arriba": [
+                "B12"
+              ]
+            },
+            {
+              "vagon": "T2",
+              "arriba": [
+                "4"
+              ]
+            },
+            {
+              "vagon": "T1",
+              "arriba": [
+                "C30"
+              ]
+            }
+          ]
+        }
+      ]
     }
   },
   "printed": {
@@ -13028,14 +13231,631 @@
           ]
         }
       ]
+    },
+    "TM0045": {
+      "source": "Plano de ubicacion, Portal Suba, version mayo de 2025.",
+      "why": "TWO platforms with the pedestrian BRIDGE running the length of the station between them, which is what joins the two — so it is named as the divider rather than drawn as a column, the same way Ricaurte names its tunnel. Neither platform is broken into pieces: its four zones run end to end with no crossing drawn between them, because it is one continuous platform. The zonal bays are all on Plataforma 2's outer edge, ten routes across nine bays with 11-2 and C104 sharing one; Plataforma 1's outer edge is where the zonal buses ARRIVE, and the sheet marks two such areas with no bay numbers. NOT drawn: the Super CADE, the patio taller, the Acceso peatonal building at the south-east corner, and the evacuation routes.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T5"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T6"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T7"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T8"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T4"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T3"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T2"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T1"
+            }
+          ]
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Plataforma 2 · salida de buses zonales",
+          "items": [
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "escalera"
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-10",
+                  "destino": "Bilbao"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-2",
+                  "destino": "San Andrés"
+                },
+                {
+                  "codigo": "C104",
+                  "destino": "Suba Compartir"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-3",
+                  "destino": "Villa María"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-4",
+                  "destino": "Aures"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-5",
+                  "destino": "AV. Cali"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-6",
+                  "destino": "Las Mercedes"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-7",
+                  "destino": "Pinar"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-8",
+                  "destino": "La Gaitana"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "11-9",
+                  "destino": "Lisboa"
+                }
+              ]
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "rampa"
+              ]
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma 1 · llegada de servicios zonales",
+          "items": [
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "rampa"
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "escalera"
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "rampa"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0087": {
+      "source": "Plano de ubicacion, Estacion Portal Americas, version agosto de 2026.",
+      "why": "THREE platforms stacked, and one pedestrian BRIDGE crossing all three at the same point — which is what divides each platform's zones: T8 west of it and T9 east on Plataforma 3; T4 and T5 west, T6 east on Plataforma 2; T2B and T2A west, T3 east on Plataforma 1. The bridge carries stairs and a priority lift down to every platform, and runs on south to the Acceso peatonal beside the Super CADE. Each platform has its zonal bays along the northern edge, with the arrivals zone at the western end. NOT drawn: the patio taller, the Super CADE, the evacuation routes, and the landscaped strips between the platforms.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T8"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal",
+              "sube": [
+                "escalera",
+                "ascensor"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "T9"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T4"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T5"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal",
+              "sube": [
+                "escalera",
+                "ascensor"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "T6"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T2B"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T2A"
+            },
+            {
+              "t": "puente",
+              "nombre": "Puente peatonal",
+              "sube": [
+                "escalera",
+                "ascensor"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "T3"
+            }
+          ]
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Plataforma 3 · buses zonales",
+          "items": [
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "taquilla",
+                "torniquete"
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-8",
+                  "destino": "Porvenir"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-9",
+                  "destino": "Bosa Santafé"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-5",
+                  "destino": "AV. Tintal"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-2",
+                  "destino": "Metrovivienda"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma 2 · buses zonales",
+          "items": [
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "taquilla",
+                "torniquete"
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-11",
+                  "destino": "Franja Seca"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-7",
+                  "destino": "Bosa La Independencia"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-3",
+                  "destino": "Bosa La Libertad"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma 1 · buses zonales",
+          "items": [
+            {
+              "t": "bahia",
+              "llegada": true
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "taquilla",
+                "torniquete"
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-1",
+                  "destino": "Casa Blanca"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-4",
+                  "destino": "Patio Bonito"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "9-10",
+                  "destino": "Roma"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "TM0099": {
+      "source": "Plano de ubicacion, Portal Sur - JFK Coop Financiera, version noviembre de 2024.",
+      "why": "THREE platforms stacked, and one pedestrian TUNNEL crossing all three at the same point — which is what divides each platform's zones: T9 west of it and T7 east on Plataforma 3; T3 and T5 west, T4 east on Plataforma 2; T6 and T2 west, T1 east on Plataforma 1. The tunnel runs on south to the two-floor Acceso peatonal beside the Super CADE, and the sheet marks the Metro Supermercado and the troncal-bus entrances off the eastern end. Each platform's zonal bays run along its southern edge with the alimentador arrivals zone at the eastern end. NOT drawn: the Super CADE and its access building, the El Apogeo block, and the Autopista Sur carriageways.",
+      "filas": [
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T9"
+            },
+            {
+              "t": "puente",
+              "nombre": "Túnel peatonal"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T7"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T3"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T5"
+            },
+            {
+              "t": "puente",
+              "nombre": "Túnel peatonal"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T4"
+            }
+          ]
+        },
+        {
+          "columnas": [
+            {
+              "t": "vagones",
+              "arriba": "T6"
+            },
+            {
+              "t": "vagones",
+              "arriba": "T2"
+            },
+            {
+              "t": "puente",
+              "nombre": "Túnel peatonal",
+              "sube": [
+                "escalera",
+                "rampa"
+              ]
+            },
+            {
+              "t": "vagones",
+              "arriba": "T1"
+            }
+          ]
+        }
+      ],
+      "zonal": [
+        {
+          "nombre": "Plataforma 3 · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "G514",
+                  "destino": "San José"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "TC14",
+                  "destino": "Nueva Roma"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "G524",
+                  "destino": "Parques de Bogotá"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-6",
+                  "destino": "Perdomo"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "H640",
+                  "destino": "Santo Domingo"
+                },
+                {
+                  "codigo": "H641",
+                  "destino": "Santo Domingo"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma 2 · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-4",
+                  "destino": "Bosa Laureles"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-1",
+                  "destino": "AV. Bosa"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-5",
+                  "destino": "Terminal"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "CSM",
+                  "destino": "Circular San Mateo"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            }
+          ]
+        },
+        {
+          "nombre": "Plataforma 1 · buses alimentadores",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-8",
+                  "destino": "Olarte Timiza"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-3",
+                  "destino": "Albán Carbonell"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-3C",
+                  "destino": "Alameda"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "10-2",
+                  "destino": "Bosa Centro"
+                }
+              ]
+            },
+            {
+              "t": "bahia",
+              "llegada": true
+            }
+          ]
+        }
+      ]
     }
   },
   "sinDetalle": {
     "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone.",
-    "TM0099": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island.",
     "TM0135": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island.",
-    "TM0145": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island.",
-    "TM0045": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island.",
-    "TM0087": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island."
+    "TM0145": "A portal, and the column model cannot draw one honestly. Three things break it. Its torniquetes and taquillas run ALONG the platform, as the boundary between the troncal side and the zonal arrivals strip beside it, where a column can only put furniture at a platform's ends. Its boarding zones are notches in the platform edge that the sheet does not name, and the catalog names only some of them, so every unnamed one would have to be given an identity it does not have. And the rest of the sheet — the patio taller, the concourses, the TransMiCable station, the angles the whole thing is drawn at — has no vocabulary here at all. So the portals keep the plan drawn from the catalog, which names their platforms correctly and says which service leaves from which; a column drawing would look more precise and be less true. Banderas and Terminal are drawn because neither is a portal: Banderas names all eight of its zones in the catalog and keeps its equipment at the ends, and Terminal is one island."
   }
 }

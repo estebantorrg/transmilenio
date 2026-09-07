@@ -138,6 +138,7 @@ export const DIVIDER_NAMES = {
   tren: 'vía férrea',
   separador: 'separador verde',
   tunel: 'túnel peatonal',
+  puente: 'puente peatonal',
 };
 
 const W = '#FFFFFF';
