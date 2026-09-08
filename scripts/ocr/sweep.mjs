@@ -96,7 +96,7 @@ for (const code of detalle) {
   }
   for (const tira of Array.isArray(D.zonal) ? D.zonal : D.zonal ? [D.zonal] : []) {
     for (const it of tira.items ?? []) {
-      if (it.t === 'bahia' && !it.llegada && !(it.rutas ?? []).length) say(code, 'a zonal bay names nothing');
+      if (it.t === 'bahia' && !it.llegada && !(it.rutas ?? []).length && !(it.destinos ?? []).length) say(code, 'a zonal bay names nothing');
       for (const n of it.iconos ?? []) if (!ICONOS.includes(n)) say(code, 'unknown zonal icon "' + n + '"');
       // A bay has to name a real service. That is the hard rule, and the one
       // that matters: these codes are printed beside a coloured bar four

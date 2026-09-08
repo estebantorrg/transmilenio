@@ -19,7 +19,7 @@ export interface CatalogWagons {
 export interface CatalogPlanoZonal {
   nombre?: string;
   items: Array<
-    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
+    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }>; destinos?: string[] }
     | { t: 'equipo'; iconos?: string[]; nota?: string }
   >;
 }

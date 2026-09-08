@@ -495,9 +495,17 @@ function zonalHtml(zonal) {
   const cells = items
     .map((it) => {
       if (it.t === 'bahia') {
+        // A bay can name PLACES rather than services: the intermunicipal bays
+        // at Portal 80 and Portal Norte are coaches to Chía, Cajicá, Funza and
+        // the rest, which carry no TransMilenio código at all. They are drawn
+        // without the coloured route bar, because there is no route to colour.
         const rutas = it.llegada
           ? '<span class="pdz-ruta pdz-llegada">' + iconHtml('zonal') +
             '<span class="pdz-ruta-txt">Llegada de pasajeros</span></span>'
+          : (it.destinos ?? []).length
+          ? '<span class="pdz-ruta"><span class="pdz-ruta-txt">' +
+            (it.destinos ?? []).map((d) => '<span class="pdz-destino">' + escapeHtml(d) + '</span>').join('') +
+            '</span></span>'
           : (it.rutas ?? [])
               .map(
                 (r) =>

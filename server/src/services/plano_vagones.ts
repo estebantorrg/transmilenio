@@ -248,7 +248,7 @@ export interface PlanoDetalle {
 export interface PlanoZonal {
   nombre?: string;
   items: Array<
-    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }> }
+    | { t: 'bahia'; llegada?: boolean; rutas?: Array<{ codigo: string; destino?: string }>; destinos?: string[] }
     | { t: 'equipo'; iconos?: string[]; nota?: string }
   >;
 }
