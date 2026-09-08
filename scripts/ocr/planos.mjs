@@ -34,12 +34,18 @@
 //                                      Av. Chile prints 6 bars for 3 vagones
 //   • two rows whose x do NOT line up → staggered platforms (La Castellana)
 //
-// Reading the número was tried and abandoned. These images are published only
-// at 1024×576 (there is no un-optimised variant — every other path 404s), which
-// leaves ~4px per character on a plate. A full-page pass found two of La
-// Castellana's four plates and got worse with zoom, exactly as `FINDINGS.md`
-// measured for the plegables. Geometry answers the question the dataset asks;
-// the número does not need to be guessed to answer it.
+// Reading the número was tried and abandoned. There is no un-optimised variant
+// of these images — every other URL path 404s — and most are published at
+// 1024×576, which leaves ~4px per character on a plate. A full-page pass found
+// two of La Castellana's four plates and got worse with zoom, exactly as
+// `FINDINGS.md` measured for the plegables. Geometry answers the question the
+// dataset asks; the número does not need to be guessed to answer it.
+//
+// The sheets are NOT all one size, whatever the paragraph above implies about
+// the common case: of the 156 cached, 123 are 1024×576, 32 are 1920×1080 and
+// TM0151 is 793×612. Take the size from the FILE and never assume it — cropping
+// a 1920 sheet with 1024-shaped coordinates hands back its top-left quarter and
+// nothing says so.
 //
 // WHAT IT DELIBERATELY DOES NOT DO
 //
