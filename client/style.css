@@ -3092,8 +3092,14 @@ body.sidebar-collapsed .sidebar-fab {
 }
 
 /* The name sits ON the band, so it needs the page behind it to stay legible
-   where the rule runs under it. The caño is a solid colour and needs none. */
+   where the rule runs under it. The caño is a solid colour and needs none.
+   RAISED, because the band is drawn once per column and the name goes on the
+   middle one of the run — which at Guatoque is the crossing between the two
+   vagones, 51px wide. The word is wider than that, and the next column's band
+   painted its own background straight over the overflow: the caño read "CAÑ". */
 .pdt-divider .pdt-divider-name {
+  position: relative;
+  z-index: 1;
   padding: 0 calc(6px * var(--tm-scale, 1));
   background: var(--bg-page, #0C0C0C);
 }

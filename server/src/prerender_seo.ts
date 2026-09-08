@@ -537,7 +537,7 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
 #seo-prerender .pdt-divider-cano{background:linear-gradient(180deg,#4FC3F7,#29A8DC 55%,#1B87B8);color:#fff;font-weight:700}
 #seo-prerender .pdt-divider-tren{background:linear-gradient(#4D5059,#4D5059) top/100% 1.5px no-repeat,linear-gradient(#4D5059,#4D5059) bottom/100% 1.5px no-repeat,repeating-linear-gradient(to right,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 2px,transparent 2px,transparent 7px)}
 #seo-prerender .pdt-divider-ciclorruta,#seo-prerender .pdt-divider-separador,#seo-prerender .pdt-divider-busway,#seo-prerender .pdt-divider-tunel,#seo-prerender .pdt-divider-puente{background:repeating-linear-gradient(to right,rgba(255,255,255,.14) 0,rgba(255,255,255,.14) 9px,transparent 9px,transparent 18px) center/100% 2px no-repeat}
-#seo-prerender .pdt-divider .pdt-divider-name{padding:0 6px;background:#0C0C0C}
+#seo-prerender .pdt-divider .pdt-divider-name{position:relative;z-index:1;padding:0 6px;background:#0C0C0C}
 #seo-prerender .pdt-divider-cano .pdt-divider-name{background:transparent}
 #seo-prerender .pdt-convenciones{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.08)}
 #seo-prerender .pdt-conv-tag{font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:rgba(255,255,255,.45)}

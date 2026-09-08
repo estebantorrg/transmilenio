@@ -281,6 +281,33 @@ test.describe('the plan, on the page', () => {
     expect(wrong).toEqual([]);
   });
 
+  test('nothing paints over what a divider is called', async ({ page }) => {
+    // The divider is drawn as a BAND inside every column it crosses, and its name
+    // goes on the middle column of that run — which at Guatoque is the crossing
+    // between two vagones, 51px wide. The word is wider than that, and the next
+    // column's band painted its own background straight over the overflow: the
+    // caño read "CAÑ".
+    await bootApp(page);
+    const wrong: string[] = [];
+    for (const code of drawn) {
+      if (!planos.layouts[code]?.divider) continue;
+      await openStation(page, code);
+      const covered = await page.evaluate(() => {
+        const out: string[] = [];
+        for (const el of document.querySelectorAll('.pdt-divider-name, .pvg-divider-name')) {
+          const box = el.getBoundingClientRect();
+          if (box.width === 0) continue;
+          // Whatever is painted at the last glyph has to be the name itself.
+          const top = document.elementFromPoint(box.right - 3, box.top + box.height / 2);
+          if (top !== el && !el.contains(top)) out.push((el.textContent ?? '').trim());
+        }
+        return out;
+      });
+      for (const name of covered) wrong.push(`${code}: "${name}" is painted over`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
   test('the drawing never makes the page scroll sideways', async ({ page }) => {
     // A plan wider than the viewport scrolls INSIDE its own box (`.popup-plano`
     // is the scroller). If the page itself scrolls, the drawing has pushed the
