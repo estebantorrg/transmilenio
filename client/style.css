@@ -2312,6 +2312,16 @@ body.sidebar-collapsed .sidebar-fab {
   width: calc(24px * var(--tm-scale, 1));
 }
 
+/* The platform running ON past a column that names no zone of its own — the
+   neighbouring zone continuing, not a zone in its own right. No plate, and no
+   claim on the column's width: whatever is drawn on the other platform there
+   decides how wide the column is. */
+.pvg-sigue {
+  min-width: calc(48px * var(--tm-scale, 1));
+}
+
+.pvg-sigue .pvg-plate { visibility: hidden; }
+
 .pvg {
   display: grid;
   grid-row: span 3;
@@ -2337,6 +2347,21 @@ body.sidebar-collapsed .sidebar-fab {
   .popup-plano-cols { align-items: stretch; }
   .pvg { display: flex; flex-direction: column; }
   .pvg-side-a { flex: 1 0 auto; }
+  /* Without subgrid the shared rows cannot be handed down, so the drawing
+     falls back to what it was: each column stacking its own bands. The decks
+     drift where the chip counts differ, which is the old behaviour and still
+     legible. */
+  .pdt-grid { display: flex; }
+  .pdt-grid > .pdt-vagones,
+  .pdt-grid > .pdt-paso,
+  .pdt-grid > .pdt-acceso,
+  .pdt-grid > .pdt-vestibulo:not(.pdt-vestibulo-solo),
+  .pdt-vagones > .pdt-band-a,
+  .pdt-vagones > .pdt-band-b,
+  .pdt-vagones > .pdt-band-solo { display: flex; flex-direction: column; }
+  .pdt-vagones > .pdt-band-a,
+  .pdt-vagones > .pdt-band-b { flex: 1 1 0; }
+  .pdt-vagones > .pdt-band-solo { flex: 1 1 0; width: 100%; }
 }
 
 /* ── The deck ────────────────────────────────────────────────────────────
@@ -2571,21 +2596,17 @@ body.sidebar-collapsed .sidebar-fab {
    tunnel is how a rider gets between them, so it is drawn as a continuous
    line rather than a broken one. Av. Jimenez has a tunnel too and does not
    get this: its sheet marks it closed. */
-.pvg-divider-tunel {
+.pvg-divider-tunel,
+.pvg-divider-puente {
   color: var(--text-secondary);
 }
 
 .pvg-divider-tunel::before,
-.pvg-divider-tunel::after {
+.pvg-divider-tunel::after,
+.pvg-divider-puente::before,
+.pvg-divider-puente::after {
   background: var(--border-card);
   opacity: 0.75;
-}
-
-/* Each half of a two-troncal station names its own corridor, so the labels
-   sit tighter to their own row than a single shared pair would. */
-.pvg-row + .pvg-axis-b,
-.pvg-axis-a + .pvg-row {
-  margin-top: calc(1px * var(--tm-scale, 1));
 }
 
 /* ── The full station, as its own plano draws it ─────────────────────────
@@ -2600,16 +2621,78 @@ body.sidebar-collapsed .sidebar-fab {
   width: max-content;
 }
 
+/* SEVEN shared rows: the upper platform's approach, deck and departure, the
+   strip between the platforms, then the lower platform's three. Every column
+   is laid on the same seven, so a deck lands on the same line as the deck two
+   columns along and the taquilla beside it lands level with the deck it
+   serves. Flex could not say that — each column sized its own bands, so a
+   vagón carrying two rows of chips pushed its own deck down while the vagón
+   next to it stayed put, and Islandia's two decks sat six pixels apart on what
+   is one platform. A solo grid is the same idea with one platform: three rows. */
 .pdt-grid {
   position: relative;
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  grid-template-rows: repeat(7, auto);
   align-items: stretch;
 }
+
+.pdt-grid-solo { grid-template-rows: repeat(3, auto); }
+
+/* A split station's rows share their COLUMN tracks, so column three is column
+   three on every platform. Portal Américas is what needs it: its sheet draws
+   ONE pedestrian bridge crossing all three platforms at one point, and three
+   independent grids put that bridge in three different places. A row with
+   fewer columns simply fills the first of them. */
+.popup-plano-inner.pdt-filas {
+  display: grid;
+  grid-template-columns: repeat(var(--pdt-cols, 1), max-content);
+}
+
+.popup-plano-inner.pdt-filas > .pdt-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
+.popup-plano-inner.pdt-filas > .pvg-divider { grid-column: 1 / -1; }
 
 .pdt-col {
   display: flex;
   flex-direction: column;
   flex: 0 0 auto;
+  grid-row: 1 / -1;
+}
+
+/* The columns whose children ARE the three bands hand the rows down. The
+   bridge is not one of them — its children are a triangle, a name and another
+   triangle — so it stays a plain column running the drawing's full height,
+   which is how the sheet draws it. Nor is the one-platform access block,
+   whose children are the stack and the way through beside it. */
+.pdt-grid > .pdt-vagones,
+.pdt-grid > .pdt-paso,
+.pdt-grid > .pdt-acceso,
+.pdt-grid > .pdt-vestibulo:not(.pdt-vestibulo-solo) {
+  display: grid;
+  grid-template-rows: subgrid;
+}
+
+.pdt-grid > * > .pdt-band-a,
+.pdt-grid > * > .pdt-band-b { grid-row: span 3; }
+
+.pdt-grid > * > .pdt-band-mid { grid-row: span 1; }
+
+.pdt-grid > * > .pdt-band-solo { grid-row: 1 / -1; }
+
+/* ...and the band hands them down once more to the deck cell, whose own three
+   rows are approach, deck and departure. That last step is what actually puts
+   the plates on one line. */
+.pdt-vagones > .pdt-band-a,
+.pdt-vagones > .pdt-band-b,
+.pdt-vagones > .pdt-band-solo {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* The three bands every column shares, so a taquilla on the upper platform
@@ -2650,7 +2733,22 @@ body.sidebar-collapsed .sidebar-fab {
 
 .pdt-canal-solo { justify-content: center; }
 
+/* ONE platform: the block's three shelves have no upper and lower deck to line
+   up with, so they take the height of what is on them and the stack centres
+   against the deck — which is the compact box of furniture the sheet draws.
+   Left stretching, as the two-platform block must, a block holding a taquilla
+   and a torniquete pushed one to each far end of a rectangle and read as a hole
+   with two icons stuck to its edges: Portal Tunal's access blocks were 142px of
+   nothing in a 171px box. */
+.pdt-grid-solo .pdt-vestibulo-stack { justify-content: center; }
+
+.pdt-grid-solo .pdt-vestibulo .pdt-band-a,
+.pdt-grid-solo .pdt-vestibulo .pdt-band-b { flex: 0 0 auto; }
+
 .pdt-grid-solo .pdt-vestibulo .pdt-band-mid { height: calc(30px * var(--tm-scale, 1)); }
+
+/* ...and a shelf with nothing on it takes no height at all. */
+.pdt-grid-solo .pdt-vestibulo .pdt-band-mid:empty { height: 0; }
 
 .pdt-grid-solo .pdt-paso .pdt-band-solo,
 .pdt-grid-solo .pdt-acceso .pdt-band-solo { align-items: center; }
@@ -2891,7 +2989,7 @@ body.sidebar-collapsed .sidebar-fab {
   align-items: center;
   justify-content: space-between;
   gap: calc(4px * var(--tm-scale, 1));
-  width: calc(30px * var(--tm-scale, 1));
+  min-width: calc(30px * var(--tm-scale, 1));
   padding: calc(4px * var(--tm-scale, 1)) 0;
   border: 1px dashed var(--border-medium);
   border-radius: calc(2px * var(--tm-scale, 1));
@@ -2911,13 +3009,20 @@ body.sidebar-collapsed .sidebar-fab {
 .pdt-puente-sube { border-bottom: calc(8px * var(--tm-scale, 1)) solid currentColor; }
 .pdt-puente-baja { border-top: calc(8px * var(--tm-scale, 1)) solid currentColor; }
 
+/* The name runs up the bridge, as the sheet prints it. It used to be a single
+   nowrap line, which meant a LONG name set the height of the whole drawing:
+   Ricaurte's "Túnel peatonal a Troncal Américas" made each of its rows two and
+   a half times the height of the platform standing in it, and the platforms
+   floated in the empty middle. Capped, the name runs in two short columns and
+   the bridge stays a bridge. */
 .pdt-puente-txt {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
+  max-height: calc(115px * var(--tm-scale, 1));
   font-size: calc(7.5px * var(--tm-scale, 1));
   letter-spacing: 0.06em;
+  text-align: center;
   text-transform: uppercase;
-  white-space: nowrap;
 }
 
 /* The divider is a BAND inside every column it crosses, so it begins exactly
@@ -2940,6 +3045,60 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 700;
   text-shadow: 0 1px 1px rgba(4, 40, 58, 0.45);
 }
+
+/* A railway: two rails with the sleepers between them, the same drawing the
+   split plano gives it, laid along the band instead of either side of a
+   label. */
+.pdt-divider-tren {
+  background:
+    linear-gradient(var(--border-card), var(--border-card)) top / 100% 1.5px no-repeat,
+    linear-gradient(var(--border-card), var(--border-card)) bottom / 100% 1.5px no-repeat,
+    repeating-linear-gradient(
+      to right,
+      var(--border-medium) 0,
+      var(--border-medium) calc(2px * var(--tm-scale, 1)),
+      transparent calc(2px * var(--tm-scale, 1)),
+      transparent calc(7px * var(--tm-scale, 1))
+    );
+  color: var(--text-secondary);
+}
+
+/* Everything else you cross rather than wade: a dashed line down the middle
+   of the band. The green strip is tinted; the rest take the plain rule. */
+.pdt-divider-ciclorruta,
+.pdt-divider-separador,
+.pdt-divider-busway,
+.pdt-divider-tunel,
+.pdt-divider-puente {
+  background: repeating-linear-gradient(
+      to right,
+      var(--border-medium) 0,
+      var(--border-medium) calc(9px * var(--tm-scale, 1)),
+      transparent calc(9px * var(--tm-scale, 1)),
+      transparent calc(18px * var(--tm-scale, 1))
+    )
+    center / 100% 2px no-repeat;
+  color: var(--text-secondary);
+}
+
+.pdt-divider-separador {
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--tm-green, #7AB929) 0,
+    var(--tm-green, #7AB929) calc(3px * var(--tm-scale, 1)),
+    transparent calc(3px * var(--tm-scale, 1)),
+    transparent calc(9px * var(--tm-scale, 1))
+  );
+}
+
+/* The name sits ON the band, so it needs the page behind it to stay legible
+   where the rule runs under it. The caño is a solid colour and needs none. */
+.pdt-divider .pdt-divider-name {
+  padding: 0 calc(6px * var(--tm-scale, 1));
+  background: var(--bg-page, #0C0C0C);
+}
+
+.pdt-divider-cano .pdt-divider-name { background: transparent; }
 
 /* The drawing's own Convenciones. Every official plano carries one, for the
    reason this needed one: a glyph at plan size is recognisable once you have
@@ -3130,40 +3289,6 @@ body.sidebar-collapsed .sidebar-fab {
   border-right: 1.5px solid currentColor;
   transform: rotate(45deg);
   opacity: 0.6;
-}
-
-/* ── The corridor, named once at each edge ───────────────────────────────
-   The sheet prints the corridor along the top and bottom of the drawing, not
-   on every segment. Hoisted here on the same condition: only when every vagón
-   agrees which direction each side serves. */
-.pvg-axis {
-  display: flex;
-  align-items: center;
-  gap: calc(5px * var(--tm-scale, 1));
-  padding: calc(2px * var(--tm-scale, 1)) 0;
-  font-size: calc(9.5px * var(--tm-scale, 1));
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-secondary);
-}
-
-.pvg-axis::before,
-.pvg-axis::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-subtle);
-}
-
-.pvg-axis-a .pvg-axis-name::before {
-  content: '▲ ';
-  color: var(--text-tertiary);
-}
-
-.pvg-axis-b .pvg-axis-name::after {
-  content: ' ▼';
-  color: var(--text-tertiary);
 }
 
 /* Second and later groups on a side (the other direction, or the terminating

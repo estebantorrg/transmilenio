@@ -613,7 +613,9 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       const detalleRead = planoDetalle(station.codigo);
       const detalleOut: PlanoDetalle | undefined = detalleRead
         ? {
-            ...(detalleRead.filas ? { filas: detalleRead.filas } : { columnas: detalleRead.columnas }),
+            ...(detalleRead.filas
+              ? { filas: detalleRead.filas, ...(detalleRead.alineadas ? { alineadas: true } : {}) }
+              : { columnas: detalleRead.columnas }),
             ...(detalleRead.zonal ? { zonal: detalleRead.zonal } : {}),
           }
         : undefined;

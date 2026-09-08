@@ -12,6 +12,10 @@
     "dev:client": "npm --prefix client run dev",
     "dev:server": "npm --prefix server run dev",
     "build": "npm --prefix server run build && npm --prefix client run build && npm --prefix server run seo:prerender",
+    "plano:audit": "node scripts/ocr/audit.mjs",
+    "plano:sweep": "node scripts/ocr/sweep.mjs",
+    "plano:check": "npm run plano:audit && npm run plano:sweep",
+    "test": "npm run plano:check && npx playwright test",
     "start": "node --max-old-space-size=460 server/dist/index.js"
   },
   "devDependencies": {

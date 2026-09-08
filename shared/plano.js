@@ -345,6 +345,15 @@ function midBand(divider, label, extra) {
   );
 }
 
+/** The platform continuing past a column that names no zone of its own. */
+const deckSigue =
+  '<section class="pvg pvg-sigue" aria-hidden="true">' +
+  '<div class="pvg-side pvg-side-a"></div>' +
+  '<div class="pvg-deck"><span class="pvg-doors"></span><div class="pvg-plate"></div>' +
+  '<span class="pvg-doors"></span></div>' +
+  '<div class="pvg-side pvg-side-b"></div>' +
+  '</section>';
+
 /**
  * One column of the drawing.
  *
@@ -456,17 +465,30 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
   if (solo) {
     // The whole platform, once. Its services above and below its own deck are
     // the cell's business, not the grid's.
+    const uno = col.arriba ?? col.abajo;
     return (
       '<div class="pdt-col pdt-vagones">' +
-      '<div class="pdt-band pdt-band-solo">' + cellArriba(col.arriba ?? col.abajo) + '</div>' +
-      '</div>'
+      '<div class="pdt-band pdt-band-solo">' +
+      (uno ? cellArriba(uno) : col.sigueArriba || col.sigueAbajo ? deckSigue : '') +
+      '</div></div>'
     );
   }
+  // The platform runs THROUGH this column without a zone of its own here. Portal
+  // Norte is what needs it: one bridge crosses both its platforms at the same
+  // point, but the zones either side of it are two and one on Plataforma 1 and
+  // one and two on Plataforma 2. Drawn as two independent rows the bridge came
+  // out in two different places and each end tunnel was drawn twice, which is
+  // not what the sheet shows; drawn as one grid, the column under T2A would be
+  // a HOLE in a platform the sheet draws unbroken. So the deck is continued
+  // here, with no plate and no chips — this stretch belongs to the zone beside
+  // it, which is exactly what the sheet says by not dividing it.
+  const arriba = col.arriba ? cellArriba(col.arriba) : col.sigueArriba ? deckSigue : '';
+  const abajo = col.abajo ? cellAbajo(col.abajo) : col.sigueAbajo ? deckSigue : '';
   return (
     '<div class="pdt-col pdt-vagones">' +
-    '<div class="pdt-band pdt-band-a">' + cellArriba(col.arriba) + '</div>' +
+    '<div class="pdt-band pdt-band-a">' + arriba + '</div>' +
     midBand(divider, label) +
-    '<div class="pdt-band pdt-band-b">' + cellAbajo(col.abajo) + '</div>' +
+    '<div class="pdt-band pdt-band-b">' + abajo + '</div>' +
     '</div>'
   );
 }
@@ -575,12 +597,6 @@ function convencionesHtml(columnas, zonal) {
     .map((n) => '<span class="pdt-conv">' + iconHtml(n) + '<span class="pdt-conv-txt">' + escapeHtml(ICONOS[n].label) + '</span></span>')
     .join('');
   return '<div class="pdt-convenciones"><span class="pdt-conv-tag">Convenciones</span>' + items + '</div>';
-}
-
-function axisHtml(name, side) {
-  return name
-    ? '<div class="pvg-axis pvg-axis-' + side + '"><span class="pvg-axis-name">' + escapeHtml(name) + '</span></div>'
-    : '';
 }
 
 /**
@@ -707,8 +723,6 @@ export function buildSheetPlano(input) {
     return {
       row,
       html: '<div class="pvg-row"' + style + '><div class="popup-plano-cols">' + decks.join(crossing) + '</div></div>',
-      usesA: (row.vagones ?? []).some((v) => (v.arriba ?? []).length > 0),
-      usesB: (row.vagones ?? []).some((v) => (v.abajo ?? []).length > 0),
     };
   });
 
@@ -735,21 +749,29 @@ export function buildSheetPlano(input) {
   if (filas.length > 0) {
     const bloques = drawn.map((r, ri) => {
       const cols = filas[ri]?.columnas ?? [];
-      if (cols.length === 0) return axisHtml(r.row.eje?.arriba, 'a') + r.html + axisHtml(r.row.eje?.abajo, 'b');
+      if (cols.length === 0) return r.html;
       // Each half is one platform, so every vagón cell comes from its OWN row.
       const cell = (v) => (v ? cells.get(ri + ':' + String(v)) ?? '' : '');
       return (
-        axisHtml(r.row.eje?.arriba ?? sentidos?.positive, 'a') +
         '<div class="pdt-grid pdt-grid-solo">' +
         cols.map((c) => columnaHtml(c, cell, cell, undefined, '', true)).join('') +
-        '</div>' +
-        axisHtml(r.row.eje?.abajo ?? sentidos?.negative, 'b')
+        '</div>'
       );
     });
+    // Only where the platforms stand SIDE BY SIDE and are crossed at one point.
+    // Portal Tunal and Portal 80 are the counter-example: their two platforms are
+    // not parallel, they are one platform bent, drawn end to end — column two of
+    // the first row is a tunnel and column two of the second is a boarding zone,
+    // and forcing them to share a track made the tunnel as wide as a platform.
+    const alineadas = input.detalle?.alineadas === true;
+    const anchoMax = Math.max(1, ...filas.map((f) => (f.columnas ?? []).length));
     return {
       html:
         '<div class="popup-plano popup-plano-detalle" role="group" aria-label="Plano de la estación" tabindex="0">' +
-        '<div class="popup-plano-inner">' + bloques.join(dividerHtml) + '</div></div>' +
+        (alineadas
+          ? '<div class="popup-plano-inner pdt-filas" style="--pdt-cols:' + anchoMax + '">'
+          : '<div class="popup-plano-inner">') +
+        bloques.join(dividerHtml) + '</div></div>' +
         zonalHtml(input.detalle?.zonal) +
         convencionesHtml(filas.flatMap((f) => f.columnas ?? []), input.detalle?.zonal),
       detallado: true,
@@ -773,13 +795,11 @@ export function buildSheetPlano(input) {
     const html =
       '<div class="popup-plano popup-plano-detalle" role="group" aria-label="Plano de la estación" tabindex="0">' +
       '<div class="popup-plano-inner">' +
-      axisHtml(sentidos?.positive, 'a') +
       '<div class="pdt-grid' + (solo ? ' pdt-grid-solo' : '') + '">' +
       columnas
         .map((c, i) => columnaHtml(c, cellArriba, cellAbajo, layout.divider, i === first ? label : '', solo))
         .join('') +
       '</div>' +
-      axisHtml(sentidos?.negative, 'b') +
       '</div></div>' +
       // OUTSIDE the scroller. Inside it, the key scrolled away with the drawing
       // — at Av. Chile, reading the right-hand end left the marks unexplained.
@@ -788,17 +808,9 @@ export function buildSheetPlano(input) {
     return { html, detallado: true, placed };
   }
 
-  // Otherwise the platforms alone, with each row naming its own corridor where
-  // the two halves are on different troncals (Ricaurte, Av. Jiménez).
-  const perRow = drawn.some((r) => r.row.eje);
-  const divider = dividerHtml;
-  const body = perRow
-    ? drawn
-        .map((r) => axisHtml(r.row.eje?.arriba, 'a') + r.html + axisHtml(r.row.eje?.abajo, 'b'))
-        .join(divider)
-    : axisHtml(drawn.some((r) => r.usesA) ? sentidos?.positive : undefined, 'a') +
-      drawn.map((r) => r.html).join(divider) +
-      axisHtml(drawn.some((r) => r.usesB) ? sentidos?.negative : undefined, 'b');
+  // Otherwise the platforms alone — no sheet has been read for this station, so
+  // there is no furniture to draw around them, only the decks and their chips.
+  const body = drawn.map((r) => r.html).join(dividerHtml);
 
   return {
     html:

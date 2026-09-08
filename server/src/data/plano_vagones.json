@@ -13024,83 +13024,7 @@
     },
     "TM0029": {
       "source": "Plano de ubicacion, Portal Norte - Unicervantes, version diciembre de 2025.",
-      "why": "TWO platforms drawn one above the other, each closed at both ends by a pedestrian TUNNEL and crossed in the middle by the pedestrian BRIDGE that carries the Exito entrance and the Acceso peatonal down into both. The bridge lands on a ramp at each platform, and between them it carries one cluster of torniquetes and a taquilla serving both, drawn once on the sheet and so given a strip of its own rather than repeated on each row. The bridge is what divides each platform's zones: on Plataforma 1, T2B and T2A stand west of it and T1 east; on Plataforma 2, T4 west, then T5B and T5A. The zonal bays run along the outer edge of each platform and are drawn as their own strips — the departures on Plataforma 1, the arrivals and then the departures on Plataforma 2 — and the torniquetes and taquillas that separate troncal from zonal are drawn with them. The three intermunicipal coach bays on Plataforma 1's eastern edge ARE drawn, in their own strip: Chia, Cajica and Zipaquira carry no TransMilenio codigo, so they are named by town and drawn without a route bar. NOT drawn: the evacuation routes, which are directions rather than furniture; and the Exito and Homecenter buildings. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
-      "filas": [
-        {
-          "columnas": [
-            {
-              "t": "puente",
-              "nombre": "Túnel peatonal",
-              "sube": [
-                "escalera"
-              ]
-            },
-            {
-              "t": "vagones",
-              "arriba": "T2B"
-            },
-            {
-              "t": "vagones",
-              "arriba": "T2A"
-            },
-            {
-              "t": "puente",
-              "nombre": "Puente peatonal",
-              "sube": [
-                "rampa"
-              ]
-            },
-            {
-              "t": "vagones",
-              "arriba": "T1"
-            },
-            {
-              "t": "puente",
-              "nombre": "Túnel peatonal",
-              "sube": [
-                "escalera"
-              ]
-            }
-          ]
-        },
-        {
-          "columnas": [
-            {
-              "t": "puente",
-              "nombre": "Túnel peatonal",
-              "sube": [
-                "escalera"
-              ]
-            },
-            {
-              "t": "vagones",
-              "arriba": "T4"
-            },
-            {
-              "t": "puente",
-              "nombre": "Puente peatonal",
-              "sube": [
-                "rampa"
-              ]
-            },
-            {
-              "t": "vagones",
-              "arriba": "T5B"
-            },
-            {
-              "t": "vagones",
-              "arriba": "T5A"
-            },
-            {
-              "t": "puente",
-              "nombre": "Túnel peatonal",
-              "sube": [
-                "escalera"
-              ]
-            }
-          ]
-        }
-      ],
+      "why": "TWO platforms drawn one above the other in ONE grid, closed at each end by a pedestrian TUNNEL reached from both and crossed in the middle by the pedestrian BRIDGE that carries the Exito entrance and the Acceso peatonal down into both. There is one tunnel at each end and one bridge, not one per platform, so they are drawn once and run through both rows — which is the whole reason this station is not drawn as two independent rows. The bridge lands on a ramp at each platform, and between them it carries one cluster of torniquetes and a taquilla serving both, drawn once on the sheet and so given a strip of its own. The bridge is what divides each platform's zones, and it divides them unevenly: on Plataforma 1, T2B and T2A stand west of it and T1 east; on Plataforma 2, T4 west, then T5B and T5A. Where a platform has one zone against the other's two, the deck is drawn CONTINUING under the extra column with no plate on it — the sheet draws each platform as one unbroken bar and divides it nowhere, so a gap there would state a break that does not exist. The zonal bays run along the outer edge of each platform and are drawn as their own strips — the departures on Plataforma 1, the arrivals and then the departures on Plataforma 2 — and the torniquetes and taquillas that separate troncal from zonal are drawn with them. The three intermunicipal coach bays on Plataforma 1's eastern edge ARE drawn, in their own strip: Chia, Cajica and Zipaquira carry no TransMilenio codigo, so they are named by town and drawn without a route bar. NOT drawn: the evacuation routes, which are directions rather than furniture; and the Exito and Homecenter buildings. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
       "zonal": [
         {
           "nombre": "Plataforma 1 · salida de buses zonales",
@@ -13278,11 +13202,54 @@
             }
           ]
         }
+      ],
+      "columnas": [
+        {
+          "t": "puente",
+          "nombre": "Túnel peatonal",
+          "sube": [
+            "escalera"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "T2B",
+          "abajo": "T4"
+        },
+        {
+          "t": "vagones",
+          "arriba": "T2A",
+          "sigueAbajo": true
+        },
+        {
+          "t": "puente",
+          "nombre": "Puente peatonal",
+          "sube": [
+            "rampa"
+          ]
+        },
+        {
+          "t": "vagones",
+          "arriba": "T1",
+          "abajo": "T5B"
+        },
+        {
+          "t": "vagones",
+          "sigueArriba": true,
+          "abajo": "T5A"
+        },
+        {
+          "t": "puente",
+          "nombre": "Túnel peatonal",
+          "sube": [
+            "escalera"
+          ]
+        }
       ]
     },
     "TM0118": {
       "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
-      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. One bay code needs a note: the sheet prints HH735, with two Hs, and no such route exists — the catalog has H735, \"Uval\", which terminates here, and the sheet itself prints H729 two bays along with a single H. So it is drawn under the codigo a rider can look up. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
+      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. One bay code needs a note: the sheet prints HH735, with two Hs, and no such route exists — the catalog has H735, \"Uval\", which terminates here, and the sheet itself prints H729 two bays along with a single H. So it is drawn under the codigo a rider can look up. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side and one pedestrian TUNNEL crosses both at one point, so they are drawn on shared columns and that tunnel is in one place rather than two.",
       "filas": [
         {
           "columnas": [
@@ -13488,11 +13455,12 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     },
     "TM0045": {
       "source": "Plano de ubicacion, Portal Suba, version mayo de 2025.",
-      "why": "TWO platforms with the pedestrian BRIDGE running the length of the station between them, which is what joins the two — so it is named as the divider rather than drawn as a column, the same way Ricaurte names its tunnel. Neither platform is broken into pieces: its four zones run end to end with no crossing drawn between them, because it is one continuous platform. The zonal bays are all on Plataforma 2's outer edge, ten routes across nine bays with 11-2 and C104 sharing one; Plataforma 1's outer edge is where the zonal buses ARRIVE, and the sheet marks two such areas with no bay numbers. The Acceso peatonal building at the south-east corner is drawn as its own strip, with the ramp, torniquetes, staircase, taquilla and TransMiBici the sheet puts in it. NOT drawn: the Super CADE, the patio taller and the evacuation routes. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
+      "why": "TWO platforms with the pedestrian BRIDGE running the length of the station between them, which is what joins the two — so it is named as the divider rather than drawn as a column, the same way Ricaurte names its tunnel. Neither platform is broken into pieces: its four zones run end to end with no crossing drawn between them, because it is one continuous platform. The zonal bays are all on Plataforma 2's outer edge, ten routes across nine bays with 11-2 and C104 sharing one; Plataforma 1's outer edge is where the zonal buses ARRIVE, and the sheet marks two such areas with no bay numbers. The Acceso peatonal building at the south-east corner is drawn as its own strip, with the ramp, torniquetes, staircase, taquilla and TransMiBici the sheet puts in it. NOT drawn: the Super CADE, the patio taller and the evacuation routes. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side, the same length, divided by the pedestrian BRIDGE, so they are drawn on shared columns and zone four is above zone four.",
       "filas": [
         {
           "columnas": [
@@ -13680,17 +13648,22 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     },
     "TM0087": {
       "source": "Plano de ubicacion, Estacion Portal Americas, version agosto de 2026.",
-      "why": "THREE platforms stacked, and one pedestrian BRIDGE crossing all three at the same point — which is what divides each platform's zones: T8 west of it and T9 east on Plataforma 3; T4 and T5 west, T6 east on Plataforma 2; T2B and T2A west, T3 east on Plataforma 1. The bridge carries stairs and a priority lift down to every platform, and runs on south to the Acceso peatonal beside the Super CADE. Each platform has its zonal bays along the northern edge, with the arrivals zone at the western end. The Acceso peatonal south of the platforms is drawn as its own strip, with the TransMiBici, ramp, staircase, emergency exit, torniquetes and taquilla the sheet puts in it. NOT drawn: the patio taller, the Super CADE, the evacuation routes, and the landscaped strips between the platforms. The bays in the zonal strips are drawn and their codes were each checked against the catalog; the torniquetes and taquillas that run along the platform edge beside them are NOT itemised, because they were read off the whole sheet rather than cropped and four of the nine portals turned out wrong when they were checked. This sheet is published at 1920 by 1080 rather than the usual 1024 by 576, so the tiles along each platform edge could be counted and are drawn: they run the length of the platform rather than standing between particular bays, so each strip carries them as one group at its head.",
+      "why": "THREE platforms drawn in one grid, sharing their columns so that the single pedestrian bridge stands in the same place on all three — which is how the sheet draws it, one bridge from the Acceso peatonal crossing every platform at one point. Plataforma 3 has one boarding zone west of that bridge where the other two have a pair, so its deck is drawn CONTINUING under the extra column with no plate on it rather than leaving a gap the sheet does not have. THREE platforms stacked, and one pedestrian BRIDGE crossing all three at the same point — which is what divides each platform's zones: T8 west of it and T9 east on Plataforma 3; T4 and T5 west, T6 east on Plataforma 2; T2B and T2A west, T3 east on Plataforma 1. The bridge carries stairs and a priority lift down to every platform, and runs on south to the Acceso peatonal beside the Super CADE. Each platform has its zonal bays along the northern edge, with the arrivals zone at the western end. The Acceso peatonal south of the platforms is drawn as its own strip, with the TransMiBici, ramp, staircase, emergency exit, torniquetes and taquilla the sheet puts in it. NOT drawn: the patio taller, the Super CADE, the evacuation routes, and the landscaped strips between the platforms. The bays in the zonal strips are drawn and their codes were each checked against the catalog; the torniquetes and taquillas that run along the platform edge beside them are NOT itemised, because they were read off the whole sheet rather than cropped and four of the nine portals turned out wrong when they were checked. This sheet is published at 1920 by 1080 rather than the usual 1024 by 576, so the tiles along each platform edge could be counted and are drawn: they run the length of the platform rather than standing between particular bays, so each strip carries them as one group at its head.",
       "filas": [
         {
           "columnas": [
             {
               "t": "vagones",
               "arriba": "T8"
+            },
+            {
+              "t": "vagones",
+              "sigueArriba": true
             },
             {
               "t": "puente",
@@ -13926,17 +13899,22 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     },
     "TM0099": {
       "source": "Plano de ubicacion, Portal Sur - JFK Coop Financiera, version noviembre de 2024.",
-      "why": "THREE platforms stacked, and one pedestrian TUNNEL crossing all three at the same point — which is what divides each platform's zones: T9 west of it and T7 east on Plataforma 3; T3 and T5 west, T4 east on Plataforma 2; T6 and T2 west, T1 east on Plataforma 1. It lands on a staircase at each of the three, with a taquilla beside every landing and a torniquete at the one on Plataforma 1 — those are drawn once on the sheet and named here rather than repeated per row. The tunnel runs on south to the two-floor Acceso peatonal beside the Super CADE, and the sheet marks the Metro Supermercado and the troncal-bus entrances off the eastern end. Each platform's zonal bays run along its southern edge with the alimentador arrivals zone at the eastern end. The two-floor Acceso peatonal beside the Super CADE is drawn as its own strip — its ramp, staircase, taquilla and TransMiBici. NOT drawn: the Super CADE itself, the El Apogeo block, and the Autopista Sur carriageways. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
+      "why": "THREE platforms drawn in one grid, sharing their columns so that the single pedestrian tunnel stands in the same place on all three — which is how the sheet draws it, one tunnel from the Acceso peatonal crossing every platform at one point. Plataforma 3 has one boarding zone west of that tunnel where the other two have a pair, so its deck is drawn CONTINUING under the extra column with no plate on it. THREE platforms stacked, and one pedestrian TUNNEL crossing all three at the same point — which is what divides each platform's zones: T9 west of it and T7 east on Plataforma 3; T3 and T5 west, T4 east on Plataforma 2; T6 and T2 west, T1 east on Plataforma 1. It lands on a staircase at each of the three, with a taquilla beside every landing and a torniquete at the one on Plataforma 1 — those are drawn once on the sheet and named here rather than repeated per row. The tunnel runs on south to the two-floor Acceso peatonal beside the Super CADE, and the sheet marks the Metro Supermercado and the troncal-bus entrances off the eastern end. Each platform's zonal bays run along its southern edge with the alimentador arrivals zone at the eastern end. The two-floor Acceso peatonal beside the Super CADE is drawn as its own strip — its ramp, staircase, taquilla and TransMiBici. NOT drawn: the Super CADE itself, the El Apogeo block, and the Autopista Sur carriageways. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
       "filas": [
         {
           "columnas": [
             {
               "t": "vagones",
               "arriba": "T9"
+            },
+            {
+              "t": "vagones",
+              "sigueArriba": true
             },
             {
               "t": "puente",
@@ -14195,11 +14173,12 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     },
     "TM0135": {
       "source": "Plano de ubicacion, Portal Eldorado - C.C. NUESTRO BOGOTA, version febrero de 2025.",
-      "why": "ONE platform, drawn here as two rows because its boarding zones alternate between its two edges — the northern four above, the southern four below. Two of the eight are drawn with NO plate, because the sheet names them nothing: they are where K86 and M86 board, the pair the catalog files under its unlettered wagon \"0\". At the western end one entrance block serves the whole platform — TransMiBici, a taquilla, an emergency exit and the torniquetes — drawn once on the sheet and repeated on each row here because the two rows are the two edges of that one platform; at the eastern end a second Entrada and the pedestrian bridge over AV. El Dorado. The zonal bays run along both outer edges — the northern strip for Engativá and the airport, the southern for Fontibón — each ending in an alimentador arrivals zone. NOT drawn: the C.C. Nuestro Bogotá and Hiper Centro Corora buildings, and the AV. El Dorado carriageways. One bay code needs a note: the sheet prints TC6 San Pablo de Jerico, and no TC6 exists — the catalog has K337, \"San Pablo Jerico\", which terminates at this portal and is the only service with that destination here, so the bay is drawn under the codigo a rider can look up. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
+      "why": "ONE platform, drawn here as two rows because its boarding zones alternate between its two edges — the northern four above, the southern four below. Two of the eight are drawn with NO plate, because the sheet names them nothing: they are where K86 and M86 board, the pair the catalog files under its unlettered wagon \"0\". At the western end one entrance block serves the whole platform — TransMiBici, a taquilla, an emergency exit and the torniquetes — drawn once on the sheet and repeated on each row here because the two rows are the two edges of that one platform; at the eastern end a second Entrada and the pedestrian bridge over AV. El Dorado. The zonal bays run along both outer edges — the northern strip for Engativá and the airport, the southern for Fontibón — each ending in an alimentador arrivals zone. NOT drawn: the C.C. Nuestro Bogotá and Hiper Centro Corora buildings, and the AV. El Dorado carriageways. One bay code needs a note: the sheet prints TC6 San Pablo de Jerico, and no TC6 exists — the catalog has K337, \"San Pablo Jerico\", which terminates at this portal and is the only service with that destination here, so the bay is drawn under the codigo a rider can look up. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side with an access block at each end of each, so they are drawn on shared columns and the blocks and the bridge line up between them.",
       "filas": [
         {
           "columnas": [
@@ -14431,11 +14410,12 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     },
     "TM0145": {
       "source": "Plano de ubicacion, Portal 20 de Julio, version noviembre de 2024.",
-      "why": "ONE island platform, drawn here as two rows because its boarding zones alternate between its two edges. TWO pedestrian bridges cross it, and they are what divide the zones: on the northern edge T4 west of the first and T3 between them; on the southern, T7 west of the first, the unnamed M82 zone between them, and T9 and the unnamed D81 zone east of the second. Two of the six zones carry no plate because the sheet names them nothing. The zonal bays are all on the southern platform, eight of them, and one code needs a note: the sheet prints 1420 San Isidro, which is no route — it is L820, whose bar merges into the digits at this resolution and which the catalog files here and names San Isidro. The Acceso peatonal concourse south of the platform is drawn as its own strip — TransMiBici, a ramp, a staircase, torniquetes and the taquilla. NOT drawn: the Plazoleta IPES and Super CADE buildings it sits in, the patio taller, and the Plataforma Norte arrivals area. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published.",
+      "why": "ONE island platform, drawn here as two rows because its boarding zones alternate between its two edges. TWO pedestrian bridges cross it, and they are what divide the zones: on the northern edge T4 west of the first and T3 between them; on the southern, T7 west of the first, the unnamed M82 zone between them, and T9 and the unnamed D81 zone east of the second. Two of the six zones carry no plate because the sheet names them nothing. The zonal bays are all on the southern platform, eight of them, and one code needs a note: the sheet prints 1420 San Isidro, which is no route — it is L820, whose bar merges into the digits at this resolution and which the catalog files here and names San Isidro. The Acceso peatonal concourse south of the platform is drawn as its own strip — TransMiBici, a ramp, a staircase, torniquetes and the taquilla. NOT drawn: the Plazoleta IPES and Super CADE buildings it sits in, the patio taller, and the Plataforma Norte arrivals area. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two edges of the platform are crossed by the same two pedestrian BRIDGES, so they are drawn on shared columns and each bridge stands in one place rather than in two.",
       "filas": [
         {
           "columnas": [
@@ -14601,7 +14581,8 @@
             }
           ]
         }
-      ]
+      ],
+      "alineadas": true
     }
   },
   "sinDetalle": {

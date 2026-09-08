@@ -21,8 +21,15 @@
 // that needs eyes.
 import { readFileSync } from 'node:fs';
 import { buildSheetPlano } from '../../shared/plano.js';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const p = JSON.parse(readFileSync('../../server/src/data/plano_vagones.json', 'utf8'));
+// Resolved against this file, not the working directory: these run from the
+// repo root in CI and from scripts/ocr by hand.
+const DATA = (name) => join(dirname(fileURLToPath(import.meta.url)), '../../server/src/data/', name);
+
+
+const p = JSON.parse(readFileSync(DATA('plano_vagones.json'), 'utf8'));
 let bad = 0;
 const say = (m) => { console.log('  x ' + m); bad++; };
 
@@ -121,3 +128,6 @@ for (const code of Object.keys(p.detalle)) {
 }
 console.log(bad ? '\n' + bad + ' problems'
   : '\nall ' + Object.keys(p.detalle).length + ' render exactly what the data says');
+
+// Read by CI: a wrong drawing has to stop the build, not scroll past in a log.
+process.exit(bad ? 1 : 0);

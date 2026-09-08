@@ -68,6 +68,13 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
+      # The plan's data, checked without a browser: audit.mjs proves the renderer
+      # draws what plano_vagones.json says, sweep.mjs proves the data says
+      # something master_catalog.json agrees with. Seconds, and they fail naming
+      # the station and the reason rather than with a screenshot diff.
+      - name: Check the station plans against the data and the catalog
+        run: npm run plano:check
+
       - name: Run Playwright Tests
         run: npx playwright test
 

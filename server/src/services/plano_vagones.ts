@@ -207,6 +207,12 @@ export type PlanoColumna =
        *  `layouts`, so the compact drawing and this one cannot disagree. */
       arriba?: string;
       abajo?: string;
+  /** The platform on that side runs THROUGH this column without a zone of its
+   *  own here — drawn as bare deck, no plate and no chips. Portal Norte needs
+   *  it: one bridge crosses both platforms at the same point, but the zones
+   *  either side are two and one above and one and two below. */
+      sigueArriba?: boolean;
+      sigueAbajo?: boolean;
     }
   | { t: 'paso' }
   | {
@@ -234,6 +240,12 @@ export interface PlanoDetalle {
    *  different furniture — so they carry one set of columns per layout row
    *  instead of one shared set. */
   filas?: Array<{ columnas: PlanoColumna[] }>;
+  /** True where the rows stand SIDE BY SIDE and are crossed at one point, so
+   *  their columns are laid on shared tracks and a bridge that crosses every
+   *  platform is drawn in one place. False (the default) where the rows are one
+   *  platform drawn end to end — Portal Tunal, Portal 80 — whose columns mean
+   *  different things at the same index. */
+  alineadas?: boolean;
   /** The zonal bay strip, where the sheet draws one beside the platform. */
   zonal?: PlanoZonal | PlanoZonal[];
 }

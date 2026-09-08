@@ -274,10 +274,8 @@ export type StationPlanoLayout = NonNullable<
  * deliberate exception and are decoration — a fixed three per side, not a door
  * count — because a deck without them reads as a table rather than a platform.
  *
- * The corridor is hoisted to the edges only when every vagón agrees on it. Where
- * they disagree the sentido stays printed per group, which is longer and true,
- * and `fin de recorrido` always stays with its own group because it belongs to
- * one vagón rather than to the station.
+ * The direction is printed on every group, beside the chips it belongs to,
+ * rather than hoisted into a NORTE/SUR band at the edge of the drawing.
  *
  * Wide stations scroll sideways inside the plan rather than stretching the
  * popup: a portal has six vagones and the popup is 320 px.
@@ -302,10 +300,6 @@ function buildStationPlanoHtml(
     if (!sentidos || group.arrival || !group.sentido) return 'b';
     return group.sentido === sentidos.positive ? 'a' : 'b';
   };
-  const isAxisGroup = (group: CatalogPlanGroup): boolean =>
-    Boolean(sentidos && !group.arrival && group.sentido) &&
-    (group.sentido === sentidos!.positive || group.sentido === sentidos!.negative);
-
   lettered.forEach(({ key, routes }, index) => {
     const groups = wagonPlan[key] ?? [];
     const byId = new Map(routes.map((r) => [String(r.id ?? ''), r]));
@@ -338,40 +332,18 @@ function buildStationPlanoHtml(
 
   if (vagones.length === 0) return null;
 
-  // The corridor is named once per edge, as the sheet names it — but only where
-  // the drawing actually earns it: the side has to carry that direction at some
-  // vagón and carry nothing that contradicts it.
-  const edgeLabel = (side: 'a' | 'b'): string | null => {
-    if (!sentidos) return null;
-    const want = side === 'a' ? sentidos.positive : sentidos.negative;
-    let seen = false;
-    for (const v of vagones) {
-      for (const { group } of v[side]) {
-        if (!isAxisGroup(group)) continue;
-        if (group.sentido !== want) return null;
-        seen = true;
-      }
-    }
-    return seen ? want : null;
-  };
-  const axisA = edgeLabel('a');
-  const axisB = edgeLabel('b');
-  const hoisted = Boolean(axisA && axisB);
-
   const groupBlock = (entry: Resolved, which: 'a' | 'b'): string => {
     const { group, members } = entry;
-    // Hoisted to the edge — printing it again on every segment is the clutter
-    // the sheet itself avoids. Only the two corridor directions are hoisted, so
-    // a terminus, or a service that turns off the corridor, still says so where
-    // it stands: those are the ones a rider would otherwise read off the wrong
-    // edge label.
+    // Every group names its own direction. It used to be hoisted to a pair of
+    // NORTE/SUR bands at the edges of the drawing and left off the segments,
+    // which put the answer furthest from the chip a rider is actually reading
+    // — and on a portal, where the two platforms face different ways, said
+    // something that was not true of either.
     const label = group.arrival
       ? '<span class="popup-dir-end">fin de recorrido</span>'
-      : hoisted && isAxisGroup(group)
-        ? ''
-        : group.sentido
-          ? `<span class="popup-dir-arrow popup-dir-arrow-${which === 'a' ? 'up' : 'down'}"></span>${escapeHTML(group.sentido)}`
-          : 'sin determinar';
+      : group.sentido
+        ? `<span class="popup-dir-arrow popup-dir-arrow-${which === 'a' ? 'up' : 'down'}"></span>${escapeHTML(group.sentido)}`
+        : 'sin determinar';
     return (
       `<div class="pvg-group">${label ? `<div class="popup-dir-label">${label}</div>` : ''}` +
       // One chip per código, because this is a PLATE: the bar draws the vagón
@@ -402,20 +374,10 @@ function buildStationPlanoHtml(
     );
   });
 
-  const axis = (name: string | null, side: 'a' | 'b'): string =>
-    name
-      ? `<div class="pvg-axis pvg-axis-${side}"><span class="pvg-axis-name">${escapeHTML(name)}</span></div>`
-      : '';
-
-  // The axes belong to the drawing, not to the viewport: they are as wide as the
-  // platform is, so they ride inside the scroller with it rather than being
-  // pinned to whatever slice of a six-vagón station happens to be on screen.
   return (
     `<div class="popup-plano" role="group" aria-label="Plano de la estación" tabindex="0">` +
     `<div class="popup-plano-inner">` +
-    axis(axisA, 'a') +
     `<div class="popup-plano-cols">${columns.join(crossing)}</div>` +
-    axis(axisB, 'b') +
     `</div></div>`
   );
 }

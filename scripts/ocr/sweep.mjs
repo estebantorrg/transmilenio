@@ -12,9 +12,16 @@
 // twice before Quinta Paredes settled it, and both times the error was a
 // código placed on a station or a wagon that could not hold it.
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
-const p = JSON.parse(readFileSync('../../server/src/data/plano_vagones.json', 'utf8'));
-const c = JSON.parse(readFileSync('../../server/src/data/master_catalog.json', 'utf8'));
+// Resolved against this file, not the working directory: these run from the
+// repo root in CI and from scripts/ocr by hand.
+const DATA = (name) => join(dirname(fileURLToPath(import.meta.url)), '../../server/src/data/', name);
+
+
+const p = JSON.parse(readFileSync(DATA('plano_vagones.json'), 'utf8'));
+const c = JSON.parse(readFileSync(DATA('master_catalog.json'), 'utf8'));
 
 let bad = 0;
 const say = (code, m) => { console.log('  x ' + code + ': ' + m); bad++; };
@@ -51,6 +58,17 @@ for (const code of detalle) {
   if (cols.length === 0) say(code, 'draws no columns');
   if (D.filas && D.filas.length !== (L.rows ?? []).length) {
     say(code, D.filas.length + ' column sets for ' + (L.rows ?? []).length + ' layout rows');
+  }
+  // Shared column tracks are a claim about the SHEET — that the platforms stand
+  // side by side and are crossed at one point — so they only mean anything on a
+  // drawing that has rows, and a crossing has to be at the same index in all of
+  // them or the tracks line a tunnel up with a boarding zone.
+  if (D.alineadas) {
+    if (!D.filas) say(code, 'is marked alineadas but draws no filas');
+    const cruces = (D.filas ?? []).map((f) => (f.columnas ?? []).flatMap((c, i) => (c.t === 'puente' ? [i] : [])).join(','));
+    if (new Set(cruces).size > 1) {
+      say(code, 'is marked alineadas but its crossings sit at different columns per row: ' + cruces.map((c) => '[' + c + ']').join(' '));
+    }
   }
 
   // 4. Every código drawn is one the catalog actually runs here. This is the
@@ -180,3 +198,6 @@ if (notes.length) {
 }
 
 console.log(bad ? '\n' + bad + ' problems' : '\nno problems');
+
+// Read by CI: a wrong drawing has to stop the build, not scroll past in a log.
+process.exit(bad ? 1 : 0);
