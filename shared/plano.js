@@ -81,13 +81,14 @@ function groupRoutes(routes, byCodeOnly) {
     if (found) found.routes.push(route);
     else groups.set(key, { code: route.codigo, primary: route, routes: [route] });
   }
-  return Array.from(groups.values()).sort(
-    (a, b) =>
-      String(a.code).localeCompare(String(b.code), undefined, { numeric: true }) ||
-      String(a.primary.nombre || '').localeCompare(String(b.primary.nombre || ''), undefined, {
-        numeric: true,
-      })
-  );
+  // IN THE ORDER THEY CAME IN, which here is the order the SHEET prints them:
+  // this runs only for a drawing built from a plano, and the codes reached it
+  // through the layout's own `arriba` and `abajo` lists, read off that sheet
+  // left to right. Sorting them alphanumerically — which is right for the
+  // popup, where the order is the catalog's and means nothing — reordered
+  // thirty chip rows away from the sign a rider is standing under: Usme's
+  // platform prints "H27 H13" and this drew "H13 H27".
+  return Array.from(groups.values());
 }
 
 /**

@@ -120,6 +120,42 @@ test.describe('the plan, without a browser', () => {
     }).toEqual({ unstyledInTheApp: [], unstyledInThePrerender: [], markersThatAreNowStyled: [] });
   });
 
+  test('every chip row reads in the order its sheet prints it', () => {
+    // The layout's `arriba` and `abajo` lists are the sheet read left to right,
+    // and that is the order a rider sees on the sign. The renderer used to sort
+    // them alphanumerically — right for the popup, where the order is the
+    // catalog's and means nothing — which turned Portal Usme's printed
+    // "H27 H13" into "H13 H27" on thirty chip rows across the network.
+    const wrong: string[] = [];
+    for (const code of drawn) {
+      const html = drawingFor(code);
+      // One deck cell per <section class="pvg">, in drawing order; its chips are
+      // whatever the tag markup carries, in the order it carries them.
+      const cells = html.split('<section class="pvg').slice(1);
+      const rows: string[][] = [];
+      for (const cell of cells) {
+        for (const side of cell.split('class="pvg-side').slice(1)) {
+          const chips = [...side.matchAll(/data-route-code="([^"]+)"/g)].map((m) => m[1].trim());
+          if (chips.length > 1) rows.push(chips);
+        }
+      }
+      const want: string[][] = [];
+      for (const row of planos.layouts[code].rows ?? []) {
+        for (const v of row.vagones ?? []) {
+          for (const side of ['arriba', 'abajo'] as const) {
+            const list: string[] = v[side] ?? [];
+            if (list.length > 1) want.push(list.map(String));
+          }
+        }
+      }
+      // Compared as a SET of rows: the drawing walks its columns, the layout
+      // walks its rows, and the two orders of the rows themselves need not agree.
+      const key = (rs: string[][]) => rs.map((r) => r.join(' ')).sort().join(' | ');
+      if (key(rows) !== key(want)) wrong.push(`${code}: sheet has [${key(want)}], drawing has [${key(rows)}]`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
   test('no drawing names a corridor along its edge', () => {
     // The NORTE/SUR and OCCIDENTE/ORIENTE bands were hoisted out of the drawing:
     // they put the answer furthest from the chip a rider is reading, and on a
