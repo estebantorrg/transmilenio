@@ -3,85 +3,600 @@
   "TM0029": {
     "source": "Plano de ubicacion, Portal Norte - Unicervantes, version diciembre de 2025.",
     "why": "The sheet is 1024x576 and the drawing occupies x 192..1032, y 172..510, so the viewBox is that window of the sheet's own page and a coordinate here is a coordinate there. The turnaround caps are ELLIPSES: at mid-height the ring is only 7px thick on the left (grey at x 211..218), so rxo is 80 against a ry of 92 and rxi 73 against 34. Drawn round they bulged half a platform-width past the sheet at both ends. The outer kerbs are shorter than the inner pair because the troncal stopping zone is shorter than the platform. The furniture x's are each tile's own, not a pitch: Plataforma 2 west runs six tiles at 34px where Plataforma 1 west runs five at 43, and one pitch for both put a tile through the Plataforma 2 tag.",
-    "vista": [192, 172, 840, 338],
+    "vista": [
+      192,
+      172,
+      840,
+      338
+    ],
     "teja": 18,
     "verde": 63,
-    "anillo": { "x0": 291, "x1": 910, "yo1": 249.5, "yi1": 308, "yi2": 376, "yo2": 434, "rxo": 80, "rxi": 73 },
-    "tunel": { "x": 191, "y": 337.5, "w": 819, "h": 9 },
+    "anillo": {
+      "x0": 291,
+      "x1": 910,
+      "yo1": 249.5,
+      "yi1": 308,
+      "yi2": 376,
+      "yo2": 434,
+      "rxo": 80,
+      "rxi": 73
+    },
+    "tunel": {
+      "x": 191,
+      "y": 337.5,
+      "w": 819,
+      "h": 9
+    },
     "bordillos": [
-      { "y": 308, "x0": 291, "x1": 910 },
-      { "y": 376, "x0": 291, "x1": 910 },
-      { "y": 249.5, "x0": 291, "x1": 864 },
-      { "y": 434, "x0": 336, "x1": 864 }
+      {
+        "y": 308,
+        "x0": 291,
+        "x1": 910
+      },
+      {
+        "y": 376,
+        "x0": 291,
+        "x1": 910
+      },
+      {
+        "y": 249.5,
+        "x0": 291,
+        "x1": 864
+      },
+      {
+        "y": 434,
+        "x0": 336,
+        "x1": 864
+      }
     ],
     "muros": [
-      { "y": 277.5, "x0": 291, "x1": 910 },
-      { "y": 406.5, "x0": 291, "x1": 910 }
+      {
+        "y": 277.5,
+        "x0": 291,
+        "x1": 910
+      },
+      {
+        "y": 406.5,
+        "x0": 291,
+        "x1": 910
+      }
     ],
     "tiras": [
       {
         "tira": "Plataforma 1 · salida de buses zonales",
-        "caja": { "x": 325, "y": 296, "w": 213, "h": 10 },
-        "capY": 295, "nameY": 318, "arriba": false,
-        "run": { "xs": [338, 381, 423, 466, 509], "y": 266 }
+        "caja": {
+          "x": 325,
+          "y": 296,
+          "w": 213,
+          "h": 10
+        },
+        "capY": 295,
+        "nameY": 318,
+        "arriba": false,
+        "run": {
+          "xs": [
+            338,
+            381,
+            423,
+            466,
+            509
+          ],
+          "y": 266
+        }
       },
       {
         "tira": "Plataforma 1 · salida de buses intermunicipales",
-        "caja": { "x": 687, "y": 296, "w": 160, "h": 10 },
-        "capY": 295, "nameY": 318, "arriba": false,
-        "run": { "xs": [717, 760, 803], "y": 266 }
+        "caja": {
+          "x": 687,
+          "y": 296,
+          "w": 160,
+          "h": 10
+        },
+        "capY": 295,
+        "nameY": 318,
+        "arriba": false,
+        "run": {
+          "xs": [
+            717,
+            760,
+            803
+          ],
+          "y": 266
+        }
       },
       {
         "tira": "Plataforma 2 · llegada de buses zonales",
-        "caja": { "x": 325, "y": 378, "w": 213, "h": 10 },
-        "capY": 396, "nameY": 370, "arriba": true,
-        "run": { "xs": [338, 372, 406, 440, 474, 508], "y": 399 }
+        "caja": {
+          "x": 325,
+          "y": 378,
+          "w": 213,
+          "h": 10
+        },
+        "capY": 396,
+        "nameY": 370,
+        "arriba": true,
+        "run": {
+          "xs": [
+            338,
+            372,
+            406,
+            440,
+            474,
+            508
+          ],
+          "y": 399
+        }
       },
       {
         "tira": "Plataforma 2 · salida de buses zonales",
-        "caja": { "x": 661, "y": 378, "w": 213, "h": 10 },
-        "capY": 396, "nameY": 370, "arriba": true,
-        "run": { "xs": [717, 760, 803], "y": 399 }
+        "caja": {
+          "x": 661,
+          "y": 378,
+          "w": 213,
+          "h": 10
+        },
+        "capY": 396,
+        "nameY": 370,
+        "arriba": true,
+        "run": {
+          "xs": [
+            717,
+            760,
+            803
+          ],
+          "y": 399
+        }
       }
     ],
-    "escaleras": [[286, 266], [286, 399], [898, 266], [898, 399]],
+    "escaleras": [
+      [
+        286,
+        266
+      ],
+      [
+        286,
+        399
+      ],
+      [
+        898,
+        266
+      ],
+      [
+        898,
+        399
+      ]
+    ],
     "puente": {
       "tira": "Acceso peatonal · puente central",
-      "eje": { "x": 615, "w": 15, "y0": 202, "y1": 484 },
-      "bloque": { "x": 570, "w": 46, "cx": 588.5 },
-      "pila": [295.5, 319.5, 343.5, 369, 391.5],
-      "descansos": [{ "y": 280, "h": 28 }, { "y": 380, "h": 28 }],
-      "escaleras": [
-        { "x": 595, "w": 35, "y0": 201, "y1": 221 },
-        { "x": 595, "w": 35, "y0": 465, "y1": 485 }
+      "eje": {
+        "x": 615,
+        "w": 15,
+        "y0": 202,
+        "y1": 484
+      },
+      "bloque": {
+        "x": 570,
+        "w": 46,
+        "cx": 588.5
+      },
+      "pila": [
+        295.5,
+        319.5,
+        343.5,
+        369,
+        391.5
       ],
-      "rampas": [[209, 222], [477, 464]]
+      "descansos": [
+        {
+          "y": 280,
+          "h": 28
+        },
+        {
+          "y": 380,
+          "h": 28
+        }
+      ],
+      "escaleras": [
+        {
+          "x": 595,
+          "w": 35,
+          "y0": 201,
+          "y1": 221
+        },
+        {
+          "x": 595,
+          "w": 35,
+          "y0": 465,
+          "y1": 485
+        }
+      ],
+      "rampas": [
+        [
+          209,
+          222
+        ],
+        [
+          477,
+          464
+        ]
+      ]
     },
     "etiquetas": [
-      { "x": 533, "y": 258, "w": 64, "h": 12, "texto": "Plataforma 1" },
-      { "x": 533, "y": 415, "w": 64, "h": 13, "texto": "Plataforma 2" },
-      { "x": 613, "y": 334, "w": 78, "h": 15, "texto": "Acceso peatonal", "flecha": true }
+      {
+        "x": 533,
+        "y": 258,
+        "w": 64,
+        "h": 12,
+        "texto": "Plataforma 1"
+      },
+      {
+        "x": 533,
+        "y": 415,
+        "w": 64,
+        "h": 13,
+        "texto": "Plataforma 2"
+      },
+      {
+        "x": 613,
+        "y": 334,
+        "w": 78,
+        "h": 15,
+        "texto": "Acceso peatonal",
+        "flecha": true
+      }
     ],
     "rotulos": [
-      { "x": 621, "y": 238.5, "clase": "place-sm", "centro": true, "texto": "Puente peatonal" },
-      { "x": 621, "y": 246.5, "clase": "place-en", "centro": true, "texto": "Pedestrian bridge" },
-      { "x": 578, "y": 193, "clase": "anchor", "centro": true, "texto": "Éxito" },
-      { "x": 450, "y": 492, "clase": "anchor", "centro": true, "texto": "Homecenter" },
-      { "x": 254, "y": 343, "clase": "place", "centro": true, "texto": "Túnel peatonal" },
-      { "x": 254, "y": 352, "clase": "place-en", "centro": true, "texto": "Pedestrian tunnel" },
-      { "x": 948, "y": 343, "clase": "place", "centro": true, "texto": "Túnel peatonal" },
-      { "x": 948, "y": 352, "clase": "place-en", "centro": true, "texto": "Pedestrian tunnel" },
-      { "x": 213.6, "y": 235, "clase": "street", "texto": "Autopista Norte" },
-      { "x": 998, "y": 459, "clase": "street", "fin": true, "texto": "Autopista Norte" }
+      {
+        "x": 621,
+        "y": 238.5,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "Puente peatonal"
+      },
+      {
+        "x": 621,
+        "y": 246.5,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian bridge"
+      },
+      {
+        "x": 578,
+        "y": 193,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Éxito"
+      },
+      {
+        "x": 450,
+        "y": 492,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Homecenter"
+      },
+      {
+        "x": 254,
+        "y": 343,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 254,
+        "y": 352,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 948,
+        "y": 343,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 948,
+        "y": 352,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 213.6,
+        "y": 235,
+        "clase": "street",
+        "texto": "Autopista Norte"
+      },
+      {
+        "x": 998,
+        "y": 459,
+        "clase": "street",
+        "fin": true,
+        "texto": "Autopista Norte"
+      }
     ],
     "chips": [
-      { "codigos": ["8", "F28"], "x": 417, "y": 243.5 },
-      { "codigos": ["D10", "J70", "J74"], "x": 698, "y": 243.5 },
-      { "codigos": ["G12", "S46"], "x": 383, "y": 442 },
-      { "codigos": ["8", "H75"], "x": 686, "y": 442, "sub": { "H75": "Portal Usme" } },
-      { "codigos": ["H27", "H13"], "x": 800, "y": 442, "sub": { "H27": "Portal Tunal", "H13": "Portal Tunal" } }
+      {
+        "codigos": [
+          "8",
+          "F28"
+        ],
+        "x": 417,
+        "y": 243.5
+      },
+      {
+        "codigos": [
+          "D10",
+          "J70",
+          "J74"
+        ],
+        "x": 698,
+        "y": 243.5
+      },
+      {
+        "codigos": [
+          "G12",
+          "S46"
+        ],
+        "x": 383,
+        "y": 442
+      },
+      {
+        "codigos": [
+          "8",
+          "H75"
+        ],
+        "x": 686,
+        "y": 442,
+        "sub": {
+          "H75": "Portal Usme"
+        }
+      },
+      {
+        "codigos": [
+          "H27",
+          "H13"
+        ],
+        "x": 800,
+        "y": 442,
+        "sub": {
+          "H27": "Portal Tunal",
+          "H13": "Portal Tunal"
+        }
+      }
     ],
-    "reservado": [{ "x0": 588, "x1": 654, "y0": 231, "y1": 250 }],
-    "carriles": [221, 239.5, 444.5, 465]
+    "reservado": [
+      {
+        "x0": 588,
+        "x1": 654,
+        "y0": 231,
+        "y1": 250
+      }
+    ],
+    "carriles": [
+      221,
+      239.5,
+      444.5,
+      465
+    ]
+  },
+  "TM0058": {
+    "source": "Plano de ubicacion, Portal 80, version diciembre de 2025.",
+    "why": "NOT a ring. Portal 80 draws two long lozenges lying diagonally, each bending once in the middle, with no turnaround loop anywhere — so it uses `andenes` (a platform as a thick round-capped polyline) where Portal Norte uses `anillo`. The axes and the 92px thickness were measured by taking the platform grey as a mask and walking each connected piece column by column (_eje.mjs); the four kerbs were then sampled directly across the width, which is what fixes the bend: Plataforma 1 turns at about x 555 and Plataforma 2 at about x 600. Chips here are drawn BIGGER than at Norte — 40px wide for a three-character code against 27 — so the chip metrics are part of the geometry rather than a constant.",
+    "vista": [
+      236,
+      128,
+      756,
+      420
+    ],
+    "teja": 18,
+    "chip": {
+      "k": 11.7,
+      "h": 32,
+      "sub": 7
+    },
+    "andenes": [
+      {
+        "pts": [
+          [
+            350,
+            320
+          ],
+          [
+            555,
+            227
+          ],
+          [
+            930,
+            188
+          ]
+        ],
+        "ancho": 92
+      },
+      {
+        "pts": [
+          [
+            460,
+            480
+          ],
+          [
+            595,
+            390
+          ],
+          [
+            940,
+            350
+          ]
+        ],
+        "ancho": 92
+      }
+    ],
+    "bordillos": [
+      {
+        "pts": [
+          [
+            325,
+            288
+          ],
+          [
+            535,
+            180
+          ],
+          [
+            790,
+            155
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            375,
+            362
+          ],
+          [
+            560,
+            269
+          ],
+          [
+            900,
+            231
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            500,
+            385
+          ],
+          [
+            580,
+            343
+          ],
+          [
+            900,
+            310
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            475,
+            499
+          ],
+          [
+            605,
+            433
+          ],
+          [
+            925,
+            397
+          ]
+        ]
+      }
+    ],
+    "etiquetas": [
+      {
+        "x": 832,
+        "y": 140,
+        "w": 84,
+        "h": 12,
+        "texto": "Plataforma 1"
+      },
+      {
+        "x": 844,
+        "y": 308,
+        "w": 77,
+        "h": 12,
+        "texto": "Plataforma 2"
+      }
+    ],
+    "rotulos": [
+      {
+        "x": 560,
+        "y": 302,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 560,
+        "y": 311,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 272,
+        "y": 158,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Centro Comercial"
+      },
+      {
+        "x": 272,
+        "y": 168,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Portal 80"
+      },
+      {
+        "x": 300,
+        "y": 470,
+        "clase": "street",
+        "texto": "Calle 80"
+      }
+    ],
+    "chips": [
+      {
+        "codigos": [
+          "B10",
+          "B55"
+        ],
+        "x": 380,
+        "y": 240
+      },
+      {
+        "codigos": [
+          "H20"
+        ],
+        "x": 569,
+        "y": 175,
+        "sub": {
+          "H20": "Portal Usme"
+        }
+      },
+      {
+        "codigos": [
+          "J24"
+        ],
+        "x": 793,
+        "y": 151
+      },
+      {
+        "codigos": [
+          "6",
+          "H21"
+        ],
+        "x": 412,
+        "y": 401,
+        "sub": {
+          "H21": "Portal Tunal"
+        }
+      },
+      {
+        "codigos": [
+          "G22"
+        ],
+        "x": 801,
+        "y": 318
+      }
+    ],
+    "carriles": [],
+    "borrador": true,
+    "falta": "The bay strips and the furniture. The platforms, kerbs, chips and free labels are measured and drawn; `_equipo.mjs` finds the tiles along each axis but needs a different threshold per platform, which says the axis is still a little off for one of them. Clear `borrador` when both are in."
   }
 }

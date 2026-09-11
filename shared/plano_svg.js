@@ -81,7 +81,12 @@ const num = (v) => (Math.round(v * 100) / 100).toString();
  */
 export function buildPortalSvg(input) {
   const geo = input.geo;
-  if (!geo || !geo.anillo) return '';
+  // A station whose measurements are still being taken draws NOTHING here and
+  // falls back to the column drawing. Half a portal — platforms and chips but no
+  // bays and no furniture — is worse for a rider than the schematic it replaces,
+  // so an unfinished entry stays in version control without shipping.
+  if (geo?.borrador) return '';
+  if (!geo || !(geo.anillo || (geo.andenes ?? []).length)) return '';
   // Not a palette but a set of references INTO one. Both palettes are written
   // into the drawing's own <style>, so the paper view is a class on the root
   // rather than a second render, and @media print can force it with nobody
@@ -93,10 +98,36 @@ export function buildPortalSvg(input) {
     (Array.isArray(D.zonal) ? D.zonal : D.zonal ? [D.zonal] : []).map((t) => [t.nombre, t])
   );
 
-  const A = geo.anillo;
+  /**
+   * A platform drawn as a LOZENGE: a thick line with round ends.
+   *
+   * Portal Norte is a racetrack and its shape is four kerbs and two caps.
+   * Portal 80 is nothing like it — two long lozenges lying diagonally, each
+   * bending once in the middle — and no amount of parameterising a ring
+   * describes that. So a portal's platforms are either a ring or a set of
+   * these, and which one a station is comes from its own geometry.
+   */
+  const lozenge = (a) => {
+    const d = a.pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ');
+    const comun = ' fill="none" stroke-linecap="round" stroke-linejoin="round"';
+    return (
+      '<path d="' + d + '"' + comun + ' stroke="' + C.trazo + '" stroke-width="' + (a.ancho + 1.8) + '"/>' +
+      '<path d="' + d + '"' + comun + ' stroke="' + C.anden + '" stroke-width="' + a.ancho + '"/>'
+    );
+  };
+
+  /** A kerb: a straight run on a ring, a polyline on an angled platform. */
+  const bordillo = (k) =>
+    '<path d="' + (k.pts
+      ? k.pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ')
+      : 'M' + k.x0 + ',' + k.y + ' H' + k.x1) +
+    '" fill="none" stroke="' + KERB + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+
+  const A = geo.anillo ?? {};
   const CY = (A.yo1 + A.yo2) / 2;
   const RO = (A.yo2 - A.yo1) / 2;
   const RI = (A.yi2 - A.yi1) / 2;
+  const hayAnillo = Boolean(geo.anillo);
   const TILE = geo.teja ?? 18;
 
   /** Boxes a lane rule has to keep clear of, gathered as the drawing is built. */
@@ -131,8 +162,10 @@ export function buildPortalSvg(input) {
     return ruta && input.routeHref ? input.routeHref(ruta) : null;
   };
 
-  const anchoChip = (c) => Math.max(19, c.length * 7.4 + 5);
-  const ALTO_CHIP = 23;
+  const CH = geo.chip ?? {};
+  const anchoChip = (c) => Math.max(CH.min ?? 19, c.length * (CH.k ?? 7.4) + 5);
+  const ALTO_CHIP = CH.h ?? 23;
+  const SUB_Y = CH.sub ?? 6;
 
   /** A run of chips, butted together the way the sheet sets them. */
   function chips(grupo) {
@@ -143,8 +176,9 @@ export function buildPortalSvg(input) {
       const href = hrefDe(c);
       const cuerpo =
         '<rect width="' + num(w) + '" height="' + ALTO_CHIP + '" fill="' + colorDe(c) + '"/>' +
-        (sub ? '<text x="' + num(w / 2) + '" y="6" class="pq-chip-sub">' + escapeHtml(sub) + '</text>' : '') +
-        '<text x="' + num(w / 2) + '" y="' + (sub ? 18 : 16.4) + '" class="pq-chip">' + escapeHtml(c) + '</text>';
+        (sub ? '<text x="' + num(w / 2) + '" y="' + SUB_Y + '" class="pq-chip-sub">' + escapeHtml(sub) + '</text>' : '') +
+        '<text x="' + num(w / 2) + '" y="' + num(sub ? ALTO_CHIP * 0.78 : ALTO_CHIP * 0.71) +
+        '" class="pq-chip">' + escapeHtml(c) + '</text>';
       const g =
         '<g transform="translate(' + num(cx) + ' ' + num(grupo.y - ALTO_CHIP / 2) + ')">' + cuerpo + '</g>';
       out += href
@@ -276,7 +310,7 @@ export function buildPortalSvg(input) {
     return out;
   }
 
-  const P = geo.puente;
+  const P = geo.puente ?? null;
   /** The switchback ramp hooked off the shaft, the way down to street level. */
   const rampa = ([yA, yB]) => {
     const r = Math.abs(yB - yA) / 2;
@@ -288,7 +322,7 @@ export function buildPortalSvg(input) {
   // What the bridge carries: the ramps it lands on at each platform come from
   // the bridge COLUMN's own `sube`, the rest from its strip.
   const sube = ((D.columnas ?? []).find((c) => c.t === 'puente' && c.sube) ?? {}).sube ?? [];
-  const enTira = ((tiras[P.tira]?.items ?? []).find((i) => i.t === 'equipo') ?? {}).iconos ?? [];
+  const enTira = ((tiras[P?.tira]?.items ?? []).find((i) => i.t === 'equipo') ?? {}).iconos ?? [];
   const pila = [...sube, ...enTira, ...sube];
 
   const rotulo = (r) =>
@@ -347,9 +381,11 @@ export function buildPortalSvg(input) {
 
     // Everything outside the ring is confined to the ring's own rows: the sheet
     // has bare page beside the turnaround at mid-height, not surface.
-    '<g clip-path="url(#pq-anillo)">' +
-    verde(A.x0, -1) + verde(A.x1, 1) + radios(A.x0, 1) + radios(A.x1, -1) +
-    '</g>' +
+    (hayAnillo
+      ? '<g clip-path="url(#pq-anillo)">' +
+        verde(A.x0, -1) + verde(A.x1, 1) + radios(A.x0, 1) + radios(A.x1, -1) +
+        '</g>'
+      : '') +
 
     // The tunnel: ONE passage the length of the station under the roadway, which
     // is why both ends carry the same name.
@@ -358,12 +394,13 @@ export function buildPortalSvg(input) {
         geo.tunel.h + '" fill="' + C.tunel + '"/>'
       : '') +
 
-    '<path d="' + anillo + '" fill="' + C.anden + '" stroke="' + C.trazo +
-    '" stroke-width="0.9" fill-rule="evenodd"/>' +
+    (hayAnillo
+      ? '<path d="' + anillo + '" fill="' + C.anden + '" stroke="' + C.trazo +
+        '" stroke-width="0.9" fill-rule="evenodd"/>'
+      : '') +
+    (geo.andenes ?? []).map(lozenge).join('') +
 
-    (geo.bordillos ?? [])
-      .map((k) => '<path d="M' + k.x0 + ',' + k.y + ' H' + k.x1 + '" stroke="' + KERB + '" stroke-width="3"/>')
-      .join('') +
+    (geo.bordillos ?? []).map(bordillo).join('') +
     (geo.muros ?? [])
       .map((m) => '<path d="M' + m.x0 + ',' + m.y + ' H' + m.x1 + '" stroke="' + C.trazo + '" stroke-width="1"/>')
       .join('') +
@@ -373,7 +410,8 @@ export function buildPortalSvg(input) {
     (geo.escaleras ?? []).map(([x, y]) => tile('escalera', x, y)).join('') +
 
     // The bridge: a narrow shaft with a switchback ramp hooked off each end and
-    // the access block standing beside it, not on it.
+    // the access block standing beside it, not on it. Not every portal has one.
+    (!P ? '' :
     (P.rampas ?? []).map(rampa).join('') +
     (P.escaleras ?? []).map(escalera).join('') +
     '<rect x="' + P.eje.x + '" y="' + P.eje.y0 + '" width="' + P.eje.w + '" height="' +
@@ -384,7 +422,7 @@ export function buildPortalSvg(input) {
       .join('') +
     '<rect x="' + P.bloque.x + '" y="' + A.yi1 + '" width="' + P.bloque.w + '" height="' +
     num(A.yi2 - A.yi1) + '" fill="' + C.bloque + '" stroke="' + C.trazo + '" stroke-width="0.7"/>' +
-    pila.map((n, i) => (P.pila[i] === undefined ? '' : tile(n, P.bloque.cx - TILE / 2, P.pila[i] - TILE / 2))).join('') +
+    pila.map((n, i) => (P.pila[i] === undefined ? '' : tile(n, P.bloque.cx - TILE / 2, P.pila[i] - TILE / 2))).join('')) +
 
     (geo.etiquetas ?? []).map(etiqueta).join('') +
     (geo.rotulos ?? []).map(rotulo).join('') +
