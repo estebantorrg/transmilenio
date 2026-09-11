@@ -35,6 +35,12 @@ export interface BuildSheetPlanoInput {
   layout?: unknown;
   /** `planoDetalle` — the furniture, where it has been read. */
   detalle?: unknown;
+  /** A PORTAL's measured geometry. Given, the drawing is the loop `plano_svg.js`
+   *  draws on the sheet's own coordinates, and every column field is ignored. */
+  geo?: unknown;
+  /** Which palette the drawing is painted in. Defaults to the app's dark one;
+   *  `papel` is the printed sheet's. */
+  tema?: 'papel' | 'oscuro';
   wagonPlan?: Record<string, Array<{ sentido?: string | null; ids?: string[] }>>;
   sentidos?: { positive: string; negative: string };
   /** Narrows the drawing to one platform of a station the catalog files as one

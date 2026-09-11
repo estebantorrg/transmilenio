@@ -268,12 +268,28 @@ test.describe('the plan, on the page', () => {
           byBand.set(band, tops);
         }
         const drift = [...byBand.values()].filter((t) => t.length > 1).map((t) => Math.max(...t) - Math.min(...t));
+        const svg = document.querySelector('.popup-plano-portal svg.pq');
+        const css = svg?.querySelector('style')?.textContent ?? '';
         return {
+          // A PORTAL is not a row of decks but one SVG on its sheet's own
+          // coordinates, so the alignment rule does not apply and different
+          // things matter: that it drew its loop, that both palettes travel
+          // with it, and that print is forced to the paper one.
+          portal: Boolean(svg),
+          anillo: (svg?.querySelectorAll('path').length ?? 0) > 5,
+          paletas: css.includes('.pq{--pq-') && css.includes('.pq.pq-papel{--pq-'),
+          imprime: css.includes('@media print'),
           decks: document.querySelectorAll('.popup-plano .pvg-deck').length,
           axis: document.querySelectorAll('.pvg-axis').length,
           drift: Math.max(0, ...drift),
         };
       });
+      if (found.portal) {
+        if (!found.anillo) wrong.push(code + ': portal drawn without its loop');
+        if (!found.paletas) wrong.push(code + ': portal carries only one palette');
+        if (!found.imprime) wrong.push(code + ': portal does not force paper for print');
+        continue;
+      }
       if (found.decks === 0) wrong.push(code + ': no platform drawn');
       if (found.axis > 0) wrong.push(code + ': names a corridor along its edge');
       if (found.drift > 2) wrong.push(`${code}: decks in one band sit ${found.drift}px apart`);
@@ -336,8 +352,14 @@ test.describe('the plan, on the page', () => {
       await openStation(page, code);
       const bad = await page.evaluate(() => {
         const out: string[] = [];
-        for (const a of document.querySelectorAll<HTMLAnchorElement>('.popup-plano a[href]')) {
-          if (!/^\/ruta\/[^/]+\/$/.test(new URL(a.href, location.href).pathname)) out.push(a.textContent?.trim() ?? '?');
+        // `getAttribute`, not `.href`: a portal's chips are SVG anchors, whose
+        // `href` is an SVGAnimatedString. Read as a string it stringifies to
+        // "[object SVGAnimatedString]" and every one of them looked broken.
+        for (const a of document.querySelectorAll('.popup-plano a[href]')) {
+          const href = a.getAttribute('href') ?? '';
+          if (!/^\/ruta\/[^/]+\/$/.test(new URL(href, location.href).pathname)) {
+            out.push(a.textContent?.trim() ?? '?');
+          }
         }
         return out;
       });

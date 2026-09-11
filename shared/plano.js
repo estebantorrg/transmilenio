@@ -23,6 +23,14 @@
  * passes none and keeps the click handler it already has.
  */
 
+// A CYCLE, and a safe one: `plano_svg.js` imports ICONOS and escapeHtml back
+// from here. Neither module touches the other's bindings while a module body is
+// evaluating — both are read inside function bodies only — so whichever is
+// entered first finishes initialising before the other calls into it. Kept this
+// way so that `buildSheetPlano` stays the single entry point both surfaces use;
+// splitting the dispatch across the two callers is what let them drift before.
+import { buildPortalSvg } from './plano_svg.js';
+
 /** @typedef {{ id?: string, codigo: string, nombre: string, color?: string, tipoServicio?: string, sistema?: string }} Route */
 
 const AMP = /&/g;
@@ -600,6 +608,17 @@ function convencionesHtml(columnas, zonal) {
   return '<div class="pdt-convenciones"><span class="pdt-conv-tag">Convenciones</span>' + items + '</div>';
 }
 
+/** Every mark a portal's own geometry puts on the page, for its key. */
+function iconosDelPortal(geo, detalle) {
+  const out = [];
+  if ((geo?.escaleras ?? []).length) out.push('escalera');
+  if ((geo?.puente?.escaleras ?? []).length) out.push('escalera');
+  for (const c of detalle?.columnas ?? []) {
+    if (c.t === 'puente') for (const n of c.sube ?? []) out.push(n);
+  }
+  return [...new Set(out)];
+}
+
 /**
  * The station drawn from its sheet, or null where no sheet has been read.
  *
@@ -653,6 +672,45 @@ export function buildSheetPlano(input) {
     !input.presentWagons || !(row.wagones ?? []).length
       ? true
       : row.wagones.some((w) => input.presentWagons.has(normalizeCode(w)));
+
+  // A PORTAL with measured geometry is not a row of columns at all: it is a
+  // loop, drawn on its sheet's own coordinates. Taken before any of the column
+  // work below, because none of that applies to it.
+  if (input.geo?.anillo) {
+    const svg = buildPortalSvg({
+      geo: input.geo,
+      detalle: input.detalle,
+      layout,
+      byCode,
+      tagColor: input.tagColor,
+      routeHref: input.routeHref,
+      tema: input.tema,
+    });
+    if (svg) {
+      const puestos = new Set();
+      for (const row of layout.rows ?? []) {
+        for (const v of row.vagones ?? []) {
+          for (const c of [...(v.arriba ?? []), ...(v.abajo ?? [])]) puestos.add(normalizeCode(c));
+        }
+      }
+      return {
+        html:
+          '<div class="popup-plano popup-plano-portal" role="group" ' +
+          'aria-label="Plano de la estación" tabindex="0">' + svg + '</div>' +
+          // The key names what the DRAWING used. The strips carry their own
+          // icons through `zonal`; the stairs at the turnarounds and the ramps
+          // the bridge lands on are the geometry's, so they are handed over as
+          // a stand-in block — otherwise the key omits two marks that are on
+          // the page, which is the one thing a key must never do.
+          convencionesHtml(
+            [{ t: 'vestibulo', arriba: iconosDelPortal(input.geo, input.detalle) }],
+            input.detalle?.zonal
+          ),
+        detallado: true,
+        placed: puestos,
+      };
+    }
+  }
 
   const cells = new Map();
   const placed = new Set();

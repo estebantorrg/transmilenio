@@ -147,6 +147,10 @@ export interface CatalogStation {
    * A `vagones` column names vagón NUMBERS; the services behind them come
    * from `planoLayout`, stated once so the two drawings cannot disagree.
    */
+  /** A PORTAL's measured geometry, where its sheet has been read as coordinates
+   *  rather than as columns. Opaque: only `shared/plano_svg.js` reads its
+   *  shape, and a station without it falls back to the column drawing. */
+  planoGeo?: unknown;
   planoDetalle?: {
     columnas?: CatalogPlanoColumna[];
     /** A SPLIT station: one código, two sheets. Ricaurte and Av. Jiménez are

@@ -18,6 +18,7 @@ import { collectBody, decodeBody } from './upstream_body.js';
 import {
   layoutServices,
   planoDetalle,
+  planoGeo,
   planoLayout,
   plateWagon,
   printedVagonLabels,
@@ -610,6 +611,8 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // Columns only. Its `source` and `why` are why the furniture is on file,
       // which belongs in the file and not in a payload every visitor downloads —
       // the same rule the layout above follows.
+      // A portal's measured geometry, where its sheet has been read that way.
+      const geoOut = planoGeo(station.codigo);
       const detalleRead = planoDetalle(station.codigo);
       const detalleOut: PlanoDetalle | undefined = detalleRead
         ? {
@@ -704,6 +707,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ...(wagonPlan ? { wagonPlan } : {}),
         ...(planoLayoutOut ? { planoLayout: planoLayoutOut } : {}),
         ...(detalleOut ? { planoDetalle: detalleOut } : {}),
+        ...(geoOut ? { planoGeo: geoOut } : {}),
         wagons: cleanWagons,
       };
     } else {

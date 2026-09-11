@@ -350,6 +350,27 @@ export function planoDetalle(stationCode: unknown): PlanoDetalle | undefined {
   return PLANO_DETALLE[String(stationCode ?? '').trim().toUpperCase()];
 }
 
+/**
+ * The measured geometry of a PORTAL, for the ones drawn on their sheet's own
+ * coordinates rather than as a row of columns.
+ *
+ * Opaque here on purpose: this file's job is to hand it across unchanged, and
+ * the only thing that reads its shape is `shared/plano_svg.js`. A station
+ * without an entry falls back to the column drawing, which is every estación.
+ */
+const PLANO_GEO: Record<string, unknown> = (() => {
+  try {
+    return JSON.parse(readFileSync(path.resolve(__dirname, '..', 'data', 'plano_geo.json'), 'utf-8'));
+  } catch {
+    console.warn('[TM API] plano_geo.json unreadable; portals fall back to the column drawing.');
+    return {};
+  }
+})();
+
+export function planoGeo(stationCode: unknown): unknown | undefined {
+  return PLANO_GEO[String(stationCode ?? '').trim().toUpperCase()];
+}
+
 export function plateWagon(stationCode: unknown, codigo: unknown): string | undefined {
   const station = PLANO_WAGONS[String(stationCode ?? '').trim().toUpperCase()];
   if (!station) return undefined;

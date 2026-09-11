@@ -2609,6 +2609,49 @@ body.sidebar-collapsed .sidebar-fab {
   opacity: 0.75;
 }
 
+
+/* ── The portal plan ─────────────────────────────────────────────────────
+   One SVG, drawn on its own sheet's coordinates, carrying its own colours and
+   type. Nothing about how it LOOKS belongs here — that would rebuild the split
+   that let the app and the prerendered page disagree. This only says how big it
+   is and how it scrolls.
+
+   A plan of a physical place cannot reflow: at 390px the whole loop would put
+   the bay names at three pixels. So it keeps a minimum width and scrolls
+   sideways inside its own box, which is what the drawing already did. */
+.popup-plano-portal {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  padding-bottom: calc(4px * var(--tm-scale, 1));
+}
+
+.popup-plano-portal .pq {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  height: auto;
+}
+
+.plano-vista {
+  margin-top: calc(8px * var(--tm-scale, 1));
+  padding: calc(5px * var(--tm-scale, 1)) calc(11px * var(--tm-scale, 1));
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: calc(11px * var(--tm-scale, 1));
+  cursor: pointer;
+}
+
+.plano-vista:hover { color: var(--text-primary); border-color: var(--border-card); }
+
+/* The control is for the screen. On paper the drawing is already the sheet. */
+@media print {
+  .plano-vista { display: none; }
+  .popup-plano-portal { overflow: visible; }
+}
+
 /* ── The full station, as its own plano draws it ─────────────────────────
    The estación page only. COLUMNS, not rows: a vestibule spans both
    platforms while the caño between them does not, and only a column can say

@@ -29,6 +29,7 @@ import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
 import { buildSheetPlano, nombreVagon } from '../../../shared/plano.js';
+import { routePagePath } from '../ui/routeDetail';
 import {
   platformForMatchMethod,
   platformStation,
@@ -471,7 +472,8 @@ export function buildStationWagonView(
   sentidos?: { positive: string; negative: string },
   layout?: StationPlanoLayout,
   codigo?: string,
-  detalle?: CatalogStation['planoDetalle']
+  detalle?: CatalogStation['planoDetalle'],
+  geo?: CatalogStation['planoGeo']
 ): StationWagonView {
   const lettered: Array<{ key: string; routes: CatalogRoute[] }> = [];
   const unlettered: CatalogRoute[] = [];
@@ -536,12 +538,20 @@ export function buildStationWagonView(
     wagons: wagons as Record<string, CatalogRoute[]>,
     layout,
     detalle,
+    geo,
     wagonPlan,
     sentidos,
     presentWagons,
     tagColor: (r) =>
       safeColor(getStopTagColor(r.codigo, r.color, catalogRouteNetwork(r as CatalogRoute)), '#FB2C17'),
     isZonal: (r) => isZonalService(r.sistema, r.tipoServicio),
+    // ONLY for a portal. An SVG chip is a shape, not a tag element, so it has
+    // no span for the map's click handler to find and has to be a real anchor —
+    // and `interceptPageLink` already turns an in-page /ruta/ link into a
+    // pushState navigation. The column drawing keeps its spans: handing it
+    // hrefs would strip the `data-route-id` the map selects routes by, at all
+    // hundred and thirty-two stations, to fix nine.
+    routeHref: geo ? (r) => routePagePath(String(r.codigo ?? '')) : undefined,
   });
 
   const planoDrawing =
@@ -776,6 +786,7 @@ export interface StationPageData {
   /** The station's drawn shape, where the catalog's wagons cannot express it. */
   planoLayout?: StationPlanoLayout;
   planoDetalle?: import('../types/catalog').CatalogStation['planoDetalle'];
+  planoGeo?: import('../types/catalog').CatalogStation['planoGeo'];
   coordinate: [number, number];
   wagons: ResolvedCatalogWagons;
   vagonLabels: Record<string, string>;
@@ -839,6 +850,7 @@ export function getStationPageData(code: string): StationPageData | null {
     corridorSentidos: station.corridor?.sentidos,
     planoLayout: station.planoLayout,
     planoDetalle: station.planoDetalle,
+    planoGeo: station.planoGeo,
     coordinate: [lng, lat],
     wagons,
     vagonLabels: station.vagonLabels ?? {},

@@ -68,6 +68,28 @@ export function initPageShell(options: { onShare: (url: string) => void }): void
     }
   });
   document.addEventListener('click', interceptPageLink);
+  document.addEventListener('click', togglePaperView);
+}
+
+/**
+ * The portal plan's paper view.
+ *
+ * Both palettes ride inside the drawing's own `<style>` as custom properties,
+ * so this is a class on the root rather than a second render — and `@media
+ * print` picks the paper one on its own, with nobody pressing anything.
+ *
+ * Offered as a VIEW rather than as a colour scheme, and deliberately not
+ * persisted: it is something you do once to compare against the sign you are
+ * standing in front of, not a preference you keep.
+ */
+function togglePaperView(event: MouseEvent): void {
+  const boton = (event.target as HTMLElement | null)?.closest?.('[data-plano-vista]');
+  if (!(boton instanceof HTMLButtonElement)) return;
+  const svg = boton.parentElement?.querySelector('svg.pq');
+  if (!svg) return;
+  const papel = svg.classList.toggle('pq-papel');
+  boton.setAttribute('aria-pressed', String(papel));
+  boton.textContent = papel ? 'Ver como en la app' : 'Ver como el plano impreso';
 }
 
 export function registerPageResolver(resolver: PageResolver): void {

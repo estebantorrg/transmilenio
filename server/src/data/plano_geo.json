@@ -1,0 +1,87 @@
+{
+  "_": "Measured geometry for the portals drawn on their sheet's own coordinates by shared/plano_svg.js. Every number was READ off the sheet in scripts/ocr — the kerbs and ring by colour (_extract.mjs), the furniture by a dark-column profile of its band (_map.mjs), the labels by their own bounding boxes (_text via _atlas.mjs) — and checked against it with _diff.mjs, which scores the drawing against the sheet region by region. A station that is not in here falls back to the column drawing in shared/plano.js.",
+  "TM0029": {
+    "source": "Plano de ubicacion, Portal Norte - Unicervantes, version diciembre de 2025.",
+    "why": "The sheet is 1024x576 and the drawing occupies x 192..1032, y 172..510, so the viewBox is that window of the sheet's own page and a coordinate here is a coordinate there. The turnaround caps are ELLIPSES: at mid-height the ring is only 7px thick on the left (grey at x 211..218), so rxo is 80 against a ry of 92 and rxi 73 against 34. Drawn round they bulged half a platform-width past the sheet at both ends. The outer kerbs are shorter than the inner pair because the troncal stopping zone is shorter than the platform. The furniture x's are each tile's own, not a pitch: Plataforma 2 west runs six tiles at 34px where Plataforma 1 west runs five at 43, and one pitch for both put a tile through the Plataforma 2 tag.",
+    "vista": [192, 172, 840, 338],
+    "teja": 18,
+    "verde": 63,
+    "anillo": { "x0": 291, "x1": 910, "yo1": 249.5, "yi1": 308, "yi2": 376, "yo2": 434, "rxo": 80, "rxi": 73 },
+    "tunel": { "x": 191, "y": 337.5, "w": 819, "h": 9 },
+    "bordillos": [
+      { "y": 308, "x0": 291, "x1": 910 },
+      { "y": 376, "x0": 291, "x1": 910 },
+      { "y": 249.5, "x0": 291, "x1": 864 },
+      { "y": 434, "x0": 336, "x1": 864 }
+    ],
+    "muros": [
+      { "y": 277.5, "x0": 291, "x1": 910 },
+      { "y": 406.5, "x0": 291, "x1": 910 }
+    ],
+    "tiras": [
+      {
+        "tira": "Plataforma 1 · salida de buses zonales",
+        "caja": { "x": 325, "y": 296, "w": 213, "h": 10 },
+        "capY": 295, "nameY": 318, "arriba": false,
+        "run": { "xs": [338, 381, 423, 466, 509], "y": 266 }
+      },
+      {
+        "tira": "Plataforma 1 · salida de buses intermunicipales",
+        "caja": { "x": 687, "y": 296, "w": 160, "h": 10 },
+        "capY": 295, "nameY": 318, "arriba": false,
+        "run": { "xs": [717, 760, 803], "y": 266 }
+      },
+      {
+        "tira": "Plataforma 2 · llegada de buses zonales",
+        "caja": { "x": 325, "y": 378, "w": 213, "h": 10 },
+        "capY": 396, "nameY": 370, "arriba": true,
+        "run": { "xs": [338, 372, 406, 440, 474, 508], "y": 399 }
+      },
+      {
+        "tira": "Plataforma 2 · salida de buses zonales",
+        "caja": { "x": 661, "y": 378, "w": 213, "h": 10 },
+        "capY": 396, "nameY": 370, "arriba": true,
+        "run": { "xs": [717, 760, 803], "y": 399 }
+      }
+    ],
+    "escaleras": [[286, 266], [286, 399], [898, 266], [898, 399]],
+    "puente": {
+      "tira": "Acceso peatonal · puente central",
+      "eje": { "x": 615, "w": 15, "y0": 202, "y1": 484 },
+      "bloque": { "x": 570, "w": 46, "cx": 588.5 },
+      "pila": [295.5, 319.5, 343.5, 369, 391.5],
+      "descansos": [{ "y": 280, "h": 28 }, { "y": 380, "h": 28 }],
+      "escaleras": [
+        { "x": 595, "w": 35, "y0": 201, "y1": 221 },
+        { "x": 595, "w": 35, "y0": 465, "y1": 485 }
+      ],
+      "rampas": [[209, 222], [477, 464]]
+    },
+    "etiquetas": [
+      { "x": 533, "y": 258, "w": 64, "h": 12, "texto": "Plataforma 1" },
+      { "x": 533, "y": 415, "w": 64, "h": 13, "texto": "Plataforma 2" },
+      { "x": 613, "y": 334, "w": 78, "h": 15, "texto": "Acceso peatonal", "flecha": true }
+    ],
+    "rotulos": [
+      { "x": 621, "y": 238.5, "clase": "place-sm", "centro": true, "texto": "Puente peatonal" },
+      { "x": 621, "y": 246.5, "clase": "place-en", "centro": true, "texto": "Pedestrian bridge" },
+      { "x": 578, "y": 193, "clase": "anchor", "centro": true, "texto": "Éxito" },
+      { "x": 450, "y": 492, "clase": "anchor", "centro": true, "texto": "Homecenter" },
+      { "x": 254, "y": 343, "clase": "place", "centro": true, "texto": "Túnel peatonal" },
+      { "x": 254, "y": 352, "clase": "place-en", "centro": true, "texto": "Pedestrian tunnel" },
+      { "x": 948, "y": 343, "clase": "place", "centro": true, "texto": "Túnel peatonal" },
+      { "x": 948, "y": 352, "clase": "place-en", "centro": true, "texto": "Pedestrian tunnel" },
+      { "x": 213.6, "y": 235, "clase": "street", "texto": "Autopista Norte" },
+      { "x": 998, "y": 459, "clase": "street", "fin": true, "texto": "Autopista Norte" }
+    ],
+    "chips": [
+      { "codigos": ["8", "F28"], "x": 417, "y": 243.5 },
+      { "codigos": ["D10", "J70", "J74"], "x": 698, "y": 243.5 },
+      { "codigos": ["G12", "S46"], "x": 383, "y": 442 },
+      { "codigos": ["8", "H75"], "x": 686, "y": 442, "sub": { "H75": "Portal Usme" } },
+      { "codigos": ["H27", "H13"], "x": 800, "y": 442, "sub": { "H27": "Portal Tunal", "H13": "Portal Tunal" } }
+    ],
+    "reservado": [{ "x0": 588, "x1": 654, "y0": 231, "y1": 250 }],
+    "carriles": [221, 239.5, 444.5, 465]
+  }
+}

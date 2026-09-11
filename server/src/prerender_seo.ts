@@ -112,6 +112,10 @@ interface LightStation {
    *  station that disagreed with the app about how many vagones it has. */
   planoLayout?: unknown;
   planoDetalle?: unknown;
+  /** A PORTAL's measured geometry, where its sheet has been read as coordinates
+   *  rather than as columns. Opaque: only `shared/plano_svg.js` reads its
+   *  shape, and a station without it falls back to the column drawing. */
+  planoGeo?: unknown;
   /** Wagon key → the number printed on that platform's sign, where the plano
    *  plate count backs it (`printedVagonLabels`). Absent keys get no number. */
   vagonLabels?: Record<string, string>;
@@ -441,6 +445,7 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
    read before any stylesheet the app ships. Written flat rather than with the
    app scale variable: there is no zoom control on a page nobody has booted. */
 #seo-prerender .popup-plano{overflow-x:auto;padding-bottom:4px}
+#seo-prerender .popup-plano-portal .pq{display:block;width:100%;min-width:640px;height:auto}
 #seo-prerender .popup-plano-inner{width:max-content;min-width:100%}
 #seo-prerender .pvg-row{display:flex;margin-left:calc(var(--pvg-offset,0) * 136px)}
 #seo-prerender .popup-plano-cols{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;grid-template-rows:auto auto auto;min-width:min-content}
@@ -952,6 +957,7 @@ ${d.services.map((s) => `        ${serviceRow(s)}`).join('\n')}
     wagons: (station.wagons ?? {}) as Record<string, any[]>,
     layout: station.planoLayout,
     detalle: station.planoDetalle,
+    geo: (station as { planoGeo?: unknown }).planoGeo,
     wagonPlan: station.wagonPlan as never,
     sentidos: station.corridor?.sentidos,
     tagColor: (r) => stopTagColor(r.codigo, r.color, isZonalService(r.sistema, r.tipoServicio)),
