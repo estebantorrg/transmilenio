@@ -419,8 +419,10 @@ test.describe('a portal on its sheet', () => {
         const d = a.pts.map((p: number[]) => p.join(',')).join(' L');
         if (!svg.includes('M' + d)) wrong.push(code + ': a platform is not drawn along its own axis');
       }
+      // Bare points where the spine is the ink line, an object where it carries
+      // its own weight and tone.
       for (const e of geo.espinas ?? []) {
-        const d = e.map((p: number[]) => p.join(',')).join(' L');
+        const d = (Array.isArray(e) ? e : e.pts).map((p: number[]) => p.join(',')).join(' L');
         if (!svg.includes('M' + d)) wrong.push(code + ': a platform is drawn without its spine');
       }
       // A bay band bends where its platform bends; drawn end to end it leaves
@@ -436,18 +438,28 @@ test.describe('a portal on its sheet', () => {
         }
       }
       // A marker and a name per bay the sheet draws.
-      const bahias = (geo.tirasAng ?? []).reduce((n: number, t: any) => n + (t.bahias ?? []).length, 0);
+      // Every bay that HAS a marker: an arrival zone is a caption over a
+      // stretch of platform, and the sheet gives it none.
+      const bahias = (geo.tirasAng ?? []).reduce(
+        (n: number, t: any) => n + (t.bahias ?? []).filter((b: any) => !b.centro).length, 0);
       if (bahias) {
-        const marcas = cuenta(/ h9 l-4\.5,7 z/g);
+        // A triangle cut into a bay bar, or a short bar in the route's own
+        // colour beside the name: two sheets, two marks, one thing counted.
+        const marcas = cuenta(/ h9 l-4\.5,7 z/g) + cuenta(/<rect class="pq-bahia"/g);
         if (marcas !== bahias) wrong.push(code + ': ' + bahias + ' bays measured, ' + marcas + ' markers drawn');
         for (const t of geo.tirasAng ?? []) {
           const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
           if (!tira) { wrong.push(code + ': strip "' + t.tira + '" is not in the station data'); continue; }
-          for (const it of (tira.items ?? []).filter((i: any) => i.t === 'bahia')) {
-            for (const nombre of it.destinos ?? it.rutas.map((r: any) => r.destino)) {
+          (tira.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any, i: number) => {
+            // A bay the geometry gives its own wording is checked against THAT:
+            // a sheet may print a bay differently from how the catalog files it,
+            // and where it does, the sheet wins.
+            const b = (t.bahias ?? [])[i] ?? {};
+            const esperados: string[] = b.texto ?? it.destinos ?? (it.rutas ?? []).map((r: any) => r.destino);
+            for (const nombre of esperados) {
               if (nombre && !svg.includes(nombre)) wrong.push(code + ': bay "' + nombre + '" is not named');
             }
-          }
+          });
         }
       }
       // A tile per measured piece of furniture.
@@ -468,6 +480,8 @@ test.describe('a portal on its sheet', () => {
         ['circle', (geo.circulos ?? []).length, /<circle cx=/g],
         ['sign', (geo.senales ?? []).length, /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="#2E9E4F"/g],
         ['escalator flight', (geo.escalones ?? []).length, /width="10" height="4\.8" rx="2\.4"/g],
+        ['filled block', (geo.poligonos ?? []).length, /<path class="pq-bloque"/g],
+        ['north point', geo.norte ? 1 : 0, /aria-label="Norte"/g],
       ];
       for (const [nombre, esperados, re] of cuentas) {
         if (!esperados) continue;
@@ -501,9 +515,11 @@ test.describe('a portal on its sheet', () => {
     const wrong: string[] = [];
     for (const code of portales) {
       const svg = portalFor(code);
-      // The tiles, not the drawing itself — the root carries its own label.
+      // The tiles, not the drawing itself: the root carries its own label, and
+      // so does the north point, which is a mark on the page rather than a piece
+      // of furniture the key has anything to say about.
       const dibujadas = new Set(
-        [...svg.matchAll(/<g [^>]*role="img" aria-label="([^"]*)"/g)].map((m) => m[1]),
+        [...svg.matchAll(/<g transform="translate[^>]*role="img" aria-label="([^"]*)"/g)].map((m) => m[1]),
       );
       const html = buildSheetPlano({
         wagons: {},
@@ -530,7 +546,7 @@ test.describe('a portal on its sheet', () => {
       // `fill="var(--pq-rampa)"`, not `--pq-rampa`: every drawing DECLARES the
       // whole palette in its own style block, so looking for the variable name
       // matched every portal and the check could never fail.
-      if (nombradas.has('Rampa peatonal') && !svg.includes('fill="var(--pq-rampa)"')) {
+      if (nombradas.has('Rampa peatonal') && !svg.includes('fill="var(--pq-rampa)"') && !svg.includes('aria-label="Rampa peatonal"')) {
         wrong.push(code + ': the key promises a ramp the drawing does not have');
       }
     }

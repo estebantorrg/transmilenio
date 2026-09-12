@@ -238,18 +238,6 @@ export const ICONOS = {
       '<path d="M280-400v120q0 17 11.5 28.5T320-240h40q17 0 28.5-11.5T400-280v-120q11-11 25.5-17.5T440-440v-60q0-33-23.5-56.5T360-580h-40q-33 0-56.5 23.5T240-500v60q0 16 14.5 22.5T280-400Zm95.5-234.5Q390-649 390-670t-14.5-35.5Q361-720 340-720t-35.5 14.5Q290-691 290-670t14.5 35.5Q319-620 340-620t35.5-14.5ZM556-520h128q12 0 17.5-10.5T701-551l-64-102q-6-10-17-10t-17 10l-64 102q-6 10-.5 20.5T556-520Zm81 213 64-102q6-10 .5-20.5T684-440H556q-12 0-17.5 10.5t.5 20.5l64 102q6 10 17 10t17-10ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0 0v-560 560Z" fill="' + W + '"/>',
     vb: '0 -960 960 960',
   },
-  acceso: {
-    label: 'Acceso a la estación',
-    bg: '#0E0E10',
-    // The mark the sheet puts where a building's own doors open onto the
-    // station: the letter, with a figure going through beside it.
-    vb: '0 0 24 24',
-    svg:
-      '<path d="M2.8 4.4h11.6v3.4h-4v12H6.8v-12h-4z" fill="' + W + '"/>' +
-      '<g transform="translate(15.4 8.4) scale(0.62)">' +
-      '<circle cx="4.2" cy="2.6" r="2.3" fill="' + W + '"/>' +
-      '<path d="M1.9 6.2h4.6l3.2 6.1-2 1-2.1-4v11H3.5v-6.2H2.3v6.2H.3v-11l-2.1 4-2-1z" fill="' + W + '"/></g>',
-  },
   accesible: {
     label: 'Acceso accesible',
     bg: '#03518F',
@@ -273,6 +261,21 @@ export const ICONOS = {
     svg:
       '<path d="M200-160q-85 0-142.5-57.5T0-360q0-85 58.5-142.5T200-560q77 0 129.5 46T396-400h26l-72-200h-30q-17 0-28.5-11.5T280-640q0-17 11.5-28.5T320-680h120q17 0 28.5 11.5T480-640q0 17-11.5 28.5T440-600h-4l14 40h192l-58-160h-64q-17 0-28.5-11.5T480-760q0-17 11.5-28.5T520-800h64q26 0 46.5 14t29.5 38l68 186h32q83 0 141.5 58.5T960-362q0 84-58 143t-142 59q-72 0-126.5-45T564-320H396q-14 69-68 114.5T200-160Zm0-80q41 0 70.5-22.5T312-320h-72q-17 0-28.5-11.5T200-360q0-17 11.5-28.5T240-400h72q-12-36-41.5-58T200-480q-51 0-85.5 34.5T80-360q0 50 34.5 85t85.5 35Zm308-160h56q5-23 13.5-43t22.5-37H478l30 80Zm252 160q51 0 85.5-35t34.5-85q0-51-34.5-85.5T760-480h-4l26 69q6 16-1 30.5T758-360q-16 6-31-1t-21-23l-24-68q-20 17-31 40t-11 52q0 50 34.5 85t85.5 35ZM196-360Zm564 0Z" fill="' + W + '"/>',
     vb: '0 -960 960 960',
+  },
+  tbici: {
+    label: 'TransMiBici',
+    bg: '#0E0E10',
+    // The mark the SHEETS print where bikes are parked, which is not the bare
+    // bicycle the popup uses: a big T with a small bicycle tucked beside it.
+    // Same label, because it is the same thing — only the drawing differs.
+    vb: '0 0 24 24',
+    svg:
+      '<path d="M1.6 3.9h11.8v3.5h-4.1v12.4H5.7V7.4H1.6z" fill="' + W + '"/>' +
+      '<g transform="translate(13.1 9.6) scale(0.44)">' +
+      '<circle cx="4.6" cy="14.6" r="4.3" fill="none" stroke="' + W + '" stroke-width="2"/>' +
+      '<circle cx="17.4" cy="14.6" r="4.3" fill="none" stroke="' + W + '" stroke-width="2"/>' +
+      '<path d="M4.6 14.6h5.2l3.6-6.4h4.5" fill="none" stroke="' + W + '" stroke-width="2" stroke-linejoin="round"/>' +
+      '<path d="M9.8 14.6 8.2 8.2h-2" fill="none" stroke="' + W + '" stroke-width="2" stroke-linecap="round"/></g>',
   },
   cable: {
     label: 'Conexión con TransMiCable',
@@ -743,7 +746,11 @@ export function buildSheetPlano(input) {
           // the page, which is the one thing a key must never do.
           convencionesHtml(
             [{ t: 'vestibulo', paso: false, arriba: iconosDelPortal(input.geo, input.detalle) }],
-            input.detalle?.zonal
+            // The strips only where the STRIPS carry the furniture. A portal
+            // whose geometry places its own tiles has already named every one of
+            // them, and handing over the strips as well made the key promise a
+            // bike rack and a zonal connection the drawing does not have.
+            (input.geo?.equipoAng ?? []).length ? null : input.detalle?.zonal
           ),
         detallado: true,
         placed: puestos,

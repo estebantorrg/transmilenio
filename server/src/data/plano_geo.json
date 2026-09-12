@@ -851,7 +851,7 @@
       {
         "recto": true,
         "iconos": [
-          "acceso"
+          "tbici"
         ],
         "pts": [
           [
@@ -1164,5 +1164,1053 @@
         ]
       }
     ]
+  },
+  "TM0099": {
+    "source": "Plano de ubicacion, Portal Sur - JFK Coop Financiera, version noviembre de 2024.",
+    "why": "THREE platforms drawn LEVEL and identical: the same rectangle three times, 325 to 822, stacked 108 apart, each with the planting behind it as a round-capped band of the same width — which is why the platform itself is drawn with SQUARE ends and the green with round ones, and why a platform drawn the way Portal 80 draws its own came out 26px too long at each end and swallowed the green. One pedestrian tunnel crosses all three at the same point and lands on the Acceso peatonal block below them. The bays are not cut into a bar here: each is a short bar in the ROUTE OWN COLOUR set beside its name, out on the page under the platform. And the furniture is printed the other way round from the other two portals — a grey glyph on a PALE tile rather than a white one knocked out of black. The bay marks carry the colour the SHEET prints, not the catalog route colour: this plan inks its alimentadores one blue, its zonales one green and its troncal bay orange, and a plano is a snapshot of the operator printing rather than a live view of the catalog.",
+    "vista": [
+      292,
+      114,
+      652,
+      428
+    ],
+    "teja": 17,
+    "tejaEstilo": "claro",
+    "kerb": 1.6,
+    "chip": {
+      "k": 7.33,
+      "h": 22,
+      "min": 27,
+      "gap": 3,
+      "base": 0.73
+    },
+    "tipo": {
+      "chip": 14,
+      "cap": 8.5,
+      "bay": 8,
+      "tag": 9.8,
+      "place": 8.6,
+      "place-en": 5.6,
+      "anchor": 9,
+      "street": 12.7
+    },
+    "tonos": {
+      "losa": {
+        "papel": "#868686",
+        "oscuro": "#5A5D64"
+      }
+    },
+    "verdes": [
+      {
+        "pts": [
+          [
+            325,
+            169
+          ],
+          [
+            822,
+            169
+          ]
+        ],
+        "ancho": 51
+      },
+      {
+        "pts": [
+          [
+            325,
+            277.5
+          ],
+          [
+            822,
+            277.5
+          ]
+        ],
+        "ancho": 51
+      },
+      {
+        "pts": [
+          [
+            325,
+            385.5
+          ],
+          [
+            822,
+            385.5
+          ]
+        ],
+        "ancho": 51
+      }
+    ],
+    "andenes": [
+      {
+        "pts": [
+          [
+            325,
+            169
+          ],
+          [
+            822,
+            169
+          ]
+        ],
+        "ancho": 51,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            325,
+            277.5
+          ],
+          [
+            822,
+            277.5
+          ]
+        ],
+        "ancho": 51,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            325,
+            385.5
+          ],
+          [
+            822,
+            385.5
+          ]
+        ],
+        "ancho": 51,
+        "cuadrado": true
+      }
+    ],
+    "espinas": [
+      {
+        "pts": [
+          [
+            325,
+            169
+          ],
+          [
+            822,
+            169
+          ]
+        ],
+        "w": 1.2,
+        "tono": "regla"
+      },
+      {
+        "pts": [
+          [
+            325,
+            277.5
+          ],
+          [
+            822,
+            277.5
+          ]
+        ],
+        "w": 1.2,
+        "tono": "regla"
+      },
+      {
+        "pts": [
+          [
+            325,
+            385.5
+          ],
+          [
+            822,
+            385.5
+          ]
+        ],
+        "w": 1.2,
+        "tono": "regla"
+      }
+    ],
+    "bordillos": [
+      {
+        "pts": [
+          [
+            324,
+            195
+          ],
+          [
+            822,
+            195
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            324,
+            303.5
+          ],
+          [
+            822,
+            303.5
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            324,
+            411
+          ],
+          [
+            822,
+            411
+          ]
+        ]
+      }
+    ],
+    "desembarcos": [
+      {
+        "anden": 0,
+        "desde": 528,
+        "hasta": 569,
+        "h": 12,
+        "tramos": [
+          [
+            528,
+            540
+          ],
+          [
+            552,
+            569
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "anden": 0,
+        "desde": 596,
+        "hasta": 657,
+        "h": 12,
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "anden": 1,
+        "desde": 517,
+        "hasta": 646,
+        "h": 12,
+        "tramos": [
+          [
+            517,
+            540
+          ],
+          [
+            552,
+            568
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "anden": 2,
+        "desde": 497,
+        "hasta": 548,
+        "h": 12,
+        "tramos": [
+          [
+            497,
+            519
+          ],
+          [
+            530,
+            548
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "anden": 2,
+        "desde": 600,
+        "hasta": 649,
+        "h": 12,
+        "tramos": [
+          [
+            605,
+            622
+          ],
+          [
+            633,
+            649
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "anden": 2,
+        "desde": 665,
+        "hasta": 715,
+        "h": 12,
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "desde": 592,
+        "hasta": 614,
+        "y0": 457,
+        "y1": 490,
+        "h": 33,
+        "tramos": [
+          [
+            592,
+            614
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      },
+      {
+        "desde": 615,
+        "hasta": 643,
+        "y0": 470,
+        "y1": 490,
+        "h": 20,
+        "tramos": [
+          [
+            615,
+            643
+          ]
+        ],
+        "paso": 2.4,
+        "w": 1
+      }
+    ],
+    "equipoAng": [
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "taquilla",
+          "taquilla",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            446,
+            169
+          ],
+          [
+            582,
+            169
+          ],
+          [
+            712,
+            169
+          ],
+          [
+            741,
+            169
+          ],
+          [
+            770,
+            169
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "taquilla",
+          "taquilla",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            446,
+            277.5
+          ],
+          [
+            582,
+            286
+          ],
+          [
+            712,
+            277.5
+          ],
+          [
+            741,
+            277.5
+          ],
+          [
+            770,
+            277.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "torniquete",
+          "taquilla",
+          "taquilla",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            446,
+            385.5
+          ],
+          [
+            563,
+            385.5
+          ],
+          [
+            583,
+            385.5
+          ],
+          [
+            749,
+            385.5
+          ],
+          [
+            778,
+            385.5
+          ],
+          [
+            807,
+            385.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "fondo": "none",
+        "iconos": [
+          "escalera",
+          "escalera",
+          "escalera",
+          "escalera"
+        ],
+        "pts": [
+          [
+            518,
+            157
+          ],
+          [
+            520,
+            265.5
+          ],
+          [
+            498,
+            373.5
+          ],
+          [
+            653,
+            373.5
+          ]
+        ],
+        "s": 28
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "rampa",
+          "rampa",
+          "rampa"
+        ],
+        "pts": [
+          [
+            656,
+            157
+          ],
+          [
+            656,
+            265.5
+          ],
+          [
+            723,
+            373.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "fondo": "none",
+        "s": 21,
+        "iconos": [
+          "escalera"
+        ],
+        "pts": [
+          [
+            619,
+            460
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "taquilla",
+          "tbici",
+          "rampa"
+        ],
+        "pts": [
+          [
+            650,
+            459
+          ],
+          [
+            695,
+            468
+          ],
+          [
+            560,
+            481
+          ]
+        ]
+      }
+    ],
+    "tirasAng": [
+      {
+        "tira": "Plataforma 3 · buses alimentadores",
+        "anden": 0,
+        "off": 37.5,
+        "marca": "tick",
+        "tick": {
+          "w": 3.5,
+          "h": 15
+        },
+        "dx": 4.5,
+        "dy": 0.5,
+        "alto": 7,
+        "bahias": [
+          {
+            "x": 329.5,
+            "color": "#156797"
+          },
+          {
+            "x": 431.5,
+            "color": "#156797"
+          },
+          {
+            "x": 476.5,
+            "color": "#156797"
+          },
+          {
+            "x": 539,
+            "color": "#3D6739"
+          },
+          {
+            "x": 600,
+            "junta": true,
+            "color": "#F5A644"
+          },
+          {
+            "x": 717,
+            "centro": true,
+            "texto": [
+              "Zona de llegada",
+              "de pasajeros (alimentadores)"
+            ]
+          }
+        ]
+      },
+      {
+        "tira": "Plataforma 2 · buses alimentadores",
+        "anden": 1,
+        "off": 37.5,
+        "marca": "tick",
+        "tick": {
+          "w": 3.5,
+          "h": 15
+        },
+        "dx": 4.5,
+        "dy": 0.5,
+        "alto": 7,
+        "bahias": [
+          {
+            "x": 329.5,
+            "color": "#3D6739"
+          },
+          {
+            "x": 476,
+            "color": "#3D6739"
+          },
+          {
+            "x": 539.5,
+            "color": "#3D6739"
+          },
+          {
+            "x": 599.5,
+            "texto": [
+              "Circular",
+              "San Mateo"
+            ],
+            "color": "#1E74A0"
+          },
+          {
+            "x": 717,
+            "centro": true,
+            "texto": [
+              "Zona de llegada",
+              "de pasajeros (alimentadores)"
+            ]
+          }
+        ]
+      },
+      {
+        "tira": "Plataforma 1 · buses alimentadores",
+        "anden": 2,
+        "off": 37.5,
+        "marca": "tick",
+        "tick": {
+          "w": 3.5,
+          "h": 15
+        },
+        "dx": 4.5,
+        "dy": 0.5,
+        "alto": 7,
+        "bahias": [
+          {
+            "x": 329.5,
+            "color": "#3D6739"
+          },
+          {
+            "x": 476,
+            "color": "#3D6739"
+          },
+          {
+            "x": 600,
+            "color": "#3D6739"
+          },
+          {
+            "x": 658,
+            "color": "#3D6739"
+          },
+          {
+            "x": 760,
+            "centro": true,
+            "texto": [
+              "Zona de llegada",
+              "de pasajeros (alimentadores)"
+            ]
+          }
+        ]
+      }
+    ],
+    "chips": [
+      {
+        "codigos": [
+          "M47"
+        ],
+        "x": 368,
+        "y": 130.5
+      },
+      {
+        "codigos": [
+          "A52"
+        ],
+        "x": 700,
+        "y": 130.5
+      },
+      {
+        "codigos": [
+          "D22"
+        ],
+        "x": 365,
+        "y": 239.5
+      },
+      {
+        "codigos": [
+          "B11"
+        ],
+        "x": 506,
+        "y": 239.5
+      },
+      {
+        "codigos": [
+          "G45"
+        ],
+        "x": 700,
+        "y": 239.5
+      },
+      {
+        "codigos": [
+          "B12"
+        ],
+        "x": 368,
+        "y": 347.5
+      },
+      {
+        "codigos": [
+          "4"
+        ],
+        "x": 462,
+        "y": 347.5
+      },
+      {
+        "codigos": [
+          "C30"
+        ],
+        "x": 700,
+        "y": 347.5
+      }
+    ],
+    "etiquetas": [
+      {
+        "x": 858,
+        "y": 163,
+        "w": 65,
+        "h": 13,
+        "texto": "Plataforma 3"
+      },
+      {
+        "x": 858,
+        "y": 272,
+        "w": 65,
+        "h": 13,
+        "texto": "Plataforma 2"
+      },
+      {
+        "x": 859,
+        "y": 379,
+        "w": 65,
+        "h": 13,
+        "texto": "Plataforma 1"
+      },
+      {
+        "x": 508,
+        "y": 462,
+        "w": 41,
+        "h": 11,
+        "texto": "Planta baja"
+      },
+      {
+        "x": 662,
+        "y": 480,
+        "w": 40,
+        "h": 11,
+        "texto": "Planta alta"
+      },
+      {
+        "x": 615,
+        "y": 497,
+        "w": 73,
+        "h": 13,
+        "texto": "Acceso peatonal"
+      }
+    ],
+    "rotulos": [
+      {
+        "x": 582,
+        "y": 238,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 582,
+        "y": 245,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 582,
+        "y": 346,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 582,
+        "y": 353,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 582,
+        "y": 446,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 582,
+        "y": 453,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 861,
+        "y": 223.5,
+        "clase": "place-sm",
+        "texto": "ENTRADA DE"
+      },
+      {
+        "x": 859,
+        "y": 231.5,
+        "clase": "sub",
+        "texto": "Buses troncales"
+      },
+      {
+        "x": 861,
+        "y": 330,
+        "clase": "place-sm",
+        "texto": "ENTRADA DE"
+      },
+      {
+        "x": 859,
+        "y": 338,
+        "clase": "sub",
+        "texto": "Buses troncales"
+      },
+      {
+        "x": 861,
+        "y": 421,
+        "clase": "place-sm",
+        "texto": "METRO"
+      },
+      {
+        "x": 860,
+        "y": 427,
+        "clase": "sub-sm",
+        "texto": "Supermercado"
+      },
+      {
+        "x": 834,
+        "y": 469,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "SUPER"
+      },
+      {
+        "x": 834,
+        "y": 479,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "CADE"
+      },
+      {
+        "x": 566.5,
+        "y": 531,
+        "clase": "street",
+        "centro": true,
+        "texto": "Autopista Sur"
+      }
+    ],
+    "corredores": [
+      {
+        "pts": [
+          [
+            582,
+            114
+          ],
+          [
+            582,
+            457
+          ]
+        ],
+        "ancho": 17
+      }
+    ],
+    "borrador": false,
+    "poligonos": [
+      {
+        "pts": [
+          [
+            504,
+            457
+          ],
+          [
+            661,
+            457
+          ],
+          [
+            661,
+            494
+          ],
+          [
+            504,
+            494
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            662,
+            457
+          ],
+          [
+            704,
+            457
+          ],
+          [
+            704,
+            479
+          ],
+          [
+            662,
+            479
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            504,
+            482
+          ],
+          [
+            550,
+            482
+          ],
+          [
+            550,
+            491
+          ],
+          [
+            504,
+            491
+          ]
+        ],
+        "tono": "losa"
+      },
+      {
+        "pts": [
+          [
+            550,
+            486
+          ],
+          [
+            634,
+            486
+          ],
+          [
+            634,
+            491
+          ],
+          [
+            550,
+            491
+          ]
+        ],
+        "tono": "losa"
+      },
+      {
+        "pts": [
+          [
+            292,
+            513
+          ],
+          [
+            944,
+            513
+          ],
+          [
+            944,
+            543
+          ],
+          [
+            292,
+            543
+          ]
+        ],
+        "tono": "caja"
+      },
+      {
+        "pts": [
+          [
+            516,
+            519
+          ],
+          [
+            510,
+            521.5
+          ],
+          [
+            516,
+            524
+          ]
+        ],
+        "tono": "trazo"
+      },
+      {
+        "pts": [
+          [
+            617,
+            532
+          ],
+          [
+            622.5,
+            535.5
+          ],
+          [
+            617,
+            539
+          ]
+        ],
+        "tono": "trazo"
+      }
+    ],
+    "lineas": [
+      {
+        "pts": [
+          [
+            300,
+            224
+          ],
+          [
+            848,
+            224
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            300,
+            331
+          ],
+          [
+            848,
+            331
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            292,
+            528.5
+          ],
+          [
+            944,
+            528.5
+          ]
+        ],
+        "w": 0.9,
+        "color": "regla"
+      }
+    ],
+    "norte": {
+      "x": 908,
+      "y": 473.5,
+      "r": 15
+    }
   }
 }

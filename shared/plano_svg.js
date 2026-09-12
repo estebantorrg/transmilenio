@@ -31,7 +31,7 @@ export const PALETA = {
     bahia: '#9C9C9C', radios: '#C4C4C4', verde: '#CCDCAD', eje: '#B4B4B4',
     bloque: '#B9B9B9', descanso: '#E9E9E9', escalera: '#BEBEBE', peldano: '#8E8E8E',
     rampa: '#D2D2D2', regla: '#D7D7D7', tinta: '#231F20', tenue: '#5A5A5A',
-    punteado: '#A8A8A8', losa: '#A6A6A6',
+    punteado: '#A8A8A8', losa: '#A6A6A6', caja: '#F6F6F6', glifo: '#9D9D9D',
   },
   oscuro: {
     papel: '#0C0C0C', anden: '#2A2C31', trazo: '#6B6E76', tunel: '#1A1C20',
@@ -39,7 +39,7 @@ export const PALETA = {
     bloque: '#40434A', descanso: '#24262B', escalera: '#3C3F45', peldano: '#5A5D64',
     rampa: '#34373D', regla: 'rgba(255,255,255,.16)', tinta: '#FFFFFF',
     tenue: 'rgba(255,255,255,.55)',
-    punteado: 'rgba(255,255,255,.34)', losa: '#4E5158',
+    punteado: 'rgba(255,255,255,.34)', losa: '#4E5158', caja: '#3C3F45', glifo: '#C9CCD2',
   },
 };
 
@@ -120,8 +120,12 @@ export function buildPortalSvg(input) {
     // nothing at all on the other. An outline round the whole lozenge was the
     // single loudest difference at Portal 80: it drew a black racetrack where
     // the sheet has none.
-    '<path d="' + trazar(a.pts) + '" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="' +
-    C.anden + '" stroke-width="' + a.ancho + '"/>';
+    //
+    // `cuadrado` squares the ends. Portal Sur's platforms stop dead and the
+    // ROUND thing at each end is the planting behind them, so a platform drawn
+    // with the round cap swallowed the green and came out 26px too long.
+    '<path d="' + trazar(a.pts) + '" fill="none" stroke-linecap="' + (a.cuadrado ? 'butt' : 'round') +
+    '" stroke-linejoin="round" stroke="' + C.anden + '" stroke-width="' + a.ancho + '"/>';
 
   /**
    * The line down the middle of an angled platform.
@@ -131,8 +135,13 @@ export function buildPortalSvg(input) {
    * own measured points rather than from the axis, because the two are not quite
    * the same line and a degree of difference shows at this length.
    */
-  const espina = (pts) =>
-    '<path d="' + trazar(pts) + '" fill="none" stroke="' + C.trazo + '" stroke-width="1.5" stroke-linecap="round"/>';
+  // Given as bare points where it is the ink line Portal 80 draws, or as an
+  // object where it is not: Portal Sur rules the same line a pale grey and a
+  // third the weight, which at that size is a different mark, not the same one.
+  const espina = (e) =>
+    '<path d="' + trazar(Array.isArray(e) ? e : e.pts) + '" fill="none" stroke="' +
+    (e.tono ? C[e.tono] ?? C.trazo : C.trazo) + '" stroke-width="' + (e.w ?? 1.5) +
+    '" stroke-linecap="round"/>';
 
   /**
    * A point on a platform's axis, and the direction it runs there.
@@ -167,7 +176,10 @@ export function buildPortalSvg(input) {
     '<path d="' + (k.pts
       ? k.pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ')
       : 'M' + k.x0 + ',' + k.y + ' H' + k.x1) +
-    '" fill="none" stroke="' + KERB + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+    // Three is Portal Norte's weight. Portal Sur rules its kerbs at half that,
+    // so the width belongs to the station rather than to the renderer.
+    '" fill="none" stroke="' + KERB + '" stroke-width="' + (k.w ?? geo.kerb ?? 3) +
+    '" stroke-linecap="round" stroke-linejoin="round"/>';
 
   /**
    * A walled corridor: a light fill inside a DASHED outline.
@@ -203,8 +215,11 @@ export function buildPortalSvg(input) {
     '" stroke-linecap="round" stroke-linejoin="round"/>';
 
   /** The street a station stands on, ruled thin and named along itself. */
+  // Any surface in the palette, not just the ink one: the rules Portal Sur uses
+  // to separate its three platforms are a whisper, and drawn in ink they read as
+  // three boxes round the drawing instead.
   const linea = (l) =>
-    '<path d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color === 'tenue' ? C.tenue : C.trazo) +
+    '<path d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color ? C[l.color] ?? C.trazo : C.trazo) +
     '" stroke-width="' + (l.w ?? 0.9) + '" stroke-linecap="round"/>';
 
   /**
@@ -229,6 +244,13 @@ export function buildPortalSvg(input) {
    * scaled to.
    */
   const desembarco = (d) => {
+    // On a platform it hangs off that platform's axis; standing on its own — the
+    // flight inside the Acceso peatonal block, which belongs to no platform — it
+    // is given its own two rows instead.
+    const sueltoY = d.anden === undefined;
+    const sobreD = sueltoY
+      ? (_i, x, off) => ({ x, y: off < 0 ? d.y0 : d.y1 })
+      : sobre;
     const quiebres = ((geo.andenes ?? [])[d.anden]?.pts ?? [])
       .slice(1, -1)
       .map((p) => p[0])
@@ -236,18 +258,35 @@ export function buildPortalSvg(input) {
     const xs = [d.desde, ...quiebres, d.hasta];
     const alto = d.h ?? 13;
     const borde = [
-      ...xs.map((x) => sobre(d.anden, x, 0)),
-      ...[...xs].reverse().map((x) => sobre(d.anden, x, -alto)),
+      ...xs.map((x) => sobreD(d.anden, x, 0)),
+      ...[...xs].reverse().map((x) => sobreD(d.anden, x, -alto)),
     ];
     let out = '<path d="' + trazar(borde.map((p) => [num(p.x), num(p.y)])) + ' Z" fill="' + C.losa + '"/>';
     for (const [a, b] of d.tramos ?? []) {
       for (let x = a; x <= b + 0.01; x += d.paso ?? 2.2) {
-        const p0 = sobre(d.anden, x, 0), p1 = sobre(d.anden, x, -alto);
+        const p0 = sobreD(d.anden, x, 0), p1 = sobreD(d.anden, x, -alto);
         out += '<line x1="' + num(p0.x) + '" y1="' + num(p0.y) + '" x2="' + num(p1.x) + '" y2="' +
-          num(p1.y) + '" stroke="' + C.papel + '" stroke-width="0.9"/>';
+          num(p1.y) + '" stroke="' + C.papel + '" stroke-width="' + (d.w ?? 0.9) + '"/>';
       }
     }
     return out;
+  };
+
+  /**
+   * The north point.
+   *
+   * Every sheet that is not drawn with north up carries one, and a plan without
+   * it is a plan a rider cannot turn to face the right way. Drawn rather than
+   * lettered so it survives the theme: the disc is the kerb yellow in both.
+   */
+  const norte = (n) => {
+    const r = n.r ?? 15;
+    return '<g role="img" aria-label="Norte">' +
+      '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + KERB + '" stroke="#231F20" stroke-width="' +
+      num(r * 0.1) + '"/>' +
+      '<path d="M' + num(n.x) + ',' + num(n.y - r * 0.68) + ' l' + num(r * 0.26) + ',' + num(r * 0.38) +
+      ' h-' + num(r * 0.52) + ' z" fill="#231F20"/>' +
+      '<text x="' + n.x + '" y="' + num(n.y + r * 0.45) + '" class="pq-norte">N</text></g>';
   };
 
   /** A sign on the page rather than on a platform: green, and set at an angle. */
@@ -273,16 +312,32 @@ export function buildPortalSvg(input) {
   /** Boxes a lane rule has to keep clear of, gathered as the drawing is built. */
   const ocupado = (geo.reservado ?? []).map((b) => ({ ...b }));
 
-  const tile = (name, x, y, s = TILE, fondo = TILE_BG) => {
+  /**
+   * A station may print its furniture the other way round.
+   *
+   * Portal Norte and Portal 80 knock the glyph out of a black tile. Portal Sur
+   * sets the same marks as a grey glyph on a PALE one, which at seventeen pixels
+   * is the most visible thing about its furniture. The glyphs are shared, so the
+   * two colours in them are swapped for the station's own rather than a second
+   * set of icons being drawn.
+   */
+  const claro = geo.tejaEstilo === 'claro';
+  const TEJA_BG = claro ? C.caja : TILE_BG;
+  const TEJA_TINTA = claro ? C.glifo : null;
+
+  const tile = (name, x, y, s = TILE, fondo = TEJA_BG) => {
     const i = name === 'torniquete' ? TORNIQUETE : ICONOS[name];
     if (!i) return '';
     const pad = s * 0.055;
+    const glifo = TEJA_TINTA
+      ? i.svg.split('#FFFFFF').join(TEJA_TINTA).split(TILE_BG).join(fondo)
+      : i.svg;
     return (
       '<g transform="translate(' + num(x) + ' ' + num(y) + ')" role="img" aria-label="' +
       escapeHtml(i.label) + '">' +
       '<rect width="' + num(s) + '" height="' + num(s) + '" fill="' + fondo + '"/>' +
       '<svg x="' + num(pad) + '" y="' + num(pad) + '" width="' + num(s - pad * 2) +
-      '" height="' + num(s - pad * 2) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + i.svg + '</svg></g>'
+      '" height="' + num(s - pad * 2) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + glifo + '</svg></g>'
     );
   };
 
@@ -295,7 +350,12 @@ export function buildPortalSvg(input) {
   const colorDe = (codigo) => {
     const ruta = (input.byCode?.get(String(codigo).toUpperCase()) ?? [])[0];
     if (ruta && input.tagColor) return input.tagColor(ruta);
-    return /^\d+$/.test(codigo) ? '#111111' : TRONCAL[codigo[0]] ?? '#555555';
+    // A plain number is the sheet's own black badge; `10-4` is a zonal route,
+    // which the catalog prints green and which this fell through to grey on —
+    // visible at Portal Sur, where nine bays out of thirteen are zonal.
+    if (/^\d+$/.test(codigo)) return '#111111';
+    if (/^\d+-/.test(codigo)) return '#3D6739';
+    return TRONCAL[codigo[0]] ?? '#555555';
   };
   const hrefDe = (codigo) => {
     const ruta = (input.byCode?.get(String(codigo).toUpperCase()) ?? [])[0];
@@ -493,22 +553,53 @@ export function buildPortalSvg(input) {
       // platform's tag with the platform and leaves everything else square to
       // the page — the bay markers, the furniture, the badges.
       const m = sobre(t.anden, b.x, t.off ?? 39);
-      out += '<path d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
-      const lineas = it.llegada
-        ? ['Llegada de pasajeros']
-        : (it.destinos ?? []).length
-          ? it.destinos.map((d) => escapeHtml(d))
-          : (it.rutas ?? []).flatMap((r) => {
-              const cod = '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>';
-              const dest = escapeHtml(r.destino ?? '');
-              // The sheet breaks after the code for most bays and keeps the last
-              // couple of each strip on one line, where the run of them ends and
-              // there is room. Which is which is read off the sheet, not guessed.
-              return b.una ? [cod + ' ' + dest] : [cod, dest];
-            });
+      const rutas = it.rutas ?? [];
+      if (t.marca === 'tick') {
+        // Portal Sur does not cut a triangle into a bay bar, because it has no
+        // bar: it sets a short bar in the ROUTE'S OWN COLOUR beside the name,
+        // out on the page below the platform.
+        const w = t.tick?.w ?? 3.5, h = t.tick?.h ?? 15;
+        // The sheet's own colour where it was measured off it. A plano is a
+        // SNAPSHOT of the operator's printing, and these marks are not the
+        // catalog's route colours: Portal Sur inks its alimentadores one blue,
+        // its zonales one green and its troncal bay orange, whatever the routes
+        // behind them are coloured elsewhere in the app.
+        const col = b.color ?? (rutas.length ? colorDe(rutas[0].codigo) : null);
+        if (col) {
+          out += '<rect class="pq-bahia" x="' + num(m.x - w / 2) + '" y="' + num(m.y - h / 2) + '" width="' + num(w) +
+            '" height="' + num(h) + '" fill="' + col + '"/>';
+        }
+      } else {
+        out += '<path d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
+      }
+      const lineas = b.texto
+        // The sheet's own wording where it is not the route's: the arrival zone
+        // is a caption, not a bay, and it says what it says.
+        ? b.texto.map((s) => escapeHtml(s))
+        : it.llegada
+          ? ['Llegada de pasajeros']
+          : (it.destinos ?? []).length
+            ? it.destinos.map((d) => escapeHtml(d))
+            : b.junta
+              // One bay, two codes, one destination: the sheet sets the codes
+              // together on the first line rather than repeating the name.
+              ? [rutas.map((r) => '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>').join(' / '),
+                 escapeHtml(rutas[0]?.destino ?? '')]
+              : rutas.flatMap((r) => {
+                  const cod = '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>';
+                  const dest = escapeHtml(r.destino ?? '');
+                  // The sheet breaks after the code for most bays and keeps the
+                  // last couple of each strip on one line, where the run of them
+                  // ends and there is room. Read off the sheet, not guessed.
+                  return b.una ? [cod + ' ' + dest] : [cod, dest];
+                });
       lineas.forEach((n, k) => {
-        out += '<text x="' + num(m.x + (t.dx ?? 2)) + '" y="' + num(m.y + (t.dy ?? 15.5) + k * (t.alto ?? 11)) +
-          '" class="pq-bay pq-bay-izq">' + n + '</text>';
+        // Beside its marker, or centred on its own where there is no marker to
+        // hang off: the arrival zone is a caption over a stretch of platform
+        // rather than a bay at a point.
+        out += '<text x="' + num(m.x + (b.centro ? 0 : t.dx ?? 2)) +
+          '" y="' + num(m.y + (t.dy ?? 15.5) + k * (t.alto ?? 11)) +
+          '" class="pq-bay' + (b.centro ? '' : ' pq-bay-izq') + '">' + n + '</text>';
       });
     });
     return out;
@@ -533,7 +624,11 @@ export function buildPortalSvg(input) {
       .map((n, i) => {
         const p = (e.pts ?? [])[i];
         if (!p) return '';
-        const cuerpo = tile(n, p[0] - TILE / 2, p[1] - TILE / 2, TILE, e.fondo);
+        // A mark drawn WITHOUT its tile is set larger, because the tile's own
+        // padding is what was holding it in: at Portal Sur the bare stair glyph
+        // is a fifth bigger than the boxed ones beside it.
+        const s = e.s ?? TILE;
+        const cuerpo = tile(n, p[0] - s / 2, p[1] - s / 2, s, e.fondo);
         return e.recto
           ? cuerpo
           : '<g transform="rotate(' + num(giro(e.anden, p[0])) + ' ' + num(p[0]) + ' ' + num(p[1]) + ')">' +
@@ -650,6 +745,9 @@ export function buildPortalSvg(input) {
     '.pq text.pq-street{font-size:12.5px;font-weight:700}' +
     '.pq text.pq-anchor{font-size:8.6px;font-weight:700}' +
     '.pq text.pq-ruta{font-size:8px}' +
+    '.pq text.pq-sub{font-size:7px}' +
+    '.pq text.pq-sub-sm{font-size:5.6px}' +
+    '.pq text.pq-norte{font-size:14px;font-weight:700;text-anchor:middle;fill:#231F20}' +
     '.pq text.pq-bay-izq{text-anchor:start}' +
     // The sizes above are Portal Norte's, measured off its sheet. They are not a
     // house style: Portal 80 is drawn half again as large on the same page and
@@ -707,7 +805,7 @@ export function buildPortalSvg(input) {
       .map((c) => '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + c.r + '" fill="' + C.anden + '"/>')
       .join('') +
     (geo.poligonos ?? [])
-      .map((p) => '<path d="' + trazar(p.pts) + ' Z" fill="' + C.anden + '"/>')
+      .map((p) => '<path class="pq-bloque" d="' + trazar(p.pts) + ' Z" fill="' + (p.tono ? C[p.tono] ?? C.anden : C.anden) + '"/>')
       .join('') +
     // After the shopping centre's own footprint: the escalator shaft is drawn on
     // it, and ruled first it was simply painted over.
@@ -715,6 +813,7 @@ export function buildPortalSvg(input) {
     (geo.corredores ?? []).map(corredor).join('') +
     (geo.escalones ?? []).map(escalon).join('') +
     (geo.senales ?? []).map(senal).join('') +
+    (geo.norte ? norte(geo.norte) : '') +
 
     (geo.andenes ?? []).map(lozenge).join('') +
     (geo.barras ?? []).map(barra).join('') +
