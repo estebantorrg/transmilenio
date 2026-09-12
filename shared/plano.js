@@ -238,6 +238,18 @@ export const ICONOS = {
       '<path d="M280-400v120q0 17 11.5 28.5T320-240h40q17 0 28.5-11.5T400-280v-120q11-11 25.5-17.5T440-440v-60q0-33-23.5-56.5T360-580h-40q-33 0-56.5 23.5T240-500v60q0 16 14.5 22.5T280-400Zm95.5-234.5Q390-649 390-670t-14.5-35.5Q361-720 340-720t-35.5 14.5Q290-691 290-670t14.5 35.5Q319-620 340-620t35.5-14.5ZM556-520h128q12 0 17.5-10.5T701-551l-64-102q-6-10-17-10t-17 10l-64 102q-6 10-.5 20.5T556-520Zm81 213 64-102q6-10 .5-20.5T684-440H556q-12 0-17.5 10.5t.5 20.5l64 102q6 10 17 10t17-10ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0 0v-560 560Z" fill="' + W + '"/>',
     vb: '0 -960 960 960',
   },
+  acceso: {
+    label: 'Acceso a la estación',
+    bg: '#0E0E10',
+    // The mark the sheet puts where a building's own doors open onto the
+    // station: the letter, with a figure going through beside it.
+    vb: '0 0 24 24',
+    svg:
+      '<path d="M2.8 4.4h11.6v3.4h-4v12H6.8v-12h-4z" fill="' + W + '"/>' +
+      '<g transform="translate(15.4 8.4) scale(0.62)">' +
+      '<circle cx="4.2" cy="2.6" r="2.3" fill="' + W + '"/>' +
+      '<path d="M1.9 6.2h4.6l3.2 6.1-2 1-2.1-4v11H3.5v-6.2H2.3v6.2H.3v-11l-2.1 4-2-1z" fill="' + W + '"/></g>',
+  },
   accesible: {
     label: 'Acceso accesible',
     bg: '#03518F',
@@ -634,6 +646,7 @@ function iconosDelPortal(geo, detalle) {
   // to have a way through at its platform edge.
   if ((geo?.puente?.rampas ?? []).length) out.push('rampa');
   for (const e of geo?.equipoAng ?? []) for (const n of e.iconos ?? []) out.push(n);
+  for (const s of geo?.senales ?? []) if (s.icono) out.push(s.icono);
   // A station drawn in rows keeps its columns one level down.
   const columnas = [
     ...(detalle?.columnas ?? []),

@@ -28,9 +28,10 @@ import { ICONOS, escapeHtml } from './plano.js';
 export const PALETA = {
   papel: {
     papel: '#FFFFFF', anden: '#D9D9D9', trazo: '#231F20', tunel: '#EFEFEF',
-    bahia: '#9C9C9C', radios: '#C4C4C4', verde: '#D5E6B6', eje: '#B4B4B4',
+    bahia: '#9C9C9C', radios: '#C4C4C4', verde: '#CCDCAD', eje: '#B4B4B4',
     bloque: '#B9B9B9', descanso: '#E9E9E9', escalera: '#BEBEBE', peldano: '#8E8E8E',
     rampa: '#D2D2D2', regla: '#D7D7D7', tinta: '#231F20', tenue: '#5A5A5A',
+    punteado: '#A8A8A8', losa: '#A6A6A6',
   },
   oscuro: {
     papel: '#0C0C0C', anden: '#2A2C31', trazo: '#6B6E76', tunel: '#1A1C20',
@@ -38,6 +39,7 @@ export const PALETA = {
     bloque: '#40434A', descanso: '#24262B', escalera: '#3C3F45', peldano: '#5A5D64',
     rampa: '#34373D', regla: 'rgba(255,255,255,.16)', tinta: '#FFFFFF',
     tenue: 'rgba(255,255,255,.55)',
+    punteado: 'rgba(255,255,255,.34)', losa: '#4E5158',
   },
 };
 
@@ -166,6 +168,100 @@ export function buildPortalSvg(input) {
       ? k.pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ')
       : 'M' + k.x0 + ',' + k.y + ' H' + k.x1) +
     '" fill="none" stroke="' + KERB + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+
+  /**
+   * A walled corridor: a light fill inside a DASHED outline.
+   *
+   * The pedestrian tunnel and the evacuation route are drawn this way — under
+   * the station rather than on it, which is why the platforms are painted over
+   * them and why their edges are broken rather than solid. Given as an axis and
+   * a width, because that is what can be measured off the sheet; the four
+   * corners are worked out here.
+   */
+  const corredor = (c) => {
+    // Either an axis and a width, or the four corners outright: the tunnel runs
+    // straight and is easiest as the first, while the evacuation route is cut
+    // off square against the shopping centre at one end and against the tunnel
+    // at the other, so its corners are measured rather than derived.
+    let q = c.poly;
+    if (!q) {
+      const [a, b] = c.pts;
+      const dx = b[0] - a[0], dy = b[1] - a[1], n = Math.hypot(dx, dy) || 1;
+      const px = (-dy / n) * (c.ancho / 2), py = (dx / n) * (c.ancho / 2);
+      q = [
+        [a[0] + px, a[1] + py], [b[0] + px, b[1] + py],
+        [b[0] - px, b[1] - py], [a[0] - px, a[1] - py],
+      ];
+    }
+    return '<path d="' + trazar(q.map((p) => [num(p[0]), num(p[1])])) + ' Z" fill="' + C.tunel +
+      '" stroke="' + C.punteado + '" stroke-width="0.7" stroke-dasharray="3 2.4"/>';
+  };
+
+  /** A run of planting: the same thick round-capped line a platform is, in green. */
+  const jardin = (g) =>
+    '<path d="' + trazar(g.pts) + '" fill="none" stroke="' + C.verde + '" stroke-width="' + g.ancho +
+    '" stroke-linecap="round" stroke-linejoin="round"/>';
+
+  /** The street a station stands on, ruled thin and named along itself. */
+  const linea = (l) =>
+    '<path d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color === 'tenue' ? C.tenue : C.trazo) +
+    '" stroke-width="' + (l.w ?? 0.9) + '" stroke-linecap="round"/>';
+
+  /**
+   * One flight of the escalator bank beside the shopping centre.
+   *
+   * The sheet draws these in plan as a stubby bar with the nosings stepped along
+   * its top edge — not the pictogram tile the platforms use, because these are
+   * the structure itself rather than a sign pointing at it.
+   */
+  const escalon = (e) =>
+    '<rect x="' + num(e.x - 5) + '" y="' + num(e.y - 2.4) + '" width="10" height="4.8" rx="2.4" fill="' +
+    C.trazo + '"/>' +
+    '<path d="M' + num(e.x - 2.8) + ',' + num(e.y - 2.2) + ' l1.3,-1.5 l1.3,1.5 h0.7 l1.3,-1.5 l1.3,1.5 z" fill="' +
+    C.trazo + '"/>';
+
+  /**
+   * Where the tunnel comes up onto a platform: a ramp with a flight of steps
+   * either side of it, laid ALONG the platform and sitting on the spine.
+   *
+   * The treads are ruled across it rather than drawn as a hatch pattern, so they
+   * turn with the platform and stay the same width whatever the drawing is
+   * scaled to.
+   */
+  const desembarco = (d) => {
+    const quiebres = ((geo.andenes ?? [])[d.anden]?.pts ?? [])
+      .slice(1, -1)
+      .map((p) => p[0])
+      .filter((x) => x > d.desde && x < d.hasta);
+    const xs = [d.desde, ...quiebres, d.hasta];
+    const alto = d.h ?? 13;
+    const borde = [
+      ...xs.map((x) => sobre(d.anden, x, 0)),
+      ...[...xs].reverse().map((x) => sobre(d.anden, x, -alto)),
+    ];
+    let out = '<path d="' + trazar(borde.map((p) => [num(p.x), num(p.y)])) + ' Z" fill="' + C.losa + '"/>';
+    for (const [a, b] of d.tramos ?? []) {
+      for (let x = a; x <= b + 0.01; x += d.paso ?? 2.2) {
+        const p0 = sobre(d.anden, x, 0), p1 = sobre(d.anden, x, -alto);
+        out += '<line x1="' + num(p0.x) + '" y1="' + num(p0.y) + '" x2="' + num(p1.x) + '" y2="' +
+          num(p1.y) + '" stroke="' + C.papel + '" stroke-width="0.9"/>';
+      }
+    }
+    return out;
+  };
+
+  /** A sign on the page rather than on a platform: green, and set at an angle. */
+  const senal = (s) => {
+    const i = ICONOS[s.icono];
+    if (!i) return '';
+    const lado = s.h - 2.6;
+    return '<g transform="rotate(' + num(s.ang ?? 0) + ' ' + s.x + ' ' + s.y + ')" role="img" aria-label="' +
+      escapeHtml(i.label) + '">' +
+      '<rect x="' + num(s.x - s.w / 2) + '" y="' + num(s.y - s.h / 2) + '" width="' + s.w + '" height="' + s.h +
+      '" fill="' + (i.bg ?? '#2E9E4F') + '"/>' +
+      '<svg x="' + num(s.x + s.w / 2 - lado - 1.3) + '" y="' + num(s.y - lado / 2) + '" width="' + num(lado) +
+      '" height="' + num(lado) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + i.svg + '</svg></g>';
+  };
 
   const A = geo.anillo ?? {};
   const CY = (A.yo1 + A.yo2) / 2;
@@ -482,7 +578,11 @@ export function buildPortalSvg(input) {
 
   const rotulo = (r) =>
     '<text x="' + r.x + '" y="' + r.y + '" class="pq-' + (r.clase ?? 'place') +
-    (r.fin ? '" text-anchor="end' : r.centro ? '" text-anchor="middle' : '') + '">' +
+    (r.fin ? '" text-anchor="end' : r.centro ? '" text-anchor="middle' : '') + '"' +
+    // A street name runs ALONG its street and a corridor's name along the
+    // corridor. Set level they read as labels dropped on the drawing rather
+    // than as part of it.
+    (r.ang ? ' transform="rotate(' + r.ang + ' ' + r.x + ' ' + r.y + ')"' : '') + '>' +
     escapeHtml(r.texto) + '</text>';
 
   /**
@@ -549,6 +649,7 @@ export function buildPortalSvg(input) {
     '.pq text.pq-place-en{font-size:5.8px;font-style:italic;fill:' + C.tenue + '}' +
     '.pq text.pq-street{font-size:12.5px;font-weight:700}' +
     '.pq text.pq-anchor{font-size:8.6px;font-weight:700}' +
+    '.pq text.pq-ruta{font-size:8px}' +
     '.pq text.pq-bay-izq{text-anchor:start}' +
     // The sizes above are Portal Norte's, measured off its sheet. They are not a
     // house style: Portal 80 is drawn half again as large on the same page and
@@ -570,8 +671,12 @@ export function buildPortalSvg(input) {
     // light drawing floated on black.
     '<rect x="' + geo.vista[0] + '" y="' + geo.vista[1] + '" width="' + geo.vista[2] +
     '" height="' + geo.vista[3] + '" fill="' + C.papel + '"/>' +
-    '<defs><clipPath id="pq-anillo"><rect x="' + (vx - 40) + '" y="' + A.yo1 + '" width="' + (vw + 80) +
-    '" height="' + num(A.yo2 - A.yo1) + '"/></clipPath></defs>' +
+    // Only where there IS a ring. Emitted unconditionally it measured a ring
+    // that is not there: `y="undefined" height="NaN"`, which the browser rejects
+    // and reports, on every station drawn as lozenges.
+    (!hayAnillo ? '' :
+      '<defs><clipPath id="pq-anillo"><rect x="' + (vx - 40) + '" y="' + A.yo1 + '" width="' + (vw + 80) +
+      '" height="' + num(A.yo2 - A.yo1) + '"/></clipPath></defs>') +
 
     // Everything outside the ring is confined to the ring's own rows: the sheet
     // has bare page beside the turnaround at mid-height, not surface.
@@ -592,10 +697,32 @@ export function buildPortalSvg(input) {
       ? '<path d="' + anillo + '" fill="' + C.anden + '" stroke="' + C.trazo +
         '" stroke-width="0.9" fill-rule="evenodd"/>'
       : '') +
+    // What the station stands ON, all of it under the platforms: the street, the
+    // planting, the shopping centre it shares a wall with, and the corridors
+    // running beneath. The sheet paints the platforms over every one of them,
+    // which is why the tunnel's dashed edges stop at a kerb and pick up again on
+    // the far side rather than being drawn in two pieces.
+    (geo.verdes ?? []).map(jardin).join('') +
+    (geo.circulos ?? [])
+      .map((c) => '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + c.r + '" fill="' + C.anden + '"/>')
+      .join('') +
+    (geo.poligonos ?? [])
+      .map((p) => '<path d="' + trazar(p.pts) + ' Z" fill="' + C.anden + '"/>')
+      .join('') +
+    // After the shopping centre's own footprint: the escalator shaft is drawn on
+    // it, and ruled first it was simply painted over.
+    (geo.lineas ?? []).map(linea).join('') +
+    (geo.corredores ?? []).map(corredor).join('') +
+    (geo.escalones ?? []).map(escalon).join('') +
+    (geo.senales ?? []).map(senal).join('') +
+
     (geo.andenes ?? []).map(lozenge).join('') +
     (geo.barras ?? []).map(barra).join('') +
 
     (geo.bordillos ?? []).map(bordillo).join('') +
+    // Before the spine, not after: the spine's line runs along the landing's
+    // lower edge on the sheet rather than under it.
+    (geo.desembarcos ?? []).map(desembarco).join('') +
     (geo.espinas ?? []).map(espina).join('') +
     (geo.muros ?? [])
       .map((m) => '<path d="M' + m.x0 + ',' + m.y + ' H' + m.x1 + '" stroke="' + C.trazo + '" stroke-width="1"/>')

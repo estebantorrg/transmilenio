@@ -383,11 +383,11 @@
   },
   "TM0058": {
     "source": "Plano de ubicacion, Portal 80, version diciembre de 2025.",
-    "why": "NOT a ring. Portal 80 draws two long lozenges lying diagonally, each bending once in the middle, with no turnaround loop anywhere — so it uses `andenes` (a platform as a thick round-capped polyline) where Portal Norte uses `anillo`, and it is drawn WITHOUT an outline: what reads as a platform edge on this sheet is the yellow kerb on the boarding side and bare page on the other. The axes come from the KERBS: both sit at a constant 44.5 off the centre, so sampling them across the whole length and taking the middle gives an axis that is exact everywhere rather than fitted where the sheet happened to be legible — the first attempt was fitted only over the stretch where all four kerbs show at once and came out six pixels adrift at the western end, which then showed up as every bay, caption and tile drifting the same six. Each platform also carries a SPINE: the black line the shelters back onto, with every piece of furniture threaded on it. The bay bar is ONE band per platform from cap to cap, not one per group of bays. Type here is set larger than at Norte — the badges nearly twice the size — so the sizes travel with the station in `tipo`.",
+    "why": "NOT a ring. Portal 80 draws two long lozenges lying diagonally, each bending once in the middle, with no turnaround loop anywhere — so it uses `andenes` (a platform as a thick round-capped polyline) where Portal Norte uses `anillo`, and it is drawn WITHOUT an outline: what reads as a platform edge on this sheet is the yellow kerb on the boarding side and bare page on the other. The axes come from the KERBS: both sit at a constant 44.5 off the centre, so sampling them across the whole length and taking the middle gives an axis that is exact everywhere rather than fitted where the sheet happened to be legible — the first attempt was fitted only over the stretch where all four kerbs show at once and came out six pixels adrift at the western end, which then showed up as every bay, caption and tile drifting the same six. Each platform also carries a SPINE: the black line the shelters back onto, with every piece of furniture threaded on it. The bay bar is ONE band per platform from cap to cap, not one per group of bays. Type here is set larger than at Norte — the badges nearly twice the size — so the sizes travel with the station in `tipo`. What the station stands on is drawn too, and all of it UNDER the platforms: the pedestrian tunnel and the evacuation route as walled corridors with dashed edges, the planting, the Centro Comercial and its escalator bank, and Calle 80 ruled and named along itself. The sheet paints the platforms over the corridors, which is why a tunnel edge stops at a kerb and picks up again beyond it rather than being drawn in two pieces.",
     "vista": [
-      236,
+      230,
       128,
-      756,
+      766,
       420
     ],
     "teja": 18,
@@ -522,6 +522,20 @@
     ],
     "rotulos": [
       {
+        "x": 500,
+        "y": 142.5,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 500,
+        "y": 151.5,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
         "x": 561,
         "y": 302,
         "clase": "place",
@@ -550,9 +564,19 @@
         "texto": "Portal 80"
       },
       {
-        "x": 300,
-        "y": 470,
+        "x": 430,
+        "y": 183,
+        "clase": "ruta",
+        "centro": true,
+        "ang": -14,
+        "texto": "Ruta de evacuación"
+      },
+      {
+        "x": 303,
+        "y": 452,
         "clase": "street",
+        "centro": true,
+        "ang": 62.3,
         "texto": "Calle 80"
       }
     ],
@@ -601,8 +625,7 @@
         "y": 317
       }
     ],
-    "borrador": true,
-    "falta": "The pedestrian tunnel band and its two landings, the green landscaping, the Centro Comercial circle and its access block, and the rotated Calle 80 label. The platforms, kerbs, spines, bay bars, bays, captions, furniture, badges and platform tags are measured and drawn. Clear `borrador` when the rest is in.",
+    "borrador": false,
     "tirasAng": [
       {
         "tira": "Bahías zonales · costado occidental",
@@ -719,8 +742,8 @@
             278
           ],
           [
-            511,
-            230
+            510,
+            229.5
           ],
           [
             578,
@@ -824,6 +847,30 @@
             367
           ]
         ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "acceso"
+        ],
+        "pts": [
+          [
+            374,
+            154.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete"
+        ],
+        "pts": [
+          [
+            357,
+            214.5
+          ]
+        ]
       }
     ],
     "tipo": {
@@ -834,7 +881,9 @@
       "tag": 12.6,
       "place": 13,
       "place-en": 8,
-      "anchor": 12.4
+      "anchor": 12.4,
+      "street": 13,
+      "ruta": 9
     },
     "espinas": [
       [
@@ -901,6 +950,219 @@
         "papel": "#BDBBBC",
         "oscuro": "#43464D"
       }
-    }
+    },
+    "lineas": [
+      {
+        "pts": [
+          [
+            248,
+            318
+          ],
+          [
+            357,
+            526
+          ]
+        ],
+        "w": 0.9,
+        "color": "tenue"
+      },
+      {
+        "pts": [
+          [
+            339.7,
+            172
+          ],
+          [
+            339.7,
+            194
+          ]
+        ],
+        "w": 2
+      },
+      {
+        "pts": [
+          [
+            339.7,
+            234
+          ],
+          [
+            339.7,
+            256
+          ]
+        ],
+        "w": 2
+      }
+    ],
+    "verdes": [
+      {
+        "pts": [
+          [
+            610,
+            304.5
+          ],
+          [
+            955,
+            266.5
+          ]
+        ],
+        "ancho": 8
+      },
+      {
+        "pts": [
+          [
+            535,
+            324
+          ],
+          [
+            352.5,
+            424
+          ]
+        ],
+        "ancho": 8
+      },
+      {
+        "pts": [
+          [
+            595,
+            517
+          ],
+          [
+            640,
+            501
+          ],
+          [
+            939,
+            468
+          ]
+        ],
+        "ancho": 48
+      }
+    ],
+    "circulos": [
+      {
+        "x": 339.6,
+        "y": 213.6,
+        "r": 40.5
+      }
+    ],
+    "poligonos": [
+      {
+        "pts": [
+          [
+            341,
+            140
+          ],
+          [
+            446,
+            140
+          ],
+          [
+            388,
+            168
+          ],
+          [
+            341,
+            168
+          ]
+        ]
+      }
+    ],
+    "corredores": [
+      {
+        "poly": [
+          [
+            370.5,
+            183.2
+          ],
+          [
+            499.5,
+            151
+          ],
+          [
+            507.1,
+            175.3
+          ],
+          [
+            383.5,
+            206.2
+          ]
+        ]
+      },
+      {
+        "pts": [
+          [
+            505,
+            128
+          ],
+          [
+            589,
+            400
+          ]
+        ],
+        "ancho": 25
+      }
+    ],
+    "escalones": [
+      {
+        "x": 339.7,
+        "y": 199.4
+      },
+      {
+        "x": 339.7,
+        "y": 209.1
+      },
+      {
+        "x": 339.7,
+        "y": 218.3
+      },
+      {
+        "x": 339.7,
+        "y": 227.7
+      }
+    ],
+    "senales": [
+      {
+        "x": 385.5,
+        "y": 189.5,
+        "w": 18,
+        "h": 18,
+        "ang": -14,
+        "icono": "emergencia"
+      }
+    ],
+    "desembarcos": [
+      {
+        "anden": 0,
+        "desde": 518,
+        "hasta": 565,
+        "h": 13,
+        "tramos": [
+          [
+            518,
+            527
+          ],
+          [
+            545,
+            565
+          ]
+        ]
+      },
+      {
+        "anden": 1,
+        "desde": 568,
+        "hasta": 613,
+        "h": 13,
+        "tramos": [
+          [
+            568,
+            575.5
+          ],
+          [
+            595.5,
+            613
+          ]
+        ]
+      }
+    ]
   }
 }

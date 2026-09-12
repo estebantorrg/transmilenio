@@ -456,6 +456,43 @@ test.describe('a portal on its sheet', () => {
         const dibujadas = cuenta(/role="img"/g);
         if (dibujadas < tejas) wrong.push(code + ': ' + tejas + ' tiles measured, ' + dibujadas + ' drawn');
       }
+
+      // And what the station stands on. Each of these is a whole class of thing
+      // that has gone missing at some point in the drawing's life — the tunnel
+      // twice — so each is counted rather than eyeballed.
+      const cuentas: Array<[string, number, RegExp]> = [
+        ['corridor', (geo.corredores ?? []).length, /stroke-dasharray="3 2\.4"/g],
+        ['run of planting', (geo.verdes ?? []).length, /stroke="var\(--pq-verde\)"/g],
+        ['tunnel landing', (geo.desembarcos ?? []).length, /fill="var\(--pq-losa\)"/g],
+        ['ruled line', (geo.lineas ?? []).length, /stroke-linecap="round"\/>/g],
+        ['circle', (geo.circulos ?? []).length, /<circle cx=/g],
+        ['sign', (geo.senales ?? []).length, /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="#2E9E4F"/g],
+        ['escalator flight', (geo.escalones ?? []).length, /width="10" height="4\.8" rx="2\.4"/g],
+      ];
+      for (const [nombre, esperados, re] of cuentas) {
+        if (!esperados) continue;
+        const hallados = cuenta(re);
+        if (hallados < esperados) {
+          wrong.push(code + ': ' + esperados + ' × ' + nombre + ' measured, ' + hallados + ' drawn');
+        }
+      }
+      // A landing without its treads is a grey slab: the steps ARE the drawing.
+      for (const d of geo.desembarcos ?? []) {
+        const pasos = (d.tramos ?? []).reduce((n: number, [a, b]: number[]) => n + Math.floor((b - a) / (d.paso ?? 2.2)), 0);
+        if (pasos && cuenta(/<line x1=/g) < pasos) wrong.push(code + ': a tunnel landing is drawn without its treads');
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test('no portal measures something it does not have', () => {
+    // A ring's clip rectangle was worked out whether or not the station had a
+    // ring, so every lozenge portal shipped `y="undefined" height="NaN"` — which
+    // the browser rejects and logs, twice, on a page that looked fine.
+    const wrong: string[] = [];
+    for (const code of portales) {
+      const svg = portalFor(code);
+      for (const m of svg.matchAll(/[a-z-]+="[^"]*(?:NaN|undefined)[^"]*"/g)) wrong.push(code + ': ' + m[0]);
     }
     expect(wrong).toEqual([]);
   });
