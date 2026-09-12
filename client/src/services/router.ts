@@ -2,6 +2,7 @@ import {
   MINUTES_PER_DAY,
   bogotaNow,
   boardingWaitAt,
+  dayOfWeek,
   closingAfter,
   createServiceClock,
   serviceIntervals,
@@ -13,6 +14,13 @@ import {
 import { buildTraceIndex, traceDistanceBetween, traceSliceBetween, type TraceIndex } from './trace';
 import { haversineMeters } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
+import { clampSpeedMpm, dayTypeFor, hourFactor, SPEED_CAP_M_PER_MIN } from '../../../shared/calibration.js';
+import type { CalibrationDayType, PreparedCalibration } from '../../../shared/calibration.js';
+import { getCalibration, onCalibrationChange, setPlannerCalibration } from './calibrationStore';
+
+// The calibration is loaded through the store (one copy, shared with the live
+// ETA); re-exported here so every existing caller keeps its import.
+export { setPlannerCalibration };
 
 export interface GraphEdge {
   to: string;
@@ -22,7 +30,19 @@ export interface GraphEdge {
   routeIdx: number;   // dense route index (WALKING_ROUTE_IDX for walks)
   type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
+  /** Minutes at the cost model's constants (§5.6.3) — what troncal, cable and
+   *  walking edges always charge. */
   time: number;
+  /**
+   * Zonal edges: the ride's minutes at a speed factor of 1 — the stretch's
+   * measured commercial speed where the calibration has it, `time` otherwise
+   * (§5.6.5). Every search scales it by its day type and hour, so it is never
+   * charged raw; read it through `rideEdgeTime`.
+   */
+  rideTime: number;
+  /** Floor on the scaled time: `distance` at `SPEED_CAP_M_PER_MIN`, which
+   *  keeps the A* bound admissible however fast a stretch was measured. */
+  minTime: number;
   /**
    * Position of this edge's first stop in the route's own stop list (its second
    * is `fromOrd + 1` — transit edges join consecutive stops). Carried on the
@@ -231,6 +251,17 @@ let routeSpansByIdx: Array<ServiceSpan[] | undefined> = [];
  * back to straight-line distance and a stop-to-stop polyline.
  */
 let traceIndexById = new Map<string, TraceIndex>();
+// The calibration (§5.6.5) is read from the store on every (re)build, so a
+// payload that lands after the first search applies from the next one.
+// routeIdx → that route's scheduled headways, where the dispatch programme has it.
+let routeHeadwaysByIdx: Array<Record<CalibrationDayType, Float64Array> | undefined> = [];
+// Fastest zonal ride in the graph at factor 1 (m/min) — scales into the A* bound.
+let maxZonalRideSpeed = 0;
+// Fastest troncal/cable ride in the graph (m/min). Both bounds are what the
+// remaining-cost estimate is built from: the old one assumed the troncal cruise
+// everywhere, but no edge reaches it once its dwell is counted, and a bound that
+// claims speeds the graph does not have explores states it did not need to.
+let maxFixedRideSpeed = 0;
 
 // TransMiCable: a single line of gondola stations. It connects to the rest of
 // the network ONLY at Tunal ↔ Portal Tunal (the portal complex). Every other
@@ -258,16 +289,22 @@ const CABLE_DWELL_MINUTES = 0.4;
 // commercial speed stays at 29.0 km/h troncal and 15.2 km/h zonal, but its
 // spread narrows from 24.8–32.5 to 25.5–30.6 and from 14.4–18.5 to 14.7–16.5.
 //
-// KNOWN GAP, deliberately not changed here: those medians are ~8% faster than
-// the published commercial speeds (troncal 26–27 km/h, SITP 13–15 km/h) — the
-// old constants were already optimistic, and re-centring them would move every
-// reported trip time for reasons unrelated to the trace work. §5.8 records the
-// real fix: harvest `consultar_programacion` (the theoretical per-stop
-// timetable) offline over a bounded route sample and calibrate against it.
+// Zonal edges no longer rest on these alone (§5.6.5). Where TRANSMILENIO's own
+// GPS measurement of a stretch exists, the edge runs at that stretch's commercial
+// speed; and every zonal edge, measured or not, is scaled by the hour and day
+// type of the trip, because a SITP bus is markedly slower in the weekday evening
+// peak than at its daytime median and much faster late at night. The constants
+// stay the model for troncal edges and for the zonal stretches the measurement
+// does not cover — their implied 15.2 km/h matches the measured daytime median,
+// so the two agree where they meet. Troncal keeps the known ~8% optimism against
+// the published 26–27 km/h: the measurement covers the zonal fleet only.
 const TRONCAL_SPEED_M_PER_MINUTE = 570; // 34 km/h along the trace
 const TRONCAL_DWELL_MINUTES = 0.5;
 const ZONAL_SPEED_M_PER_MINUTE = 333;   // 20 km/h along the trace
 const ZONAL_DWELL_MINUTES = 0.35;
+// The band a measured or scaled zonal speed is held to lives in
+// `shared/calibration.js` (`SPEED_CAP_M_PER_MIN` = this troncal cruise), because
+// the live ETA and the arrivals board hold rides to the same ceiling.
 
 // Ceiling on a trace-derived ride leg: past it the projection wrapped the wrong
 // way round a loop in a way the per-route gates in `trace.ts` did not catch.
@@ -292,7 +329,11 @@ const ZONAL_DWELL_MINUTES = 0.35;
 const TRACE_EDGE_MAX_DETOUR_M = 5000;
 const TRACE_EDGE_MAX_RATIO = 12;
 
-// Expected wait when boarding a service (≈ half a typical route headway).
+// Expected wait when boarding a service (≈ half a typical route headway) — the
+// fallback for a route with no scheduled headway near that hour. A route in the
+// dispatch programme waits half its OWN headway instead (§5.6.5, `boardWait`),
+// held to the band below: a route every 4 min is not a 6-min wait, and one every
+// 40 min is not a 20-min one, since past ~30 min riders time their arrival.
 // Charged in BOTH time and cost on every boarding — first ride and transfers —
 // so itineraries with fewer/higher-frequency boardings win realistically and
 // the displayed total is an honest door-to-door estimate, not a fantasy where
@@ -302,6 +343,11 @@ const BOARD_WAIT_MINUTES: Record<'troncal' | 'zonal' | 'cable', number> = {
   zonal: 6,
   cable: 1,
 };
+const HEADWAY_WAIT_MIN_MINUTES = 1;
+const HEADWAY_WAIT_MAX_MINUTES = 15;
+// A route that dispatches nothing in the departure hour (it opens at 5:00, the
+// rider leaves at 4:40) is charged the headway it opens with.
+const HEADWAY_LOOKAHEAD_HOURS = 3;
 
 // ─── Service schedules (§5.6.2) ─────────────────────────────────────────────
 // Not every route runs at every hour. Schedules always shape the itinerary —
@@ -647,6 +693,8 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         type: route.type,
         distance,
         time,
+        rideTime: time, // re-costed by `applyCalibration` below
+        minTime: distance / SPEED_CAP_M_PER_MIN,
         fromOrd: i,
         traced: usable,
         streetStops,
@@ -672,6 +720,8 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
         type: 'cable',
         distance,
         time,
+        rideTime: time,
+        minTime: time,
         fromOrd: -1,
         traced: false,
         streetStops: false,
@@ -691,6 +741,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     if (fromIdx === undefined || toIdx === undefined) return;
     const edges = adjacency[fromIdx];
     if (edges.some((edge) => edge.type === 'walking' && edge.toIdx === toIdx)) return;
+    const time = distance / WALK_SPEED_M_PER_MINUTE;
     edges.push({
       to: toCode,
       toIdx,
@@ -699,7 +750,9 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       routeIdx: walkingRouteIdx,
       type: 'walking',
       distance,
-      time: distance / WALK_SPEED_M_PER_MINUTE,
+      time,
+      rideTime: time,
+      minTime: time,
       fromOrd: -1,
       traced: false,
       streetStops: false,
@@ -759,9 +812,21 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     neighbors.slice(0, MAX_WALK_NEIGHBORS).forEach((n) => addWalkingEdge(fromStop.codigo, n.stopCode, walkMeters(n.distance)));
   }
 
+  maxFixedRideSpeed = 0;
+  for (const edges of adjacency) {
+    for (const edge of edges) {
+      if (edge.type === 'zonal' || edge.type === 'walking' || edge.time <= 0) continue;
+      const speed = edge.distance / edge.time;
+      if (speed > maxFixedRideSpeed) maxFixedRideSpeed = speed;
+    }
+  }
+
+  const measuredEdgesCount = applyCalibration();
+
   console.log(
     `[Router] Graph ready in ${Date.now() - startedAt}ms. Vertices: ${uniqueStops.size}, ` +
-    `Transit Edges: ${transitEdgesCount} (${tracedEdgesCount} trace-measured), Walking Edges: ${walkingEdgesCount}`
+    `Transit Edges: ${transitEdgesCount} (${tracedEdgesCount} trace-measured, ${measuredEdgesCount} on measured speeds), ` +
+    `Walking Edges: ${walkingEdgesCount}`
   );
 }
 
@@ -899,6 +964,15 @@ interface ScheduleContext {
    * both modes, so a card can never show numbers the search did not charge.
    */
   enforce: boolean;
+  /** Calibration slot of this search (§5.6.5): day type and hour of departure. */
+  dayType: CalibrationDayType;
+  hour: number;
+  /** Zonal edges charge `rideTime × zonalInvFactor` — 1 without a calibration. */
+  zonalInvFactor: number;
+  /** Fastest zonal speed any edge reaches in this slot (m/min): the zonal-mode A* bound. */
+  zonalMaxSpeed: number;
+  /** routeIdx → expected boarding wait in this slot (`NaN` = not resolved yet). */
+  boardWaits: Float64Array;
 }
 
 // Horizon of that fast path (2 h 30 — comfortably longer than a Bogotá
@@ -910,14 +984,96 @@ interface ScheduleContext {
 const SCHEDULE_FAST_PATH_HORIZON_MINUTES = 150;
 
 function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleContext {
+  const clock = createServiceClock(departAt);
+  // One calibration slot per search — the day type and hour of departure — so an
+  // edge costs the same whenever the search reaches it and the optimum stays
+  // exact (§5.6.5). A trip that runs into the next hour keeps its departure
+  // hour's speeds and waits; the hourly profile moves slowly enough for that.
+  const dayType = dayTypeFor(dayOfWeek(clock.plan.year, clock.plan.month, clock.plan.day), clock.festivos[1]);
+  const hour = Math.floor(clock.departMinute / 60) % 24;
+  const factor = hourFactor(getCalibration(), dayType, hour);
   return {
-    clock: createServiceClock(departAt),
+    clock,
     intervals: new Array(routeKeySpan),
     openThroughHorizon: new Uint8Array(routeKeySpan),
     coverage: new Float64Array(routeKeySpan).fill(NaN),
     coveragePenalties: new Float64Array(routeKeySpan).fill(NaN),
     enforce,
+    dayType,
+    hour,
+    zonalInvFactor: 1 / factor,
+    zonalMaxSpeed: Math.min(
+      SPEED_CAP_M_PER_MIN,
+      Math.max(ZONAL_SPEED_M_PER_MINUTE, maxZonalRideSpeed * factor)
+    ),
+    boardWaits: new Float64Array(routeKeySpan).fill(NaN),
   };
+}
+
+// Re-cost the graph whenever a calibration is loaded or cleared. Registered
+// once, at module load: `initRouter` re-applies whatever the store holds, so
+// the two paths together cover "data first" and "graph first" alike.
+onCalibrationChange(() => {
+  if (adjacency.length === 0) return;
+  const measured = applyCalibration();
+  console.log(`[Router] Calibration ${getCalibration() ? 'applied' : 'cleared'}: ${measured} zonal edges on measured speeds`);
+});
+
+/**
+ * Costs every zonal edge at factor 1 from the loaded calibration — or back to the
+ * constants without one — and resolves each route's headways. Returns how many
+ * zonal edges run on a measured speed.
+ */
+function applyCalibration(): number {
+  const loaded: PreparedCalibration | null = getCalibration();
+  routeHeadwaysByIdx = rawRoutesList.map((route) => loaded?.headways.get(route.code));
+  let measured = 0;
+  let fastest = 0;
+  for (let nodeIdx = 0; nodeIdx < adjacency.length; nodeIdx++) {
+    const fromCode = stopList[nodeIdx].codigo;
+    for (const edge of adjacency[nodeIdx]) {
+      if (edge.type !== 'zonal') continue;
+      const speed = loaded?.pairSpeed.get(`${fromCode}>${edge.to}`);
+      if (speed !== undefined) {
+        edge.rideTime = edge.distance / clampSpeedMpm(speed);
+        measured++;
+      } else {
+        edge.rideTime = edge.time;
+      }
+      if (edge.rideTime > 0) fastest = Math.max(fastest, edge.distance / edge.rideTime);
+    }
+  }
+  maxZonalRideSpeed = fastest;
+  return measured;
+}
+
+/** Minutes one graph edge charges in this search's calibration slot (§5.6.5). */
+function rideEdgeTime(edge: GraphEdge, schedule: ScheduleContext): number {
+  return edge.type === 'zonal' ? Math.max(edge.rideTime * schedule.zonalInvFactor, edge.minTime) : edge.time;
+}
+
+/**
+ * Expected wait to board `routeIdx` in this search's slot: half the route's own
+ * scheduled headway, or the per-mode constant where the programme has none.
+ * Memoised per route, so the search pays one array read per boarding.
+ */
+function boardWait(schedule: ScheduleContext, routeIdx: number | undefined, type: 'troncal' | 'zonal' | 'cable'): number {
+  if (routeIdx === undefined) return BOARD_WAIT_MINUTES[type];
+  const cached = schedule.boardWaits[routeIdx];
+  if (!Number.isNaN(cached)) return cached;
+  const hours = routeHeadwaysByIdx[routeIdx]?.[schedule.dayType];
+  let wait = BOARD_WAIT_MINUTES[type];
+  if (hours) {
+    for (let ahead = 0; ahead <= HEADWAY_LOOKAHEAD_HOURS; ahead++) {
+      const headway = hours[(schedule.hour + ahead) % 24];
+      if (headway > 0) {
+        wait = Math.min(HEADWAY_WAIT_MAX_MINUTES, Math.max(HEADWAY_WAIT_MIN_MINUTES, headway / 2));
+        break;
+      }
+    }
+  }
+  schedule.boardWaits[routeIdx] = wait;
+  return wait;
 }
 
 function intervalsFor(schedule: ScheduleContext, routeIdx: number): number[] | null {
@@ -1027,8 +1183,9 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
   step.serviceDayMinutes = routeIdx === undefined ? undefined : serviceCoverage(schedule, routeIdx);
 
   // Unknown schedule (the gondola, or hours we could not parse) → always boardable.
+  const headwayWait = boardWait(schedule, routeIdx, type);
   if (!intervals) {
-    step.boardMinute = cursor + BOARD_WAIT_MINUTES[type];
+    step.boardMinute = cursor + headwayWait;
     return 0;
   }
 
@@ -1038,13 +1195,13 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
   if (wait === null) {
     // Not running when the rider gets there, and not opening soon enough to wait
     // it out — surfaced to the rider, never hidden.
-    step.boardMinute = cursor + BOARD_WAIT_MINUTES[type];
+    step.boardMinute = cursor + headwayWait;
     step.outsideService = true;
     return 0;
   }
 
   const readyMinute = cursor + wait;
-  step.boardMinute = readyMinute + BOARD_WAIT_MINUTES[type];
+  step.boardMinute = readyMinute + headwayWait;
   if (wait > 0) step.serviceWait = wait;
 
   const closes = closingAfter(intervals, readyMinute);
@@ -1271,7 +1428,7 @@ function buildJourneySteps(
         routeId: leg.routeId,
         routeType: leg.type,
         distance: leg.distance,
-        time: leg.time + BOARD_WAIT_MINUTES[leg.type],
+        time: leg.time + (schedule ? boardWait(schedule, routeIndexById.get(leg.routeId), leg.type) : BOARD_WAIT_MINUTES[leg.type]),
         stopCount: 1,
         stops: [], // Will populate if multiple stops are traversed
         stopPoints: [], // Same stops, with código + coordinate (guidance)
@@ -1494,7 +1651,13 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   // first frontier expansion, which returned "no routes" with no explanation.
   if (destByIdx.size === 0) return [];
 
-  const heuristicSpeed = mode === 'zonal' ? ZONAL_SPEED_M_PER_MINUTE : TRONCAL_SPEED_M_PER_MINUTE;
+  // The fastest ride the mode can actually reach in this search's calibration
+  // slot: a measured late-night zonal stretch runs well above the old constant,
+  // and no troncal edge reaches the cruise speed once its dwell is counted.
+  const heuristicSpeed = mode === 'zonal'
+    ? schedule.zonalMaxSpeed
+    : Math.min(TRONCAL_SPEED_M_PER_MINUTE, Math.max(schedule.zonalMaxSpeed, maxFixedRideSpeed));
+  const zonalInvFactor = schedule.zonalInvFactor;
   const minEgressPrimary = walkPrimary > 0 ? Math.min(...destByIdx.values()) * walkPrimary : 0;
   const heuristicCache = new Float64Array(stopList.length).fill(NaN);
   const remainingBound = (nodeIdx: number): number => {
@@ -1587,7 +1750,8 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         if (stopList[edge.toIdx].kind !== 'station') continue;
       }
 
-      let edgeTime = edge.time;
+      // `rideEdgeTime`, inlined: this line runs on every relaxation.
+      let edgeTime = edge.type === 'zonal' ? Math.max(edge.rideTime * zonalInvFactor, edge.minTime) : edge.time;
       let edgeCost;
       let isTransfer = false;
 
@@ -1617,7 +1781,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           } else {
             edgeTime += wait;
           }
-          edgeTime += BOARD_WAIT_MINUTES[edge.type];
+          edgeTime += boardWait(schedule, edge.routeIdx, edge.type);
           penalty = boardingPenalty(schedule, edge.routeIdx);
         }
         edgeCost = edgeTime + penalty;
@@ -1702,7 +1866,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           routeId: edge.routeId,
           type: edge.type,
           distance: edge.distance,
-          time: edge.time,
+          time: rideEdgeTime(edge, schedule),
           fromOrd: edge.fromOrd,
           traced: edge.traced,
         });

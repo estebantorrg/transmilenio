@@ -16,6 +16,7 @@
  */
 
 import type { CatalogRoute } from '../types/catalog';
+import { festivoName, isFestivo } from '../../../shared/festivos.js';
 
 export const MINUTES_PER_DAY = 1440;
 
@@ -251,92 +252,11 @@ export function dayOfWeek(year: number, month: number, day: number): number {
 }
 
 // ─── Colombian holiday calendar ─────────────────────────────────────────────
-// Festivos are law, not a guess: six fixed dates, seven Emiliani dates (Ley 51
-// de 1983 — observed the following Monday), and five Easter-relative dates.
-// Computed, not tabulated, so the calendar never expires.
-
-const FIXED_HOLIDAYS: Array<[number, number, string]> = [
-  [1, 1, 'Año Nuevo'],
-  [5, 1, 'Día del Trabajo'],
-  [7, 20, 'Día de la Independencia'],
-  [8, 7, 'Batalla de Boyacá'],
-  [12, 8, 'Inmaculada Concepción'],
-  [12, 25, 'Navidad'],
-];
-
-const EMILIANI_HOLIDAYS: Array<[number, number, string]> = [
-  [1, 6, 'Día de los Reyes Magos'],
-  [3, 19, 'Día de San José'],
-  [6, 29, 'San Pedro y San Pablo'],
-  [8, 15, 'Asunción de la Virgen'],
-  [10, 12, 'Día de la Raza'],
-  [11, 1, 'Todos los Santos'],
-  [11, 11, 'Independencia de Cartagena'],
-];
-
-/** Easter Sunday (Gregorian, Meeus/Jones/Butcher). */
-function easterSunday(year: number): Date {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31);
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function keyOf(date: Date): string {
-  return `${date.getUTCFullYear()}-${date.getUTCMonth() + 1}-${date.getUTCDate()}`;
-}
-
-/** Same date, or the following Monday when it falls on any other weekday. */
-function nextMonday(date: Date): Date {
-  const dow = date.getUTCDay();
-  if (dow === 1) return date;
-  const shift = (8 - dow) % 7;
-  return new Date(date.getTime() + shift * 86_400_000);
-}
-
-const holidayCache = new Map<number, Map<string, string>>();
-
-function holidaysForYear(year: number): Map<string, string> {
-  const cached = holidayCache.get(year);
-  if (cached) return cached;
-
-  const holidays = new Map<string, string>();
-  const add = (date: Date, name: string) => holidays.set(keyOf(date), name);
-
-  for (const [month, day, name] of FIXED_HOLIDAYS) add(new Date(Date.UTC(year, month - 1, day)), name);
-  for (const [month, day, name] of EMILIANI_HOLIDAYS) add(nextMonday(new Date(Date.UTC(year, month - 1, day))), name);
-
-  const easter = easterSunday(year);
-  const fromEaster = (days: number) => new Date(easter.getTime() + days * 86_400_000);
-  add(fromEaster(-3), 'Jueves Santo');
-  add(fromEaster(-2), 'Viernes Santo');
-  add(fromEaster(43), 'Ascensión del Señor'); // Thursday +39, observed Monday
-  add(fromEaster(64), 'Corpus Christi'); //      Thursday +60, observed Monday
-  add(fromEaster(71), 'Sagrado Corazón'); //     Friday   +68, observed Monday
-
-  holidayCache.set(year, holidays);
-  return holidays;
-}
-
-/** Colombian public-holiday name for a date, or `undefined` on a normal day. */
-export function festivoName(year: number, month: number, day: number): string | undefined {
-  return holidaysForYear(year).get(`${year}-${month}-${day}`);
-}
-
-export function isFestivo(year: number, month: number, day: number): boolean {
-  return holidaysForYear(year).has(`${year}-${month}-${day}`);
-}
+// Computed in `shared/festivos.js` and re-exported here, unchanged, so every
+// existing importer keeps its import. It moved because the SERVER needs the
+// same answer now (spec §5.6.5): the arrivals board picks a bus speed by day
+// type, and a festivo running Sunday service must not be read as a Monday.
+export { festivoName, isFestivo };
 
 // ─── Service clock ──────────────────────────────────────────────────────────
 

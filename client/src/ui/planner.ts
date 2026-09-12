@@ -1,6 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
-import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
+import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, setPlannerCalibration, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
 import {
   bogotaNow,
   createServiceClock,
@@ -805,6 +805,17 @@ export function initPlanner(
 
   // Initialize routing graph (incl. TransMiCable line when provided)
   initRouter(routes, cableStations);
+
+  // Measured speeds and real headways (spec §5.6.5): fetched once, applied to the
+  // graph already built, and re-applied by every later rebuild. A failure is not
+  // fatal — the planner keeps running on its constants.
+  api.getPlannerCalibration()
+    .then((response) => {
+      if (response.success && response.speeds && response.headways) {
+        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways });
+      }
+    })
+    .catch((error) => console.warn('[Router] calibration unavailable, keeping constants:', error));
 
   // Setup panel tab controls
   initTabs();

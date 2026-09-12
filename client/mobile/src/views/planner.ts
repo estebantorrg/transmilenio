@@ -1,6 +1,6 @@
 /** Journey planner sheet — reuses the shared graph router (spec §6.1). */
 
-import { initRouter, findRoutes, resolveWalkingLegs, getRouteServiceSpans, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
+import { initRouter, findRoutes, resolveWalkingLegs, getRouteServiceSpans, setPlannerCalibration, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type RouteSearchParams } from '@shared/services/router';
 import {
   bogotaNow,
   dayOffsetSuffix,
@@ -31,6 +31,7 @@ import { h, haptic, toast } from '../lib/dom';
 import { formatDistance, needsDarkText } from '../lib/format';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { app } from '../appContext';
+import { fetchPlannerCalibration } from '../data';
 import { getRecentTrips, pushRecentTrip, type RecentTrip } from '../lib/storage';
 import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
@@ -56,10 +57,22 @@ bus.on('stops:ready', () => {
 bus.on('cable:ready', () => {
   routerReady = false;
 });
+// Measured speeds and real headways (spec §5.6.5) — fetched once, then re-applied
+// by every graph rebuild. The planner keeps its constants if the load fails.
+let calibrationRequested = false;
 function ensureRouter(): void {
   if (routerReady && state.routes.length) return;
   initRouter(state.routes, state.cableRouterStations);
   routerReady = true;
+  if (calibrationRequested) return;
+  calibrationRequested = true;
+  fetchPlannerCalibration()
+    .then((response) => {
+      if (response.success && response.speeds && response.headways) {
+        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways });
+      }
+    })
+    .catch((err) => console.warn('[planner] calibration unavailable, keeping constants:', err));
 }
 
 /** Suggestion sub-label when a point has no address, per kind. */

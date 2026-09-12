@@ -13,12 +13,18 @@
  * divided by a per-system cruising speed. No reliance on upstream ETA labels.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   getCatalog,
   getCatalogLoadedAt,
   fetchLiveBuses,
   type CatalogRouteDetail,
 } from './tm_api.js';
+import { dayTypeFor, prepareCalibration, rideSpeedMpm } from '../../../shared/calibration.js';
+import type { PreparedCalibration } from '../../../shared/calibration.js';
+import { isFestivo } from '../../../shared/festivos.js';
 
 type RouteTrace = number[][] | number[][][];
 
@@ -43,6 +49,12 @@ export interface StopArrivalsResult {
 // Cruising speeds used to turn remaining along-track distance into minutes.
 // Deliberately conservative city averages incl. dwell (troncal runs faster on
 // its exclusive lane than a zonal in mixed traffic).
+//
+// For a ZONAL route these are now only the fallback: where TRANSMILENIO has
+// measured the stretches this route rides, the board uses that speed scaled by
+// the hour and day type (spec §5.6.5), read through `shared/calibration.js` —
+// the same module the website's planner and voice ETA read, so a board and a
+// plan cannot disagree about the same bus.
 const TRONCAL_SPEED_M_PER_MIN = 400; // ~24 km/h
 const ZONAL_SPEED_M_PER_MIN = 233; // ~14 km/h
 // A bus farther than this from the route polyline is not really on this trace
@@ -195,6 +207,31 @@ interface ServingVariant {
   candidates: string[];
   paths: number[][][];
   stopAlong: number;
+  /** This variant's stops in order — the stretches whose measured speed it rides. */
+  stopCodes: string[];
+}
+
+// The calibration ships with the server data (spec §5.6.5) and is read once.
+// Absent or malformed, the board simply keeps the constants above.
+const CALIBRATION_PATH = join(dirname(fileURLToPath(import.meta.url)), '..', 'data', 'planner_calibration.json');
+let calibrationCache: PreparedCalibration | null | undefined;
+
+function calibration(): PreparedCalibration | null {
+  if (calibrationCache !== undefined) return calibrationCache;
+  try {
+    calibrationCache = prepareCalibration(JSON.parse(readFileSync(CALIBRATION_PATH, 'utf8')));
+  } catch (error) {
+    console.warn('[arrivals] calibration unavailable, using cruising constants:', error);
+    calibrationCache = null;
+  }
+  return calibrationCache;
+}
+
+/** Bogotá is UTC−5 all year (no DST), so the offset is a constant, not a lookup. */
+function bogotaSlot(): { dayType: ReturnType<typeof dayTypeFor>; hour: number } {
+  const local = new Date(Date.now() - 5 * 60 * 60 * 1000);
+  const festivo = isFestivo(local.getUTCFullYear(), local.getUTCMonth() + 1, local.getUTCDate());
+  return { dayType: dayTypeFor(local.getUTCDay(), festivo), hour: local.getUTCHours() };
 }
 
 /**
@@ -234,6 +271,7 @@ function findServingVariants(stopCode: string): ServingVariant[] {
         candidates: liveNameCandidates(variant),
         paths,
         stopAlong: proj.along,
+        stopCodes: (variant.stops || []).map((s) => String(s.codigo || '').trim()).filter(Boolean),
       });
     }
   }
@@ -266,7 +304,10 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
 
   if (!Number.isFinite(bestRemaining) || approaching === 0) return null;
 
-  const speed = sv.type === 'troncal' ? TRONCAL_SPEED_M_PER_MIN : ZONAL_SPEED_M_PER_MIN;
+  const slot = bogotaSlot();
+  const speed = sv.type === 'troncal'
+    ? TRONCAL_SPEED_M_PER_MIN
+    : rideSpeedMpm(calibration(), sv.stopCodes, slot.dayType, slot.hour, ZONAL_SPEED_M_PER_MIN);
   const etaMinutes = Math.round(bestRemaining / speed);
 
   return {

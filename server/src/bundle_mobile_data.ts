@@ -14,6 +14,7 @@
  *   personalizacion_points.json  ← server/src/data/personalizacion_points.json  (spec §5.5.1 personalization POIs)
  *   transmibici.json             ← server/src/data/transmibici.json             (spec §5.3 bike parking)
  *   station_demand.json          ← server/src/data/station_demand.json          (spec §5.8 Salidas demand)
+ *   planner_calibration.json     ← server/src/data/planner_calibration.json     (spec §5.6.5 planner calibration)
  *   voice_index.json             ← catalog routes, geometry stripped            (spec §5.9 voice)
  *   voice_stops.json             ← stop → routes, for "¿qué me sirve aquí?"     (spec §5.9 voice)
  *   voice/<CODE>.json            ← per-route stops + trazado                    (spec §5.9 voice)
@@ -48,6 +49,7 @@ const STATIC_DATASETS = [
   'personalizacion_points.json',
   'transmibici.json',
   'station_demand.json',
+  'planner_calibration.json',
 ];
 
 // ─── Voice assets (spec §5.9) ─────────────────────────────

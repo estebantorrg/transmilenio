@@ -327,6 +327,12 @@ router.get('/station-demand', dataFileEndpoint<object>(
 router.get('/transmibici', dataFileEndpoint<any[]>(
   'transmibici.json', 'transmibici', (points) => ({ count: points.length, points })
 ));
+// Measured speeds and scheduled headways the journey planner is calibrated
+// against (spec §5.6.5). Served whole: the client holds it for the session, and
+// the mobile app ships the same file as an offline asset.
+router.get('/planner-calibration', dataFileEndpoint<object>(
+  'planner_calibration.json', 'planner calibration', (calibration) => calibration
+));
 
 // ─── Cable Endpoints ──────────────────────────────────────
 

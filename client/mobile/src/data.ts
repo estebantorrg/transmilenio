@@ -18,6 +18,7 @@ import type {
   RechargePointsResponse,
   StationDemandResponse,
   TransmibiciResponse,
+  PlannerCalibrationResponse,
 } from '@shared/services/api';
 import type { CatalogStation, CatalogWagons, MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
@@ -35,6 +36,7 @@ import recargaAssetUrl from './generated/recarga_points.json?url';
 import personalizacionAssetUrl from './generated/personalizacion_points.json?url';
 import transmibiciAssetUrl from './generated/transmibici.json?url';
 import demandAssetUrl from './generated/station_demand.json?url';
+import calibrationAssetUrl from './generated/planner_calibration.json?url';
 
 const CATALOG_KEY = 'catalog:v1';
 
@@ -76,6 +78,13 @@ async function fetchStationDemand(): Promise<StationDemandResponse> {
   if (!state.native) return api.getStationDemand();
   const demand = await loadBundledJson<Omit<StationDemandResponse, 'success'>>(demandAssetUrl);
   return { success: true, ...demand };
+}
+
+/** Planner calibration (spec §5.6.5): bundled asset in the app, our API on the web. */
+export async function fetchPlannerCalibration(): Promise<PlannerCalibrationResponse> {
+  if (!state.native) return api.getPlannerCalibration();
+  const calibration = await loadBundledJson<Omit<PlannerCalibrationResponse, 'success'>>(calibrationAssetUrl);
+  return { success: true, ...calibration };
 }
 
 function parseLatLng(coordenada: string | undefined): [number, number] | null {

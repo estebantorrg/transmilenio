@@ -26,7 +26,9 @@ import {
   closingAfter,
   createServiceClock,
   dayOffsetSuffix,
+  dayOfWeek,
   formatClockMinute,
+  isFestivo,
   isOpenAt,
   MINUTES_PER_DAY,
   mergeServiceSpans,
@@ -38,10 +40,19 @@ import {
   type ServiceSpan,
 } from './schedule';
 import type { VoiceIndexRoute, VoiceRouteGeo, VoiceStop } from '../types/voice';
+import { dayTypeFor, rideSpeedMpm } from '../../../shared/calibration.js';
+import { getCalibration } from './calibrationStore';
 
 // ─── Tunables ─────────────────────────────────────────────
-// Cruising speeds, on-route tolerance and the passed-stop epsilon are the SAME
-// numbers as server/src/services/stop_arrivals.ts. Change them together.
+// On-route tolerance and the passed-stop epsilon are the SAME numbers as
+// server/src/services/stop_arrivals.ts. Change them together.
+//
+// The cruising speeds below are now only the FALLBACK. A zonal ride is charged
+// the speed TRANSMILENIO measured on the stretches of that direction, scaled by
+// the hour and day type (spec §5.6.5) — the same reading the planner uses, out
+// of `shared/calibration.js`, so an ETA and a planned trip cannot disagree about
+// how fast the same bus is. Troncal keeps the constant: the measurement covers
+// the zonal fleet only.
 const TRONCAL_SPEED_M_PER_MIN = 400; // ~24 km/h
 const ZONAL_SPEED_M_PER_MIN = 233; // ~14 km/h
 const ON_ROUTE_MAX_PERP_M = 160;
@@ -478,7 +489,9 @@ export function computeRouteEta(input: RouteEtaInput): RouteEtaAnswer {
   const dirHint = input.dirHint?.trim() ?? '';
   const maxAccess = input.maxAccessMeters ?? ACCESS_MAX_M;
   const type: 'troncal' | 'zonal' = index.tipo === 'z' ? 'zonal' : 'troncal';
-  const speed = type === 'troncal' ? TRONCAL_SPEED_M_PER_MIN : ZONAL_SPEED_M_PER_MIN;
+  // The calibration slot of this answer: "how fast is a bus right now".
+  const dayType = dayTypeFor(dayOfWeek(now.year, now.month, now.day), isFestivo(now.year, now.month, now.day));
+  const nowHour = Math.floor(now.minute / 60) % 24;
   const service = checkRouteService(index, now);
 
   const base = {
@@ -538,6 +551,10 @@ export function computeRouteEta(input: RouteEtaInput): RouteEtaAnswer {
     const rawWalk = userPos ? haversineMeters(userPos, [stop[2], stop[3]]) : null;
     const walkMeters = rawWalk !== null && rawWalk <= maxAccess ? rawWalk : null;
     const walk = walkMeters === null ? null : walkMinutes(walkMeters);
+    // Per direction: its own stretches were measured, or they were not.
+    const speed = type === 'troncal'
+      ? TRONCAL_SPEED_M_PER_MIN
+      : rideSpeedMpm(getCalibration(), stops.map((entry) => String(entry[0])), dayType, nowHour, ZONAL_SPEED_M_PER_MIN);
     const etaMinutes = inbound ? Math.round(inbound.remainingMeters / speed) : null;
 
     directions.push({

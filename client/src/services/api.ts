@@ -5,6 +5,7 @@ import type {
   TroncalStationFeature,
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
+import type { PlannerCalibrationData } from '../../../shared/calibration.js';
 import { isLiveBridgeReady, probeLiveBridge, fetchLiveBusesViaBridge } from './liveBridge';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
@@ -493,6 +494,11 @@ export const api = {
   /** TransMiBici bike-parking POIs (static catalog, spec §5.3). */
   getTransmibici: () => fetchJson<TransmibiciResponse>('/transmibici', 15_000, undefined, 1),
 
+  /** Measured zonal speeds and scheduled headways the planner is calibrated
+   *  against (spec §5.6.5). One fetch per session; the planner keeps its
+   *  constants if it fails. */
+  getPlannerCalibration: () => fetchJson<PlannerCalibrationResponse>('/planner-calibration', 15_000, undefined, 1),
+
   /** Real-time arrivals/ETAs at a paradero (spec §5.8). Never hard-fails.
    *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
    *  0 retries — live requests must not stack (spec §3.4). */
@@ -674,4 +680,9 @@ export interface CardBalanceResponse {
   success: boolean;
   data?: CardBalanceRead;
   error?: string;
+}
+
+/** `/api/planner-calibration` (spec §5.6.5). */
+export interface PlannerCalibrationResponse extends PlannerCalibrationData {
+  success: boolean;
 }
