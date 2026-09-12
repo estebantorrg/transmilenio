@@ -383,7 +383,7 @@
   },
   "TM0058": {
     "source": "Plano de ubicacion, Portal 80, version diciembre de 2025.",
-    "why": "NOT a ring. Portal 80 draws two long lozenges lying diagonally, each bending once in the middle, with no turnaround loop anywhere — so it uses `andenes` (a platform as a thick round-capped polyline) where Portal Norte uses `anillo`. The axes and the 92px thickness were measured by taking the platform grey as a mask and walking each connected piece column by column (_eje.mjs); the four kerbs were then sampled directly across the width, which is what fixes the bend: Plataforma 1 turns at about x 555 and Plataforma 2 at about x 600. Chips here are drawn BIGGER than at Norte — 40px wide for a three-character code against 27 — so the chip metrics are part of the geometry rather than a constant.",
+    "why": "NOT a ring. Portal 80 draws two long lozenges lying diagonally, each bending once in the middle, with no turnaround loop anywhere — so it uses `andenes` (a platform as a thick round-capped polyline) where Portal Norte uses `anillo`, and it is drawn WITHOUT an outline: what reads as a platform edge on this sheet is the yellow kerb on the boarding side and bare page on the other. The axes come from the KERBS: both sit at a constant 44.5 off the centre, so sampling them across the whole length and taking the middle gives an axis that is exact everywhere rather than fitted where the sheet happened to be legible — the first attempt was fitted only over the stretch where all four kerbs show at once and came out six pixels adrift at the western end, which then showed up as every bay, caption and tile drifting the same six. Each platform also carries a SPINE: the black line the shelters back onto, with every piece of furniture threaded on it. The bay bar is ONE band per platform from cap to cap, not one per group of bays. Type here is set larger than at Norte — the badges nearly twice the size — so the sizes travel with the station in `tipo`.",
     "vista": [
       236,
       128,
@@ -392,152 +392,158 @@
     ],
     "teja": 18,
     "chip": {
-      "k": 11.7,
-      "h": 32,
-      "sub": 7
+      "k": 11.35,
+      "h": 31,
+      "sub": 8.5,
+      "min": 40,
+      "gap": 3,
+      "base": 0.76,
+      "baseSub": 0.89
     },
     "andenes": [
       {
         "pts": [
           [
-            350,
-            320
+            336,
+            333
           ],
           [
-            555,
-            227
+            538,
+            226
           ],
           [
-            930,
-            188
+            918,
+            186
           ]
         ],
-        "ancho": 92
+        "ancho": 89
       },
       {
         "pts": [
           [
-            460,
-            480
+            443,
+            467
           ],
           [
-            595,
+            585,
             390
           ],
           [
-            940,
-            350
+            923,
+            353
           ]
         ],
-        "ancho": 92
+        "ancho": 89
       }
     ],
     "bordillos": [
       {
         "pts": [
           [
-            325,
-            288
+            315.2,
+            293.7
           ],
           [
-            535,
-            180
+            525,
+            182.6
           ],
           [
-            790,
-            155
+            913.3,
+            141.7
           ]
         ]
       },
       {
         "pts": [
           [
-            375,
-            362
+            356.8,
+            372.3
           ],
           [
-            560,
-            269
+            551.1,
+            269.4
           ],
           [
-            900,
-            231
+            922.7,
+            230.3
           ]
         ]
       },
       {
         "pts": [
           [
-            500,
-            385
+            421.8,
+            427.9
           ],
           [
-            580,
-            343
+            571.4,
+            346.7
           ],
           [
-            900,
-            310
+            918.2,
+            308.8
           ]
         ]
       },
       {
         "pts": [
           [
-            475,
-            499
+            464.2,
+            506.1
           ],
           [
-            605,
-            433
+            598.5,
+            433.2
           ],
           [
-            925,
-            397
+            927.8,
+            397.2
           ]
         ]
       }
     ],
     "etiquetas": [
       {
-        "x": 832,
-        "y": 140,
-        "w": 84,
-        "h": 12,
+        "anden": 0,
+        "x": 745,
+        "off": -23,
+        "w": 93,
+        "h": 16,
         "texto": "Plataforma 1"
       },
       {
-        "x": 844,
-        "y": 308,
-        "w": 77,
-        "h": 12,
+        "anden": 1,
+        "x": 764,
+        "off": -22,
+        "w": 93,
+        "h": 16,
         "texto": "Plataforma 2"
       }
     ],
     "rotulos": [
       {
-        "x": 560,
+        "x": 561,
         "y": 302,
         "clase": "place",
         "centro": true,
         "texto": "Túnel peatonal"
       },
       {
-        "x": 560,
+        "x": 561,
         "y": 311,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian tunnel"
       },
       {
-        "x": 272,
-        "y": 158,
+        "x": 273,
+        "y": 157,
         "clase": "anchor",
         "centro": true,
         "texto": "Centro Comercial"
       },
       {
-        "x": 272,
+        "x": 273,
         "y": 168,
         "clase": "anchor",
         "centro": true,
@@ -557,16 +563,16 @@
           "B55"
         ],
         "x": 380,
-        "y": 240
+        "y": 239
       },
       {
         "codigos": [
           "H20"
         ],
-        "x": 569,
-        "y": 175,
+        "x": 572,
+        "y": 174,
         "sub": {
-          "H20": "Portal Usme"
+          "H20": "PORTAL USME"
         }
       },
       {
@@ -581,22 +587,320 @@
           "6",
           "H21"
         ],
-        "x": 412,
-        "y": 401,
+        "x": 413,
+        "y": 400,
         "sub": {
-          "H21": "Portal Tunal"
+          "H21": "PORTAL TUNAL"
         }
       },
       {
         "codigos": [
           "G22"
         ],
-        "x": 801,
-        "y": 318
+        "x": 804,
+        "y": 317
       }
     ],
-    "carriles": [],
     "borrador": true,
-    "falta": "The bay strips and the furniture. The platforms, kerbs, chips and free labels are measured and drawn; `_equipo.mjs` finds the tiles along each axis but needs a different threshold per platform, which says the axis is still a little off for one of them. Clear `borrador` when both are in."
+    "falta": "The pedestrian tunnel band and its two landings, the green landscaping, the Centro Comercial circle and its access block, and the rotated Calle 80 label. The platforms, kerbs, spines, bay bars, bays, captions, furniture, badges and platform tags are measured and drawn. Clear `borrador` when the rest is in.",
+    "tirasAng": [
+      {
+        "tira": "Bahías zonales · costado occidental",
+        "anden": 0,
+        "off": 39,
+        "cap": {
+          "x": 417,
+          "off": 33.5,
+          "texto": "Conexión con buses Zonales"
+        },
+        "bahias": [
+          {
+            "x": 369
+          },
+          {
+            "x": 414
+          },
+          {
+            "x": 461
+          }
+        ],
+        "dx": 4
+      },
+      {
+        "tira": "Plataforma 1 · bahías zonales",
+        "anden": 0,
+        "off": 39,
+        "cap": {
+          "x": 739,
+          "off": 33.5,
+          "texto": "Conexión con buses Zonales"
+        },
+        "bahias": [
+          {
+            "x": 614
+          },
+          {
+            "x": 700
+          },
+          {
+            "x": 787,
+            "una": true
+          },
+          {
+            "x": 872,
+            "una": true
+          }
+        ],
+        "dx": 1
+      },
+      {
+        "tira": "Bahías intermunicipales · costado sur",
+        "anden": 1,
+        "off": 39,
+        "cap": {
+          "x": 506,
+          "off": 33.5,
+          "texto": "Conexión con Buses Intermunicipales"
+        },
+        "bahias": [
+          {
+            "x": 458
+          },
+          {
+            "x": 515
+          },
+          {
+            "x": 557
+          }
+        ],
+        "dx": 4
+      },
+      {
+        "tira": "Plataforma 2 · bahías zonales",
+        "anden": 1,
+        "off": 39,
+        "cap": {
+          "x": 762,
+          "off": 33.5,
+          "texto": "Conexión con buses Zonales"
+        },
+        "bahias": [
+          {
+            "x": 729
+          },
+          {
+            "x": 798
+          }
+        ],
+        "dx": 1
+      }
+    ],
+    "equipoAng": [
+      {
+        "anden": 0,
+        "iconos": [
+          "taquilla",
+          "torniquete",
+          "escalera",
+          "escalera",
+          "torniquete",
+          "taquilla",
+          "torniquete",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            369,
+            314
+          ],
+          [
+            435,
+            278
+          ],
+          [
+            511,
+            230
+          ],
+          [
+            578,
+            214
+          ],
+          [
+            636,
+            215
+          ],
+          [
+            724,
+            205
+          ],
+          [
+            809,
+            196
+          ],
+          [
+            896,
+            187
+          ],
+          [
+            926,
+            184
+          ]
+        ],
+        "recto": true
+      },
+      {
+        "anden": 1,
+        "iconos": [
+          "taquilla",
+          "torniquete",
+          "escalera",
+          "escalera",
+          "taquilla",
+          "torniquete",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            450,
+            460
+          ],
+          [
+            517,
+            424
+          ],
+          [
+            560,
+            394
+          ],
+          [
+            627,
+            377
+          ],
+          [
+            696,
+            378
+          ],
+          [
+            795,
+            367
+          ],
+          [
+            896,
+            356
+          ],
+          [
+            937,
+            352
+          ]
+        ],
+        "recto": true
+      },
+      {
+        "anden": 0,
+        "recto": true,
+        "fondo": "#03518F",
+        "iconos": [
+          "accesible"
+        ],
+        "pts": [
+          [
+            550,
+            203
+          ]
+        ]
+      },
+      {
+        "anden": 1,
+        "recto": true,
+        "fondo": "#03518F",
+        "iconos": [
+          "accesible"
+        ],
+        "pts": [
+          [
+            599,
+            367
+          ]
+        ]
+      }
+    ],
+    "tipo": {
+      "chip": 21,
+      "chip-sub": 4.6,
+      "cap": 10,
+      "bay": 9,
+      "tag": 12.6,
+      "place": 13,
+      "place-en": 8,
+      "anchor": 12.4
+    },
+    "espinas": [
+      [
+        [
+          297,
+          354
+        ],
+        [
+          538,
+          226
+        ],
+        [
+          962,
+          181
+        ]
+      ],
+      [
+        [
+          403,
+          489
+        ],
+        [
+          585,
+          390
+        ],
+        [
+          968,
+          348
+        ]
+      ]
+    ],
+    "barras": [
+      {
+        "anden": 0,
+        "desde": 337,
+        "hasta": 918,
+        "off": 39,
+        "h": 10
+      },
+      {
+        "anden": 1,
+        "desde": 439,
+        "hasta": 923,
+        "off": 39,
+        "h": 10
+      }
+    ],
+    "cajas": [
+      {
+        "x": 531,
+        "y": 207,
+        "w": 15,
+        "h": 11
+      },
+      {
+        "x": 580,
+        "y": 369,
+        "w": 15,
+        "h": 11
+      }
+    ],
+    "tonos": {
+      "bahia": {
+        "papel": "#BDBBBC",
+        "oscuro": "#43464D"
+      }
+    }
   }
 }

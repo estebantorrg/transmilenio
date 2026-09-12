@@ -238,6 +238,22 @@ export const ICONOS = {
       '<path d="M280-400v120q0 17 11.5 28.5T320-240h40q17 0 28.5-11.5T400-280v-120q11-11 25.5-17.5T440-440v-60q0-33-23.5-56.5T360-580h-40q-33 0-56.5 23.5T240-500v60q0 16 14.5 22.5T280-400Zm95.5-234.5Q390-649 390-670t-14.5-35.5Q361-720 340-720t-35.5 14.5Q290-691 290-670t14.5 35.5Q319-620 340-620t35.5-14.5ZM556-520h128q12 0 17.5-10.5T701-551l-64-102q-6-10-17-10t-17 10l-64 102q-6 10-.5 20.5T556-520Zm81 213 64-102q6-10 .5-20.5T684-440H556q-12 0-17.5 10.5t.5 20.5l64 102q6 10 17 10t17-10ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0 0v-560 560Z" fill="' + W + '"/>',
     vb: '0 -960 960 960',
   },
+  accesible: {
+    label: 'Acceso accesible',
+    bg: '#03518F',
+    // Drawn from primitives rather than lifted from the icon set: at the size
+    // this appears on a plano — eighteen pixels — the set's outlined glyph
+    // closes up into a blob, and what has to survive is the wheel and the
+    // seated figure.
+    vb: '0 0 24 24',
+    svg:
+      // Inset: the sheet leaves a clear white margin round this one where the
+      // black tiles run nearly to their edge.
+      '<g transform="translate(12 12) scale(0.82) translate(-12 -12)">' +
+      '<circle cx="13.1" cy="4.4" r="2.2" fill="' + W + '"/>' +
+      '<path d="M10.9 7.5h3.5v4.8h3.4l2.4 5.6-1.9.9-2-4.6h-5.4z" fill="' + W + '"/>' +
+      '<circle cx="11.4" cy="15.3" r="5.7" fill="none" stroke="' + W + '" stroke-width="1.7"/></g>',
+  },
   bici: {
     label: 'TransMiBici',
     bg: '#0E0E10',
@@ -613,7 +629,17 @@ function iconosDelPortal(geo, detalle) {
   const out = [];
   if ((geo?.escaleras ?? []).length) out.push('escalera');
   if ((geo?.puente?.escaleras ?? []).length) out.push('escalera');
-  for (const c of detalle?.columnas ?? []) {
+  // A ring's bridge lands on a ramp at each platform; an angled portal has none,
+  // and the key used to promise them anyway because every vestíbulo is assumed
+  // to have a way through at its platform edge.
+  if ((geo?.puente?.rampas ?? []).length) out.push('rampa');
+  for (const e of geo?.equipoAng ?? []) for (const n of e.iconos ?? []) out.push(n);
+  // A station drawn in rows keeps its columns one level down.
+  const columnas = [
+    ...(detalle?.columnas ?? []),
+    ...(detalle?.filas ?? []).flatMap((f) => f.columnas ?? []),
+  ];
+  for (const c of columnas) {
     if (c.t === 'puente') for (const n of c.sube ?? []) out.push(n);
   }
   return [...new Set(out)];
@@ -676,7 +702,7 @@ export function buildSheetPlano(input) {
   // A PORTAL with measured geometry is not a row of columns at all: it is a
   // loop, drawn on its sheet's own coordinates. Taken before any of the column
   // work below, because none of that applies to it.
-  if (input.geo?.anillo) {
+  if (input.geo?.anillo || (input.geo?.andenes ?? []).length) {
     const svg = buildPortalSvg({
       geo: input.geo,
       detalle: input.detalle,
@@ -703,7 +729,7 @@ export function buildSheetPlano(input) {
           // a stand-in block — otherwise the key omits two marks that are on
           // the page, which is the one thing a key must never do.
           convencionesHtml(
-            [{ t: 'vestibulo', arriba: iconosDelPortal(input.geo, input.detalle) }],
+            [{ t: 'vestibulo', paso: false, arriba: iconosDelPortal(input.geo, input.detalle) }],
             input.detalle?.zonal
           ),
         detallado: true,

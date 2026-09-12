@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 // The renderer itself — the same module the app and the prerender both call, so
 // a drawing can be produced here without a browser or a catalog.
 import { buildSheetPlano } from '../shared/plano.js';
+import { buildPortalSvg } from '../shared/plano_svg.js';
 
 /**
  * The station plan (`shared/plano.js`, spec §5.5.6).
@@ -364,6 +365,151 @@ test.describe('the plan, on the page', () => {
         return out;
       });
       for (const b of bad) wrong.push(`${code}: chip "${b}" does not link to a route page`);
+    }
+    expect(wrong).toEqual([]);
+  });
+});
+
+/**
+ * A PORTAL drawn on its sheet's own coordinates (`shared/plano_svg.js`).
+ *
+ * Two shapes exist: a ring (Portal Norte) and a set of angled lozenges (Portal
+ * 80), and the second one is measured feature by feature — an axis, a spine, a
+ * bay band, a marker per bay, a tile per piece of furniture. Nothing here checks
+ * the NUMBERS, which only the sheet can settle; what it checks is that every
+ * feature the geometry records reaches the page, because the way this has failed
+ * is a whole class of them silently not being drawn.
+ *
+ * A station still being measured carries `borrador` and the app draws its
+ * columns instead. That gate is bypassed HERE on purpose: the drawing has to be
+ * complete before the gate comes off, so the test has to be able to see it.
+ */
+test.describe('a portal on its sheet', () => {
+  const geos = JSON.parse(readFileSync(root('server/src/data/plano_geo.json'), 'utf8')) as Record<string, any>;
+  // The file opens with a `_` note about how the measuring was done.
+  const portales = Object.keys(geos).filter((k) => /^TM\d+$/.test(k));
+  // An empty list here would make every test below pass without looking at
+  // anything, which is the one way this file could lie.
+  test('there are portals to check', () => {
+    expect(portales.length).toBeGreaterThan(0);
+  });
+
+  /** The portal's SVG, drawn whether or not its measurements are finished. */
+  function portalFor(code: string): string {
+    const svg = buildPortalSvg({
+      geo: { ...geos[code], borrador: false },
+      detalle: planos.detalle[code],
+      layout: planos.layouts[code],
+      tema: 'papel',
+    });
+    if (!svg) throw new Error(code + ' draws nothing');
+    return svg;
+  }
+
+  test('every measured feature of a portal reaches the drawing', () => {
+    const wrong: string[] = [];
+    for (const code of portales) {
+      const geo = geos[code];
+      const svg = portalFor(code);
+      const cuenta = (re: RegExp): number => (svg.match(re) ?? []).length;
+
+      // One path per platform and one per spine, each with as many points as
+      // the geometry gives it.
+      for (const a of geo.andenes ?? []) {
+        const d = a.pts.map((p: number[]) => p.join(',')).join(' L');
+        if (!svg.includes('M' + d)) wrong.push(code + ': a platform is not drawn along its own axis');
+      }
+      for (const e of geo.espinas ?? []) {
+        const d = e.map((p: number[]) => p.join(',')).join(' L');
+        if (!svg.includes('M' + d)) wrong.push(code + ': a platform is drawn without its spine');
+      }
+      // A bay band bends where its platform bends; drawn end to end it leaves
+      // the platform past the bend and comes out beyond the kerb.
+      for (const b of geo.barras ?? []) {
+        const quiebres = (geo.andenes?.[b.anden]?.pts ?? []).slice(1, -1)
+          .filter((p: number[]) => p[0] > b.desde && p[0] < b.hasta).length;
+        const esperados = quiebres + 2;
+        const usados = [...svg.matchAll(/<path d="(M[^"]*)" fill="none" stroke="var\(--pq-bahia\)/g)]
+          .map((m) => m[1].split('L').length);
+        if (!usados.includes(esperados)) {
+          wrong.push(code + ': a bay band skips a bend in its platform');
+        }
+      }
+      // A marker and a name per bay the sheet draws.
+      const bahias = (geo.tirasAng ?? []).reduce((n: number, t: any) => n + (t.bahias ?? []).length, 0);
+      if (bahias) {
+        const marcas = cuenta(/ h9 l-4\.5,7 z/g);
+        if (marcas !== bahias) wrong.push(code + ': ' + bahias + ' bays measured, ' + marcas + ' markers drawn');
+        for (const t of geo.tirasAng ?? []) {
+          const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
+          if (!tira) { wrong.push(code + ': strip "' + t.tira + '" is not in the station data'); continue; }
+          for (const it of (tira.items ?? []).filter((i: any) => i.t === 'bahia')) {
+            for (const nombre of it.destinos ?? it.rutas.map((r: any) => r.destino)) {
+              if (nombre && !svg.includes(nombre)) wrong.push(code + ': bay "' + nombre + '" is not named');
+            }
+          }
+        }
+      }
+      // A tile per measured piece of furniture.
+      const tejas = (geo.equipoAng ?? []).reduce((n: number, e: any) => n + (e.pts ?? []).length, 0);
+      if (tejas) {
+        const dibujadas = cuenta(/role="img"/g);
+        if (dibujadas < tejas) wrong.push(code + ': ' + tejas + ' tiles measured, ' + dibujadas + ' drawn');
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test("a portal's key names exactly the marks it draws", () => {
+    const wrong: string[] = [];
+    for (const code of portales) {
+      const svg = portalFor(code);
+      // The tiles, not the drawing itself — the root carries its own label.
+      const dibujadas = new Set(
+        [...svg.matchAll(/<g [^>]*role="img" aria-label="([^"]*)"/g)].map((m) => m[1]),
+      );
+      const html = buildSheetPlano({
+        wagons: {},
+        layout: planos.layouts[code],
+        detalle: planos.detalle[code],
+        geo: { ...geos[code], borrador: false },
+        wagonPlan: {},
+        sentidos: { positive: 'NORTE', negative: 'SUR' },
+        tagColor: () => '#888',
+        isZonal: () => false,
+      })?.html ?? '';
+      const nombradas = new Set(
+        [...html.matchAll(/<span class="pdt-conv-txt">([^<]*)<\/span>/g)].map((m) => m[1]),
+      );
+      // The key may name a mark the SVG spells differently (the ramps and the
+      // bridge stairs are drawn as shapes, not as tiles), but it must never
+      // leave one of the tiles on the page unexplained.
+      for (const n of dibujadas) {
+        if (!nombradas.has(n)) wrong.push(code + ': the key does not name "' + n + '"');
+      }
+      // The other direction, for the marks the drawing makes as shapes rather
+      // than as tiles: a key that promises a ramp where there is none sends a
+      // rider looking for a way through the platform edge that is not there.
+      // `fill="var(--pq-rampa)"`, not `--pq-rampa`: every drawing DECLARES the
+      // whole palette in its own style block, so looking for the variable name
+      // matched every portal and the check could never fail.
+      if (nombradas.has('Rampa peatonal') && !svg.includes('fill="var(--pq-rampa)"')) {
+        wrong.push(code + ': the key promises a ramp the drawing does not have');
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test('a badge printed black is still visible on the dark page', () => {
+    // The sheet gives a plain service number a BLACK badge. On the dark view
+    // that is black on black; the outline is the ink colour, so it disappears
+    // on paper and is the only thing holding the badge together in the dark.
+    const wrong: string[] = [];
+    for (const code of portales) {
+      for (const m of portalFor(code).matchAll(/<rect class="pq-badge"[^>]*fill="(#[0-9a-fA-F]{6})"([^/]*)\/>/g)) {
+        const claro = parseInt(m[1].slice(1, 3), 16) + parseInt(m[1].slice(3, 5), 16) + parseInt(m[1].slice(5), 16);
+        if (claro < 120 && !m[2].includes('stroke=')) wrong.push(code + ': badge ' + m[1] + ' has no outline');
+      }
     }
     expect(wrong).toEqual([]);
   });

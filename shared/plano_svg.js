@@ -41,7 +41,10 @@ export const PALETA = {
   },
 };
 
-const KERB = '#FFDD00';
+// Sampled off the sheets rather than eyeballed: both Portal Norte and Portal 80
+// print their kerbs at 254,237,1, which is a greener yellow than the one this
+// drawing used.
+const KERB = '#FEED01';
 const TILE_BG = '#0E0E10';
 
 /**
@@ -107,13 +110,54 @@ export function buildPortalSvg(input) {
    * describes that. So a portal's platforms are either a ring or a set of
    * these, and which one a station is comes from its own geometry.
    */
-  const lozenge = (a) => {
-    const d = a.pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ');
-    const comun = ' fill="none" stroke-linecap="round" stroke-linejoin="round"';
-    return (
-      '<path d="' + d + '"' + comun + ' stroke="' + C.trazo + '" stroke-width="' + (a.ancho + 1.8) + '"/>' +
-      '<path d="' + d + '"' + comun + ' stroke="' + C.anden + '" stroke-width="' + a.ancho + '"/>'
-    );
+  const trazar = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + p[0] + ',' + p[1]).join(' ');
+
+  const lozenge = (a) =>
+    // No outline. The sheet draws these platforms as bare grey against the page
+    // — what reads as their edge is the yellow kerb on the boarding side and
+    // nothing at all on the other. An outline round the whole lozenge was the
+    // single loudest difference at Portal 80: it drew a black racetrack where
+    // the sheet has none.
+    '<path d="' + trazar(a.pts) + '" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke="' +
+    C.anden + '" stroke-width="' + a.ancho + '"/>';
+
+  /**
+   * The line down the middle of an angled platform.
+   *
+   * It is not the platform's outline and not a kerb: it is the wall the shelters
+   * back onto, and every piece of furniture is threaded onto it. Drawn from its
+   * own measured points rather than from the axis, because the two are not quite
+   * the same line and a degree of difference shows at this length.
+   */
+  const espina = (pts) =>
+    '<path d="' + trazar(pts) + '" fill="none" stroke="' + C.trazo + '" stroke-width="1.5" stroke-linecap="round"/>';
+
+  /**
+   * A point on a platform's axis, and the direction it runs there.
+   *
+   * On a ring everything can be given an x and a y and be done with it. On an
+   * angled platform nothing can: a strip, a bay marker and a caption all sit at
+   * an OFFSET from the axis, and the offset has to turn with the platform or it
+   * walks off the end of it. So an angled feature is given the x it sits at and
+   * how far off the axis it stands, and where that lands is worked out here.
+   */
+  const sobre = (i, x, off = 0) => {
+    const a = (geo.andenes ?? [])[i];
+    if (!a) return { x, y: 0, ux: 1, uy: 0 };
+    const pts = a.pts;
+    let k = 0;
+    while (k < pts.length - 2 && x > pts[k + 1][0]) k++;
+    const [x0, y0] = pts[k], [x1, y1] = pts[k + 1];
+    const dx = x1 - x0, dy = y1 - y0, n = Math.hypot(dx, dy) || 1;
+    const ux = dx / n, uy = dy / n;
+    const t = (x - x0) / (dx || 1);
+    return { x: x + -uy * off, y: y0 + dy * t + ux * off, ux, uy };
+  };
+
+  /** The angle a feature is set at, so it lies along its platform. */
+  const giro = (i, x) => {
+    const p = sobre(i, x);
+    return (Math.atan2(p.uy, p.ux) * 180) / Math.PI;
   };
 
   /** A kerb: a straight run on a ring, a polyline on an angled platform. */
@@ -133,14 +177,14 @@ export function buildPortalSvg(input) {
   /** Boxes a lane rule has to keep clear of, gathered as the drawing is built. */
   const ocupado = (geo.reservado ?? []).map((b) => ({ ...b }));
 
-  const tile = (name, x, y, s = TILE) => {
+  const tile = (name, x, y, s = TILE, fondo = TILE_BG) => {
     const i = name === 'torniquete' ? TORNIQUETE : ICONOS[name];
     if (!i) return '';
     const pad = s * 0.055;
     return (
       '<g transform="translate(' + num(x) + ' ' + num(y) + ')" role="img" aria-label="' +
       escapeHtml(i.label) + '">' +
-      '<rect width="' + num(s) + '" height="' + num(s) + '" fill="' + TILE_BG + '"/>' +
+      '<rect width="' + num(s) + '" height="' + num(s) + '" fill="' + fondo + '"/>' +
       '<svg x="' + num(pad) + '" y="' + num(pad) + '" width="' + num(s - pad * 2) +
       '" height="' + num(s - pad * 2) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + i.svg + '</svg></g>'
     );
@@ -174,17 +218,25 @@ export function buildPortalSvg(input) {
       const sub = (grupo.sub ?? {})[c];
       const w = anchoChip(c);
       const href = hrefDe(c);
+      // A badge printed BLACK — the one the sheet gives a plain service number —
+      // disappears on the dark page. The outline is the ink colour, so on paper
+      // it is black on black and invisible, and in the dark view it is the only
+      // thing saying the badge is there.
+      const fondo = colorDe(c);
+      const borde = /^#(0|1)/.test(fondo) ? ' stroke="' + C.trazo + '" stroke-width="0.8"' : '';
       const cuerpo =
-        '<rect width="' + num(w) + '" height="' + ALTO_CHIP + '" fill="' + colorDe(c) + '"/>' +
+        '<rect class="pq-badge" width="' + num(w) + '" height="' + ALTO_CHIP + '" fill="' + fondo + '"' + borde + '/>' +
         (sub ? '<text x="' + num(w / 2) + '" y="' + SUB_Y + '" class="pq-chip-sub">' + escapeHtml(sub) + '</text>' : '') +
-        '<text x="' + num(w / 2) + '" y="' + num(sub ? ALTO_CHIP * 0.78 : ALTO_CHIP * 0.71) +
+        // A badge with a strapline over it sets its code LOWER, not centred: the
+        // sheet gives the strapline the room and lets the code sit on the floor.
+        '<text x="' + num(w / 2) + '" y="' + num(ALTO_CHIP * (sub ? CH.baseSub ?? 0.78 : CH.base ?? 0.71)) +
         '" class="pq-chip">' + escapeHtml(c) + '</text>';
       const g =
         '<g transform="translate(' + num(cx) + ' ' + num(grupo.y - ALTO_CHIP / 2) + ')">' + cuerpo + '</g>';
       out += href
         ? '<a href="' + escapeHtml(href) + '" class="pq-link" aria-label="Ruta ' + escapeHtml(c) + '">' + g + '</a>'
         : g;
-      cx += w + 1;
+      cx += w + (CH.gap ?? 1);
     }
     ocupado.push({ x0: grupo.x, x1: cx - 1, y0: grupo.y - ALTO_CHIP / 2, y1: grupo.y + ALTO_CHIP / 2 });
     return out;
@@ -291,6 +343,109 @@ export function buildPortalSvg(input) {
     return out;
   }
 
+  /**
+   * The bay bar of an angled platform: ONE band the whole length of it.
+   *
+   * The sheet does not draw a bar per group of bays the way the column model
+   * implies. Portal 80 runs a single darker band down the outer edge of each
+   * platform from cap to cap, and the groups — the western zonal bays, the
+   * eastern ones, the intermunicipal coaches — are just stretches of it. Drawn
+   * per group, the band broke into pieces that are not in the original.
+   */
+  const barra = (b) => {
+    // Along the platform, BENDS INCLUDED. Drawn as one straight run from end to
+    // end it left the platform entirely past the bend and came out beyond the
+    // kerb — the band has to turn where the platform turns.
+    const quiebres = ((geo.andenes ?? [])[b.anden]?.pts ?? [])
+      .slice(1, -1)
+      .map((p) => p[0])
+      .filter((x) => x > b.desde && x < b.hasta);
+    const pts = [b.desde, ...quiebres, b.hasta].map((x) => sobre(b.anden, x, b.off));
+    return '<path d="' + pts.map((p, i) => (i ? 'L' : 'M') + num(p.x) + ',' + num(p.y)).join(' ') +
+      '" fill="none" stroke="' + C.bahia + '" stroke-width="' + (b.h ?? 10) + '" stroke-linejoin="round"/>';
+  };
+
+  /**
+   * One group of bays on an angled platform: its caption set along the platform,
+   * a marker per bay cut into the bar, and the names.
+   *
+   * The names are NOT rotated. Everything else on an angled platform turns with
+   * it, and the sheet turns the caption too — but the bay names are set level,
+   * hanging off their marker, and setting them at an angle was one of the things
+   * that made the first pass read as a different drawing.
+   */
+  function tiraAngulada(t) {
+    const tira = tiras[t.tira];
+    if (!tira) return '';
+    const items = (tira.items ?? []).filter((i) => i.t === 'bahia');
+    let out = '';
+    if (t.cap) {
+      const c = sobre(t.anden, t.cap.x, t.cap.off ?? 33);
+      const ang = giro(t.anden, t.cap.x);
+      // The sheet's own wording, which is not derivable from the strip's name:
+      // it names the CONNECTION the bays make, not the side of the station they
+      // are on. (Its own sheet prints "bues" for "buses"; that one is the
+      // operator's typo and is not reproduced.)
+      const texto = t.cap.texto ?? (tira.nombre.split('· ')[1] ?? '').replace(/^./, (ch) => ch.toUpperCase());
+      out += '<text x="' + num(c.x) + '" y="' + num(c.y) + '" class="pq-cap" transform="rotate(' +
+        num(ang) + ' ' + num(c.x) + ' ' + num(c.y) + ')">' + escapeHtml(texto) + '</text>';
+    }
+    items.forEach((it, i) => {
+      const b = (t.bahias ?? [])[i];
+      if (!b) return;
+      // Upright, like the names under it. The sheet turns the caption and the
+      // platform's tag with the platform and leaves everything else square to
+      // the page — the bay markers, the furniture, the badges.
+      const m = sobre(t.anden, b.x, t.off ?? 39);
+      out += '<path d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
+      const lineas = it.llegada
+        ? ['Llegada de pasajeros']
+        : (it.destinos ?? []).length
+          ? it.destinos.map((d) => escapeHtml(d))
+          : (it.rutas ?? []).flatMap((r) => {
+              const cod = '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>';
+              const dest = escapeHtml(r.destino ?? '');
+              // The sheet breaks after the code for most bays and keeps the last
+              // couple of each strip on one line, where the run of them ends and
+              // there is room. Which is which is read off the sheet, not guessed.
+              return b.una ? [cod + ' ' + dest] : [cod, dest];
+            });
+      lineas.forEach((n, k) => {
+        out += '<text x="' + num(m.x + (t.dx ?? 2)) + '" y="' + num(m.y + (t.dy ?? 15.5) + k * (t.alto ?? 11)) +
+          '" class="pq-bay pq-bay-izq">' + n + '</text>';
+      });
+    });
+    return out;
+  }
+
+  /**
+   * A shaft drawn in PLAN: an outlined square, turning with its platform.
+   *
+   * The lift beside each tunnel landing is not a pictogram tile on this sheet —
+   * it is the shaft itself, seen from above, which is why it is hollow and why
+   * it is the only square on the platform that is not filled.
+   */
+  const caja = (c) =>
+    '<rect x="' + num(c.x - c.w / 2) + '" y="' + num(c.y - c.h / 2) + '" width="' + c.w + '" height="' + c.h +
+    '" fill="none" stroke="' + C.trazo + '" stroke-width="0.9"' +
+    (c.anden === undefined ? '' : ' transform="rotate(' + num(giro(c.anden, c.x)) + ' ' + c.x + ' ' + c.y + ')"') +
+    '/>';
+
+  /** Furniture on an angled platform, each tile at its own measured point. */
+  function equipoAngulado(e) {
+    return (e.iconos ?? [])
+      .map((n, i) => {
+        const p = (e.pts ?? [])[i];
+        if (!p) return '';
+        const cuerpo = tile(n, p[0] - TILE / 2, p[1] - TILE / 2, TILE, e.fondo);
+        return e.recto
+          ? cuerpo
+          : '<g transform="rotate(' + num(giro(e.anden, p[0])) + ' ' + num(p[0]) + ' ' + num(p[1]) + ')">' +
+            cuerpo + '</g>';
+      })
+      .join('');
+  }
+
   /** The furniture of one strip, each tile at its own measured x. */
   function equipo(t) {
     const tira = tiras[t.tira];
@@ -330,24 +485,55 @@ export function buildPortalSvg(input) {
     (r.fin ? '" text-anchor="end' : r.centro ? '" text-anchor="middle' : '') + '">' +
     escapeHtml(r.texto) + '</text>';
 
-  const etiqueta = (t) =>
-    (t.flecha ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>' : '') +
-    '<rect x="' + (t.flecha ? t.x + 6 : t.x) + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
-    '" fill="' + KERB + '"/>' +
-    '<text x="' + num((t.flecha ? t.x + 6 : t.x) + t.w / 2) + '" y="' + num(t.y + t.h - 3.5) +
-    '" class="pq-tag">' + escapeHtml(t.texto) + '</text>';
+  /**
+   * A platform's yellow name tag.
+   *
+   * On a ring it sits square on the page. On an angled platform the sheet lays
+   * it ALONG the platform, so it is given the platform it belongs to and how far
+   * off the axis it stands, and it turns with it — drawn square it read as a
+   * label stuck on top of the drawing rather than part of it.
+   */
+  const etiqueta = (t) => {
+    if (t.anden !== undefined) {
+      const c = sobre(t.anden, t.x, t.off ?? 0);
+      const g = 'rotate(' + num(giro(t.anden, t.x)) + ' ' + num(c.x) + ' ' + num(c.y) + ')';
+      return '<g transform="' + g + '">' +
+        '<rect x="' + num(c.x - t.w / 2) + '" y="' + num(c.y - t.h / 2) + '" width="' + t.w +
+        '" height="' + t.h + '" fill="' + KERB + '"/>' +
+        '<text x="' + num(c.x) + '" y="' + num(c.y + t.h / 2 - 3.5) + '" class="pq-tag">' +
+        escapeHtml(t.texto) + '</text></g>';
+    }
+    return (t.flecha ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>' : '') +
+      '<rect x="' + (t.flecha ? t.x + 6 : t.x) + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
+      '" fill="' + KERB + '"/>' +
+      '<text x="' + num((t.flecha ? t.x + 6 : t.x) + t.w / 2) + '" y="' + num(t.y + t.h - 3.5) +
+      '" class="pq-tag">' + escapeHtml(t.texto) + '</text>';
+  };
 
   // The type travels WITH the drawing. Putting it in a stylesheet would rebuild
   // exactly the split that let the app and the prerender disagree; inline, the
   // two surfaces cannot render this differently, because they get the same
   // bytes. The stack is condensed because the sheet's own face is.
+  // A station may print a surface differently from the others: Portal 80's bay
+  // band is 189 grey against Portal Norte's 157, which at the same width reads
+  // as a different drawing. So the palette is the default and the sheet's own
+  // measurement wins, in BOTH themes — overriding only the paper value would put
+  // the two views back out of step with each other.
+  const vars = (base, tema) =>
+    Object.entries({
+      ...base,
+      ...Object.fromEntries(Object.entries(geo.tonos ?? {}).map(([k, v]) => [k, v[tema] ?? base[k]])),
+    })
+      .map(([k, v]) => '--pq-' + k + ':' + v)
+      .join(';');
+
   const estilo =
     '<style>' +
-    '.pq{' + Object.entries(PALETA.oscuro).map(([k, v]) => '--pq-' + k + ':' + v).join(';') + '}' +
-    '.pq.pq-papel{' + Object.entries(PALETA.papel).map(([k, v]) => '--pq-' + k + ':' + v).join(';') + '}' +
+    '.pq{' + vars(PALETA.oscuro, 'oscuro') + '}' +
+    '.pq.pq-papel{' + vars(PALETA.papel, 'papel') + '}' +
     // Paper on paper, always. A dark plan printed is wrong and wastes ink, and
     // printing is the one place the paper view genuinely earns its keep.
-    '@media print{.pq{' + Object.entries(PALETA.papel).map(([k, v]) => '--pq-' + k + ':' + v).join(';') + '}}' +
+    '@media print{.pq{' + vars(PALETA.papel, 'papel') + '}}' +
     // Every rule is scoped '.pq text.x' so it out-specifies the base one. As
     // '.pq-chip' alone it lost to '.pq text' and every chip label came out in
     // the ink colour — invisible on a black badge.
@@ -363,6 +549,14 @@ export function buildPortalSvg(input) {
     '.pq text.pq-place-en{font-size:5.8px;font-style:italic;fill:' + C.tenue + '}' +
     '.pq text.pq-street{font-size:12.5px;font-weight:700}' +
     '.pq text.pq-anchor{font-size:8.6px;font-weight:700}' +
+    '.pq text.pq-bay-izq{text-anchor:start}' +
+    // The sizes above are Portal Norte's, measured off its sheet. They are not a
+    // house style: Portal 80 is drawn half again as large on the same page and
+    // its badges are nearly twice the size, so a station may carry its own. Same
+    // specificity as the rules above and written after them, so these win.
+    Object.entries(geo.tipo ?? {})
+      .map(([k, v]) => '.pq text.pq-' + k + '{font-size:' + v + 'px}')
+      .join('') +
     '.pq a{cursor:pointer}' +
     '.pq a:hover rect{stroke:' + C.tinta + ';stroke-width:1.5}' +
     '</style>';
@@ -399,14 +593,19 @@ export function buildPortalSvg(input) {
         '" stroke-width="0.9" fill-rule="evenodd"/>'
       : '') +
     (geo.andenes ?? []).map(lozenge).join('') +
+    (geo.barras ?? []).map(barra).join('') +
 
     (geo.bordillos ?? []).map(bordillo).join('') +
+    (geo.espinas ?? []).map(espina).join('') +
     (geo.muros ?? [])
       .map((m) => '<path d="M' + m.x0 + ',' + m.y + ' H' + m.x1 + '" stroke="' + C.trazo + '" stroke-width="1"/>')
       .join('') +
 
     (geo.tiras ?? []).map(bahias).join('') +
     (geo.tiras ?? []).map(equipo).join('') +
+    (geo.tirasAng ?? []).map(tiraAngulada).join('') +
+    (geo.cajas ?? []).map(caja).join('') +
+    (geo.equipoAng ?? []).map(equipoAngulado).join('') +
     (geo.escaleras ?? []).map(([x, y]) => tile('escalera', x, y)).join('') +
 
     // The bridge: a narrow shaft with a switchback ramp hooked off each end and
