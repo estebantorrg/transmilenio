@@ -792,8 +792,11 @@ export function buildPortalSvg(input) {
     // The tunnel: ONE passage the length of the station under the roadway, which
     // is why both ends carry the same name.
     (geo.tunel
+      // In its own tone where the sheet gives it one. Portal Norte's tunnel is
+      // the platform's own grey and three pixels tall; drawn nine tall in the
+      // paler `tunel` it laid a band across eight hundred pixels of white page.
       ? '<rect x="' + geo.tunel.x + '" y="' + geo.tunel.y + '" width="' + geo.tunel.w + '" height="' +
-        geo.tunel.h + '" fill="' + C.tunel + '"/>'
+        geo.tunel.h + '" fill="' + (geo.tunel.tono ? C[geo.tunel.tono] ?? C.tunel : C.tunel) + '"/>'
       : '') +
 
     (hayAnillo
