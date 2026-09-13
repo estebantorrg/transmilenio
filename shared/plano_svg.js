@@ -701,8 +701,13 @@ export function buildPortalSvg(input) {
     return (t.flecha ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>' : '') +
       '<rect x="' + (t.flecha ? t.x + 6 : t.x) + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
       '" fill="' + KERB + '"/>' +
-      '<text x="' + num((t.flecha ? t.x + 6 : t.x) + t.w / 2) + '" y="' + num(t.y + t.h - 3.5) +
-      '" class="pq-tag">' + escapeHtml(t.texto) + '</text>';
+      // A sheet does not set every yellow tag at one size: Portal Sur's platform
+      // names are a point and a half larger than the two naming the floors of
+      // its access block, and at this scale that is a visible difference rather
+      // than a typographic nicety.
+      '<text x="' + num((t.flecha ? t.x + 6 : t.x) + t.w / 2) + '" y="' + num(t.y + t.h - (t.base ?? 3.5)) +
+      '" class="pq-tag"' + (t.fs ? ' style="font-size:' + t.fs + 'px"' : '') + '>' +
+      escapeHtml(t.texto) + '</text>';
   };
 
   // The type travels WITH the drawing. Putting it in a stylesheet would rebuild
