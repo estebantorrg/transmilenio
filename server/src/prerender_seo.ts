@@ -445,7 +445,7 @@ border-left:5px solid transparent;border-right:5px solid transparent;vertical-al
    read before any stylesheet the app ships. Written flat rather than with the
    app scale variable: there is no zoom control on a page nobody has booted. */
 #seo-prerender .popup-plano{overflow-x:auto;padding-bottom:4px}
-#seo-prerender .popup-plano-portal .pq{display:block;width:100%;min-width:640px;height:auto}
+#seo-prerender .popup-plano-portal .pq{display:block;width:100%;min-width:calc(var(--pq-vb,840) * 1.15px);height:auto}
 #seo-prerender .popup-plano-inner{width:max-content;min-width:100%}
 #seo-prerender .pvg-row{display:flex;margin-left:calc(var(--pvg-offset,0) * 136px)}
 #seo-prerender .popup-plano-cols{display:grid;grid-auto-flow:column;grid-auto-columns:max-content;grid-template-rows:auto auto auto;min-width:min-content}

@@ -325,6 +325,46 @@ test.describe('the plan, on the page', () => {
     expect(wrong).toEqual([]);
   });
 
+  test('a portal is never drawn smaller than its own sheet', async ({ page }) => {
+    // The estación page's column is 760px and a portal's window onto its sheet
+    // is up to 840 units across, so drawn in the column Portal Norte came out at
+    // 0.86 of the operator's own scale — bay names at six pixels and badges too
+    // small to tap. The plan now steps out of the column and holds a floor of
+    // 1.15x whatever ITS sheet measures, which is why the floor is expressed
+    // against the viewBox rather than in pixels.
+    await bootApp(page);
+    const wrong: string[] = [];
+    for (const width of [390, 1024, 1280]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const code of drawn) {
+        await openStation(page, code);
+        const medida = await page.evaluate(() => {
+          const svg = document.querySelector('.popup-plano-portal svg.pq');
+          if (!svg) return null;
+          const vb = Number((svg.getAttribute('viewBox') ?? '').split(/\s+/)[2] || 0);
+          const caja = svg.parentElement as HTMLElement | null;
+          return {
+            escala: svg.getBoundingClientRect().width / (vb || 1),
+            // And it must not drag the PAGE sideways while it does it: the plan
+            // scrolls inside its own box or not at all.
+            pagina: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            desborde: (caja?.scrollWidth ?? 0) - (caja?.clientWidth ?? 0),
+          };
+        });
+        if (!medida) continue;
+        if (medida.escala < 1.1) {
+          wrong.push(`${code} at ${width}px: drawn at ${medida.escala.toFixed(2)}x its sheet`);
+        }
+        if (medida.pagina > 1) wrong.push(`${code} at ${width}px: page scrolls ${medida.pagina}px sideways`);
+        if (width >= 1024 && medida.desborde > 1) {
+          wrong.push(`${code} at ${width}px: still has to scroll ${medida.desborde}px inside its box`);
+        }
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(wrong).toEqual([]);
+  });
+
   test('the drawing never makes the page scroll sideways', async ({ page }) => {
     // A plan wider than the viewport scrolls INSIDE its own box (`.popup-plano`
     // is the scroller). If the page itself scrolls, the drawing has pushed the

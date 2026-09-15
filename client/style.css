@@ -2625,10 +2625,24 @@ body.sidebar-collapsed .sidebar-fab {
   padding-bottom: calc(4px * var(--tm-scale, 1));
 }
 
+/* The estación page's column is 760px and Portal Norte's window onto its sheet
+   is 840 units across, so drawn in the column the plan came out at 0.86 of the
+   operator's own scale — bay names at six pixels, badges too small to tap. The
+   plan alone therefore steps OUT of the column and takes the page's width. It
+   is the only thing on the page that cannot reflow to fit. */
+.station-plano .popup-plano-portal {
+  --pq-ancho: min(1320px, calc(100vw - 48px));
+  width: var(--pq-ancho);
+  margin-left: calc(50% - var(--pq-ancho) / 2);
+}
+
+/* And below a MINIMUM SCALE it scrolls rather than shrinking: 1.5x the sheet's
+   own pixels, whatever that sheet's window happens to be. A flat pixel floor
+   sized one portal right and the other two wrong. */
 .popup-plano-portal .pq {
   display: block;
   width: 100%;
-  min-width: 640px;
+  min-width: calc(var(--pq-vb, 840) * 1.15px);
   height: auto;
 }
 
