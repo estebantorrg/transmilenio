@@ -330,7 +330,7 @@ test.describe('the plan, on the page', () => {
     // is up to 840 units across, so drawn in the column Portal Norte came out at
     // 0.86 of the operator's own scale — bay names at six pixels and badges too
     // small to tap. The plan now steps out of the column and holds a floor of
-    // 1.15x whatever ITS sheet measures, which is why the floor is expressed
+    // 1.12x whatever ITS sheet measures, which is why the floor is expressed
     // against the viewBox rather than in pixels.
     await bootApp(page);
     const wrong: string[] = [];
@@ -349,9 +349,22 @@ test.describe('the plan, on the page', () => {
             // scrolls inside its own box or not at all.
             pagina: document.documentElement.scrollWidth - document.documentElement.clientWidth,
             desborde: (caja?.scrollWidth ?? 0) - (caja?.clientWidth ?? 0),
+            // And it has to stay on the page's own axis. Widened without being
+            // CENTRED on the column it read as a fault rather than as a figure:
+            // a slab running off one edge of a page whose every other block is
+            // inset. The figure is wider than the measure; it is not off it.
+            desvio: (() => {
+              const figura = (caja?.parentElement as HTMLElement | null)?.getBoundingClientRect();
+              const columna = document.querySelector('.page-inner')?.getBoundingClientRect();
+              if (!figura || !columna) return 0;
+              return Math.abs((figura.left + figura.right) / 2 - (columna.left + columna.right) / 2);
+            })(),
           };
         });
         if (!medida) continue;
+        if (medida.desvio > 2) {
+          wrong.push(`${code} at ${width}px: the plan sits ${Math.round(medida.desvio)}px off the page's axis`);
+        }
         if (medida.escala < 1.1) {
           wrong.push(`${code} at ${width}px: drawn at ${medida.escala.toFixed(2)}x its sheet`);
         }
