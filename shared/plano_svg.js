@@ -863,11 +863,7 @@ export function buildPortalSvg(input) {
     (geo.carriles ?? []).map(regla).join('');
 
   return (
-    // The sheet's own width, handed to the page as a number so the stylesheet
-    // can hold the drawing to a MINIMUM SCALE rather than a minimum size. Three
-    // portals, three different windows onto their sheets — 840, 766 and 652 —
-    // and one pixel floor sized whichever of them was measured last wrong.
-    '<svg class="pq' + inicial + '" style="--pq-vb:' + vw + '" viewBox="' +
+    '<svg class="pq' + inicial + '" viewBox="' +
     vx + ' ' + vy + ' ' + vw + ' ' + vh + '" role="img" ' +
     'aria-label="Plano del portal" xmlns="http://www.w3.org/2000/svg">' + cuerpo + '</svg>'
   );

@@ -2623,15 +2623,13 @@ body.sidebar-collapsed .sidebar-fab {
   overflow-x: auto;
   overscroll-behavior-x: contain;
   padding-bottom: calc(4px * var(--tm-scale, 1));
-  /* The drawing paints its own ground across the whole viewBox, so inside a card
-     it is a second rectangle with square corners sitting in a rounded one. Round
-     it to the same shape and the two read as one surface. */
-  border-radius: calc(var(--radius-sm) * var(--tm-scale, 1));
 }
 
 /* And below a MINIMUM SCALE it scrolls rather than shrinking: never under 1.12x
    the sheet's own pixels, whatever that sheet's window happens to be. A flat
-   pixel floor sized one portal right and the other two wrong. */
+   pixel floor sized one portal right and the other two wrong. `--pq-vb` and
+   `--pq-vh` are the sheet window's width and height, set on the box by
+   `shared/plano.js`. */
 .popup-plano-portal .pq {
   display: block;
   width: 100%;
@@ -6146,24 +6144,28 @@ body.native-app .route-detail-close:active {
    column it came out below the operator's own scale — bay names at six pixels,
    badges too small to tap.
 
-   So it steps wider. But wider ALONE read as a fault: a black slab running off
-   both edges of a page whose every other block is inset, bordered and rounded.
-   It is a FIGURE, so it is given the same card the services blocks have and
-   simply a wider one, centred on the same axis, holding the drawing with its own
-   key and control. The heading and the notes stay on the measure, where they
-   belong, and the figure sits in the stack between them.
-   `:has()` is gated the way the sidebar's is; without it the figure keeps the
-   column, which is smaller but never incoherent. */
-@supports selector(:has(*)) {
-  .station-plano:has(.popup-plano-portal) {
-    --pq-ancho: min(1040px, calc(100vw - 48px));
-    width: var(--pq-ancho);
-    margin-left: calc(50% - var(--pq-ancho) / 2);
-    padding: calc(10px * var(--tm-scale, 1)) calc(11px * var(--tm-scale, 1));
-    background: var(--bg-card);
-    border: 1px solid var(--border-subtle);
-    border-radius: calc(var(--radius-md) * var(--tm-scale, 1));
-  }
+   So the DRAWING is the figure, and it is drawn as large as the screen can show
+   it whole: as wide as the page gives a figure (1320px, a 24px gutter below
+   that), unless that would make it taller than the view under the page bar, in
+   which case it is as wide as fits that height. Only under the scale floor does
+   it scroll inside its own box instead. Two things it is not:
+   · a slab running off both edges of the page — it keeps a gutter, a border and
+     the page's radius, and is centred on the column's axis;
+   · a picture in a frame. It was held inside a padded card, and since its
+     ground is the page colour, the lighter card around it made a mat, and the
+     drawing sat back in it — the whole loop looked seen from a distance. Its
+     own ground is the surface now; the key and the control under it stay on
+     the measure, as a caption does. */
+.station-plano .popup-plano-portal {
+  --pq-lienzo: max(100%, min(1320px, 100vw - 48px));
+  --pq-entero: calc((100svh - 120px) * var(--pq-vb) / var(--pq-vh));
+  --pq-dibujo: max(calc(var(--pq-vb) * 1.12px), min(var(--pq-lienzo) - 2px, var(--pq-entero)));
+  --pq-caja: min(var(--pq-lienzo), var(--pq-dibujo) + 2px);
+  width: var(--pq-caja);
+  margin-left: calc(50% - var(--pq-caja) / 2);
+  padding-bottom: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: calc(var(--radius-md) * var(--tm-scale, 1));
 }
 
 /* In the popup the plate's sub-label is a bare number for want of room; on the

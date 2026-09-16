@@ -354,7 +354,7 @@ test.describe('the plan, on the page', () => {
             // a slab running off one edge of a page whose every other block is
             // inset. The figure is wider than the measure; it is not off it.
             desvio: (() => {
-              const figura = (caja?.parentElement as HTMLElement | null)?.getBoundingClientRect();
+              const figura = caja?.getBoundingClientRect();
               const columna = document.querySelector('.page-inner')?.getBoundingClientRect();
               if (!figura || !columna) return 0;
               return Math.abs((figura.left + figura.right) / 2 - (columna.left + columna.right) / 2);
@@ -372,6 +372,60 @@ test.describe('the plan, on the page', () => {
         if (width >= 1024 && medida.desborde > 1) {
           wrong.push(`${code} at ${width}px: still has to scroll ${medida.desborde}px inside its box`);
         }
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(wrong).toEqual([]);
+  });
+
+  test('a portal is drawn as large as the screen can show it whole', async ({ page }) => {
+    // Held to a 1040px card, Portal Norte stopped at 1.2x its sheet on every
+    // desktop — at 1920 across, with 440px of empty page either side of it — and
+    // the card's lighter ground around a drawing whose ground is the page colour
+    // set it back in a mat. The loop looked seen from a distance. So on a desktop
+    // the drawing reaches one of the two things that can actually stop it: the
+    // widest a figure is on this page (1320px, or a 24px gutter), or the height
+    // of the view under the page bar. And it never passes the second, because a
+    // plan you have to scroll down through is not one you can see whole.
+    await bootApp(page);
+    const wrong: string[] = [];
+    for (const [width, height] of [
+      [1280, 800],
+      [1440, 900],
+      [1920, 960],
+    ]) {
+      await page.setViewportSize({ width, height });
+      for (const code of drawn) {
+        await openStation(page, code);
+        const medida = await page.evaluate(() => {
+          const svg = document.querySelector('.popup-plano-portal svg.pq');
+          const caja = svg?.parentElement as HTMLElement | null;
+          if (!svg || !caja) return null;
+          const dibujo = svg.getBoundingClientRect();
+          const marco = caja.getBoundingClientRect();
+          // What stands between the drawing and the page: anything painting a
+          // ground of its own, or padding it out, is a mat.
+          const mates: string[] = [];
+          for (let el: HTMLElement | null = caja; el && !el.matches('.page-section'); el = el.parentElement) {
+            const cs = getComputedStyle(el);
+            if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none') mates.push(el.className + ' paints a ground');
+            if (parseFloat(cs.paddingLeft) + parseFloat(cs.paddingTop) > 0) mates.push(el.className + ' pads the drawing');
+          }
+          return { ancho: marco.width, alto: dibujo.height, vista: innerWidth, vistaAlto: innerHeight, mates };
+        });
+        if (!medida) continue;
+        const lienzo = Math.min(1320, medida.vista - 48);
+        const entero = medida.vistaAlto - 120;
+        if (medida.alto > entero + 1) {
+          wrong.push(`${code} at ${width}x${height}: ${Math.round(medida.alto)}px tall, more than the ${entero}px it can be seen whole in`);
+        }
+        if (medida.ancho < lienzo - 1 && medida.alto < entero - 1) {
+          wrong.push(
+            `${code} at ${width}x${height}: ${Math.round(medida.ancho)}x${Math.round(medida.alto)}px, ` +
+              `short of both the ${lienzo}px figure width and the ${entero}px view height`
+          );
+        }
+        for (const m of medida.mates) wrong.push(`${code} at ${width}x${height}: ${m}`);
       }
     }
     await page.setViewportSize({ width: 1280, height: 900 });

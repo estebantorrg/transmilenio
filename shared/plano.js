@@ -737,7 +737,13 @@ export function buildSheetPlano(input) {
       }
       return {
         html:
+          // The sheet window's width and height, handed to the page as numbers
+          // on the box that scrolls: the stylesheet holds the drawing to a
+          // MINIMUM SCALE rather than a minimum size (three portals, three
+          // windows onto their sheets — 840, 766 and 652 across), and sizes the
+          // box from its proportions so the whole drawing fits the view.
           '<div class="popup-plano popup-plano-portal" role="group" ' +
+          'style="--pq-vb:' + input.geo.vista[2] + ';--pq-vh:' + input.geo.vista[3] + '" ' +
           'aria-label="Plano de la estación" tabindex="0">' + svg + '</div>' +
           // The key names what the DRAWING used. The strips carry their own
           // icons through `zonal`; the stairs at the turnarounds and the ramps
