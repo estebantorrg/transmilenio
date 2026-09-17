@@ -2,6 +2,7 @@ import http from 'http';
 import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
 
 // Cap on how long the proxy CONNECT tunnel may take to establish before we
 // give up. Without this, an unresponsive proxy leaves the tunnel hanging
@@ -20,7 +21,7 @@ const TARGET_POOL_SIZE = 12; // re-scrape eagerly below this
 const MAX_TEST_CANDIDATES = 500; // bound work per refresh
 const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
 
-const LIVE_TEST_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+const LIVE_TEST_HOST = LIVE_API_HOST;
 // Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
 // only inspected for coordinates, so it never needs to be buffered whole.
 const PROBE_MAX_BODY_CHARS = 512 * 1024;
@@ -320,10 +321,7 @@ class ProxyManagerClass {
           headers: {
             'Content-Length': 0,
             'Accept-Encoding': 'identity',
-            Appid: '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-            'User-Agent': 'okhttp/4.12.0',
-            uuid: 'fd1be953-d85e-4c63-8c23-234f143f445d',
-            version: '2.9.5',
+            ...LIVE_HOST_HEADERS,
           },
           agent,
           timeout: TEST_TIMEOUT_MS,

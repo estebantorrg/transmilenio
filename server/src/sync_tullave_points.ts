@@ -25,15 +25,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { collectBody, decodeBody } from './services/upstream_body.js';
 import { relayForward, isColombiaRelayConfigured } from './services/co_relay.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './services/official_app_headers.js';
 
-const LIVE_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+const LIVE_HOST = LIVE_API_HOST;
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data');
 
 const HEADERS: Record<string, string> = {
-  Appid: '9a2c3b48f0c24ae9bfba38e94f27c3ea',
-  'User-Agent': 'okhttp/4.12.0',
-  uuid: 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  version: '2.9.5',
+  ...LIVE_HOST_HEADERS,
   'Accept-Encoding': 'gzip',
 };
 

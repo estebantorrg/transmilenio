@@ -15,6 +15,7 @@ import { createHash } from 'crypto';
 import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
 import {
   layoutServices,
   planoDetalle,
@@ -46,9 +47,7 @@ const HEADERS = {
   'Accept-Encoding': 'gzip',
   'Connection': 'Keep-Alive',
   'Host': API_HOST,
-  'User-Agent': 'okhttp/4.12.0',
-  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  'version': '2.9.5',
+  ...OFFICIAL_APP_HEADERS,
 };
 
 const MIN_DELAY_MS = 800;
@@ -1587,7 +1586,6 @@ export function isSyncInProgress(): boolean {
   return syncInProgress;
 }
 
-const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 export const LIVE_TRACKING_VERSION = 'colombia-relay-v1';
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
@@ -1904,21 +1902,19 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signa
 }
 
 /**
- * The exact header set the official app sends to the live host (spec §5.2.3 /
- * §5.5.1a). ONE definition: the direct tier, the proxy tier and the arrivals
- * request all send the same thing, and three hand-maintained copies of an
- * upstream contract is exactly how one of them drifts (spec §1.1 R2).
- * `Content-Type` is omitted for a bodyless request (zonal `/location/ruta`).
+ * The header set for a live-host request (spec §5.2.3 / §5.5.1a). ONE
+ * definition: the direct tier, the proxy tier and the arrivals request all send
+ * the same thing, and three hand-maintained copies of an upstream contract is
+ * exactly how one of them drifts (spec §1.1 R2). The app identity itself lives
+ * in `official_app_headers.ts`. `Content-Type` is omitted for a bodyless request
+ * (zonal `/location/ruta`).
  */
 function buildLiveApiHeaders(postData: string): Record<string, string | number> {
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    ...LIVE_HOST_HEADERS,
     'Connection': 'Keep-Alive',
     'Host': LIVE_API_HOST,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
     'Content-Length': Buffer.byteLength(postData),
   };
   if (postData) headers['Content-Type'] = 'application/json; charset=UTF-8';

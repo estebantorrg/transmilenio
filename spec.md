@@ -116,14 +116,13 @@ x-relay-secret: <secret>
 #### 5.1.1 Catalog Loader Endpoint
 * **Base URL**: `https://api.buscador-rutas.transmilenio.gov.co/loader.php`
 * **Sync Client File**: `server/src/services/tm_api.ts`
-* **Required Headers**:
+* **Headers sent** (none is required — the host answers without them; identity from `services/official_app_headers.ts`, §5.2.3):
   ```text
   Accept-Encoding: gzip
   Connection: Keep-Alive
   Host: api.buscador-rutas.transmilenio.gov.co
   User-Agent: okhttp/4.12.0
-  uuid: fd1be953-d85e-4c63-8c23-234f143f445d
-  version: 2.9.5
+  version: 2.9.7
   ```
 
 #### 5.1.2 API Functions
@@ -173,7 +172,7 @@ x-relay-secret: <secret>
 
 #### 5.2.1 Target API Host
 * **Base Host**: `https://tmsa-transmiapp-shvpc.uc.r.appspot.com`
-* **Constraints (verified)**: The host is **CO-IP geofenced** (non-CO egress → `401`/`451`) and serves **no CORS** — `OPTIONS` preflight → `403 Invalid CORS request`, response carries no `Access-Control-Allow-Origin`. A normal page `fetch` therefore cannot read it; only `Appid` is a required request header (`User-Agent`/`uuid`/`version` are not).
+* **Constraints (verified)**: The host is **CO-IP geofenced** (non-CO egress → `401`/`451`) and serves **no CORS** — `OPTIONS` preflight → `403 Invalid CORS request`, response carries no `Access-Control-Allow-Origin`. A normal page `fetch` therefore cannot read it; only `Appid` is a required request header (`User-Agent`/`uuid`/`version` are not; a missing `Appid` → `401`).
 
 #### 5.2.1a Client-Direct Bridge (preferred)
 * Live requests are made from the **user's own browser** via the optional **Live Bridge** extension (`extension/`). Its background fetch is exempt from page CORS and egresses from the user's Colombian IP, satisfying both constraints with no server in the live path.
@@ -235,8 +234,10 @@ Steady-state polling is bounded by the 15 s window (§3.4); what the user *feels
 
 #### 5.2.3 Endpoint Requests
 * **Troncal**: `POST /buses` with body `{"ruta": "<code-e.g.-B75>", "Nombre": "<name>"}`.
-  * Headers: `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` (only required one — §5.2.1), plus `User-Agent: okhttp/4.12.0`, `version: 2.9.5`, `uuid` sent by the server/proxy paths for parity. Browser-based paths (extension/relay-direct) send `Appid` + `Content-Type` only.
+  * Headers: `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` (only required one — §5.2.1), plus `User-Agent: okhttp/4.12.0` and `version: 2.9.7` on the server paths. Browser-based paths (native app/extension/relay-direct) send `Appid` + `Content-Type` only. Every server-side caller — direct tier, standalone relay, proxy-pool probe, card read, tullave sync, catalog loader — spreads **one** definition, `server/src/services/official_app_headers.ts`; the OCI Function and `scripts/dump_all_live_buses.mjs` are self-contained and mirror it by hand.
 * **Zonal**: `POST /location/ruta?ruta=<route_code>` with empty body.
+* **No `uuid`, ever — it is a ban handle.** The app sends a per-install id; this project sent one fixed value (`fd1be953-…`) from every tier, and on **2026-09-16** TMSA blocklisted it: any request carrying it gets an empty-body `403` in ~200 ms, on **every** live-host path (`/buses`, `/location/ruta`, `/paradero/buses`, `/lectura_tarjeta`, `/puntos_*`), from any IP. The match is exact (the same id upper-cased passed); no uuid, or any other value, answered `200`, and `version` was irrelevant (`2.9.5` still passes). One shared id meant one block took down the direct tier, the relay, the card read *and* the proxy pool (its verification probe carried the id, so every proxy failed and the pool emptied). The block most likely answered request volume, so **do not rotate ids to get past a 403** — that invites an IP- or attestation-level block that would also cut the native app and extension — and never reuse the uuid from a captured phone HAR, whose official app a block would break.
+* **Response fields added in app 2.9.7** (per bus, troncal and zonal alike; observed 2026-09-16, ~500 buses — the value sets below are what was seen, not a closed enum): `ocupacion_bus` — `VACIO` / `MEDIO` / `LLENO`, populated only on the newer troncal fleet (5-digit labels, `T`/`A`/`S`/`M`/`K`/`U` prefixes) and `""` on older troncal (`N`/`E`/`D`) and all zonal buses; `nombre_estado` — `Localizado en línea` / `Ubicado en la estación/parada`; `accesibilidad` — troncal `PLATAFORMA ALTA`, zonal `CON ELEVADOR` / `NINGUNA` / `ENTRADA BAJA`. Not yet consumed by either client (`LiveBus` drops them).
 
 #### 5.2.4 Normalization & Polling
 * Normalizes response keys (`data`, `buses`, `vehiculos`, `lat`/`lng`) into unified model.
@@ -371,7 +372,7 @@ All mounted on `/api`. These serve the **browser client**; the native app does n
 * **Upstream host**: `https://tmsa-transmiapp-shvpc.uc.r.appspot.com`.
 * **Endpoint**: `POST /lectura_tarjeta`.
 * **Request body**: `{"numero_tarjeta":"<digits>","consultar":"false"}`. `consultar` is a string (`"true"` / `"false"`), not a boolean.
-* **Required observed headers**:
+* **Headers sent** (only `Appid` is required; no `uuid` — §5.2.3):
   ```text
   Accept-Encoding: gzip
   Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea
@@ -379,8 +380,7 @@ All mounted on `/api`. These serve the **browser client**; the native app does n
   Content-Type: application/json; charset=UTF-8
   Host: tmsa-transmiapp-shvpc.uc.r.appspot.com
   User-Agent: okhttp/4.12.0
-  uuid: fd1be953-d85e-4c63-8c23-234f143f445d
-  version: 2.9.5
+  version: 2.9.7
   ```
   `Content-Length` must be computed from the exact JSON body bytes.
 * **Server contract**: `/api/card/read` validates the card number, sends the exact upstream shape, decodes gzip, does not cache, and never logs or stores the full card number. Because the host is CO-IP geofenced, the read follows the same egress cascade as live buses — **direct → CO relay (§5.2.2a, forwards `/lectura_tarjeta`) → public CO proxy** (`fetchCardRowsViaColombianEgress`, `card_balance.ts`); unlike live buses the card endpoint is not service-window-gated, so it resolves 24/7 given any working CO egress.
@@ -806,7 +806,7 @@ Full backend inventory decoded from the official app **v2.9.6** (`com.nexura.tra
 
 `twitter/hashtags.php` + `twitter/timeline.php` (service alerts) are **gone, verified 2026-07-26**: both answer `403` with a zero-length body — byte-identical to the response for a path that provably does not exist, while `loader.php` returns `200` from the same client, headers and second. The `403` comes from the origin app (`Google Frontend`, `JSESSIONID`, same security headers on both), not an edge WAF, so it is this host's generic "no such path". The backend is now Java serving one legacy `.php` route; the Twitter shim did not survive the migration. Do not re-probe.
 
-**Host 2 — Live/Bodega** `https://tmsa-transmiapp-shvpc.uc.r.appspot.com/` (CO-IP geofenced; headers `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` + `uuid` + `version`). We **use**: `POST /buses` (troncal live), `POST /location/ruta` (zonal live), `POST /lectura_tarjeta` (card ledger), **`POST /paradero/buses`** (`getLlegadas`) → real-time arrivals/ETA at a paradero, now served as `POST /api/arrivals` (§5.5.1). Response (`LlegadasItem[]`) per approaching bus: `ruta_extraida` (código), `color_ruta`, `ruta_sae` (id), `destino_limpio` (destino), `distancia`, **`labeltiempo`** (ETA label), `labelparadero`. **`GET /puntos_recarga`** and **`GET /puntos_personalizacion`** (recharge + personalization POIs — ONE `TuLlave` model serves both) are now served as `GET /api/recarga-points` and `GET /api/personalizacion-points` (§5.5.1).
+**Host 2 — Live/Bodega** `https://tmsa-transmiapp-shvpc.uc.r.appspot.com/` (CO-IP geofenced; header `Appid: 9a2c3b48f0c24ae9bfba38e94f27c3ea` required, never a `uuid` — §5.2.3). We **use**: `POST /buses` (troncal live), `POST /location/ruta` (zonal live), `POST /lectura_tarjeta` (card ledger), **`POST /paradero/buses`** (`getLlegadas`) → real-time arrivals/ETA at a paradero, now served as `POST /api/arrivals` (§5.5.1). Response (`LlegadasItem[]`) per approaching bus: `ruta_extraida` (código), `color_ruta`, `ruta_sae` (id), `destino_limpio` (destino), `distancia`, **`labeltiempo`** (ETA label), `labelparadero`. **`GET /puntos_recarga`** and **`GET /puntos_personalizacion`** (recharge + personalization POIs — ONE `TuLlave` model serves both) are now served as `GET /api/recarga-points` and `GET /api/personalizacion-points` (§5.5.1).
 
 Still **unused**:
 * `POST /getServicios` — body `{estacion, ruta, idRuta, Nombre, Distancia}` → `BusBrtTime[]` (`vehicleid`, `latitud`/`longitud`, `distancia`, `labeltiempo`, `lasttime`, `plan`, `acessiblidad`). Per (station, route) ETA within a radius. The only thing here we don't already have is the per-vehicle **accessibility** flag — `labeltiempo` also comes from `/paradero/buses`, and our own projection-based ETA (§5.5.1 `/api/stop-arrivals`) does not rely on upstream labels at all.
