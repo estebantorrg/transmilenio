@@ -1,8 +1,9 @@
 import https from 'https';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
 
-const CARD_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
+const CARD_API_HOST = LIVE_API_HOST;
 const CARD_API_PATH = '/lectura_tarjeta';
 const CARD_REQUEST_TIMEOUT_MS = 9_000;
 
@@ -20,13 +21,10 @@ function allowPublicColombianProxyFallback(): boolean {
 
 const CARD_HEADERS_BASE = {
   'Accept-Encoding': 'gzip',
-  'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+  ...LIVE_HOST_HEADERS,
   'Connection': 'Keep-Alive',
   'Content-Type': 'application/json; charset=UTF-8',
   'Host': CARD_API_HOST,
-  'User-Agent': 'okhttp/4.12.0',
-  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  'version': '2.9.5',
 } as const;
 
 export type CardReadSource = 'server' | 'card';

@@ -4,8 +4,8 @@ import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
 import { collectBody, decodeBody } from './services/upstream_body.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './services/official_app_headers.js';
 
-const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 const PORT = Number(process.env.COLOMBIA_RELAY_PORT || process.env.PORT || 8787);
 const RELAY_SECRET = String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
@@ -268,12 +268,9 @@ function requestTransmiLiveJson(context: LiveRequestContext, signal?: AbortSigna
   const postData = context.postData;
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'identity',
-    'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
+    ...LIVE_HOST_HEADERS,
     'Connection': 'Keep-Alive',
     'Host': LIVE_API_HOST,
-    'User-Agent': 'okhttp/4.12.0',
-    'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-    'version': '2.9.5',
     'Content-Length': Buffer.byteLength(postData),
   };
 

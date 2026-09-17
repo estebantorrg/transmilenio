@@ -118,14 +118,15 @@ async function promptSearchMode() {
 const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 
+// Mirrors server/src/services/official_app_headers.ts (this script is
+// self-contained). No `uuid`: a fixed one was blocklisted upstream (spec §5.2.3).
 const LIVE_HEADERS = {
   'Accept-Encoding': 'identity',
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
   'Connection': 'Keep-Alive',
   'Host': LIVE_API_HOST,
   'User-Agent': 'okhttp/4.12.0',
-  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  'version': '2.9.5',
+  'version': '2.9.7',
 };
 
 // Route discovery API (buscador-rutas)
@@ -136,8 +137,7 @@ const DISCOVERY_HEADERS = {
   'Connection': 'Keep-Alive',
   'Host': DISCOVERY_API_HOST,
   'User-Agent': 'okhttp/4.12.0',
-  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  'version': '2.9.5',
+  'version': '2.9.7',
 };
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
 
