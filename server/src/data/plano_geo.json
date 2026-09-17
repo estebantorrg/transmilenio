@@ -2235,5 +2235,1069 @@
       "y": 473.5,
       "r": 15
     }
+  },
+  "TM0118": {
+    "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
+    "why": "TWO platforms drawn LEVEL, the same pale slab twice with a round green end at each side, and the kerb yellow along the TOP edge only. The bays are neither cut into one band nor set beside their names: each is its own grey bar inside the kerb, butted to the next with a hairline, its arrow pointing up at the kerb, and the names stand over them on the page, stacked upward when a bay has two routes. Where the tunnel comes up, a darker mouth is cut into each platform, outlined in ink except where the ramp and the stair open out of it. The entrance is two drums, Planta Alta over Planta Baja, each ruled with the radial treads of a spiral stair, with the access wing off the upper one and a stem down to Plataforma 2. The furniture is white knocked out of black, as at Portal Norte and Portal 80, and the north point is turned: north is to the LEFT on this sheet.",
+    "vista": [
+      196,
+      116,
+      800,
+      436
+    ],
+    "teja": 16,
+    "kerb": 2.8,
+    "chip": {
+      "k": 11.35,
+      "h": 31.2,
+      "min": 39,
+      "gap": 2,
+      "base": 0.78
+    },
+    "tipo": {
+      "chip": 23,
+      "bay": 8.2,
+      "cap": 10.3,
+      "tag": 11,
+      "place": 10.2,
+      "place-en": 5.8,
+      "street": 14,
+      "place-sm": 10.4,
+      "anchor": 12.2,
+      "evac": 7.2,
+      "evac-sm": 5.4,
+      "norte-fuera": 23.7
+    },
+    "tonos": {
+      "verde": {
+        "papel": "#95C56F"
+      },
+      "losa": {
+        "papel": "#BDBBBC"
+      },
+      "descanso": {
+        "papel": "#CDCBCC"
+      },
+      "regla": {
+        "papel": "#E9E9E9"
+      }
+    },
+    "verdes": [
+      {
+        "pts": [
+          [
+            237.25,
+            321.9
+          ],
+          [
+            880.25,
+            321.9
+          ]
+        ],
+        "ancho": 67.5
+      },
+      {
+        "pts": [
+          [
+            237.25,
+            469.75
+          ],
+          [
+            880.25,
+            469.75
+          ]
+        ],
+        "ancho": 67.5
+      }
+    ],
+    "andenes": [
+      {
+        "pts": [
+          [
+            237.25,
+            321.9
+          ],
+          [
+            880.25,
+            321.9
+          ]
+        ],
+        "ancho": 67.5,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            237.25,
+            469.75
+          ],
+          [
+            880.25,
+            469.75
+          ]
+        ],
+        "ancho": 67.5,
+        "cuadrado": true
+      }
+    ],
+    "bordillos": [
+      {
+        "pts": [
+          [
+            238.7,
+            289.75
+          ],
+          [
+            878.8,
+            289.75
+          ]
+        ],
+        "w": 3
+      },
+      {
+        "pts": [
+          [
+            238.7,
+            437.6
+          ],
+          [
+            878.8,
+            437.6
+          ]
+        ],
+        "w": 3
+      }
+    ],
+    "espinas": [
+      {
+        "pts": [
+          [
+            237.9,
+            322.35
+          ],
+          [
+            352.2,
+            322.35
+          ]
+        ],
+        "w": 1.2
+      },
+      {
+        "pts": [
+          [
+            529.5,
+            322.35
+          ],
+          [
+            879.6,
+            322.35
+          ]
+        ],
+        "w": 1.2
+      },
+      {
+        "pts": [
+          [
+            237.9,
+            469.9
+          ],
+          [
+            351.2,
+            469.9
+          ]
+        ],
+        "w": 1.2
+      },
+      {
+        "pts": [
+          [
+            528.7,
+            469.9
+          ],
+          [
+            879.6,
+            469.9
+          ]
+        ],
+        "w": 1.2
+      }
+    ],
+    "desembarcos": [
+      {
+        "desde": 352.2,
+        "hasta": 529.5,
+        "y0": 314.29999999999995,
+        "y1": 330.5,
+        "h": 16.2,
+        "tramos": [
+          [
+            463,
+            476
+          ]
+        ],
+        "paso": 3.2,
+        "w": 0.6,
+        "tono": "rampa"
+      },
+      {
+        "desde": 351.2,
+        "hasta": 528.7,
+        "y0": 462.15,
+        "y1": 478.35,
+        "h": 16.2,
+        "tramos": [
+          [
+            463,
+            476
+          ]
+        ],
+        "paso": 3.2,
+        "w": 0.6,
+        "tono": "rampa"
+      }
+    ],
+    "trazos": [
+      {
+        "pts": [
+          [
+            442,
+            330.5
+          ],
+          [
+            352.2,
+            330.5
+          ],
+          [
+            352.2,
+            314.29999999999995
+          ],
+          [
+            529.5,
+            314.29999999999995
+          ],
+          [
+            529.5,
+            330.5
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            461.4,
+            330.5
+          ],
+          [
+            510.7,
+            330.5
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            368,
+            321.7
+          ],
+          [
+            461.4,
+            321.7
+          ],
+          [
+            461.4,
+            330.5
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            371.3,
+            290.9
+          ],
+          [
+            371.3,
+            314.29999999999995
+          ]
+        ],
+        "w": 0.7,
+        "color": "eje"
+      },
+      {
+        "pts": [
+          [
+            510.7,
+            290.9
+          ],
+          [
+            510.7,
+            314.29999999999995
+          ]
+        ],
+        "w": 0.7,
+        "color": "eje"
+      },
+      {
+        "pts": [
+          [
+            442,
+            478.35
+          ],
+          [
+            351.2,
+            478.35
+          ],
+          [
+            351.2,
+            462.15
+          ],
+          [
+            528.7,
+            462.15
+          ],
+          [
+            528.7,
+            478.35
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            461.4,
+            478.35
+          ],
+          [
+            510.7,
+            478.35
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            368,
+            470
+          ],
+          [
+            461.4,
+            470
+          ],
+          [
+            461.4,
+            478.35
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            371.3,
+            438.75
+          ],
+          [
+            371.3,
+            462.15
+          ]
+        ],
+        "w": 0.7,
+        "color": "eje"
+      },
+      {
+        "pts": [
+          [
+            510.7,
+            438.75
+          ],
+          [
+            510.7,
+            462.15
+          ]
+        ],
+        "w": 0.7,
+        "color": "eje"
+      }
+    ],
+    "lineas": [
+      {
+        "pts": [
+          [
+            202.7,
+            133.9
+          ],
+          [
+            912.8,
+            133.9
+          ]
+        ],
+        "w": 1.45,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            202.7,
+            150.9
+          ],
+          [
+            912.8,
+            150.9
+          ]
+        ],
+        "w": 1.45,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            204.2,
+            529
+          ],
+          [
+            912.8,
+            529
+          ]
+        ],
+        "w": 1.3,
+        "color": "regla"
+      }
+    ],
+    "circulos": [
+      {
+        "x": 451.1,
+        "y": 235.4,
+        "r": 46.1
+      },
+      {
+        "x": 451.1,
+        "y": 235.4,
+        "r": 32.5,
+        "tono": "descanso",
+        "peldanos": {
+          "r0": 24.5,
+          "r1": 31.5,
+          "n": 36,
+          "desde": 3.3,
+          "w": 0.5,
+          "tono": "bahia"
+        }
+      },
+      {
+        "x": 451.3,
+        "y": 211.8,
+        "r": 45.3
+      },
+      {
+        "x": 451.3,
+        "y": 213,
+        "r": 32.5,
+        "tono": "descanso",
+        "peldanos": {
+          "r0": 24.5,
+          "r1": 31.5,
+          "n": 36,
+          "desde": 3.3,
+          "w": 0.5,
+          "tono": "bahia"
+        }
+      }
+    ],
+    "poligonos": [
+      {
+        "rect": [
+          438.5,
+          355,
+          23,
+          81.5
+        ]
+      },
+      {
+        "rect": [
+          433.7,
+          258,
+          34.3,
+          30.5
+        ],
+        "tono": "descanso"
+      },
+      {
+        "rect": [
+          469,
+          196.5,
+          71.5,
+          35
+        ],
+        "rx": 8,
+        "tono": "descanso"
+      },
+      {
+        "rect": [
+          484,
+          204,
+          7,
+          3
+        ],
+        "rx": 1.2,
+        "tono": "trazo"
+      },
+      {
+        "rect": [
+          484,
+          213,
+          7,
+          3
+        ],
+        "rx": 1.2,
+        "tono": "trazo"
+      },
+      {
+        "rect": [
+          484,
+          222.5,
+          7,
+          3
+        ],
+        "rx": 1.2,
+        "tono": "trazo"
+      }
+    ],
+    "equipoAng": [
+      {
+        "recto": true,
+        "iconos": [
+          "taquilla",
+          "torniquete",
+          "taquilla",
+          "torniquete",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            270,
+            322.2
+          ],
+          [
+            310,
+            322.2
+          ],
+          [
+            585.5,
+            322.2
+          ],
+          [
+            659.5,
+            322.2
+          ],
+          [
+            744,
+            322.2
+          ],
+          [
+            823,
+            322.2
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "taquilla",
+          "torniquete",
+          "taquilla",
+          "torniquete",
+          "taquilla",
+          "torniquete"
+        ],
+        "pts": [
+          [
+            275.75,
+            469.75
+          ],
+          [
+            314.5,
+            469.75
+          ],
+          [
+            588.5,
+            469.75
+          ],
+          [
+            662.5,
+            469.75
+          ],
+          [
+            748,
+            469.75
+          ],
+          [
+            822.5,
+            469.75
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "s": 13,
+        "iconos": [
+          "rampa",
+          "escalera",
+          "rampa",
+          "escalera"
+        ],
+        "pts": [
+          [
+            398,
+            322.4
+          ],
+          [
+            504.8,
+            322.8
+          ],
+          [
+            398,
+            470.25
+          ],
+          [
+            504.8,
+            470.65000000000003
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "s": 13,
+        "iconos": [
+          "torniquete",
+          "escalera",
+          "rampa"
+        ],
+        "pts": [
+          [
+            470.5,
+            213.75
+          ],
+          [
+            467.5,
+            261.5
+          ],
+          [
+            434.5,
+            268.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "taquilla"
+        ],
+        "pts": [
+          [
+            503,
+            205
+          ]
+        ]
+      }
+    ],
+    "senales": [
+      {
+        "x": 436.8,
+        "y": 341.54999999999995,
+        "w": 14,
+        "h": 13,
+        "lado": 12,
+        "margen": 1,
+        "icono": "evacuacion"
+      },
+      {
+        "x": 544.6,
+        "y": 341.54999999999995,
+        "w": 14,
+        "h": 13,
+        "lado": 12,
+        "margen": 1,
+        "espejo": true,
+        "icono": "evacuacion"
+      },
+      {
+        "x": 436.8,
+        "y": 489.4,
+        "w": 14,
+        "h": 13,
+        "lado": 12,
+        "margen": 1,
+        "icono": "evacuacion"
+      },
+      {
+        "x": 544.6,
+        "y": 489.4,
+        "w": 14,
+        "h": 13,
+        "lado": 12,
+        "margen": 1,
+        "espejo": true,
+        "icono": "evacuacion"
+      },
+      {
+        "x": 527.2,
+        "y": 224,
+        "w": 11.5,
+        "h": 10.5,
+        "lado": 9.8,
+        "margen": 0.85,
+        "icono": "evacuacion"
+      }
+    ],
+    "tirasAng": [
+      {
+        "tira": "Plataforma 2 · buses zonales",
+        "anden": 0,
+        "off": -25.35,
+        "marca": "barra",
+        "barra": {
+          "w": 59,
+          "h": 11.3,
+          "tw": 8.4,
+          "th": 7,
+          "ty": -0.4
+        },
+        "centrado": true,
+        "apila": "arriba",
+        "dy": -11.4,
+        "alto": 11,
+        "bahias": [
+          {
+            "x": 302.25,
+            "ancho": 116.5,
+            "tx": 3.35,
+            "h": 8.4,
+            "texto": []
+          },
+          {
+            "x": 577,
+            "dx": 3.5,
+            "una": true
+          },
+          {
+            "x": 637.25,
+            "dx": -17.25,
+            "izq": true,
+            "una": true
+          },
+          {
+            "x": 698,
+            "dx": 3.5,
+            "una": true
+          },
+          {
+            "x": 758.25,
+            "dx": 3.75,
+            "una": true
+          },
+          {
+            "x": 818.75,
+            "dx": -1,
+            "una": true
+          }
+        ]
+      },
+      {
+        "tira": "Plataforma 1 · buses zonales",
+        "anden": 1,
+        "off": -25.35,
+        "marca": "barra",
+        "barra": {
+          "w": 59,
+          "h": 11.3,
+          "tw": 8.4,
+          "th": 7,
+          "ty": -0.4
+        },
+        "centrado": true,
+        "apila": "arriba",
+        "dy": -10.75,
+        "alto": 10,
+        "bahias": [
+          {
+            "x": 303.5,
+            "ancho": 59,
+            "texto": []
+          },
+          {
+            "x": 581,
+            "dx": -2,
+            "una": true
+          },
+          {
+            "x": 642,
+            "dx": -20,
+            "izq": true,
+            "una": true
+          },
+          {
+            "x": 702,
+            "dx": -21,
+            "izq": true,
+            "una": true
+          },
+          {
+            "x": 763,
+            "dx": 3,
+            "una": true
+          },
+          {
+            "x": 823,
+            "dx": 1.5,
+            "una": true
+          }
+        ]
+      }
+    ],
+    "chips": [
+      {
+        "codigos": [
+          "C17"
+        ],
+        "x": 261,
+        "y": 354.3
+      },
+      {
+        "codigos": [
+          "B72"
+        ],
+        "x": 600,
+        "y": 354.3
+      },
+      {
+        "codigos": [
+          "B75"
+        ],
+        "x": 756.5,
+        "y": 354.3
+      },
+      {
+        "codigos": [
+          "D20"
+        ],
+        "x": 301,
+        "y": 501.3
+      },
+      {
+        "codigos": [
+          "M83",
+          "J76"
+        ],
+        "x": 624,
+        "y": 501.3
+      },
+      {
+        "codigos": [
+          "K54"
+        ],
+        "x": 759.5,
+        "y": 501.3
+      }
+    ],
+    "etiquetas": [
+      {
+        "x": 343,
+        "y": 178.5,
+        "w": 61,
+        "h": 17,
+        "texto": "Planta Alta",
+        "flecha": "der",
+        "fs": 12.8,
+        "base": 2
+      },
+      {
+        "x": 339,
+        "y": 246.5,
+        "w": 61.5,
+        "h": 16,
+        "texto": "Planta Baja",
+        "flecha": "der",
+        "fs": 12.8,
+        "base": 2
+      },
+      {
+        "x": 549.5,
+        "y": 204.5,
+        "w": 90,
+        "h": 17,
+        "texto": "Acceso peatonal",
+        "flecha": true,
+        "fs": 12,
+        "base": 3.5
+      },
+      {
+        "x": 916.5,
+        "y": 317.5,
+        "w": 72,
+        "h": 14,
+        "texto": "Plataforma 2",
+        "base": 1
+      },
+      {
+        "x": 916.5,
+        "y": 461.5,
+        "w": 72,
+        "h": 14,
+        "texto": "Plataforma 1",
+        "base": 1
+      }
+    ],
+    "rotulos": [
+      {
+        "x": 207,
+        "y": 151.5,
+        "clase": "street",
+        "texto": "Avenida Caracas"
+      },
+      {
+        "x": 570,
+        "y": 133.5,
+        "clase": "place-sm",
+        "centro": true,
+        "tono": "tenue",
+        "texto": "EXITO"
+      },
+      {
+        "x": 570,
+        "y": 543.5,
+        "clase": "place-sm",
+        "centro": true,
+        "tono": "tenue",
+        "texto": "PATIO TALLER"
+      },
+      {
+        "x": 205,
+        "y": 226.5,
+        "clase": "anchor",
+        "tono": "tenue",
+        "texto": "Ladrillera"
+      },
+      {
+        "x": 205,
+        "y": 239.5,
+        "clase": "anchor",
+        "tono": "tenue",
+        "texto": "Santafé"
+      },
+      {
+        "x": 450,
+        "y": 395,
+        "clase": "place",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 450,
+        "y": 402,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 304.5,
+        "y": 309.5,
+        "clase": "cap",
+        "texto": "Llegada de buses zonales"
+      },
+      {
+        "x": 703.5,
+        "y": 309.5,
+        "clase": "cap",
+        "texto": "Salida de buses zonales"
+      },
+      {
+        "x": 397,
+        "y": 342.5,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 397,
+        "y": 349.2,
+        "clase": "evac",
+        "texto": "evacuación"
+      },
+      {
+        "x": 555,
+        "y": 342.5,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 555,
+        "y": 349.2,
+        "clase": "evac",
+        "texto": "evacuación"
+      },
+      {
+        "x": 304.5,
+        "y": 457.35,
+        "clase": "cap",
+        "texto": "Llegada de buses zonales"
+      },
+      {
+        "x": 706,
+        "y": 457.35,
+        "clase": "cap",
+        "texto": "Salida de buses zonales"
+      },
+      {
+        "x": 397,
+        "y": 490.35,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 397,
+        "y": 497.05,
+        "clase": "evac",
+        "texto": "evacuación"
+      },
+      {
+        "x": 555,
+        "y": 490.35,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 555,
+        "y": 497.05,
+        "clase": "evac",
+        "texto": "evacuación"
+      },
+      {
+        "x": 497,
+        "y": 226.3,
+        "clase": "evac-sm",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 497,
+        "y": 231.2,
+        "clase": "evac-sm",
+        "texto": "evacuación"
+      }
+    ],
+    "norte": {
+      "x": 961.5,
+      "y": 170.5,
+      "r": 18.2,
+      "borde": 3,
+      "color": "#F5EB34",
+      "ang": -90,
+      "abajo": 44
+    },
+    "borrador": false
   }
 }

@@ -13249,7 +13249,7 @@
     },
     "TM0118": {
       "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
-      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. One bay code needs a note: the sheet prints HH735, with two Hs, and no such route exists — the catalog has H735, \"Uval\", which terminates here, and the sheet itself prints H729 two bays along with a single H. So it is drawn under the codigo a rider can look up. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side and one pedestrian TUNNEL crosses both at one point, so they are drawn on shared columns and that tunnel is in one place rather than two.",
+      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. One bay code needs a note: the sheet prints HH735, with two Hs, and no such route exists — the catalog has H735, \"Uval\", which terminates here, and the sheet itself prints H729 two bays along with a single H. So it is drawn under the codigo a rider can look up. It is printed over 3-14 El Uval, the bay it shares, not over 3-9 Marichuela beside it. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side and one pedestrian TUNNEL crosses both at one point, so they are drawn on shared columns and that tunnel is in one place rather than two.",
       "filas": [
         {
           "columnas": [
@@ -13323,10 +13323,6 @@
               "t": "bahia",
               "rutas": [
                 {
-                  "codigo": "H735",
-                  "destino": "El Uval"
-                },
-                {
                   "codigo": "3-9",
                   "destino": "Marichuela"
                 }
@@ -13335,6 +13331,10 @@
             {
               "t": "bahia",
               "rutas": [
+                {
+                  "codigo": "H735",
+                  "destino": "El Uval"
+                },
                 {
                   "codigo": "3-14",
                   "destino": "El Uval"

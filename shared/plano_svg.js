@@ -209,6 +209,44 @@ export function buildPortalSvg(input) {
       '" stroke="' + C.punteado + '" stroke-width="0.7" stroke-dasharray="3 2.4"/>';
   };
 
+  /**
+   * A block given as a box rather than as its corners, so it can be rounded:
+   * Portal Usme's entrance wing is a slab with soft corners, and four points
+   * cannot say that.
+   */
+  const rectangulo = ([x, y, w, h], r) =>
+    r
+      ? 'M' + num(x + r) + ',' + y + ' H' + num(x + w - r) + ' A' + r + ',' + r + ' 0 0 1 ' + num(x + w) + ',' +
+        num(y + r) + ' V' + num(y + h - r) + ' A' + r + ',' + r + ' 0 0 1 ' + num(x + w - r) + ',' + num(y + h) +
+        ' H' + num(x + r) + ' A' + r + ',' + r + ' 0 0 1 ' + x + ',' + num(y + h - r) + ' V' + num(y + r) +
+        ' A' + r + ',' + r + ' 0 0 1 ' + num(x + r) + ',' + y + ' Z'
+      : 'M' + x + ',' + y + ' h' + w + ' v' + h + ' h' + -w + ' Z';
+
+  /**
+   * A round hall, and the stair that winds round inside it.
+   *
+   * Portal Usme's entrance is two drums — Planta Alta over Planta Baja — each
+   * ruled with RADIAL treads: a spiral stair seen from above. The treads belong
+   * to their own disc and are drawn with it, because the upper drum covers the
+   * lower one's stair except where it shows beneath, and drawn in a pass of
+   * their own they came out on top of the floor that hides them.
+   */
+  const circulo = (c) => {
+    let out = '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + c.r + '" fill="' +
+      (c.tono ? C[c.tono] ?? C.anden : C.anden) + '"/>';
+    const p = c.peldanos;
+    if (p) {
+      for (let i = 0; i < p.n; i++) {
+        const a = ((p.desde ?? 0) + (i * 360) / p.n) * (Math.PI / 180);
+        const ux = Math.cos(a), uy = Math.sin(a);
+        out += '<line x1="' + num(c.x + ux * p.r0) + '" y1="' + num(c.y + uy * p.r0) + '" x2="' +
+          num(c.x + ux * p.r1) + '" y2="' + num(c.y + uy * p.r1) + '" stroke="' +
+          (p.tono ? C[p.tono] ?? C.peldano : C.peldano) + '" stroke-width="' + (p.w ?? 0.6) + '"/>';
+      }
+    }
+    return out;
+  };
+
   /** A run of planting: the same thick round-capped line a platform is, in green. */
   const jardin = (g) =>
     '<path d="' + trazar(g.pts) + '" fill="none" stroke="' + C.verde + '" stroke-width="' + g.ancho +
@@ -219,7 +257,7 @@ export function buildPortalSvg(input) {
   // to separate its three platforms are a whisper, and drawn in ink they read as
   // three boxes round the drawing instead.
   const linea = (l) =>
-    '<path d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color ? C[l.color] ?? C.trazo : C.trazo) +
+    '<path class="pq-linea" d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color ? C[l.color] ?? C.trazo : C.trazo) +
     '" stroke-width="' + (l.w ?? 0.9) + '" stroke-linecap="round"/>';
 
   /**
@@ -266,7 +304,9 @@ export function buildPortalSvg(input) {
       for (let x = a; x <= b + 0.01; x += d.paso ?? 2.2) {
         const p0 = sobreD(d.anden, x, 0), p1 = sobreD(d.anden, x, -alto);
         out += '<line x1="' + num(p0.x) + '" y1="' + num(p0.y) + '" x2="' + num(p1.x) + '" y2="' +
-          num(p1.y) + '" stroke="' + C.papel + '" stroke-width="' + (d.w ?? 0.9) + '"/>';
+          // Knocked out in the page colour, unless the sheet rules them fainter:
+          // Portal Usme's tunnel-mouth treads are a whisper on the grey.
+          num(p1.y) + '" stroke="' + (d.tono ? C[d.tono] ?? C.papel : C.papel) + '" stroke-width="' + (d.w ?? 0.9) + '"/>';
       }
     }
     return out;
@@ -281,25 +321,41 @@ export function buildPortalSvg(input) {
    */
   const norte = (n) => {
     const r = n.r ?? 15;
+    // Two ways a sheet draws it. Portal Sur letters the N inside the disc under a
+    // small arrowhead; Portal Usme fills the disc with one large arrowhead, TURNED
+    // to where north is on its page, and sets the N underneath.
+    const flecha = n.ang === undefined
+      ? '<path d="M' + num(n.x) + ',' + num(n.y - r * 0.68) + ' l' + num(r * 0.26) + ',' + num(r * 0.38) +
+        ' h-' + num(r * 0.52) + ' z" fill="#231F20"/>'
+      : '<path d="M' + num(n.x) + ',' + num(n.y - r * 0.44) + ' l' + num(r * 0.55) + ',' + num(r * 0.74) +
+        ' h' + num(-r * 1.1) + ' z" fill="#231F20" transform="rotate(' + n.ang + ' ' + n.x + ' ' + n.y + ')"/>';
     return '<g role="img" aria-label="Norte">' +
-      '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + KERB + '" stroke="#231F20" stroke-width="' +
-      num(r * 0.1) + '"/>' +
-      '<path d="M' + num(n.x) + ',' + num(n.y - r * 0.68) + ' l' + num(r * 0.26) + ',' + num(r * 0.38) +
-      ' h-' + num(r * 0.52) + ' z" fill="#231F20"/>' +
-      '<text x="' + n.x + '" y="' + num(n.y + r * 0.45) + '" class="pq-norte">N</text></g>';
+      // Not always the kerb's yellow: Portal Usme prints its north disc paler.
+      '<circle cx="' + n.x + '" cy="' + n.y + '" r="' + r + '" fill="' + (n.color ?? KERB) + '" stroke="#231F20" stroke-width="' +
+      num(n.borde ?? r * 0.1) + '"/>' + flecha +
+      (n.abajo === undefined
+        ? '<text x="' + n.x + '" y="' + num(n.y + r * 0.45) + '" class="pq-norte">N</text>'
+        : '<text x="' + n.x + '" y="' + num(n.y + n.abajo) + '" class="pq-norte pq-norte-fuera">N</text>') +
+      '</g>';
   };
 
   /** A sign on the page rather than on a platform: green, and set at an angle. */
   const senal = (s) => {
     const i = ICONOS[s.icono];
     if (!i) return '';
-    const lado = s.h - 2.6;
+    const lado = s.lado ?? s.h - 2.6;
+    const glifo = '<svg x="' + num(s.x + s.w / 2 - lado - (s.margen ?? 1.3)) + '" y="' + num(s.y - lado / 2) +
+      '" width="' + num(lado) + '" height="' + num(lado) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + i.svg + '</svg>';
     return '<g transform="rotate(' + num(s.ang ?? 0) + ' ' + s.x + ' ' + s.y + ')" role="img" aria-label="' +
       escapeHtml(i.label) + '">' +
-      '<rect x="' + num(s.x - s.w / 2) + '" y="' + num(s.y - s.h / 2) + '" width="' + s.w + '" height="' + s.h +
-      '" fill="' + (i.bg ?? '#2E9E4F') + '"/>' +
-      '<svg x="' + num(s.x + s.w / 2 - lado - 1.3) + '" y="' + num(s.y - lado / 2) + '" width="' + num(lado) +
-      '" height="' + num(lado) + '" viewBox="' + (i.vb || '0 0 24 24') + '">' + i.svg + '</svg></g>';
+      '<rect class="pq-senal" x="' + num(s.x - s.w / 2) + '" y="' + num(s.y - s.h / 2) + '" width="' + s.w +
+      '" height="' + s.h + '" fill="' + (i.bg ?? '#2E9E4F') + '"/>' +
+      // A route sign faces the way the route runs, so the far side of a tunnel
+      // prints the same sign MIRRORED rather than a different one.
+      (s.espejo
+        ? '<g transform="translate(' + num(s.x * 2) + ' 0) scale(-1 1)">' + glifo + '</g>'
+        : glifo) +
+      '</g>';
   };
 
   const A = geo.anillo ?? {};
@@ -569,6 +625,21 @@ export function buildPortalSvg(input) {
           out += '<rect class="pq-bahia" x="' + num(m.x - w / 2) + '" y="' + num(m.y - h / 2) + '" width="' + num(w) +
             '" height="' + num(h) + '" fill="' + col + '"/>';
         }
+      } else if (t.marca === 'barra') {
+        // Portal Usme cuts its bays neither way: each is its OWN grey bar inside
+        // the platform edge, butted to the next with a hairline between, and the
+        // arrow on it points up at the kerb the bus pulls in against. The
+        // arrival zone is simply a longer bar.
+        // Hung from the kerb, so a bar the sheet draws shorter keeps its top.
+        const w = b.ancho ?? t.barra?.w ?? 59, h = t.barra?.h ?? 9;
+        const tw = t.barra?.tw ?? 7.7, th = t.barra?.th ?? 5;
+        out += '<rect class="pq-bahia" x="' + num(m.x - w / 2) + '" y="' + num(m.y - h / 2) + '" width="' + num(w) +
+          '" height="' + num(b.h ?? h) + '" fill="' + C.bahia + '"/>' +
+          // The arrow is not always at the middle of its bar: the arrival bar is
+          // long and its arrow sits where the sheet put it, a few pixels off.
+          '<path d="M' + num(m.x + (b.tx ?? 0) - tw / 2) + ',' + num(m.y + (t.barra?.ty ?? 0) + th / 2) + ' h' +
+          num(tw) + ' l' + num(-tw / 2) + ',' +
+          num(-th) + ' z" fill="' + C.trazo + '"/>';
       } else {
         out += '<path d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
       }
@@ -593,13 +664,21 @@ export function buildPortalSvg(input) {
                   // ends and there is room. Read off the sheet, not guessed.
                   return b.una ? [cod + ' ' + dest] : [cod, dest];
                 });
+      // Portal Usme stacks a bay's names UPWARD off the kerb: the last line sits
+      // on a fixed baseline and a second route goes above it, not below.
+      const arriba = t.apila === 'arriba' ? lineas.length - 1 : 0;
+      // A bay with two routes is set as a BLOCK even where single names are
+      // centred: both lines share a left edge, which centring each line broke.
+      const centrado = (b.centro || t.centrado) && !b.izq;
       lineas.forEach((n, k) => {
         // Beside its marker, or centred on its own where there is no marker to
         // hang off: the arrival zone is a caption over a stretch of platform
-        // rather than a bay at a point.
-        out += '<text x="' + num(m.x + (b.centro ? 0 : t.dx ?? 2)) +
-          '" y="' + num(m.y + (t.dy ?? 15.5) + k * (t.alto ?? 11)) +
-          '" class="pq-bay' + (b.centro ? '' : ' pq-bay-izq') + '">' + n + '</text>';
+        // rather than a bay at a point. A sheet that centres every name over its
+        // bay still sets some of them a few pixels off the mark, so the offset is
+        // the bay's own where it was measured.
+        out += '<text x="' + num(m.x + (b.dx ?? (centrado ? 0 : t.dx ?? 2))) +
+          '" y="' + num(m.y + (t.dy ?? 15.5) + (k - arriba) * (t.alto ?? 11)) +
+          '" class="pq-bay' + (centrado ? '' : ' pq-bay-izq') + '">' + n + '</text>';
       });
     });
     return out;
@@ -674,6 +753,9 @@ export function buildPortalSvg(input) {
   const rotulo = (r) =>
     '<text x="' + r.x + '" y="' + r.y + '" class="pq-' + (r.clase ?? 'place') +
     (r.fin ? '" text-anchor="end' : r.centro ? '" text-anchor="middle' : '') + '"' +
+    // What the sheet sets in grey — the neighbours, the yard, the shopping
+    // centre across the road — is background to the station, not part of it.
+    (r.tono ? ' style="fill:' + (C[r.tono] ?? C.tinta) + '"' : '') +
     // A street name runs ALONG its street and a corridor's name along the
     // corridor. Set level they read as labels dropped on the drawing rather
     // than as part of it.
@@ -698,14 +780,23 @@ export function buildPortalSvg(input) {
         '<text x="' + num(c.x) + '" y="' + num(c.y + t.h / 2 - 3.5) + '" class="pq-tag">' +
         escapeHtml(t.texto) + '</text></g>';
     }
-    return (t.flecha ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>' : '') +
-      '<rect x="' + (t.flecha ? t.x + 6 : t.x) + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
+    // The pointer on the side the tag points from: Portal Norte's access tag
+    // points left at its bridge, Portal Usme's floor tags point right at the
+    // drum they name.
+    const izq = t.flecha && t.flecha !== 'der';
+    const x0 = izq ? t.x + 6 : t.x;
+    const punta = !t.flecha ? ''
+      : izq
+        ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>'
+        : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
+    return punta +
+      '<rect x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
       '" fill="' + KERB + '"/>' +
       // A sheet does not set every yellow tag at one size: Portal Sur's platform
       // names are a point and a half larger than the two naming the floors of
       // its access block, and at this scale that is a visible difference rather
       // than a typographic nicety.
-      '<text x="' + num((t.flecha ? t.x + 6 : t.x) + t.w / 2) + '" y="' + num(t.y + t.h - (t.base ?? 3.5)) +
+      '<text x="' + num(x0 + t.w / 2) + '" y="' + num(t.y + t.h - (t.base ?? 3.5)) +
       '" class="pq-tag"' + (t.fs ? ' style="font-size:' + t.fs + 'px"' : '') + '>' +
       escapeHtml(t.texto) + '</text>';
   };
@@ -753,6 +844,9 @@ export function buildPortalSvg(input) {
     '.pq text.pq-sub{font-size:7px}' +
     '.pq text.pq-sub-sm{font-size:5.6px}' +
     '.pq text.pq-norte{font-size:14px;font-weight:700;text-anchor:middle;fill:#231F20}' +
+    // Set under the disc it is on the page rather than on the yellow, so it
+    // takes the ink colour of the theme instead of the disc's black.
+    '.pq text.pq-norte-fuera{font-size:24px;fill:' + C.tinta + '}' +
     '.pq text.pq-bay-izq{text-anchor:start}' +
     // The sizes above are Portal Norte's, measured off its sheet. They are not a
     // house style: Portal 80 is drawn half again as large on the same page and
@@ -809,18 +903,16 @@ export function buildPortalSvg(input) {
     // which is why the tunnel's dashed edges stop at a kerb and pick up again on
     // the far side rather than being drawn in two pieces.
     (geo.verdes ?? []).map(jardin).join('') +
-    (geo.circulos ?? [])
-      .map((c) => '<circle cx="' + c.x + '" cy="' + c.y + '" r="' + c.r + '" fill="' + C.anden + '"/>')
-      .join('') +
+    (geo.circulos ?? []).map(circulo).join('') +
     (geo.poligonos ?? [])
-      .map((p) => '<path class="pq-bloque" d="' + trazar(p.pts) + ' Z" fill="' + (p.tono ? C[p.tono] ?? C.anden : C.anden) + '"/>')
+      .map((p) => '<path class="pq-bloque" d="' + (p.rect ? rectangulo(p.rect, p.rx ?? 0) : trazar(p.pts) + ' Z') +
+        '" fill="' + (p.tono ? C[p.tono] ?? C.anden : C.anden) + '"/>')
       .join('') +
     // After the shopping centre's own footprint: the escalator shaft is drawn on
     // it, and ruled first it was simply painted over.
     (geo.lineas ?? []).map(linea).join('') +
     (geo.corredores ?? []).map(corredor).join('') +
     (geo.escalones ?? []).map(escalon).join('') +
-    (geo.senales ?? []).map(senal).join('') +
     (geo.norte ? norte(geo.norte) : '') +
 
     (geo.andenes ?? []).map(lozenge).join('') +
@@ -831,6 +923,10 @@ export function buildPortalSvg(input) {
     // lower edge on the sheet rather than under it.
     (geo.desembarcos ?? []).map(desembarco).join('') +
     (geo.espinas ?? []).map(espina).join('') +
+    // Ink ON the platforms: the outline of a tunnel mouth cut into one, the
+    // hairlines dividing its zones. Ruled with the street lines they went under
+    // the platform and vanished.
+    (geo.trazos ?? []).map(linea).join('') +
     (geo.muros ?? [])
       .map((m) => '<path d="M' + m.x0 + ',' + m.y + ' H' + m.x1 + '" stroke="' + C.trazo + '" stroke-width="1"/>')
       .join('') +
@@ -840,6 +936,9 @@ export function buildPortalSvg(input) {
     (geo.tirasAng ?? []).map(tiraAngulada).join('') +
     (geo.cajas ?? []).map(caja).join('') +
     (geo.equipoAng ?? []).map(equipoAngulado).join('') +
+    // Signs last among the marks: Portal Usme posts its evacuation signs ON the
+    // platforms, which drawn with the ground went under them.
+    (geo.senales ?? []).map(senal).join('') +
     (geo.escaleras ?? []).map(([x, y]) => tile('escalera', x, y)).join('') +
 
     // The bridge: a narrow shaft with a switchback ramp hooked off each end and

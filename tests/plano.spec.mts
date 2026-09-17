@@ -583,9 +583,19 @@ test.describe('a portal on its sheet', () => {
         ['corridor', (geo.corredores ?? []).length, /stroke-dasharray="3 2\.4"/g],
         ['run of planting', (geo.verdes ?? []).length, /stroke="var\(--pq-verde\)"/g],
         ['tunnel landing', (geo.desembarcos ?? []).length, /fill="var\(--pq-losa\)"/g],
-        ['ruled line', (geo.lineas ?? []).length, /stroke-linecap="round"\/>/g],
+        // The street's rules and the ink ON the platforms are one primitive
+        // drawn in two passes: a tunnel mouth's outline ruled with the street
+        // went under the platform it is cut into.
+        // Counted by class: the round-capped stroke it used to be matched on is
+        // also inside every turnstile glyph, so the count could not fall short.
+        ['ruled line', (geo.lineas ?? []).length + (geo.trazos ?? []).length, /<path class="pq-linea"/g],
+        // A tag's pointer on the side it points from.
+        ['tag pointing left', (geo.etiquetas ?? []).filter((t: any) => t.flecha && t.flecha !== 'der').length, / l7,-5\.5 v11 z"/g],
+        ['tag pointing right', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'der').length, / l-8\.5,-5\.5 v11 z"/g],
         ['circle', (geo.circulos ?? []).length, /<circle cx=/g],
-        ['sign', (geo.senales ?? []).length, /<rect x="[^"]*" y="[^"]*" width="[^"]*" height="[^"]*" fill="#2E9E4F"/g],
+        // By its class, not its green: an emergency exit and an evacuation-route
+        // sign are two greens on the sheets, and counting one missed the other.
+        ['sign', (geo.senales ?? []).length, /<rect class="pq-senal"/g],
         ['escalator flight', (geo.escalones ?? []).length, /width="10" height="4\.8" rx="2\.4"/g],
         ['filled block', (geo.poligonos ?? []).length, /<path class="pq-bloque"/g],
         ['north point', geo.norte ? 1 : 0, /aria-label="Norte"/g],
@@ -596,6 +606,36 @@ test.describe('a portal on its sheet', () => {
         if (hallados < esperados) {
           wrong.push(code + ': ' + esperados + ' × ' + nombre + ' measured, ' + hallados + ' drawn');
         }
+      }
+      // A round hall's spiral stair is its treads: every one of them is ruled
+      // between the two radii it was measured at, around the disc it belongs to.
+      const lineas = [...svg.matchAll(/<line x1="([\d.-]+)" y1="([\d.-]+)" x2="([\d.-]+)" y2="([\d.-]+)"/g)]
+        .map((m) => m.slice(1, 5).map(Number));
+      for (const c of geo.circulos ?? []) {
+        const p = c.peldanos;
+        if (!p) continue;
+        const cerca = (x: number, y: number, r: number): boolean => Math.abs(Math.hypot(x - c.x, y - c.y) - r) < 0.05;
+        const ruladas = lineas.filter(([x1, y1, x2, y2]) => cerca(x1, y1, p.r0) && cerca(x2, y2, p.r1)).length;
+        if (ruladas < p.n) wrong.push(code + ': a round hall at ' + c.x + ',' + c.y + ' has ' + ruladas + ' of its ' + p.n + ' treads');
+      }
+      // Names stacked UPWARD off the kerb end on one baseline: the last line of
+      // every bay sits where a one-line bay does, and a second route goes above
+      // it rather than down into the platform.
+      for (const t of geo.tirasAng ?? []) {
+        if (t.apila !== 'arriba') continue;
+        const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
+        const eje = geo.andenes?.[t.anden]?.pts?.[0]?.[1];
+        (tira?.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any) => {
+          const rutas = it.rutas ?? [];
+          if (rutas.length < 2) return;
+          const base = eje + t.off + t.dy;
+          const ultima = rutas[rutas.length - 1];
+          const y = [...svg.matchAll(/<text x="[\d.-]+" y="([\d.-]+)" class="pq-bay[^"]*">(.*?)<\/text>/g)]
+            .find((m) => m[2].includes('>' + ultima.codigo + '<'))?.[1];
+          if (y === undefined || Math.abs(Number(y) - base) > 0.05) {
+            wrong.push(code + ': ' + ultima.codigo + ' is not on the bays\' baseline (' + y + ' against ' + base + ')');
+          }
+        });
       }
       // A landing without its treads is a grey slab: the steps ARE the drawing.
       for (const d of geo.desembarcos ?? []) {
