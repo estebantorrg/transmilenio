@@ -6059,6 +6059,118 @@ body.native-app .route-detail-close:active {
   text-decoration-color: currentColor;
 }
 
+/* ══ Operator notices ═════════════════════════════════════════════════════
+   `ui/avisos.ts`: a notice in force, over the plan it changes, and the plan
+   marked to match. Yellow because that is the colour the operator's own
+   notices and the platform plates use for "attention", and because nothing
+   else on these surfaces is yellow — the notice must not read as a route. */
+
+.avisos {
+  display: grid;
+  gap: 8px;
+}
+
+.avisos[hidden] { display: none; }
+
+.aviso {
+  padding: 10px 12px;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-left: 3px solid var(--tm-yellow);
+  border-radius: var(--radius-sm);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.aviso-eyebrow {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--tm-yellow);
+}
+
+.aviso-titulo {
+  margin: 4px 0 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--text-primary);
+}
+
+.aviso-detalle {
+  margin: 4px 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.station-avisos { margin-top: 18px; }
+
+.popup-avisos { margin-top: 10px; }
+.popup-avisos .aviso { padding: 8px 10px; }
+.popup-avisos .aviso-titulo { font-size: var(--font-size-base); }
+
+/* A closed vagón: hatched, its services dimmed, and a label under its plate
+   saying where they went. Dimmed rather than removed — the rider looking for
+   F60 has to find it here to learn that it now stops next door. */
+.pvg.aviso-cerrado .pvg-deck {
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.16) 0 calc(6px * var(--tm-scale, 1)),
+    rgba(255, 255, 255, 0.03) calc(6px * var(--tm-scale, 1)) calc(12px * var(--tm-scale, 1))
+  );
+  border-color: rgba(251, 191, 36, 0.55);
+}
+
+.pvg.aviso-cerrado .pvg-name { color: var(--text-secondary); }
+.pvg.aviso-cerrado .route-tag { opacity: 0.5; filter: grayscale(0.6); }
+
+.aviso-nota {
+  font-size: calc(9.5px * var(--tm-scale, 1));
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--tm-yellow);
+}
+
+/* A closed access: the block hatched the same way, its furniture dimmed, and
+   the label across it. */
+.pdt-vestibulo.aviso-cerrado {
+  position: relative;
+  border-color: rgba(251, 191, 36, 0.55);
+  background: repeating-linear-gradient(
+    135deg,
+    rgba(251, 191, 36, 0.14) 0 calc(6px * var(--tm-scale, 1)),
+    transparent calc(6px * var(--tm-scale, 1)) calc(12px * var(--tm-scale, 1))
+  );
+}
+
+.pdt-vestibulo.aviso-cerrado > :not(.aviso-nota) { opacity: 0.35; }
+
+.pdt-vestibulo > .aviso-nota {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-primary);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.55);
+  white-space: normal;
+  width: max-content;
+  max-width: calc(100% - 4px);
+}
+
+/* A service that skips the stop: struck through, wherever it is listed. */
+.route-tag.aviso-omite {
+  opacity: 0.45;
+  filter: grayscale(1);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+}
+
 /* ══ Estación page ════════════════════════════════════════════════════════ */
 
 .station-hero {

@@ -1,5 +1,7 @@
 /** Types for the master catalog served by the TransMi app API scraper */
 
+import type { Aviso } from '../../../shared/avisos.js';
+
 export interface CatalogRoute {
   id?: string;
   codigo: string;
@@ -151,6 +153,10 @@ export interface CatalogStation {
    *  rather than as columns. Opaque: only `shared/plano_svg.js` reads its
    *  shape, and a station without it falls back to the column drawing. */
   planoGeo?: unknown;
+  /** Operator notices not yet ended: a vagón or access closed, services that
+   *  skip the stop. Whether one is in force right now is decided in the
+   *  browser (`shared/avisos.js`), because this payload outlives a night. */
+  avisos?: Aviso[];
   planoDetalle?: {
     columnas?: CatalogPlanoColumna[];
     /** A SPLIT station: one código, two sheets. Ricaurte and Av. Jiménez are

@@ -424,6 +424,10 @@ const deckSigue =
  */
 function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
   if (col.t === 'vestibulo') {
+    // The streets this block lets out on, for a notice that closes an access
+    // to find it by the name on its Salida sign (`ui/avisos.ts`).
+    const calles = (col.salidas ?? []).map((s) => s.calle).filter(Boolean);
+    const acceso = calles.length ? ' data-acceso="' + escapeHtml(calles.join('|')) + '"' : '';
     // The way through, drawn ON the vestibule at its platform edge — which is
     // where the sheet draws it. Given a column of its own it left a blank
     // band between the vestibule and the first vagón, and the sheet has no
@@ -446,14 +450,14 @@ function columnaHtml(col, cellArriba, cellAbajo, divider, label, solo) {
       // band, as the two-platform drawing does, gave Calle 57 two sets of
       // arrows where the sheet has one.
       return (
-        '<div class="pdt-col pdt-vestibulo pdt-vestibulo-solo' + lado + '">' +
+        '<div class="pdt-col pdt-vestibulo pdt-vestibulo-solo' + lado + '"' + acceso + '>' +
         '<div class="pdt-vestibulo-stack">' + bandas + '</div>' +
         (col.paso === false ? '' : '<span class="pdt-canal pdt-canal-solo">' + marcasHtml() + '</span>') +
         '</div>'
       );
     }
     return (
-      '<div class="pdt-col pdt-vestibulo' + lado + (col.divide ? ' pdt-vestibulo-parte' : '') + '">' +
+      '<div class="pdt-col pdt-vestibulo' + lado + (col.divide ? ' pdt-vestibulo-parte' : '') + '"' + acceso + '>' +
       '<div class="pdt-band pdt-band-a">' + salidasFor(col, 'arriba') + iconsHtml(col.arriba) + paso + '</div>' +
       // Whether the divider runs THROUGH the access block. Guatoque's caño
       // stops short of its block, which is what makes that block the way
@@ -834,7 +838,10 @@ export function buildSheetPlano(input) {
         // so the zone is drawn with no name on it, which is what the sheet has.
         const nombre = vagon.sinPlaca ? '' : nombreVagon(vagon.vagon);
         const cell =
-          '<section class="pvg" aria-label="' + escapeHtml(nombre || 'Zona sin número') + '">' +
+          '<section class="pvg" aria-label="' + escapeHtml(nombre || 'Zona sin número') + '"' +
+          // The plate number, for a notice that closes this vagón to find it
+          // (`ui/avisos.ts`). Unnamed zones carry none: no notice can name them.
+          (vagon.sinPlaca ? '' : ' data-vagon="' + escapeHtml(String(vagon.vagon)) + '"') + '>' +
           '<div class="pvg-side pvg-side-a">' + tags(above) + '</div>' +
           '<div class="pvg-deck"><span class="pvg-doors" aria-hidden="true"></span>' +
           '<div class="pvg-plate">' + (nombre ? '<span class="pvg-name">' + escapeHtml(nombre) + '</span>' : '') +

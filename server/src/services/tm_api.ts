@@ -27,6 +27,7 @@ import {
   type PlanoLayout,
 } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
+import { stationAvisos } from './avisos.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 import {
   correctRecorrido,
@@ -612,6 +613,9 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // the same rule the layout above follows.
       // A portal's measured geometry, where its sheet has been read that way.
       const geoOut = planoGeo(station.codigo);
+      // Operator notices not yet ended. Which of them is in force is the
+      // browser's call (`shared/avisos.js`): this payload outlives a night.
+      const avisosOut = stationAvisos(station.codigo);
       const detalleRead = planoDetalle(station.codigo);
       const detalleOut: PlanoDetalle | undefined = detalleRead
         ? {
@@ -707,6 +711,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ...(planoLayoutOut ? { planoLayout: planoLayoutOut } : {}),
         ...(detalleOut ? { planoDetalle: detalleOut } : {}),
         ...(geoOut ? { planoGeo: geoOut } : {}),
+        ...(avisosOut ? { avisos: avisosOut } : {}),
         wagons: cleanWagons,
       };
     } else {
