@@ -341,8 +341,11 @@ test.describe('the plan, on the page', () => {
         const medida = await page.evaluate(() => {
           const svg = document.querySelector('.popup-plano-portal svg.pq');
           if (!svg) return null;
-          const vb = Number((svg.getAttribute('viewBox') ?? '').split(/\s+/)[2] || 0);
           const caja = svg.parentElement as HTMLElement | null;
+          // Against the window in 1024-sheet pixels the box carries, not the
+          // viewBox: Portal Américas' sheet is 1920 wide, and its own pixels
+          // would demand a drawing wider than any screen.
+          const vb = Number(caja?.style.getPropertyValue('--pq-vb') || 0);
           return {
             escala: svg.getBoundingClientRect().width / (vb || 1),
             // And it must not drag the PAGE sideways while it does it: the plan
@@ -600,7 +603,13 @@ test.describe('a portal on its sheet', () => {
         ['ruled line', (geo.lineas ?? []).length + (geo.trazos ?? []).length, /<path class="pq-linea"/g],
         // A tag's pointer on the side it points from.
         ['tag pointing left', (geo.etiquetas ?? []).filter((t: any) => t.flecha === true || t.flecha === 'izq').length, / l7,-5\.5 v11 z"/g],
-        ['tag pointing up', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'arriba').length, / l5\.5,-7\.5 l5\.5,7\.5 z"/g],
+        ['tag pointing up', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'arriba').length, / l[\d.]+,-[\d.]+ l[\d.]+,[\d.]+ z" fill="#FEED01"/g],
+        ['veil over a platform', (geo.velos ?? []).length, /<path class="pq-velo"/g],
+        ['platform outline', (geo.losas ?? []).length, /<path class="pq-losa"/g],
+        // A mark whose colour is part of it keeps it on its tile.
+        ['blue priority-lift tile',
+          (geo.equipoAng ?? []).reduce((n: number, e: any) => n + (e.iconos ?? []).filter((i: string) => i === 'ascensor').length, 0),
+          /aria-label="Ascensor prioritario"><rect [^>]*fill="#03518F"/g],
         ['tag pointing right', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'der').length, / l-8\.5,-5\.5 v11 z"/g],
         ['circle', (geo.circulos ?? []).length, /<circle cx=/g],
         // By its class, not its green: an emergency exit and an evacuation-route
@@ -627,6 +636,15 @@ test.describe('a portal on its sheet', () => {
         const cerca = (x: number, y: number, r: number): boolean => Math.abs(Math.hypot(x - c.x, y - c.y) - r) < 0.05;
         const ruladas = lineas.filter(([x1, y1, x2, y2]) => cerca(x1, y1, p.r0) && cerca(x2, y2, p.r1)).length;
         if (ruladas < p.n) wrong.push(code + ': a round hall at ' + c.x + ',' + c.y + ' has ' + ruladas + ' of its ' + p.n + ' treads');
+      }
+      // A bar bay's arrow points the way its own bay does: Portal Américas points
+      // its arrival zones down into the platform and its bays up at the kerb.
+      if (!(geo.tiras ?? []).length) {
+        const barras = (geo.tirasAng ?? []).filter((t: any) => t.marca === 'barra');
+        const abajo = barras.reduce((n: number, t: any) =>
+          n + (t.bahias ?? []).filter((b: any) => b.abajo ?? t.barra?.abajo).length, 0);
+        const flechas = cuenta(/<path d="M[^"]* l-[\d.]+,[\d.]+ z" fill="var\(--pq-trazo\)"\/>/g);
+        if (barras.length && flechas !== abajo) wrong.push(code + ': ' + abajo + ' bays point down, ' + flechas + ' arrows do');
       }
       // A ring's ends, as the sheet builds them: the radial hatch over the top and
       // bottom of each end, the green in its corners, and the bridge stacking the
