@@ -5585,8 +5585,8 @@
       ]
     },
     "TM0118": {
-      "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
-      "why": "A portal: TWO platforms carrying SIX boarding zones between them, named as the catalog names them. Plataforma 2 runs T4 (C17), T5 (B72) and T6 (B75); Plataforma 1 runs T1B (D20), T2 (M83, J76) and T2A (K54). All six catalog platforms are on the sheet and every chip lands on the platform its letter names. What is drawn is the DEPARTING leg: the catalog files H17, H72, H75, H20, H76, H83 and H54 alongside them — the Caracas Sur codes, which are how the same services arrive — and a portal has no arrival platform to draw them on.",
+      "source": "Aviso de TransMilenio: redistribucion de las plataformas 1 y 2 del Portal Usme a partir del sabado 19 de septiembre de 2026, sobre el plano de ubicacion de julio de 2025.",
+      "why": "A portal: TWO platforms carrying SIX boarding zones between them, named as the catalog names them. From 19 September 2026 the operator redistributed every troncal service but K54: Plataforma 2 runs B72 west of the tunnel, then C17 and B75; Plataforma 1 runs M83 and D20 west, then J76, then K54. The vagón letters are kept by POSITION (T4, T5, T6 west to east on Plataforma 2; T1B, T2, T2A on Plataforma 1) until the catalog re-files the services, which it had not on the day the notice was read. What is drawn is the DEPARTING leg: the catalog files H17, H72, H75, H20, H76, H83 and H54 alongside them — the Caracas Sur codes, which are how the same services arrive — and a portal has no arrival platform to draw them on.",
       "rows": [
         {
           "offset": 0,
@@ -5594,13 +5594,13 @@
             {
               "vagon": "T4",
               "abajo": [
-                "C17"
+                "B72"
               ]
             },
             {
               "vagon": "T5",
               "abajo": [
-                "B72"
+                "C17"
               ]
             },
             {
@@ -5617,13 +5617,13 @@
             {
               "vagon": "T1B",
               "abajo": [
+                "M83",
                 "D20"
               ]
             },
             {
               "vagon": "T2",
               "abajo": [
-                "M83",
                 "J76"
               ]
             },
@@ -13244,8 +13244,8 @@
       ]
     },
     "TM0118": {
-      "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
-      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. One bay code needs a note: the sheet prints HH735, with two Hs, and no such route exists — the catalog has H735, \"Uval\", which terminates here, and the sheet itself prints H729 two bays along with a single H. So it is drawn under the codigo a rider can look up. It is printed over 3-14 El Uval, the bay it shares, not over 3-9 Marichuela beside it. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side and one pedestrian TUNNEL crosses both at one point, so they are drawn on shared columns and that tunnel is in one place rather than two.",
+      "source": "Aviso de TransMilenio: redistribucion de las plataformas 1 y 2 del Portal Usme a partir del sabado 19 de septiembre de 2026, sobre el plano de ubicacion de julio de 2025.",
+      "why": "TWO platforms drawn one above the other, both crossed part way along by the same pedestrian TUNNEL, landing on a staircase and a ramp, and running down from the entrance building — which holds the torniquetes and a taquilla — — the sheet marks its two floors Planta Alta and Planta Baja — and divides each platform's zones: T4 west of it and T5 and T6 east on Plataforma 2, T1B west and T2 and T2A east on Plataforma 1. Each platform has a zonal strip along its inner edge, arrivals at the west end and departures at the east. The July 2025 sheet printed that bay's first code as HH735, with two Hs; the September 2026 notice prints H735, the route the catalog files, over 3-14 El Uval, the bay it shares. From 19 September 2026 Plataforma 1's bays are re-paired: 3-11 La Fiscala and 3-13 Nebraska take the first bay, 3-12 La Esperanza Sur moves to the third alongside H728 Danubio (temporary), and H738 Av. Caracas joins 3-2 Santa Librada. The notice's own text calls 3-12 'Santa Librada'; its drawing, the catalog and the earlier sheet all name 3-12 La Esperanza Sur and 3-2 Santa Librada, and that is what is drawn. The entrance building is drawn as its own strip — the torniquetes and taquilla on its two floors. NOT drawn: the evacuation routes, the patio taller and the Ladrillera Santafe. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side and one pedestrian TUNNEL crosses both at one point, so they are drawn on shared columns and that tunnel is in one place rather than two.",
       "filas": [
         {
           "columnas": [
@@ -13388,8 +13388,12 @@
               "t": "bahia",
               "rutas": [
                 {
-                  "codigo": "3-12",
-                  "destino": "La Esperanza Sur"
+                  "codigo": "3-11",
+                  "destino": "La Fiscala"
+                },
+                {
+                  "codigo": "3-13",
+                  "destino": "Nebraska"
                 }
               ]
             },
@@ -13410,12 +13414,12 @@
               "t": "bahia",
               "rutas": [
                 {
-                  "codigo": "3-11",
-                  "destino": "La Fiscala"
+                  "codigo": "3-12",
+                  "destino": "La Esperanza Sur"
                 },
                 {
-                  "codigo": "3-13",
-                  "destino": "Nebraska"
+                  "codigo": "H728",
+                  "destino": "Danubio"
                 }
               ]
             },
@@ -13425,6 +13429,10 @@
                 {
                   "codigo": "3-2",
                   "destino": "Santa Librada"
+                },
+                {
+                  "codigo": "H738",
+                  "destino": "Av. Caracas"
                 }
               ]
             },
