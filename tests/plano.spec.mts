@@ -618,6 +618,35 @@ test.describe('a portal on its sheet', () => {
         const ruladas = lineas.filter(([x1, y1, x2, y2]) => cerca(x1, y1, p.r0) && cerca(x2, y2, p.r1)).length;
         if (ruladas < p.n) wrong.push(code + ': a round hall at ' + c.x + ',' + c.y + ' has ' + ruladas + ' of its ' + p.n + ' treads');
       }
+      // A ring's ends, as the sheet builds them: the radial hatch over the top and
+      // bottom of each end, the green in its corners, and the bridge stacking the
+      // marks of its OWN column — not the first column that climbs anything,
+      // which at Portal Norte is a tunnel and stacked stairs on a bridge that
+      // lands on ramps.
+      const A = geo.anillo;
+      if (A) {
+        const R = A.rayas ?? {};
+        const porLado = Math.floor(((R.hasta ?? 94) - (R.desde ?? 40)) / (R.paso ?? 4.15) + 1e-6) + 1;
+        const rayas = cuenta(/<line [^>]*stroke="var\(--pq-radios\)"/g);
+        if (rayas !== porLado * 4) wrong.push(code + ': ' + porLado * 4 + ' stripes across the ring\'s ends, ' + rayas + ' drawn');
+        const verdes = cuenta(/<path d="M[^"]*" fill="var\(--pq-verde\)"\/>/g);
+        if (verdes < (A.verdes?.x ?? []).length) wrong.push(code + ': the ring\'s green corners are not drawn');
+        if (svg.includes('Llegada de pasajeros')) wrong.push(code + ': an arrival zone carries a name the sheet does not print');
+      }
+      const P = geo.puente;
+      if (P) {
+        const cols = (planos.detalle[code]?.columnas ?? []).filter((c: any) => c.t === 'puente' && c.sube);
+        const propia = cols.find((c: any) => /puente/i.test(c.nombre ?? '')) ?? cols[0];
+        const primera = (propia?.sube ?? [])[0];
+        if (primera) {
+          const t = geo.teja ?? 18;
+          const pos = 'translate(' + (P.bloque.cx - t / 2) + ' ' + (P.pila[0] - t / 2) + ')" role="img" aria-label="';
+          const i = svg.indexOf(pos);
+          const etiqueta = i < 0 ? null : svg.slice(i + pos.length).split('"')[0];
+          const esperada = { rampa: 'Rampa peatonal', escalera: 'Escalera peatonal' }[primera as 'rampa' | 'escalera'];
+          if (etiqueta !== esperada) wrong.push(code + ': the bridge stack starts with ' + etiqueta + ', its column climbs by ' + primera);
+        }
+      }
       // Names stacked UPWARD off the kerb end on one baseline: the last line of
       // every bay sits where a one-line bay does, and a second route goes above
       // it rather than down into the platform.

@@ -46,11 +46,12 @@ const ALLOWED_PATH_PREFIXES = [
   '/puntos_personalizacion',
 ];
 
+// Mirrors server/src/services/official_app_headers.ts (a separate deployable
+// cannot import it). No `uuid`: a fixed one was blocklisted upstream (spec §5.2.3).
 const UPSTREAM_HEADERS = {
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
   'User-Agent': 'okhttp/4.12.0',
-  'uuid': 'fd1be953-d85e-4c63-8c23-234f143f445d',
-  'version': '2.9.5',
+  'version': '2.9.7',
   'Accept-Encoding': 'identity',
 };
 const UPSTREAM_TIMEOUT_MS = 10000;
