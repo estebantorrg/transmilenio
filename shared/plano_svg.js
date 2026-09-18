@@ -35,7 +35,7 @@ export const PALETA = {
   },
   oscuro: {
     papel: '#0C0C0C', anden: '#2A2C31', trazo: '#6B6E76', tunel: '#1A1C20',
-    bahia: '#4A4D54', radios: '#3A3D43', verde: '#2C3A22', eje: '#3C3F45',
+    bahia: '#4A4D54', radios: '#565960', verde: '#2C3A22', eje: '#3C3F45',
     bloque: '#40434A', descanso: '#24262B', escalera: '#3C3F45', peldano: '#5A5D64',
     rampa: '#34373D', regla: 'rgba(255,255,255,.16)', tinta: '#FFFFFF',
     tenue: 'rgba(255,255,255,.55)',
@@ -359,9 +359,6 @@ export function buildPortalSvg(input) {
   };
 
   const A = geo.anillo ?? {};
-  const CY = (A.yo1 + A.yo2) / 2;
-  const RO = (A.yo2 - A.yo1) / 2;
-  const RI = (A.yi2 - A.yi1) / 2;
   const hayAnillo = Boolean(geo.anillo);
   const TILE = geo.teja ?? 18;
 
@@ -481,43 +478,96 @@ export function buildPortalSvg(input) {
   }
 
   // ── The ring ─────────────────────────────────────────────────────────────
-  // The turnaround caps are ELLIPSES, not semicircles: at mid-height the ring is
-  // only a few pixels thick, so the caps are squashed horizontally. Drawn round
-  // they bulged half a platform-width past the sheet at both ends.
-  const anillo =
-    'M' + A.x0 + ',' + A.yo1 + ' H' + A.x1 + ' A' + A.rxo + ',' + RO + ' 0 0 1 ' + A.x1 + ',' + A.yo2 +
-    ' H' + A.x0 + ' A' + A.rxo + ',' + RO + ' 0 0 1 ' + A.x0 + ',' + A.yo1 + ' Z' +
-    'M' + A.x0 + ',' + A.yi1 + ' H' + A.x1 + ' A' + A.rxi + ',' + RI + ' 0 0 1 ' + A.x1 + ',' + A.yi2 +
-    ' H' + A.x0 + ' A' + A.rxi + ',' + RI + ' 0 0 1 ' + A.x0 + ',' + A.yi1 + ' Z';
+  // Portal Norte's loop, as its sheet draws it: two SEMICIRCLES of one radius
+  // joined by the straights, not the squashed ellipses an earlier pass fitted.
+  // Measured round, each end is a band between the spine arc (`ri`) and the
+  // outer edge (`ro`): hatched with radial stripes over the top and bottom
+  // quarters, and at the far end given over to the pedestrian tunnel, which is
+  // a PALE sector with dashed edges rather than platform. Inside the spine the
+  // deck is a darker band down to the kerb, with the busway's hole cut out of
+  // both it and the platform so the tunnel's line shows through, as it does on
+  // the sheet.
+  // An angle at a cap is measured from the outward horizontal, positive up, so
+  // the same numbers describe both ends.
+  const enCapa = (lado, r, grados) => {
+    const t = (grados * Math.PI) / 180;
+    return [(lado < 0 ? A.x0 : A.x1) + lado * r * Math.cos(t), A.cy - r * Math.sin(t)];
+  };
+  const pt = ([x, y]) => num(x) + ',' + num(y);
+  // Where the kerb lines of the hole cross the spine circle.
+  const angHueco = (y) => (Math.asin(Math.min(1, Math.abs(A.cy - y) / A.ri)) * 180) / Math.PI;
+  const estadio = (r) =>
+    'M' + A.x0 + ',' + num(A.cy - r) + ' H' + A.x1 + ' A' + r + ',' + r + ' 0 0 1 ' + A.x1 + ',' + num(A.cy + r) +
+    ' H' + A.x0 + ' A' + r + ',' + r + ' 0 0 1 ' + A.x0 + ',' + num(A.cy - r) + ' Z';
+  const hueco = () => {
+    const a1 = angHueco(A.yi1), a2 = angHueco(A.yi2);
+    return 'M' + pt(enCapa(-1, A.ri, a1)) + ' H' + num(enCapa(1, A.ri, a1)[0]) +
+      ' A' + A.ri + ',' + A.ri + ' 0 0 1 ' + pt(enCapa(1, A.ri, -a2)) + ' H' + num(enCapa(-1, A.ri, -a2)[0]) +
+      ' A' + A.ri + ',' + A.ri + ' 0 0 1 ' + pt(enCapa(-1, A.ri, a1)) + ' Z';
+  };
 
-  /** The bus lane's taper, ruled ACROSS the turnaround rather than outside it. */
-  function radios(cx, dir) {
-    const x0 = cx + dir * 10, x1 = cx + dir * 54;
-    let out = '';
-    for (let i = 0; i <= 11; i++) {
-      const f = i / 11;
-      const x = x0 + (x1 - x0) * f;
-      const lean = dir * (1 - f) * 9;
-      for (const [ya, yb] of [[A.yo1, A.yi1], [A.yi2, A.yo2]]) {
-        out += '<line x1="' + num(x - lean) + '" y1="' + ya + '" x2="' + num(x + lean) +
-          '" y2="' + yb + '" stroke="' + C.radios + '" stroke-width="1.2"/>';
+  /** One end of the loop: the pale band, its radial stripes, the tunnel's dashed edges. */
+  function capa(lado) {
+    const R = A.rayas ?? {};
+    const tope = R.hasta ?? 94;
+    const giro = lado < 0 ? 1 : 0;
+    let out = '<path d="M' + pt(enCapa(lado, A.ro, -tope)) + ' A' + A.ro + ',' + A.ro + ' 0 1 ' + giro + ' ' +
+      pt(enCapa(lado, A.ro, tope)) + ' L' + pt(enCapa(lado, A.ri, tope)) + ' A' + A.ri + ',' + A.ri + ' 0 1 ' +
+      (1 - giro) + ' ' + pt(enCapa(lado, A.ri, -tope)) + ' Z" fill="' + C.caja + '"/>';
+    for (let a = R.desde ?? 40; a <= tope + 0.01; a += R.paso ?? 4.15) {
+      for (const s of [1, -1]) {
+        const [x1, y1] = enCapa(lado, A.ri, s * a), [x2, y2] = enCapa(lado, A.ro, s * a);
+        out += '<line x1="' + num(x1) + '" y1="' + num(y1) + '" x2="' + num(x2) + '" y2="' + num(y2) +
+          '" stroke="' + C.radios + '" stroke-width="' + (R.w ?? 2.4) + '"/>';
       }
     }
+    // The tunnel's walls: dashed, along the outside of its sector and along the
+    // inside only where that faces the open busway.
+    const t = A.tunel ?? 37, a1 = angHueco(A.yi1), a2 = angHueco(A.yi2);
+    // A whisper on the sheet: paler than the dashed corridors elsewhere.
+    const discontinua = '" fill="none" stroke="' + C.radios + '" stroke-width="0.6" stroke-dasharray="3 2.4"/>';
+    out += '<path d="M' + pt(enCapa(lado, A.ro, -t)) + ' A' + A.ro + ',' + A.ro + ' 0 0 ' + giro + ' ' +
+      pt(enCapa(lado, A.ro, t)) + discontinua +
+      '<path d="M' + pt(enCapa(lado, A.ri, -a2)) + ' A' + A.ri + ',' + A.ri + ' 0 0 ' + giro + ' ' +
+      pt(enCapa(lado, A.ri, a1)) + discontinua;
     return out;
   }
 
-  /** The green: a CORNER FILLET, closing where the cap curve reaches it. */
-  function verde(cx, dir) {
-    const DX = geo.verde ?? 63;
-    const th = Math.acos(Math.min(1, DX / A.rxo));
-    const yEnd = RO * Math.sin(th);
+  /** The spine: straight along each platform and round each end, until it meets the busway's hole. */
+  function espinaAnillo() {
+    const a1 = angHueco(A.yi1), a2 = angHueco(A.yi2);
+    const r = A.ri + ',' + A.ri;
+    return '<path d="M' + pt(enCapa(-1, A.ri, a1)) + ' A' + r + ' 0 0 1 ' + A.x0 + ',' + num(A.cy - A.ri) +
+      ' H' + A.x1 + ' A' + r + ' 0 0 1 ' + pt(enCapa(1, A.ri, a1)) +
+      ' M' + pt(enCapa(-1, A.ri, -a2)) + ' A' + r + ' 0 0 0 ' + A.x0 + ',' + num(A.cy + A.ri) +
+      ' H' + A.x1 + ' A' + r + ' 0 0 0 ' + pt(enCapa(1, A.ri, -a2)) +
+      '" fill="none" stroke="' + C.trazo + '" stroke-width="' + (A.espina ?? 1.2) + '"/>';
+  }
+
+  /**
+   * What lies off each end: the green in the corners, and the tunnel running on
+   * out to the edge of the sheet.
+   *
+   * The green is a half disc sitting on the outer kerb's line, cut away by the
+   * loop; the tunnel's approach is bounded above and below by two arcs that
+   * flare it into the loop's end. Both are drawn whole and the loop is painted
+   * over them, which is how the sheet builds them too.
+   */
+  function entorno() {
+    const V = A.verdes, L = A.lenguas;
     let out = '';
-    for (const sgn of [-1, 1]) {
-      const x0 = cx + dir * DX, y0 = CY + sgn * yEnd;
-      out += '<path d="M' + num(x0) + ',' + num(CY + sgn * RO) + ' L' + cx + ',' + num(CY + sgn * RO) +
-        ' A' + A.rxo + ',' + RO + ' 0 0 ' + (dir * sgn > 0 ? 1 : 0) + ' ' + num(x0) + ',' + num(y0) +
-        ' Z" fill="' + C.verde + '"/>';
+    for (const x of V?.x ?? []) {
+      const r = V.r;
+      out += '<path d="M' + num(x - r) + ',' + num(A.cy - A.ro) + ' A' + r + ',' + r + ' 0 0 0 ' + num(x + r) + ',' +
+        num(A.cy - A.ro) + ' Z M' + num(x - r) + ',' + num(A.cy + A.ro) + ' A' + r + ',' + r + ' 0 0 1 ' + num(x + r) +
+        ',' + num(A.cy + A.ro) + ' Z" fill="' + C.verde + '"/>';
     }
+    (L?.x ?? []).forEach((cx, i) => {
+      const r = L.r, s = i ? 1 : -1, giro = i ? 1 : 0;
+      out += '<path d="M' + num(cx + s * r) + ',' + num(A.cy - L.dy) + ' A' + r + ',' + r + ' 0 0 ' + giro + ' ' +
+        num(cx) + ',' + num(A.cy - L.dy + r) + ' V' + num(A.cy + L.dy - r) + ' A' + r + ',' + r + ' 0 0 ' + giro + ' ' +
+        num(cx + s * r) + ',' + num(A.cy + L.dy) + ' Z" fill="' + C.anden + '"/>';
+    });
     return out;
   }
 
@@ -530,18 +580,26 @@ export function buildPortalSvg(input) {
     const caja = t.caja;
     const seg = caja.w / items.length;
     const titulo = (tira.nombre.split('· ')[1] ?? '').replace(/^./, (c) => c.toUpperCase());
-    let out = '<text x="' + num(caja.x + caja.w / 2) + '" y="' + t.capY + '" class="pq-cap">' +
-      escapeHtml(titulo) + '</text>';
+    // Where the sheet repeats a caption along a long zone, it is set at each of
+    // its own points rather than once in the middle.
+    let out = (t.capX ?? [caja.x + caja.w / 2])
+      .map((x) => '<text x="' + num(x) + '" y="' + t.capY + '" class="pq-cap">' + escapeHtml(titulo) + '</text>')
+      .join('');
+    // The hairline between two bays is the sheet's own width, not a constant.
+    const hueco = caja.gap ?? 3;
     items.forEach((it, i) => {
       const sx = caja.x + i * seg;
-      out += '<rect x="' + num(sx) + '" y="' + caja.y + '" width="' + num(seg - 3) + '" height="' +
+      out += '<rect x="' + num(sx) + '" y="' + caja.y + '" width="' + num(seg - hueco) + '" height="' +
         caja.h + '" fill="' + C.bahia + '"/>';
-      const tx = sx + (seg - 3) / 2;
+      const tx = sx + (seg - hueco) / 2;
       out += t.arriba
         ? '<path d="M' + num(tx - 4.5) + ',' + num(caja.y + caja.h - 1.5) + ' h9 l-4.5,-7 z" fill="' + C.trazo + '"/>'
         : '<path d="M' + num(tx - 4.5) + ',' + num(caja.y + 1.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
+      // An arrival zone is named by the strip's caption and nothing else: the
+      // sheet prints no second name under it, and "Llegada de pasajeros" was
+      // ours, set in the busway where the sheet has bare page.
       const nombres = it.llegada
-        ? ['Llegada de pasajeros']
+        ? []
         : (it.destinos ?? []).length
           ? [escapeHtml(it.destinos.join(', '))]
           : (it.rutas ?? []).map(
@@ -745,8 +803,12 @@ export function buildPortalSvg(input) {
   };
 
   // What the bridge carries: the ramps it lands on at each platform come from
-  // the bridge COLUMN's own `sube`, the rest from its strip.
-  const sube = ((D.columnas ?? []).find((c) => c.t === 'puente' && c.sube) ?? {}).sube ?? [];
+  // the bridge COLUMN's own `sube`, the rest from its strip. The BRIDGE's
+  // column, by name: Portal Norte's tunnels are columns too and come first, so
+  // taking the first column that climbs anything stacked their stairs on a
+  // bridge that lands on ramps.
+  const suben = (D.columnas ?? []).filter((c) => c.t === 'puente' && c.sube);
+  const sube = (suben.find((c) => /puente/i.test(c.nombre ?? '')) ?? suben[0] ?? {}).sube ?? [];
   const enTira = ((tiras[P?.tira]?.items ?? []).find((i) => i.t === 'equipo') ?? {}).iconos ?? [];
   const pila = [...sube, ...enTira, ...sube];
 
@@ -755,7 +817,11 @@ export function buildPortalSvg(input) {
     (r.fin ? '" text-anchor="end' : r.centro ? '" text-anchor="middle' : '') + '"' +
     // What the sheet sets in grey — the neighbours, the yard, the shopping
     // centre across the road — is background to the station, not part of it.
-    (r.tono ? ' style="fill:' + (C[r.tono] ?? C.tinta) + '"' : '') +
+    // And a sheet does not always set the same name at one size: Portal Norte's
+    // two "Túnel peatonal" labels differ by two points, one at each end.
+    (r.tono || r.fs
+      ? ' style="' + (r.tono ? 'fill:' + (C[r.tono] ?? C.tinta) + ';' : '') + (r.fs ? 'font-size:' + r.fs + 'px' : '') + '"'
+      : '') +
     // A street name runs ALONG its street and a corridor's name along the
     // corridor. Set level they read as labels dropped on the drawing rather
     // than as part of it.
@@ -868,20 +934,9 @@ export function buildPortalSvg(input) {
     // light drawing floated on black.
     '<rect x="' + geo.vista[0] + '" y="' + geo.vista[1] + '" width="' + geo.vista[2] +
     '" height="' + geo.vista[3] + '" fill="' + C.papel + '"/>' +
-    // Only where there IS a ring. Emitted unconditionally it measured a ring
-    // that is not there: `y="undefined" height="NaN"`, which the browser rejects
-    // and reports, on every station drawn as lozenges.
-    (!hayAnillo ? '' :
-      '<defs><clipPath id="pq-anillo"><rect x="' + (vx - 40) + '" y="' + A.yo1 + '" width="' + (vw + 80) +
-      '" height="' + num(A.yo2 - A.yo1) + '"/></clipPath></defs>') +
-
-    // Everything outside the ring is confined to the ring's own rows: the sheet
-    // has bare page beside the turnaround at mid-height, not surface.
-    (hayAnillo
-      ? '<g clip-path="url(#pq-anillo)">' +
-        verde(A.x0, -1) + verde(A.x1, 1) + radios(A.x0, 1) + radios(A.x1, -1) +
-        '</g>'
-      : '') +
+    // Only where there IS a ring: measured on a lozenge portal it came out as
+    // `undefined` and `NaN`, which the browser rejects and reports.
+    (hayAnillo ? entorno() : '') +
 
     // The tunnel: ONE passage the length of the station under the roadway, which
     // is why both ends carry the same name.
@@ -894,8 +949,10 @@ export function buildPortalSvg(input) {
       : '') +
 
     (hayAnillo
-      ? '<path d="' + anillo + '" fill="' + C.anden + '" stroke="' + C.trazo +
-        '" stroke-width="0.9" fill-rule="evenodd"/>'
+      ? '<path d="' + estadio(A.ro) + ' ' + hueco() + '" fill="' + C.anden + '" fill-rule="evenodd"/>' +
+        capa(-1) + capa(1) +
+        '<path d="' + estadio(A.ri) + ' ' + hueco() + '" fill="' + C.losa + '" fill-rule="evenodd"/>' +
+        espinaAnillo()
       : '') +
     // What the station stands ON, all of it under the platforms: the street, the
     // planting, the shopping centre it shares a wall with, and the corridors
@@ -952,9 +1009,23 @@ export function buildPortalSvg(input) {
       .map((d) => '<rect x="' + P.bloque.x + '" y="' + d.y + '" width="' + P.bloque.w + '" height="' +
         d.h + '" fill="' + C.descanso + '" stroke="' + C.trazo + '" stroke-width="0.7"/>')
       .join('') +
+    // The line each ramp runs along, ruled across its landing.
+    (P.guias ?? [])
+      .map((g) => '<path d="M' + g.x0 + ',' + g.y + ' H' + g.x1 + '" stroke="' + C.trazo + '" stroke-width="0.9"/>')
+      .join('') +
     '<rect x="' + P.bloque.x + '" y="' + A.yi1 + '" width="' + P.bloque.w + '" height="' +
     num(A.yi2 - A.yi1) + '" fill="' + C.bloque + '" stroke="' + C.trazo + '" stroke-width="0.7"/>' +
-    pila.map((n, i) => (P.pila[i] === undefined ? '' : tile(n, P.bloque.cx - TILE / 2, P.pila[i] - TILE / 2))).join('')) +
+    // The ticket window stands in a booth of its own, a darker square round its tile.
+    (P.marco
+      ? '<rect x="' + P.marco.x + '" y="' + P.marco.y + '" width="' + P.marco.w + '" height="' + P.marco.h +
+        '" fill="' + C.bahia + '"/>'
+      : '') +
+    pila.map((n, i) => (P.pila[i] === undefined ? '' : tile(n, P.bloque.cx - TILE / 2, P.pila[i] - TILE / 2))).join('') +
+    // And each turnstile bank its arms, the three short bars beside the tile.
+    (P.brazos ?? [])
+      .map(([x, y]) => '<rect x="' + num(x - 3) + '" y="' + num(y - 1.75) + '" width="6" height="3.5" rx="1.5" fill="' +
+        C.trazo + '"/>')
+      .join('')) +
 
     (geo.etiquetas ?? []).map(etiqueta).join('') +
     (geo.rotulos ?? []).map(rotulo).join('') +

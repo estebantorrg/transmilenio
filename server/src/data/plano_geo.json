@@ -10,16 +10,37 @@
       338
     ],
     "teja": 18,
-    "verde": 63,
     "anillo": {
-      "x0": 291,
-      "x1": 910,
-      "yo1": 249.5,
+      "x0": 327.3,
+      "x1": 876,
+      "cy": 342,
+      "ro": 92.2,
+      "ri": 63.6,
       "yi1": 308,
       "yi2": 376,
-      "yo2": 434,
-      "rxo": 80,
-      "rxi": 73
+      "espina": 1.2,
+      "rayas": {
+        "desde": 39.6,
+        "hasta": 94,
+        "paso": 4.15,
+        "w": 2.4
+      },
+      "tunel": 37,
+      "verdes": {
+        "r": 57,
+        "x": [
+          282,
+          924
+        ]
+      },
+      "lenguas": {
+        "r": 48.7,
+        "dy": 56.3,
+        "x": [
+          259.1,
+          947
+        ]
+      }
     },
     "tunel": {
       "x": 211,
@@ -43,7 +64,7 @@
       },
       {
         "y": 250.1,
-        "x0": 291,
+        "x0": 336.9,
         "x1": 864,
         "w": 2.8
       },
@@ -54,26 +75,15 @@
         "w": 2.8
       }
     ],
-    "muros": [
-      {
-        "y": 277.5,
-        "x0": 291,
-        "x1": 910
-      },
-      {
-        "y": 406.5,
-        "x0": 291,
-        "x1": 910
-      }
-    ],
     "tiras": [
       {
         "tira": "Plataforma 1 · salida de buses zonales",
         "caja": {
-          "x": 325,
-          "y": 296,
-          "w": 213,
-          "h": 10
+          "x": 325.5,
+          "y": 297.5,
+          "w": 213.3,
+          "h": 9,
+          "gap": 2
         },
         "capY": 295,
         "nameY": 318,
@@ -93,9 +103,10 @@
         "tira": "Plataforma 1 · salida de buses intermunicipales",
         "caja": {
           "x": 687,
-          "y": 296,
+          "y": 297.5,
           "w": 160,
-          "h": 10
+          "h": 9,
+          "gap": 2
         },
         "capY": 295,
         "nameY": 318,
@@ -112,10 +123,11 @@
       {
         "tira": "Plataforma 2 · llegada de buses zonales",
         "caja": {
-          "x": 325,
-          "y": 378,
-          "w": 213,
-          "h": 10
+          "x": 325.5,
+          "y": 377.5,
+          "w": 214,
+          "h": 9,
+          "gap": 2
         },
         "capY": 396,
         "nameY": 370,
@@ -130,15 +142,20 @@
             508
           ],
           "y": 399
-        }
+        },
+        "capX": [
+          377.5,
+          485.5
+        ]
       },
       {
         "tira": "Plataforma 2 · salida de buses zonales",
         "caja": {
           "x": 661,
-          "y": 378,
+          "y": 377.5,
           "w": 213,
-          "h": 10
+          "h": 9,
+          "gap": 2
         },
         "capY": 396,
         "nameY": 370,
@@ -156,19 +173,19 @@
     "escaleras": [
       [
         286,
-        266
+        263.5
       ],
       [
         286,
-        399
+        403.5
       ],
       [
         898,
-        266
+        263.5
       ],
       [
         898,
-        399
+        403.5
       ]
     ],
     "puente": {
@@ -180,25 +197,25 @@
         "y1": 484
       },
       "bloque": {
-        "x": 570,
-        "w": 46,
+        "x": 563.5,
+        "w": 51,
         "cx": 588.5
       },
       "pila": [
-        295.5,
-        319.5,
-        343.5,
-        369,
-        391.5
+        292.3,
+        318,
+        341.8,
+        365.2,
+        392.5
       ],
       "descansos": [
         {
-          "y": 280,
-          "h": 28
+          "y": 278.5,
+          "h": 27.5
         },
         {
-          "y": 380,
-          "h": 28
+          "y": 376,
+          "h": 29.5
         }
       ],
       "escaleras": [
@@ -224,6 +241,50 @@
           477,
           464
         ]
+      ],
+      "guias": [
+        {
+          "y": 292,
+          "x0": 563.5,
+          "x1": 609
+        },
+        {
+          "y": 390.3,
+          "x0": 563.5,
+          "x1": 610
+        }
+      ],
+      "marco": {
+        "x": 577.5,
+        "y": 328.5,
+        "w": 22,
+        "h": 25
+      },
+      "brazos": [
+        [
+          601.5,
+          311
+        ],
+        [
+          601.5,
+          319
+        ],
+        [
+          601.5,
+          327
+        ],
+        [
+          601.5,
+          358
+        ],
+        [
+          601.5,
+          366
+        ],
+        [
+          601.5,
+          374
+        ]
       ]
     },
     "etiquetas": [
@@ -236,45 +297,46 @@
       },
       {
         "x": 533,
-        "y": 415,
+        "y": 415.5,
         "w": 64,
-        "h": 13,
+        "h": 11.5,
         "texto": "Plataforma 2"
       },
       {
-        "x": 613,
+        "x": 606,
         "y": 334,
         "w": 78,
         "h": 15,
         "texto": "Acceso peatonal",
-        "flecha": true
+        "flecha": true,
+        "fs": 10.6
       }
     ],
     "rotulos": [
       {
         "x": 621,
-        "y": 238.5,
+        "y": 242,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
         "x": 621,
-        "y": 246.5,
+        "y": 251,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian bridge"
       },
       {
         "x": 578,
-        "y": 193,
+        "y": 194.5,
         "clase": "anchor",
         "centro": true,
         "texto": "Éxito"
       },
       {
         "x": 450,
-        "y": 492,
+        "y": 485.5,
         "clase": "anchor",
         "centro": true,
         "texto": "Homecenter"
@@ -294,18 +356,20 @@
         "texto": "Pedestrian tunnel"
       },
       {
-        "x": 948,
-        "y": 343,
+        "x": 951,
+        "y": 341,
         "clase": "place",
         "centro": true,
-        "texto": "Túnel peatonal"
+        "texto": "Túnel peatonal",
+        "fs": 11.9
       },
       {
-        "x": 948,
+        "x": 950,
         "y": 352,
         "clase": "place-en",
         "centro": true,
-        "texto": "Pedestrian tunnel"
+        "texto": "Pedestrian tunnel",
+        "fs": 7.5
       },
       {
         "x": 213.6,
@@ -314,11 +378,35 @@
         "texto": "Autopista Norte"
       },
       {
-        "x": 998,
+        "x": 995.5,
         "y": 459,
         "clase": "street",
         "fin": true,
         "texto": "Autopista Norte"
+      },
+      {
+        "x": 657,
+        "y": 267,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 657,
+        "y": 275.5,
+        "clase": "evac",
+        "texto": "evacuación"
+      },
+      {
+        "x": 657,
+        "y": 419.5,
+        "clase": "evac",
+        "texto": "Ruta de"
+      },
+      {
+        "x": 657,
+        "y": 428.3,
+        "clase": "evac",
+        "texto": "evacuación"
       }
     ],
     "chips": [
@@ -336,7 +424,7 @@
           "J70",
           "J74"
         ],
-        "x": 698,
+        "x": 701,
         "y": 243.5
       },
       {
@@ -344,7 +432,7 @@
           "G12",
           "S46"
         ],
-        "x": 383,
+        "x": 384,
         "y": 442
       },
       {
@@ -352,7 +440,7 @@
           "8",
           "H75"
         ],
-        "x": 686,
+        "x": 680,
         "y": 442,
         "sub": {
           "H75": "Portal Usme"
@@ -363,7 +451,7 @@
           "H27",
           "H13"
         ],
-        "x": 800,
+        "x": 794,
         "y": 442,
         "sub": {
           "H27": "Portal Tunal",
@@ -384,6 +472,56 @@
       239.5,
       444.5,
       465
+    ],
+    "tonos": {
+      "losa": {
+        "papel": "#BDBBBC"
+      },
+      "bloque": {
+        "papel": "#B3B1B2"
+      }
+    },
+    "tipo": {
+      "place": 12.8,
+      "place-en": 7.8,
+      "chip": 16,
+      "bay": 7.6,
+      "cap": 9.5,
+      "tag": 9.5,
+      "place-sm": 12.3,
+      "anchor": 12.5,
+      "street": 13,
+      "evac": 9.2
+    },
+    "chip": {
+      "k": 8.2,
+      "min": 29.5,
+      "h": 23,
+      "gap": 2.5,
+      "base": 0.8,
+      "baseSub": 0.93
+    },
+    "senales": [
+      {
+        "x": 644.5,
+        "y": 266.3,
+        "w": 18,
+        "h": 17,
+        "lado": 15,
+        "margen": 1.3,
+        "espejo": true,
+        "icono": "evacuacion"
+      },
+      {
+        "x": 644.5,
+        "y": 418.7,
+        "w": 18,
+        "h": 16,
+        "lado": 14.5,
+        "margen": 1.3,
+        "espejo": true,
+        "icono": "evacuacion"
+      }
     ]
   },
   "TM0058": {
