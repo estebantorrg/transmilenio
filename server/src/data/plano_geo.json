@@ -2375,8 +2375,8 @@
     }
   },
   "TM0118": {
-    "source": "Plano de ubicacion, Portal Usme, version julio de 2025.",
-    "why": "TWO platforms drawn LEVEL, the same pale slab twice with a round green end at each side, and the kerb yellow along the TOP edge only. The bays are neither cut into one band nor set beside their names: each is its own grey bar inside the kerb, butted to the next with a hairline, its arrow pointing up at the kerb, and the names stand over them on the page, stacked upward when a bay has two routes. Where the tunnel comes up, a darker mouth is cut into each platform, outlined in ink except where the ramp and the stair open out of it. The entrance is two drums, Planta Alta over Planta Baja, each ruled with the radial treads of a spiral stair, with the access wing off the upper one and a stem down to Plataforma 2. The furniture is white knocked out of black, as at Portal Norte and Portal 80, and the north point is turned: north is to the LEFT on this sheet.",
+    "source": "Plano de ubicacion, Portal Usme, version julio de 2025, con la redistribucion de plataformas del aviso de TransMilenio vigente desde el sabado 19 de septiembre de 2026.",
+    "why": "TWO platforms drawn LEVEL, the same pale slab twice with a round green end at each side, and the kerb yellow along the TOP edge only. The bays are neither cut into one band nor set beside their names: each is its own grey bar inside the kerb, butted to the next with a hairline, its arrow pointing up at the kerb, and the names stand over them on the page, stacked upward when a bay has two routes. Where the tunnel comes up, a darker mouth is cut into each platform, outlined in ink except where the ramp and the stair open out of it. The entrance is two drums, Planta Alta over Planta Baja, each ruled with the radial treads of a spiral stair, with the access wing off the upper one and a stem down to Plataforma 2. The furniture is white knocked out of black, as at Portal Norte and Portal 80, and the north point is turned: north is to the LEFT on this sheet. From 19 September 2026 the operator redistributed the platforms: the badges, the bay pairings on Plataforma 1, the bay numbers A1-A10 printed on the bars and the \"TransMiZonales\" captions follow its notice; the geometry is still the July 2025 sheet's, which the notice redraws unchanged.",
     "vista": [
       196,
       116,
@@ -3120,27 +3120,32 @@
           },
           {
             "x": 577,
+            "tx": 4,
             "dx": 3.5,
             "una": true
           },
           {
             "x": 637.25,
+            "tx": 4,
             "dx": -17.25,
             "izq": true,
             "una": true
           },
           {
             "x": 698,
+            "tx": 4,
             "dx": 3.5,
             "una": true
           },
           {
             "x": 758.25,
+            "tx": 4,
             "dx": 3.75,
             "una": true
           },
           {
             "x": 818.75,
+            "tx": 4,
             "dx": -1,
             "una": true
           }
@@ -3170,28 +3175,35 @@
           },
           {
             "x": 581,
-            "dx": -2,
+            "tx": 4,
+            "dx": -22,
+            "izq": true,
             "una": true
           },
           {
             "x": 642,
+            "tx": 4,
             "dx": -20,
             "izq": true,
             "una": true
           },
           {
             "x": 702,
-            "dx": -21,
+            "tx": 4,
+            "dx": -30.3,
             "izq": true,
             "una": true
           },
           {
             "x": 763,
-            "dx": 3,
+            "tx": 4,
+            "dx": -17.2,
+            "izq": true,
             "una": true
           },
           {
             "x": 823,
+            "tx": 4,
             "dx": 1.5,
             "una": true
           }
@@ -3201,16 +3213,16 @@
     "chips": [
       {
         "codigos": [
-          "C17"
+          "B72"
         ],
-        "x": 261,
+        "x": 290.5,
         "y": 354.3
       },
       {
         "codigos": [
-          "B72"
+          "C17"
         ],
-        "x": 600,
+        "x": 600.5,
         "y": 354.3
       },
       {
@@ -3222,17 +3234,23 @@
       },
       {
         "codigos": [
-          "D20"
+          "M83"
         ],
-        "x": 301,
+        "x": 266,
         "y": 501.3
       },
       {
         "codigos": [
-          "M83",
+          "D20"
+        ],
+        "x": 318,
+        "y": 501.3
+      },
+      {
+        "codigos": [
           "J76"
         ],
-        "x": 624,
+        "x": 665.5,
         "y": 501.3
       },
       {
@@ -3346,13 +3364,13 @@
         "x": 304.5,
         "y": 309.5,
         "clase": "cap",
-        "texto": "Llegada de buses zonales"
+        "texto": "Llegada de TransMiZonales"
       },
       {
         "x": 703.5,
         "y": 309.5,
         "clase": "cap",
-        "texto": "Salida de buses zonales"
+        "texto": "Salida de TransMiZonales"
       },
       {
         "x": 397,
@@ -3382,13 +3400,13 @@
         "x": 304.5,
         "y": 457.35,
         "clase": "cap",
-        "texto": "Llegada de buses zonales"
+        "texto": "Llegada de TransMiZonales"
       },
       {
         "x": 706,
         "y": 457.35,
         "clase": "cap",
-        "texto": "Salida de buses zonales"
+        "texto": "Salida de TransMiZonales"
       },
       {
         "x": 397,
@@ -3413,6 +3431,86 @@
         "y": 497.05,
         "clase": "evac",
         "texto": "evacuación"
+      },
+      {
+        "x": 576.5,
+        "y": 299.2,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A6"
+      },
+      {
+        "x": 636.75,
+        "y": 299.2,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A7"
+      },
+      {
+        "x": 697.5,
+        "y": 299.2,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A8"
+      },
+      {
+        "x": 757.75,
+        "y": 299.2,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A9"
+      },
+      {
+        "x": 818.25,
+        "y": 299.2,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A10"
+      },
+      {
+        "x": 580.5,
+        "y": 447,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A1"
+      },
+      {
+        "x": 641.5,
+        "y": 447,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A2"
+      },
+      {
+        "x": 701.5,
+        "y": 447,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A3"
+      },
+      {
+        "x": 762.5,
+        "y": 447,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A4"
+      },
+      {
+        "x": 822.5,
+        "y": 447,
+        "clase": "place-sm",
+        "fin": true,
+        "fs": 7.2,
+        "texto": "A5"
       },
       {
         "x": 497,
