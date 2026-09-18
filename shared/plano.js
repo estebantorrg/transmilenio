@@ -29,7 +29,7 @@
 // entered first finishes initialising before the other calls into it. Kept this
 // way so that `buildSheetPlano` stays the single entry point both surfaces use;
 // splitting the dispatch across the two callers is what let them drift before.
-import { buildPortalSvg } from './plano_svg.js';
+import { buildPortalSvg, esPortal } from './plano_svg.js';
 
 /** @typedef {{ id?: string, codigo: string, nombre: string, color?: string, tipoServicio?: string, sistema?: string }} Route */
 
@@ -54,6 +54,13 @@ export function normalizeName(value) {
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, '');
 }
+
+/**
+ * A portal's window onto its sheet, in the pixels of a 1024-wide sheet: one of
+ * the `vista` numbers (2 = width, 3 = height) scaled by the sheet's own width
+ * (`hoja`, where it is not 1024).
+ */
+const referencia = (geo, i) => +(geo.vista[i] * (1024 / (geo.hoja ?? 1024))).toFixed(2);
 
 function normalizeCode(value) {
   return String(value ?? '').trim().toUpperCase();
@@ -246,15 +253,11 @@ export const ICONOS = {
       '<path d="M14.6 7.6 22.4 12 14.6 16.4z" fill="' + W + '"/>',
   },
   ascensor: {
+    // The mark every sheet's legend prints for Ascensor Prioritario: the
+    // wheelchair on blue, not a lift car. Drawn as a lift it matched no sheet,
+    // and the same mark was filed a second time as 'Acceso accesible', so a key
+    // could list one thing under two names.
     label: 'Ascensor prioritario',
-    bg: '#1B5FA8',
-    material: 'elevator',
-    svg:
-      '<path d="M280-400v120q0 17 11.5 28.5T320-240h40q17 0 28.5-11.5T400-280v-120q11-11 25.5-17.5T440-440v-60q0-33-23.5-56.5T360-580h-40q-33 0-56.5 23.5T240-500v60q0 16 14.5 22.5T280-400Zm95.5-234.5Q390-649 390-670t-14.5-35.5Q361-720 340-720t-35.5 14.5Q290-691 290-670t14.5 35.5Q319-620 340-620t35.5-14.5ZM556-520h128q12 0 17.5-10.5T701-551l-64-102q-6-10-17-10t-17 10l-64 102q-6 10-.5 20.5T556-520Zm81 213 64-102q6-10 .5-20.5T684-440H556q-12 0-17.5 10.5t.5 20.5l64 102q6 10 17 10t17-10ZM200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v560q0 33-23.5 56.5T760-120H200Zm0-80h560v-560H200v560Zm0 0v-560 560Z" fill="' + W + '"/>',
-    vb: '0 -960 960 960',
-  },
-  accesible: {
-    label: 'Acceso accesible',
     bg: '#03518F',
     // Drawn from primitives rather than lifted from the icon set: at the size
     // this appears on a plano — eighteen pixels — the set's outlined glyph
@@ -733,7 +736,7 @@ export function buildSheetPlano(input) {
   // A PORTAL with measured geometry is not a row of columns at all: it is a
   // loop, drawn on its sheet's own coordinates. Taken before any of the column
   // work below, because none of that applies to it.
-  if (input.geo?.anillo || (input.geo?.andenes ?? []).length) {
+  if (esPortal(input.geo)) {
     const svg = buildPortalSvg({
       geo: input.geo,
       detalle: input.detalle,
@@ -757,8 +760,12 @@ export function buildSheetPlano(input) {
           // MINIMUM SCALE rather than a minimum size (three portals, three
           // windows onto their sheets — 840, 766 and 652 across), and sizes the
           // box from its proportions so the whole drawing fits the view.
+          // In the pixels of a 1024-wide sheet, which is how the operator
+          // publishes nearly all of them: Portal Américas comes at 1920, and
+          // measured in its own pixels the scale floor demanded a drawing wider
+          // than the screen.
           '<div class="popup-plano popup-plano-portal" role="group" ' +
-          'style="--pq-vb:' + input.geo.vista[2] + ';--pq-vh:' + input.geo.vista[3] + '" ' +
+          'style="--pq-vb:' + referencia(input.geo, 2) + ';--pq-vh:' + referencia(input.geo, 3) + '" ' +
           'aria-label="Plano de la estación" tabindex="0">' + svg + '</div>' +
           // The key names what the DRAWING used. The strips carry their own
           // icons through `zonal`; the stairs at the turnarounds and the ramps

@@ -84,6 +84,14 @@ const num = (v) => (Math.round(v * 100) / 100).toString();
  * @param {'papel'|'oscuro'} [input.tema]
  * @returns {string}
  */
+/**
+ * Whether a station's geometry draws a portal at all: a ring, bands, or
+ * platforms given as their own outline. Shared with the dispatch in `plano.js`
+ * so the two cannot disagree about which stations are portals.
+ */
+export const esPortal = (geo) =>
+  Boolean(geo && (geo.anillo || (geo.andenes ?? []).length || (geo.losas ?? []).length));
+
 export function buildPortalSvg(input) {
   const geo = input.geo;
   // A station whose measurements are still being taken draws NOTHING here and
@@ -91,7 +99,7 @@ export function buildPortalSvg(input) {
   // bays and no furniture — is worse for a rider than the schematic it replaces,
   // so an unfinished entry stays in version control without shipping.
   if (geo?.borrador) return '';
-  if (!geo || !(geo.anillo || (geo.andenes ?? []).length)) return '';
+  if (!geo || !esPortal(geo)) return '';
   // Not a palette but a set of references INTO one. Both palettes are written
   // into the drawing's own <style>, so the paper view is a class on the root
   // rather than a second render, and @media print can force it with nobody
@@ -383,9 +391,12 @@ export function buildPortalSvg(input) {
   const TEJA_BG = claro ? C.caja : TILE_BG;
   const TEJA_TINTA = claro ? C.glifo : null;
 
-  const tile = (name, x, y, s = TILE, fondo = TEJA_BG) => {
+  const tile = (name, x, y, s = TILE, fondoPedido) => {
     const i = name === 'torniquete' ? TORNIQUETE : ICONOS[name];
     if (!i) return '';
+    // A mark whose colour is part of it keeps it: the priority lift's wheelchair
+    // is blue by law, and on a black tile it read as one more piece of furniture.
+    const fondo = fondoPedido ?? (i.bg && i.bg !== TILE_BG ? i.bg : TEJA_BG);
     const pad = s * 0.055;
     const glifo = TEJA_TINTA
       ? i.svg.split('#FFFFFF').join(TEJA_TINTA).split(TILE_BG).join(fondo)
@@ -671,7 +682,9 @@ export function buildPortalSvg(input) {
       // Upright, like the names under it. The sheet turns the caption and the
       // platform's tag with the platform and leaves everything else square to
       // the page — the bay markers, the furniture, the badges.
-      const m = sobre(t.anden, b.x, t.off ?? 39);
+      // A strip on a level platform drawn from its own outline has no axis to
+      // hang off, so it is given its own row instead.
+      const m = t.y !== undefined ? { x: b.x, y: t.y + (t.off ?? 0) } : sobre(t.anden, b.x, t.off ?? 39);
       const rutas = it.rutas ?? [];
       if (t.marca === 'tick') {
         // Portal Sur does not cut a triangle into a bay bar, because it has no
@@ -701,11 +714,12 @@ export function buildPortalSvg(input) {
           // The arrow is not always at the middle of its bar: the arrival bar is
           // long and its arrow sits where the sheet put it, a few pixels off.
           // Up at the kerb it faces (Usme), or down at it (Suba's bays run along
-          // the platform's lower edge).
+          // the platform's lower edge) — or per bay, where one strip mixes them:
+          // Portal Américas points its arrival zones down and its bays up.
           '<path d="M' + num(m.x + (b.tx ?? 0) - tw / 2) + ',' +
-          num(m.y + (t.barra?.ty ?? 0) + (t.barra?.abajo ? -th / 2 : th / 2)) + ' h' +
+          num(m.y + (t.barra?.ty ?? 0) + ((b.abajo ?? t.barra?.abajo) ? -th / 2 : th / 2)) + ' h' +
           num(tw) + ' l' + num(-tw / 2) + ',' +
-          num(t.barra?.abajo ? th : -th) + ' z" fill="' + C.trazo + '"/>';
+          num((b.abajo ?? t.barra?.abajo) ? th : -th) + ' z" fill="' + C.trazo + '"/>';
       } else {
         out += '<path class="pq-bahia" d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
       }
@@ -864,8 +878,8 @@ export function buildPortalSvg(input) {
       : izq
         ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>'
         : t.flecha === 'arriba'
-          ? '<path d="M' + num(t.x + (t.punta ?? t.w / 2) - 5.5) + ',' + num(t.y + 0.5) + ' l5.5,-7.5 l5.5,7.5 z" fill="' +
-            KERB + '"/>'
+          ? '<path d="M' + num(t.x + (t.punta ?? t.w / 2) - (t.pw ?? 5.5)) + ',' + num(t.y + 0.5) + ' l' +
+            (t.pw ?? 5.5) + ',' + -(t.ph ?? 7.5) + ' l' + (t.pw ?? 5.5) + ',' + (t.ph ?? 7.5) + ' z" fill="' + KERB + '"/>'
           : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
     return punta +
       '<rect x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
@@ -985,6 +999,11 @@ export function buildPortalSvg(input) {
     (geo.norte ? norte(geo.norte) : '') +
 
     (geo.andenes ?? []).map(lozenge).join('') +
+    // A platform no band describes — Portal Américas' round ends over a sawtooth
+    // kerb — is its own measured outline.
+    (geo.losas ?? [])
+      .map((l) => '<path class="pq-losa" d="' + trazar(l.pts) + ' Z" fill="' + (l.tono ? C[l.tono] ?? C.anden : C.anden) + '"/>')
+      .join('') +
     (geo.barras ?? []).map(barra).join('') +
 
     (geo.bordillos ?? []).map(bordillo).join('') +
@@ -1003,6 +1022,13 @@ export function buildPortalSvg(input) {
     (geo.tiras ?? []).map(bahias).join('') +
     (geo.tiras ?? []).map(equipo).join('') +
     (geo.tirasAng ?? []).map(tiraAngulada).join('') +
+    // A structure seen THROUGH: Portal Américas' bridge crosses its platforms
+    // as a pale veil, and the bays and kerbs under it show paler rather than
+    // being painted out.
+    (geo.velos ?? [])
+      .map((v) => '<path class="pq-velo" d="' + rectangulo(v.rect, 0) + '" fill="' + (C[v.tono] ?? C.papel) +
+        '" fill-opacity="' + (v.opacidad ?? 0.3) + '"/>')
+      .join('') +
     (geo.cajas ?? []).map(caja).join('') +
     (geo.equipoAng ?? []).map(equipoAngulado).join('') +
     // Signs last among the marks: Portal Usme posts its evacuation signs ON the
