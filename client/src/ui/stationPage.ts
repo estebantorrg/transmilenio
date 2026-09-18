@@ -31,6 +31,7 @@ import {
   type StationPageData,
 } from '../layers/stations';
 import { escapeHTML, safeColor } from '../utils/html';
+import { avisosSlotHtml, watchAvisos } from './avisos';
 import { TRONCAL_COLORS } from '../utils/routeColors';
 import {
   crumbsHtml,
@@ -247,6 +248,8 @@ function render(station: StationPageData): string {
         ${heroChips(station, view.serviceCount)}
       </header>
 
+      ${avisosSlotHtml(station.avisos, 'station-avisos')}
+
       ${planoSection}
       ${servicesSection}
       ${empty}
@@ -303,6 +306,11 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // Same plan, same affordance as in the popup: wheel, drag and edge fades
   // instead of a native scrollbar under the drawing (§5.5.6).
   wirePlanoScroll(el);
+
+  // The operator's notices in force, over the plan they change, re-read every
+  // minute while the page is open: a closure that starts at 22:00 has to show
+  // up on a page opened at 21:55.
+  watchAvisos(el, station.avisos);
 
   // The live board is the one thing on this page that has to be asked for. It
   // fills the same `.popup-arrivals` slot the popup uses, and the popup is

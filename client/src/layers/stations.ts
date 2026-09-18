@@ -29,6 +29,7 @@ import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
 import { buildSheetPlano, nombreVagon } from '../../../shared/plano.js';
+import { avisosSlotHtml, watchAvisos } from '../ui/avisos';
 import { routePagePath } from '../ui/routeDetail';
 import {
   platformForMatchMethod,
@@ -288,7 +289,7 @@ function buildStationPlanoHtml(
   sentidos?: { positive: string; negative: string }
 ): string | null {
   type Resolved = { group: CatalogPlanGroup; members: CatalogRoute[] };
-  const vagones: Array<{ name: string; count: number; a: Resolved[]; b: Resolved[] }> = [];
+  const vagones: Array<{ name: string; plate?: string; count: number; a: Resolved[]; b: Resolved[] }> = [];
 
   // Which side of the platform a group is drawn on is the whole point of a plan,
   // so it is answered by the corridor and not by the order the catalog happened
@@ -321,13 +322,14 @@ function buildStationPlanoHtml(
     if (sentidos) {
       vagones.push({
         name,
+        plate: vagonLabels[key],
         count,
         a: resolved.filter((r) => sideOf(r.group) === 'a'),
         b: resolved.filter((r) => sideOf(r.group) === 'b'),
       });
     } else {
       const [first, ...rest] = resolved;
-      vagones.push({ name, count, a: first ? [first] : [], b: rest });
+      vagones.push({ name, plate: vagonLabels[key], count, a: first ? [first] : [], b: rest });
     }
   });
 
@@ -357,7 +359,7 @@ function buildStationPlanoHtml(
   const crossing =
     '<div class="pvg-gap" aria-hidden="true"><div class="pvg-gap-deck"><span class="pvg-gap-mark"></span></div></div>';
 
-  const columns = vagones.map(({ name, count, a, b }) => {
+  const columns = vagones.map(({ name, plate, count, a, b }) => {
     // The deck is the platform itself: door marks along both long edges and the
     // vagón's plate, centred between them.
     const deck =
@@ -367,7 +369,9 @@ function buildStationPlanoHtml(
       `<span class="pvg-doors" aria-hidden="true"></span>` +
       `</div>`;
     return (
-      `<section class="pvg" aria-label="${name}">` +
+      // The plate number, for a notice closing this vagón (`ui/avisos.ts`);
+      // a platform the count gate left unnumbered carries none.
+      `<section class="pvg" aria-label="${name}"${plate ? ` data-vagon="${escapeHTML(plate)}"` : ''}>` +
       `<div class="pvg-side pvg-side-a">${a.map((entry) => groupBlock(entry, 'a')).join('')}</div>` +
       deck +
       `<div class="pvg-side pvg-side-b">${b.map((entry) => groupBlock(entry, 'b')).join('')}</div>` +
@@ -662,6 +666,20 @@ function stationPlanLayout(
   return code ? _catalog.stations[code]?.planoLayout : undefined;
 }
 
+/** The operator notices on file for a resolved station, under the same
+ *  single-stop condition: a notice closes one station's vagón. */
+function stationAvisos(resolved: ResolvedCatalogStation | undefined): CatalogStation['avisos'] {
+  if (!resolved || resolved.sourceStops.length !== 1) return undefined;
+  const code = resolved.sourceStops[0]?.codigo;
+  return code ? _catalog.stations[code]?.avisos : undefined;
+}
+
+/** Shows the open popup's notices and marks its plan, once it is in the DOM. */
+function wirePopupAvisos(avisos: CatalogStation['avisos']): void {
+  const popup = document.querySelector<HTMLElement>('.tm-popup');
+  if (popup) watchAvisos(popup, avisos);
+}
+
 /**
  * The código this resolved station IS, for anything keyed on where the rider
  * is standing rather than on which stop the catalog files them under. A
@@ -787,6 +805,8 @@ export interface StationPageData {
   planoLayout?: StationPlanoLayout;
   planoDetalle?: import('../types/catalog').CatalogStation['planoDetalle'];
   planoGeo?: import('../types/catalog').CatalogStation['planoGeo'];
+  /** Operator notices not yet ended; `ui/avisos.ts` shows the ones in force. */
+  avisos?: import('../types/catalog').CatalogStation['avisos'];
   coordinate: [number, number];
   wagons: ResolvedCatalogWagons;
   vagonLabels: Record<string, string>;
@@ -851,6 +871,7 @@ export function getStationPageData(code: string): StationPageData | null {
     planoLayout: station.planoLayout,
     planoDetalle: station.planoDetalle,
     planoGeo: station.planoGeo,
+    avisos: station.avisos,
     coordinate: [lng, lat],
     wagons,
     vagonLabels: station.vagonLabels ?? {},
@@ -931,6 +952,7 @@ function showStationPopup(
       <div class="popup-eyebrow">${escapeHTML(p.corridor)}</div>
       <div class="popup-title">${escapeHTML(stationName)}</div>
       ${meta.length ? `<div class="popup-meta">${meta.map((item) => `<span>${escapeHTML(item)}</span>`).join('')}</div>` : ''}
+      ${avisosSlotHtml(stationAvisos(resolvedStation), 'popup-avisos')}
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
@@ -943,6 +965,7 @@ function showStationPopup(
 
   showPopup(map, coords as [number, number], html, { offset: 12, maxWidth: '340px' });
   wirePlanoScroll();
+  wirePopupAvisos(stationAvisos(resolvedStation));
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
   if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
 }
@@ -1250,6 +1273,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
       <div class="popup-eyebrow">${escapeHTML(corridor)}</div>
       <div class="popup-title">${escapeHTML(resolvedStation.stationName)}</div>
       ${location ? `<div class="popup-meta"><span>${escapeHTML(location)}</span></div>` : ''}
+      ${avisosSlotHtml(stationAvisos(resolvedStation), 'popup-avisos')}
       <div class="popup-wagon-container">
         ${wagonSections}
       </div>
@@ -1262,6 +1286,7 @@ export function showStationPopupByCode(map: maplibregl.Map, stationCode: string,
 
   showPopup(map, coordinate, html, { offset: 12, maxWidth: '340px' });
   wirePlanoScroll();
+  wirePopupAvisos(stationAvisos(resolvedStation));
   const arrCode = stationArrivalsCode(resolvedStation, stationCode);
   if (arrCode) void renderStopArrivals(arrCode, platformAllowedCodes(resolvedStation));
   return true;
