@@ -125,7 +125,9 @@ export function buildPortalSvg(input) {
     // ROUND thing at each end is the planting behind them, so a platform drawn
     // with the round cap swallowed the green and came out 26px too long.
     '<path d="' + trazar(a.pts) + '" fill="none" stroke-linecap="' + (a.cuadrado ? 'butt' : 'round') +
-    '" stroke-linejoin="round" stroke="' + C.anden + '" stroke-width="' + a.ancho + '"/>';
+    // In its own tone where the sheet gives the slab two: Portal Suba's platforms
+    // are darker on one side of the spine than the other.
+    '" stroke-linejoin="round" stroke="' + (a.tono ? C[a.tono] ?? C.anden : C.anden) + '" stroke-width="' + a.ancho + '"/>';
 
   /**
    * The line down the middle of an angled platform.
@@ -299,7 +301,10 @@ export function buildPortalSvg(input) {
       ...xs.map((x) => sobreD(d.anden, x, 0)),
       ...[...xs].reverse().map((x) => sobreD(d.anden, x, -alto)),
     ];
-    let out = '<path d="' + trazar(borde.map((p) => [num(p.x), num(p.y)])) + ' Z" fill="' + C.losa + '"/>';
+    // In the landing grey, or paler where the sheet draws the slope of a ramp
+    // rather than a flight of steps.
+    let out = '<path class="pq-desembarco" d="' + trazar(borde.map((p) => [num(p.x), num(p.y)])) + ' Z" fill="' +
+      (d.fondo ? C[d.fondo] ?? C.losa : C.losa) + '"/>';
     for (const [a, b] of d.tramos ?? []) {
       for (let x = a; x <= b + 0.01; x += d.paso ?? 2.2) {
         const p0 = sobreD(d.anden, x, 0), p1 = sobreD(d.anden, x, -alto);
@@ -695,11 +700,14 @@ export function buildPortalSvg(input) {
           '" height="' + num(b.h ?? h) + '" fill="' + C.bahia + '"/>' +
           // The arrow is not always at the middle of its bar: the arrival bar is
           // long and its arrow sits where the sheet put it, a few pixels off.
-          '<path d="M' + num(m.x + (b.tx ?? 0) - tw / 2) + ',' + num(m.y + (t.barra?.ty ?? 0) + th / 2) + ' h' +
+          // Up at the kerb it faces (Usme), or down at it (Suba's bays run along
+          // the platform's lower edge).
+          '<path d="M' + num(m.x + (b.tx ?? 0) - tw / 2) + ',' +
+          num(m.y + (t.barra?.ty ?? 0) + (t.barra?.abajo ? -th / 2 : th / 2)) + ' h' +
           num(tw) + ' l' + num(-tw / 2) + ',' +
-          num(-th) + ' z" fill="' + C.trazo + '"/>';
+          num(t.barra?.abajo ? th : -th) + ' z" fill="' + C.trazo + '"/>';
       } else {
-        out += '<path d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
+        out += '<path class="pq-bahia" d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
       }
       const lineas = b.texto
         // The sheet's own wording where it is not the route's: the arrival zone
@@ -849,12 +857,16 @@ export function buildPortalSvg(input) {
     // The pointer on the side the tag points from: Portal Norte's access tag
     // points left at its bridge, Portal Usme's floor tags point right at the
     // drum they name.
-    const izq = t.flecha && t.flecha !== 'der';
+    // Portal Suba's access tag points UP, from under the building's door.
+    const izq = t.flecha === true || t.flecha === 'izq';
     const x0 = izq ? t.x + 6 : t.x;
     const punta = !t.flecha ? ''
       : izq
         ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>'
-        : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
+        : t.flecha === 'arriba'
+          ? '<path d="M' + num(t.x + (t.punta ?? t.w / 2) - 5.5) + ',' + num(t.y + 0.5) + ' l5.5,-7.5 l5.5,7.5 z" fill="' +
+            KERB + '"/>'
+          : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
     return punta +
       '<rect x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
       '" fill="' + KERB + '"/>' +

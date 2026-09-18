@@ -525,6 +525,10 @@ test.describe('a portal on its sheet', () => {
       for (const a of geo.andenes ?? []) {
         const d = a.pts.map((p: number[]) => p.join(',')).join(' L');
         if (!svg.includes('M' + d)) wrong.push(code + ': a platform is not drawn along its own axis');
+        // And in its own tone where the slab has two, as Portal Suba's do.
+        if (a.tono && !svg.includes('stroke="var(--pq-' + a.tono + ')" stroke-width="' + a.ancho + '"')) {
+          wrong.push(code + ': a platform band is not drawn in its ' + a.tono + ' tone');
+        }
       }
       // Bare points where the spine is the ink line, an object where it carries
       // its own weight and tone.
@@ -552,7 +556,10 @@ test.describe('a portal on its sheet', () => {
       if (bahias) {
         // A triangle cut into a bay bar, or a short bar in the route's own
         // colour beside the name: two sheets, two marks, one thing counted.
-        const marcas = cuenta(/ h9 l-4\.5,7 z/g) + cuenta(/<rect class="pq-bahia"/g);
+        // Counted by class, on the one shape per bay that IS its marker: a bar
+        // bay's arrow is drawn with the same path as a triangle marker, and
+        // matched by its geometry it was counted twice.
+        const marcas = cuenta(/class="pq-bahia"/g);
         if (marcas !== bahias) wrong.push(code + ': ' + bahias + ' bays measured, ' + marcas + ' markers drawn');
         for (const t of geo.tirasAng ?? []) {
           const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
@@ -582,7 +589,9 @@ test.describe('a portal on its sheet', () => {
       const cuentas: Array<[string, number, RegExp]> = [
         ['corridor', (geo.corredores ?? []).length, /stroke-dasharray="3 2\.4"/g],
         ['run of planting', (geo.verdes ?? []).length, /stroke="var\(--pq-verde\)"/g],
-        ['tunnel landing', (geo.desembarcos ?? []).length, /fill="var\(--pq-losa\)"/g],
+        // By class: a ramp's slope is drawn paler than a flight of steps, so the
+        // landing grey no longer marks every landing.
+        ['tunnel landing', (geo.desembarcos ?? []).length, /<path class="pq-desembarco"/g],
         // The street's rules and the ink ON the platforms are one primitive
         // drawn in two passes: a tunnel mouth's outline ruled with the street
         // went under the platform it is cut into.
@@ -590,7 +599,8 @@ test.describe('a portal on its sheet', () => {
         // also inside every turnstile glyph, so the count could not fall short.
         ['ruled line', (geo.lineas ?? []).length + (geo.trazos ?? []).length, /<path class="pq-linea"/g],
         // A tag's pointer on the side it points from.
-        ['tag pointing left', (geo.etiquetas ?? []).filter((t: any) => t.flecha && t.flecha !== 'der').length, / l7,-5\.5 v11 z"/g],
+        ['tag pointing left', (geo.etiquetas ?? []).filter((t: any) => t.flecha === true || t.flecha === 'izq').length, / l7,-5\.5 v11 z"/g],
+        ['tag pointing up', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'arriba').length, / l5\.5,-7\.5 l5\.5,7\.5 z"/g],
         ['tag pointing right', (geo.etiquetas ?? []).filter((t: any) => t.flecha === 'der').length, / l-8\.5,-5\.5 v11 z"/g],
         ['circle', (geo.circulos ?? []).length, /<circle cx=/g],
         // By its class, not its green: an emergency exit and an evacuation-route
