@@ -93,7 +93,7 @@ function isAuthorized(req: Request): boolean {
   // An unconfigured relay used to answer EVERY caller — a public deployment with
   // no `TRANSMILENIO_COLOMBIA_RELAY_SECRET` and no `RELAY_CLIENT_ORIGINS` was an
   // open proxy onto the live host from a Colombian IP. Refuse instead, the way
-  // the OCI Function does (spec §5.2.2a); local dev still passes on its localhost
+  // any relay must (spec §5.2.2a); local dev still passes on its localhost
   // origin above.
   if (!RELAY_SECRET) return false;
 

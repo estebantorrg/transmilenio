@@ -2260,10 +2260,15 @@ export async function fetchLiveBuses(
 }
 
 // ─── Live path warm-up (cold-start removal) ───────────────
-// The CO egress is a serverless OCI Function (§5.2.2a): idle it drops its
-// container, so the FIRST live request of a tracking session pays a container
-// cold start on top of the upstream's own (App Engine also idles down). A cheap
-// periodic probe keeps both hot — and keeps the keep-alive sockets above open —
+// For a CO relay that idles down (the serverless backend this was written
+// against dropped its container, §5.2.2a), the FIRST live request of a tracking
+// session pays that cold start on top of the upstream's own (App Engine also
+// idles down). A cheap periodic probe keeps both hot — and keeps the keep-alive
+// sockets above open —
+//
+// Worth nothing when no relay is configured: the probe then just re-tries the
+// direct tier, which a non-CO host is 401-ed on, so production runs with
+// `TM_LIVE_WARMUP_MS=0` (§5.2.2a) rather than failing 6 requests an hour.
 // so a user who starts tracking gets the warm latency, not the cold one.
 const LIVE_WARMUP_INTERVAL_MS = Number(process.env.TM_LIVE_WARMUP_MS ?? 240_000);
 const WARMUP_ROUTE = { ruta: '1', nombre: 'Universidades' };
@@ -2354,7 +2359,7 @@ export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
       }
     }
 
-    // 2. Colombia relay (OCI Function, Bogotá egress) — reliable CO path.
+    // 2. Colombia relay, when one is configured — reliable CO path.
     if (isColombiaRelayConfigured()) {
       try {
         const { upstreamStatus, payload } = await relayForward('/paradero/buses', { paradero: cenefa }, ARRIVALS_TIMEOUT_MS, overall.signal);

@@ -214,7 +214,7 @@ async function fetchCardRowsViaColombianProxy(postData: string): Promise<Record<
 }
 
 /**
- * Reads the card ledger through the Colombia relay (OCI Function, Bogotá egress).
+ * Reads the card ledger through the configured Colombia relay (§5.2.2a).
  * Returns the ledger rows on a 200 upstream; throws otherwise so the caller can
  * fall through to the public proxy.
  */
@@ -244,7 +244,7 @@ async function fetchCardRowsViaColombianEgress(
   postData: string,
   geofenceUpstreamStatus?: number
 ): Promise<Record<string, unknown>[]> {
-  // 1. CO relay (OCI Function) — reliable, preferred.
+  // 1. CO relay, when one is configured — reliable, preferred.
   if (isColombiaRelayConfigured()) {
     try {
       return await fetchCardRowsViaRelay(cardNumber, consultar);

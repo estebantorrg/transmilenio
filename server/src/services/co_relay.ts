@@ -1,9 +1,12 @@
 /**
- * Colombia relay client — talks to the OCI Function (Bogotá egress) fronted by
- * an API Gateway. The relay exposes a generic, allowlisted forwarder that reaches
- * the CO-IP-geofenced TransMi live host from a reliable Colombian IP, replacing
- * the flaky free public proxy pool for every geofenced endpoint (live buses,
- * arrivals, card balance).
+ * Colombia relay client — backend-agnostic. It talks to whatever CO egress is
+ * configured at `TRANSMILENIO_COLOMBIA_RELAY_URL`, which must expose the generic
+ * allowlisted forwarder shape (§5.2.2a): that reaches the CO-IP-geofenced
+ * TransMi live host from a reliable Colombian IP, ahead of the flaky free public
+ * proxy pool, for every geofenced endpoint (live buses, arrivals, card balance).
+ * The serverless backend this was written against is gone and its code removed;
+ * with nothing configured, `isColombiaRelayConfigured()` is false and the tier is
+ * skipped entirely.
  *
  * Configure with `TRANSMILENIO_COLOMBIA_RELAY_URL` (the gateway deployment base,
  * e.g. https://<gw>.apigateway.<region>.oci.customer-oci.com/relay) and
