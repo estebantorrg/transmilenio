@@ -6,8 +6,7 @@
  * Native requests are not subject to browser CORS and leave from the device's
  * own connection — so on a phone with a Colombian IP the live API's two
  * constraints (CO-only geofence + no CORS, spec §5.2.1) are both satisfied with
- * no relay, proxy, or extension in the path. This is the mobile twin of the
- * Live Bridge extension (`liveBridge.ts`).
+ * no relay or proxy in the path.
  *
  * In a regular browser (no Capacitor) every export is a cheap no-op/false and
  * the caller falls through to the existing tiers (see `services/api.ts`).
@@ -174,7 +173,7 @@ function firstNonEmpty(tasks: Promise<unknown[]>[]): Promise<unknown[]> {
  * sequential loop paid one full round-trip (and, on a dead candidate, one full
  * 9 s timeout) per candidate before reaching the one that matches, which is the
  * bulk of the cold start on a phone. Mirrors the server's parallel candidate
- * strategy (spec §5.2.4) and the extension worker (`extension/background.js`).
+ * strategy (spec §5.2.4).
  * Zonal is keyed purely by route code with an empty body.
  */
 export async function fetchLiveBusesViaNative(

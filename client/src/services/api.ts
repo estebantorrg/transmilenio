@@ -6,14 +6,13 @@ import type {
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
 import type { PlannerCalibrationData } from '../../../shared/calibration.js';
-import { isLiveBridgeReady, probeLiveBridge, fetchLiveBusesViaBridge } from './liveBridge';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../utils/liveBus';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
  *  - live        buses are present.
- *  - no-buses    a Colombian egress (extension/relay) verified zero buses — trustworthy.
+ *  - no-buses    a Colombian egress (native app/relay) verified zero buses — trustworthy.
  *  - unverified  a free public proxy returned empty — low confidence, NOT "no buses".
  *  - stale       upstream silent; showing the last real fix (see `asOf`).
  *  - unreachable no transport reached the live API and no cache exists. */
@@ -27,7 +26,7 @@ export interface LiveBusResult {
   asOf?: number;
 }
 
-/** Wrap a high-confidence CO-egress payload (extension/relay-direct): a non-empty
+/** Wrap a high-confidence CO-egress payload (native app/relay-direct): a non-empty
  *  list is `live`, an empty one is a verified `no-buses`. */
 function wrapHighConfidence(raw: unknown, source: string): LiveBusResult {
   const data = (findBusPayloadArray(raw) ?? []) as any[];
@@ -189,7 +188,7 @@ async function fetchJson<T>(
 /**
  * POSTs a live-bus request straight to the configured Colombia relay
  * (`VITE_LIVE_RELAY_URL`). The relay adds CORS and egresses from a Colombian IP,
- * so this works from any browser (PC or mobile) with no extension. Throws on
+ * so this works from any browser (PC or mobile) with nothing installed. Throws on
  * non-2xx or network error so the caller can fall back to the main server.
  */
 async function postLiveRelayDirect(payload: unknown): Promise<any> {
@@ -212,8 +211,8 @@ async function postLiveRelayDirect(payload: unknown): Promise<any> {
 }
 
 /**
- * Runs the tiered live-bus cascade once: native app → Live Bridge extension →
- * direct CO relay → main server relay (spec §5.2.1a). NEVER throws — every
+ * Runs the tiered live-bus cascade once: native app → direct CO relay → main
+ * server relay (spec §5.2.1a). NEVER throws — every
  * outcome, including total failure, comes back as a typed {@link LiveBusResult}
  * so the caller can tell a silent upstream from a genuine absence of buses.
  */
@@ -227,7 +226,7 @@ async function requestLiveBuses(
 
   // Tier 0: native app (Capacitor) — the device itself calls the live API.
   // Native HTTP ignores CORS and carries the phone's own (Colombian) IP, so
-  // no relay, proxy, or extension is involved (spec §5.2.1a, mobile twin).
+  // no relay or proxy is involved (spec §5.2.1a, mobile twin).
   if (isNativeLiveAvailable()) {
     try {
       return wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
@@ -236,22 +235,7 @@ async function requestLiveBuses(
     }
   }
 
-  // Tier 1: Live Bridge extension — fetches from the user's own Colombian
-  // connection, bypassing the geofence and browser CORS with no relay load.
-  // Availability is read from cache (the extension announces itself at
-  // document_start); probing here would add its 600 ms ping timeout to the
-  // cold start of every user who has no extension.
-  if (isLiveBridgeReady()) {
-    try {
-      return wrapHighConfidence(await fetchLiveBusesViaBridge(ruta, nombre, routeType, nombreCandidates), 'extension');
-    } catch (error) {
-      console.warn('[Live] Bridge failed, trying direct relay:', error);
-    }
-  } else {
-    probeLiveBridge(); // settle availability in the background for the next poll
-  }
-
-  // Tier 2: Colombia relay called directly (PC + mobile, no install).
+  // Tier 1: Colombia relay called directly (PC + mobile, no install).
   if (LIVE_RELAY_URL) {
     try {
       return wrapHighConfidence(await postLiveRelayDirect(payload), 'co-relay');
@@ -260,7 +244,7 @@ async function requestLiveBuses(
     }
   }
 
-  // Tier 3: main server relay (spec §4.2). 0 retries — live requests must not
+  // Tier 2: main server relay (spec §4.2). 0 retries — live requests must not
   // stack up behind the 15s polling window (spec §3.4). The server endpoint
   // itself never hard-fails and already returns a {status,...} envelope.
   try {

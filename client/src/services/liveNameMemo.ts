@@ -11,8 +11,7 @@
  *
  * Session-scoped on purpose: nothing here is worth persisting, and a restart
  * simply re-learns the name on the first poll. The server keeps the same memo
- * for the website's tiers (`recallLiveName` in `server/src/services/tm_api.ts`),
- * and `extension/background.js` mirrors it for the Live Bridge.
+ * for the website's tiers (`recallLiveName` in `server/src/services/tm_api.ts`).
  */
 
 const MEMO_TTL_MS = 10 * 60 * 1000;

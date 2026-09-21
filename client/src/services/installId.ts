@@ -2,8 +2,7 @@
  * This install's id for the `uuid` header the live host requires (spec §5.2.3).
  *
  * Since 2026-09-21 the live host answers an empty `403` to any request without
- * a `uuid`, so the native app (and the extension, which keeps its own copy of
- * this in `extension/background.js`) must send one. It is generated once and
+ * a `uuid`, so the native app must send one. It is generated once and
  * kept: one id per install, which is what the official app sends. Never a
  * literal shared by every client — a single id carrying everyone's traffic is
  * what TMSA blocklisted on 2026-09-16 — and never a fresh one per request,

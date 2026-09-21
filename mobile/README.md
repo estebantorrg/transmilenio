@@ -4,12 +4,12 @@ Native Android shell (Capacitor 6) around the same web client the website ships.
 
 ## Why a native app changes live tracking
 
-The live-bus API is CO-IP geofenced **and** serves no CORS (spec §5.2.1). On the website that forces relays/proxies/extensions. Inside the APK, requests go through Capacitor's native HTTP layer (`client/src/services/nativeLive.ts`):
+The live-bus API is CO-IP geofenced **and** serves no CORS (spec §5.2.1). On the website that forces relays/proxies. Inside the APK, requests go through Capacitor's native HTTP layer (`client/src/services/nativeLive.ts`):
 
 - **No CORS** — native HTTP is not a browser fetch, so the missing `Access-Control-Allow-Origin` is irrelevant.
-- **User's own IP** — requests leave from the phone. On any Colombian connection (cellular or wifi) the geofence passes with **no relay, proxy, or extension involved**.
+- **User's own IP** — requests leave from the phone. On any Colombian connection (cellular or wifi) the geofence passes with **no relay or proxy involved**.
 
-Live cascade in the app: **native direct → Live Bridge → CO relay → server** (the web tiers remain as fallback, e.g. for a user outside Colombia). All other `/api/*` calls (catalog, ArcGIS, card balance, geocode) also use native HTTP against the hosted server (`https://transmilenio.onrender.com/api` by default), which bypasses webview CORS — the server needs no allow-list entry for the app.
+Live cascade in the app: **native direct → CO relay → server** (the web tiers remain as fallback, e.g. for a user outside Colombia). All other `/api/*` calls (catalog, ArcGIS, card balance, geocode) also use native HTTP against the hosted server (`https://transmilenio.onrender.com/api` by default), which bypasses webview CORS — the server needs no allow-list entry for the app.
 
 The service worker is not registered in the app (assets already live in the APK; see `client/src/main.ts`).
 

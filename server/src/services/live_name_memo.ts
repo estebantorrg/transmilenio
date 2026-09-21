@@ -17,7 +17,7 @@
  *
  * Its own module so a test can import it — `tm_api.ts` uses `import.meta` and
  * cannot be loaded by the Playwright runner. `client/src/services/liveNameMemo.ts`
- * is the app-side twin, and `extension/background.js` mirrors it.
+ * is the app-side twin.
  */
 
 const MEMO_TTL_MS = 10 * 60 * 1000;

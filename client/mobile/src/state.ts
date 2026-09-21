@@ -45,7 +45,7 @@ export interface HealthInfo {
   catalogStations?: number;
   catalogStale?: boolean;
   liveTrackingVersion?: string;
-  liveCapable: boolean; // native/extension/relay in the path
+  liveCapable: boolean; // native or relay in the path
   reachedAt?: number;
   ok: boolean;
 }

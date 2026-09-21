@@ -11,7 +11,6 @@ import { applyZonalStopEnrichment, buildRouteList, buildZonalStopGroups, isStati
 import { buildZonalAreas, getZoneLabel, getZones } from '@shared/data/zones';
 import { setCatalogIndexes } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
-import { isLiveBridgeAvailable } from '@shared/services/liveBridge';
 import type {
   BikeParking,
   RechargePoint,
@@ -412,8 +411,7 @@ export async function loadBackground(): Promise<void> {
  *  a bundled asset and live tracking runs natively from the phone's own CO IP, so
  *  health is computed locally. The browser-dev build still polls `/api/health`. */
 export async function fetchHealth(): Promise<void> {
-  const liveCapable =
-    isNativeLiveAvailable() || (await isLiveBridgeAvailable().catch(() => false)) || Boolean(LIVE_RELAY_URL);
+  const liveCapable = isNativeLiveAvailable() || Boolean(LIVE_RELAY_URL);
 
   if (state.native) {
     const health: HealthInfo = {

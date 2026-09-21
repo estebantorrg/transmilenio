@@ -1,7 +1,7 @@
 /**
  * Shared helpers for locating the bus array inside a live-tracking payload.
  *
- * The live API (and the extension/relay/server tiers that wrap it) return the
+ * The live API (and the relay/server tiers that wrap it) return the
  * vehicle list under one of several keys, or as a bare array, or as an object
  * keyed by vehicle id. Both the API client (`services/api.ts`, to decide
  * live-vs-no-buses) and the render layer (`layers/buses.ts`, to normalize) need
