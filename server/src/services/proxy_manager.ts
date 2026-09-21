@@ -3,6 +3,7 @@ import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
+import { isProvenProxy, parseTraceCountry } from './proxy_health.js';
 
 // Cap on how long the proxy CONNECT tunnel may take to establish before we
 // give up. Without this, an unresponsive proxy leaves the tunnel hanging
@@ -22,6 +23,15 @@ const MAX_TEST_CANDIDATES = 500; // bound work per refresh
 const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
 
 const LIVE_TEST_HOST = LIVE_API_HOST;
+// Stage 1 of verification. The exit country IS the filter (only a CO exit can
+// read the geofenced live host), and asking a neutral endpoint for it means the
+// live host is not the instrument we test hundreds of scraped proxies with:
+// MAX_TEST_CANDIDATES used to mean up to 500 upstream requests per refresh,
+// every 10 minutes, dwarfing the traffic of actual users (§5.2.3 volume).
+const TRACE_HOST = 'www.cloudflare.com';
+const TRACE_PATH = '/cdn-cgi/trace';
+const TRACE_TIMEOUT_MS = 8000;
+const TRACE_MAX_BODY_CHARS = 8 * 1024;
 // Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
 // only inspected for coordinates, so it never needs to be buffered whole.
 const PROBE_MAX_BODY_CHARS = 512 * 1024;
@@ -153,6 +163,23 @@ class ProxyManagerClass {
       .sort((a, b) => this.score(b) - this.score(a))
       .slice(0, Math.max(1, n))
       .map((p) => ({ ip: p.ip, port: p.port }));
+  }
+
+  /**
+   * The best proxy that has actually answered recently, or `null`.
+   *
+   * Lets a caller send ONE upstream request instead of racing a whole wave of
+   * them (§5.2.5): a proxy with a clean recent record is overwhelmingly likely
+   * to answer the next request too, and the wave is still there when it does
+   * not. "Proven" is deliberately strict — a recent success and no failure
+   * since — because a wrong guess here costs the caller a retry.
+   */
+  public getProvenProxy(): ProxyItem | null {
+    const now = Date.now();
+    const best = [...this.pool.values()]
+      .filter((p) => isProvenProxy(p, now))
+      .sort((a, b) => this.score(b) - this.score(a))[0];
+    return best ? { ip: best.ip, port: best.port } : null;
   }
 
   private score(p: ProxyStat): number {
@@ -299,8 +326,66 @@ class ProxyManagerClass {
     return all.slice(0, MAX_TEST_CANDIDATES);
   }
 
-  /** Resolves with round-trip latency (ms) if the proxy reaches the live API from CO, else null. */
-  private testProxy(ip: string, port: number): Promise<number | null> {
+  /**
+   * Resolves with round-trip latency (ms) if the proxy reaches the live API from
+   * CO, else null — in two stages, cheapest first: the exit country from a
+   * neutral endpoint, then (only for a Colombian exit) ONE real request to the
+   * live host, which is what proves the host actually serves this proxy.
+   */
+  private async testProxy(ip: string, port: number): Promise<number | null> {
+    const country = await this.probeExitCountry(ip, port);
+    if (country !== 'CO') return null;
+    return this.probeLiveHost(ip, port);
+  }
+
+  /** The proxy's exit country per Cloudflare's trace endpoint, or null if it failed. */
+  private probeExitCountry(ip: string, port: number): Promise<string | null> {
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (value: string | null) => {
+        if (!done) {
+          done = true;
+          resolve(value);
+        }
+      };
+
+      const req = https.request(
+        {
+          hostname: TRACE_HOST,
+          port: 443,
+          path: TRACE_PATH,
+          method: 'GET',
+          headers: { 'User-Agent': 'okhttp/4.12.0', Connection: 'close' },
+          agent: new SimpleProxyAgent(ip, port),
+          timeout: TRACE_TIMEOUT_MS,
+        },
+        (res) => {
+          let body = '';
+          // Same rule as every other read of an untrusted middlebox: cap it, and
+          // never leave the stream without an 'error' listener (§5.2.5).
+          res.on('data', (chunk) => {
+            if (body.length > TRACE_MAX_BODY_CHARS) {
+              res.destroy();
+              return finish(null);
+            }
+            body += chunk;
+          });
+          res.on('error', () => finish(null));
+          res.on('end', () => finish(res.statusCode === 200 ? parseTraceCountry(body) : null));
+        }
+      );
+
+      req.on('error', () => finish(null));
+      req.on('timeout', () => {
+        req.destroy();
+        finish(null);
+      });
+      req.end();
+    });
+  }
+
+  /** Stage 2: one live-host request through the proxy. Latency (ms), or null. */
+  private probeLiveHost(ip: string, port: number): Promise<number | null> {
     return new Promise((resolve) => {
       const started = Date.now();
       let done = false;

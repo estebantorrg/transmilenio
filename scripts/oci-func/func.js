@@ -47,11 +47,14 @@ const ALLOWED_PATH_PREFIXES = [
 ];
 
 // Mirrors server/src/services/official_app_headers.ts (a separate deployable
-// cannot import it). No `uuid`: a fixed one was blocklisted upstream (spec §5.2.3).
+// cannot import it). `uuid` is required upstream since 2026-09-21 and is never
+// a literal here (a shared one was blocklisted on 2026-09-16): TM_APP_UUID when
+// the function is configured with one, else one id per container.
 const UPSTREAM_HEADERS = {
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
   'User-Agent': 'okhttp/4.12.0',
   'version': '2.9.7',
+  'uuid': (process.env.TM_APP_UUID || '').trim() || crypto.randomUUID(),
   'Accept-Encoding': 'identity',
 };
 const UPSTREAM_TIMEOUT_MS = 10000;

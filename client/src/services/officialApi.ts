@@ -24,6 +24,7 @@
 import type { ApiResponse } from '../types/transmilenio';
 import { BOGOTA_BOUNDS, isWithinBogota } from '../utils/geo';
 import { LIVE_HOST, APPID, nativeHttpRequest } from './nativeLive';
+import { installUuid } from './installId';
 import type {
   ArrivalItem,
   ArrivalsResponse,
@@ -125,9 +126,11 @@ const LIVE_TIMEOUT_MS = 9_000;
 const CARD_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 
 /** Header set for native browser-parity calls to the live host (spec §5.2.3:
- *  Appid is the only required header; native/browser paths send Appid + type). */
+ *  `Appid` and — since 2026-09-21 — `uuid` are both required; a missing `uuid`
+ *  is an empty 403. The install id is this device's, kept across launches. */
 const LIVE_JSON_HEADERS: Record<string, string> = {
   Appid: APPID,
+  uuid: installUuid(),
   'Content-Type': 'application/json; charset=UTF-8',
 };
 

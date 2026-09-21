@@ -33,6 +33,7 @@
 
 import https from 'https';
 import fs from 'fs';
+import { randomUUID } from 'crypto';
 import path from 'path';
 import zlib from 'zlib';
 import readline from 'readline';
@@ -119,7 +120,11 @@ const LIVE_API_HOST = 'tmsa-transmiapp-shvpc.uc.r.appspot.com';
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 
 // Mirrors server/src/services/official_app_headers.ts (this script is
-// self-contained). No `uuid`: a fixed one was blocklisted upstream (spec §5.2.3).
+// self-contained). `uuid` is required upstream since 2026-09-21 and must not be
+// a literal in source (a shared one was blocklisted on 2026-09-16), so it is
+// TM_APP_UUID when set, else one id for this run — never one per request.
+const RUN_UUID = (process.env.TM_APP_UUID || '').trim() || randomUUID();
+
 const LIVE_HEADERS = {
   'Accept-Encoding': 'identity',
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
@@ -127,6 +132,7 @@ const LIVE_HEADERS = {
   'Host': LIVE_API_HOST,
   'User-Agent': 'okhttp/4.12.0',
   'version': '2.9.7',
+  'uuid': RUN_UUID,
 };
 
 // Route discovery API (buscador-rutas)
@@ -138,6 +144,7 @@ const DISCOVERY_HEADERS = {
   'Host': DISCOVERY_API_HOST,
   'User-Agent': 'okhttp/4.12.0',
   'version': '2.9.7',
+  'uuid': RUN_UUID,
 };
 const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
 

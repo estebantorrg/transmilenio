@@ -16,6 +16,7 @@ import { promisify } from 'util';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
+import { forgetLiveName, recallLiveName, rememberLiveName } from './live_name_memo.js';
 import {
   layoutServices,
   planoDetalle,
@@ -2014,6 +2015,24 @@ async function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, sign
   const tried = new Set<string>();
   let lastError: Error | null = null;
 
+  // Wave 0: the single best proxy, alone. A race of CO_PROXY_RACE_WIDTH sends
+  // the *same* request to five proxies and throws four answers away, so a
+  // healthy pool paid 5× the upstream requests for every poll. When the best
+  // proxy has been answering, it answers this one too; a failure just falls
+  // through to the ordinary races below, which is what they already existed for.
+  // Skipped when nothing in the pool has proven itself yet (§5.2.5).
+  const solo = ProxyManager.getProvenProxy();
+  if (solo && !signal?.aborted) {
+    const proxy = solo;
+    tried.add(`${proxy.ip}:${proxy.port}`);
+    console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO proxy SOLO ${proxy.ip}:${proxy.port}`);
+    try {
+      return await raceProxyWave([proxy], url, headers, context.postData, SimpleProxyAgent, ProxyManager, signal);
+    } catch (error: any) {
+      lastError = error;
+    }
+  }
+
   for (let wave = 1; wave <= CO_PROXY_MAX_WAVES; wave++) {
     if (signal?.aborted) break;
 
@@ -2084,14 +2103,17 @@ async function runLiveStrategy(
   contexts: LiveRequestContext[],
   errors: string[],
   shouldAbort?: (error: any) => boolean,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  onHit?: (context: LiveRequestContext) => void
 ): Promise<any[] | null> {
   if (contexts.length === 0) return null;
 
   // Fast-path: single candidate (zonal or single-name troncal).
   if (contexts.length === 1) {
     try {
-      return await fetcher(contexts[0], signal);
+      const buses = await fetcher(contexts[0], signal);
+      if (buses.length > 0) onHit?.(contexts[0]);
+      return buses;
     } catch (error: any) {
       errors.push(`[${label} ${contexts[0].candidateName}] ${error.message}`);
       return null;
@@ -2124,6 +2146,7 @@ async function runLiveStrategy(
           (buses) => {
             if (buses.length > 0) {
               console.log(`[TM API] ${label} candidate "${ctx.candidateName}" succeeded with ${buses.length} buses`);
+              onHit?.(ctx);
               settle(buses);
               return;
             }
@@ -2157,6 +2180,34 @@ export interface LiveBusesResult {
   source: LiveBusSource;
 }
 
+/** The tier cascade for one candidate set: direct → CO relay → public CO proxy. */
+async function runLiveTiers(
+  contexts: LiveRequestContext[],
+  errors: string[],
+  signal: AbortSignal,
+  onHit: (context: LiveRequestContext) => void
+): Promise<LiveBusesResult | null> {
+  // 1. Direct (works when the backend egress is Colombian). Skipped entirely
+  // while the geofence memo is hot — the rejection is egress-wide, so paying
+  // the round-trip again would only delay the relay.
+  if (!isDirectTierGeofenced()) {
+    const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, signal, onHit);
+    if (direct) return { buses: direct, source: 'direct' };
+  }
+
+  // 2. Colombia relay (for non-Colombian hosts with a relay configured).
+  const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, signal, onHit);
+  if (relay) return { buses: relay, source: 'co-relay' };
+
+  // 3. Public Colombian proxy (opt-in best-effort fallback).
+  if (allowPublicColombianProxyFallback()) {
+    const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, undefined, signal, onHit);
+    if (proxy) return { buses: proxy, source: 'public-co-proxy' };
+  }
+
+  return null;
+}
+
 export async function fetchLiveBuses(
   ruta: string,
   nombre: string,
@@ -2174,28 +2225,33 @@ export async function fetchLiveBuses(
     throw new Error('ruta is required');
   }
 
+  const routeCode = primaryContext.routeCode;
+  const remember = (context: LiveRequestContext) => rememberLiveName(routeType, routeCode, context.candidateName);
+
   // Overall budget: abort everything if the cascade exceeds the wall-clock cap.
   const overallController = new AbortController();
   const overallTimer = setTimeout(() => overallController.abort(), LIVE_OVERALL_TIMEOUT_MS);
 
   try {
-    // 1. Direct (works when the backend egress is Colombian). Skipped entirely
-    // while the geofence memo is hot — the rejection is egress-wide, so paying
-    // the round-trip again would only delay the relay.
-    if (!isDirectTierGeofenced()) {
-      const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, overallController.signal);
-      if (direct) return { buses: direct, source: 'direct' };
+    // One remembered name instead of the whole fan-out. A troncal poll fires
+    // every candidate in parallel (up to LIVE_NAME_CANDIDATE_LIMIT) and only one
+    // of them can match, so a tracking session used to re-ask the live host the
+    // same 11 dead questions every 15 s — pure load on an upstream that has
+    // already blocklisted one id over volume (spec §5.2.3, §5.2.5).
+    const memo = recallLiveName(routeType, routeCode);
+    const memoContext = memo ? contexts.find((ctx) => ctx.candidateName === memo.name) : undefined;
+    if (memoContext && contexts.length > 1) {
+      const hit = await runLiveTiers([memoContext], errors, overallController.signal, remember);
+      if (hit && hit.buses.length > 0) return hit;
+      // Empty from the remembered name is the route's real answer while the memo
+      // is fresh (no buses right now); once it is stale the name itself is the
+      // suspect, so fall through and re-ask every candidate.
+      if (hit && memo!.fresh) return hit;
+      forgetLiveName(routeType, routeCode);
     }
 
-    // 2. Colombia relay (for non-Colombian hosts with a relay configured).
-    const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, overallController.signal);
-    if (relay) return { buses: relay, source: 'co-relay' };
-
-    // 3. Public Colombian proxy (opt-in best-effort fallback).
-    if (allowPublicColombianProxyFallback()) {
-      const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, undefined, overallController.signal);
-      if (proxy) return { buses: proxy, source: 'public-co-proxy' };
-    }
+    const result = await runLiveTiers(contexts, errors, overallController.signal, remember);
+    if (result) return result;
 
     throw new Error(`Live tracking unavailable: ${errors.join(' | ')}`);
   } finally {

@@ -14,6 +14,8 @@
  */
 
 import { findBusPayloadArray } from '../utils/liveBus';
+import { installUuid } from './installId';
+import { forgetLiveName, recallLiveName, rememberLiveName } from './liveNameMemo';
 
 export const LIVE_HOST = 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
 export const APPID = '9a2c3b48f0c24ae9bfba38e94f27c3ea';
@@ -104,7 +106,8 @@ export async function nativeJsonRequest(
 
 /** One POST to the live host; unwraps the payload into a flat bus array. */
 async function fetchLiveOnce(http: NativeHttpPlugin, path: string, body: unknown): Promise<unknown[]> {
-  const headers: Record<string, string> = { Appid: APPID };
+  // `uuid` is required since 2026-09-21 — without it the host answers 403.
+  const headers: Record<string, string> = { Appid: APPID, uuid: installUuid() };
   if (body != null) headers['Content-Type'] = 'application/json; charset=UTF-8';
 
   const res = await http.request({
@@ -195,5 +198,22 @@ export async function fetchLiveBusesViaNative(
     .filter(Boolean);
   const tried = names.length ? names : [''];
 
-  return firstNonEmpty(tried.map((name) => fetchLiveOnce(http, '/buses', { ruta: code, Nombre: name })));
+  const ask = async (name: string): Promise<unknown[]> => {
+    const buses = await fetchLiveOnce(http, '/buses', { ruta: code, Nombre: name });
+    if (buses.length > 0) rememberLiveName(code, name);
+    return buses;
+  };
+
+  // Poll 2 onwards asks only the name that matched: the fan-out exists to find
+  // it, not to re-ask the same misses every 15 s (spec §5.2.4).
+  const memo = recallLiveName(code);
+  if (memo && tried.includes(memo.name) && tried.length > 1) {
+    const buses = await ask(memo.name);
+    // Empty from the matching name means no buses right now; once the memo is
+    // stale the name is the suspect again, so re-ask everything.
+    if (buses.length > 0 || memo.fresh) return buses;
+    forgetLiveName(code);
+  }
+
+  return firstNonEmpty(tried.map(ask));
 }
