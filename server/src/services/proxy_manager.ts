@@ -14,6 +14,9 @@ const PROXY_CONNECT_TIMEOUT_MS = 8000;
 // test must be patient enough to keep the slow-but-working ones.
 const TEST_TIMEOUT_MS = 12_000;
 const TEST_BATCH = 50;
+// Stage 1 runs wide: it is a CDN endpoint, not the upstream we are protecting,
+// so it can take more concurrency than the live-host confirms that follow it.
+const COUNTRY_BATCH = 150;
 
 // Pool maintenance.
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // full re-scrape cadence
@@ -241,21 +244,44 @@ class ProxyManagerClass {
       console.log('[ProxyManager] Refreshing Colombian proxy pool...');
       try {
         const candidates = await this.fetchCandidates();
-        console.log(`[ProxyManager] ${candidates.length} candidates. Verifying against live API (geofence filters to CO)...`);
+        console.log(`[ProxyManager] ${candidates.length} candidates. Verifying (exit country, then live API)...`);
 
         let verified = 0;
-        for (let i = 0; i < candidates.length; i += TEST_BATCH) {
-          const batch = candidates.slice(i, i + TEST_BATCH);
-          const results = await Promise.all(batch.map((p) => this.testProxy(p.ip, p.port)));
-          results.forEach((latency, idx) => {
-            if (latency !== null) {
-              // Add to the pool immediately so waitForReady() can return early.
-              this.reportSuccess(batch[idx].ip, batch[idx].port, latency);
-              verified++;
-            }
-          });
+        let countryChecked = 0;
+        let colombianFound = 0;
+        // Chunked so the two stages interleave: a chunk's country check (cheap,
+        // wide) feeds that chunk's live-host confirms (the only upstream cost)
+        // and the pool gets its first entries after the first chunk instead of
+        // after all 500 candidates. CO-tagged sources come first, so the early
+        // chunks have the best hit rate.
+        for (let i = 0; i < candidates.length; i += COUNTRY_BATCH) {
+          const chunk = candidates.slice(i, i + COUNTRY_BATCH);
+          const countries = await Promise.all(chunk.map((p) => this.probeExitCountry(p.ip, p.port)));
+          const colombian = chunk.filter((_, idx) => countries[idx] === 'CO');
+          countryChecked += chunk.length;
+          colombianFound += colombian.length;
+
+          for (let j = 0; j < colombian.length; j += TEST_BATCH) {
+            const batch = colombian.slice(j, j + TEST_BATCH);
+            const results = await Promise.all(batch.map((p) => this.probeLiveHost(p.ip, p.port)));
+            results.forEach((latency, idx) => {
+              if (latency !== null) {
+                // Add to the pool immediately so waitForReady() can return early.
+                this.reportSuccess(batch[idx].ip, batch[idx].port, latency);
+                verified++;
+              }
+            });
+          }
+
+          // Enough is enough: a full pool does not need the rest of the list
+          // probed, and every skipped candidate is an upstream request not made
+          // (§5.2.3). The top-up timer re-scrapes whenever the pool runs low.
+          if (this.pool.size >= TARGET_POOL_SIZE) {
+            console.log(`[ProxyManager] Pool at target (${this.pool.size}); stopping after ${countryChecked}/${candidates.length} candidates.`);
+            break;
+          }
         }
-        console.log(`[ProxyManager] Refresh complete. ${verified} newly verified; pool size ${this.pool.size}.`);
+        console.log(`[ProxyManager] Refresh complete. ${countryChecked} country-checked, ${colombianFound} CO, ${verified} newly verified; pool size ${this.pool.size}.`);
       } catch (err: any) {
         console.error('[ProxyManager] Refresh failed:', err.message);
       } finally {
@@ -327,18 +353,12 @@ class ProxyManagerClass {
   }
 
   /**
-   * Resolves with round-trip latency (ms) if the proxy reaches the live API from
-   * CO, else null — in two stages, cheapest first: the exit country from a
-   * neutral endpoint, then (only for a Colombian exit) ONE real request to the
-   * live host, which is what proves the host actually serves this proxy.
+   * Stage 1 of verification: the proxy's exit country per Cloudflare's trace
+   * endpoint, or null if it failed. The country IS the filter (only a CO exit
+   * can read the geofenced live host), and asking a neutral endpoint for it
+   * keeps the live host from being the instrument hundreds of scraped proxies
+   * are tested with (§5.2.3).
    */
-  private async testProxy(ip: string, port: number): Promise<number | null> {
-    const country = await this.probeExitCountry(ip, port);
-    if (country !== 'CO') return null;
-    return this.probeLiveHost(ip, port);
-  }
-
-  /** The proxy's exit country per Cloudflare's trace endpoint, or null if it failed. */
   private probeExitCountry(ip: string, port: number): Promise<string | null> {
     return new Promise((resolve) => {
       let done = false;
