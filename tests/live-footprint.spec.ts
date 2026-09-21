@@ -1,42 +1,39 @@
 /**
- * The three cuts to upstream request volume (spec §5.2.3, §5.2.5). Measured on
+ * The cuts to upstream request volume (spec §5.2.3, §5.2.5). Measured on
  * 2026-09-21: the live host refreshes a route's positions about every 47 s, a
  * troncal poll was firing up to 12 name candidates, each of those raced 5
- * proxies, and pool verification spent up to 500 live-host requests every 10
- * minutes — far more load than the riders using it.
+ * proxies, and the pool re-probed its whole candidate list every 10 minutes
+ * whether or not it needed proxies — far more load than the riders using it.
  *
- *   1. verification asks a neutral endpoint for the exit country first, and
- *      only a Colombian exit earns one live-host request
- *   2. the name that matched is remembered, so poll 2 asks once, not 12 times
- *   3. a proxy that has been answering gets the request alone, no wave
+ *   1. the name that matched is remembered, so poll 2 asks once, not 12 times
+ *   2. a proxy that has been answering gets the request alone, no wave
+ *   3. verification stops at target, and the scheduled re-scrape only runs
+ *      when the pool is actually short
+ *
+ * A fourth idea — gating verification on the proxy's exit country from
+ * Cloudflare's trace endpoint — was measured, found to discard the only
+ * proxies that worked, and reverted; see `MAX_TEST_CANDIDATES`.
  */
 
 import { expect, test } from '@playwright/test';
-import { isProvenProxy, parseTraceCountry, PROVEN_PROXY_MAX_AGE_MS } from '../server/src/services/proxy_health';
+import { isProvenProxy, PROVEN_PROXY_MAX_AGE_MS, shouldRefreshPool } from '../server/src/services/proxy_health';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../server/src/services/live_name_memo';
 import * as clientMemo from '../client/src/services/liveNameMemo';
 
 const MINUTE = 60_000;
 
-test.describe('exit-country probe (cut 1)', () => {
-  test('reads loc out of a trace body, whatever the line endings', () => {
-    expect(parseTraceCountry('fl=1\r\nip=181.2.3.4\r\nloc=CO\r\ncolo=BOG\r\n')).toBe('CO');
-    expect(parseTraceCountry('loc=co')).toBe('CO');
-    expect(parseTraceCountry('ip=1.2.3.4\nloc=US\n')).toBe('US');
-  });
-
-  test('a body with no country is null, never a guess', () => {
-    // A middlebox can answer with anything; "no answer" must not read as CO.
-    expect(parseTraceCountry('ip=1.2.3.4\nwarp=off\n')).toBeNull();
-    expect(parseTraceCountry('<html>Access denied</html>')).toBeNull();
-    expect(parseTraceCountry('loc=COLOMBIA')).toBeNull();
-    expect(parseTraceCountry('xloc=CO')).toBeNull();
-    expect(parseTraceCountry('')).toBeNull();
-    expect(parseTraceCountry(undefined as unknown as string)).toBeNull();
+test.describe('pool re-scrape (cut 3)', () => {
+  test('only runs when the pool is short of target', () => {
+    // The unconditional 10-minute tick re-probed a healthy pool — one
+    // live-host request per candidate — for nothing.
+    expect(shouldRefreshPool(0, 12)).toBe(true);
+    expect(shouldRefreshPool(11, 12)).toBe(true);
+    expect(shouldRefreshPool(12, 12)).toBe(false);
+    expect(shouldRefreshPool(30, 12)).toBe(false);
   });
 });
 
-test.describe('proven proxy (cut 3)', () => {
+test.describe('proven proxy (cut 2)', () => {
   const now = Date.now();
 
   test('a recent, mostly-successful proxy may carry a lone request', () => {
@@ -51,7 +48,7 @@ test.describe('proven proxy (cut 3)', () => {
   });
 });
 
-test.describe('remembered destination name (cut 2)', () => {
+test.describe('remembered destination name (cut 1)', () => {
   test('server: the matching name comes back, and only until it goes stale', () => {
     forgetLiveName('troncal', 'H15');
     expect(recallLiveName('troncal', 'H15')).toBeNull();

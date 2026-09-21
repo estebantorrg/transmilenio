@@ -3,11 +3,10 @@
  * builds its singleton — and starts scraping — on import, so these must be
  * importable without that).
  *
- * Both halves exist to keep upstream request volume down (spec §5.2.3):
- * `parseTraceCountry` lets verification establish the exit country against a
- * neutral endpoint instead of spending a live-host request on every one of
- * hundreds of scraped candidates, and `isProvenProxy` lets a live request go
- * through one proxy that has been answering instead of racing a whole wave.
+ * Both exist to keep upstream request volume down (spec §5.2.3): `isProvenProxy`
+ * lets a live request go through one proxy that has been answering instead of
+ * racing a whole wave, and `shouldRefreshPool` keeps the scheduled re-scrape —
+ * one live-host request per candidate — from running when nothing needs it.
  */
 
 /** A proxy answered this recently, and this much of its record is successes. */
@@ -32,8 +31,15 @@ export function isProvenProxy(record: ProxyRecord, now = Date.now()): boolean {
   return record.success / total >= PROVEN_PROXY_MIN_RATE;
 }
 
-/** `loc=CO` out of a Cloudflare trace body (`key=value` lines). Upper-cased; null if absent. */
-export function parseTraceCountry(body: string): string | null {
-  const match = /^loc=([A-Za-z]{2})$/m.exec(String(body ?? '').replace(/\r/g, ''));
-  return match ? match[1].toUpperCase() : null;
+/**
+ * Whether the periodic re-scrape should run at all.
+ *
+ * Verification spends one live-host request per candidate, so re-probing a
+ * healthy pool every 10 minutes was the largest single source of this
+ * project's upstream traffic. A pool at target is left alone; proxies that
+ * stop working are evicted on failure, which drops the size below target and
+ * lets the next tick (or the top-up timer) refill it.
+ */
+export function shouldRefreshPool(poolSize: number, targetSize: number): boolean {
+  return poolSize < targetSize;
 }

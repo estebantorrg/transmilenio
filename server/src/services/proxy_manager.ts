@@ -3,7 +3,7 @@ import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
-import { isProvenProxy, parseTraceCountry } from './proxy_health.js';
+import { isProvenProxy, shouldRefreshPool } from './proxy_health.js';
 
 // Cap on how long the proxy CONNECT tunnel may take to establish before we
 // give up. Without this, an unresponsive proxy leaves the tunnel hanging
@@ -14,27 +14,32 @@ const PROXY_CONNECT_TIMEOUT_MS = 8000;
 // test must be patient enough to keep the slow-but-working ones.
 const TEST_TIMEOUT_MS = 12_000;
 const TEST_BATCH = 50;
-// Stage 1 runs wide: it is a CDN endpoint, not the upstream we are protecting,
-// so it can take more concurrency than the live-host confirms that follow it.
-const COUNTRY_BATCH = 150;
 
 // Pool maintenance.
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // full re-scrape cadence
 const TOP_UP_INTERVAL_MS = 90 * 1000; // keep-warm check
 const TARGET_POOL_SIZE = 12; // re-scrape eagerly below this
-const MAX_TEST_CANDIDATES = 500; // bound work per refresh
+/**
+ * Bound on work per refresh. Verification costs one live-host request per
+ * candidate, so this is also the bound on what a refresh asks upstream — kept
+ * down instead by refreshing only when the pool needs it and stopping the
+ * moment it reaches target (see `refresh`).
+ *
+ * **A cheaper pre-filter was tried on 2026-09-21 and reverted.** Asking
+ * Cloudflare's `/cdn-cgi/trace` through each proxy for its exit country, and
+ * spending a live-host request only on a Colombian exit, looked like a 10-50×
+ * cut. Measured on 40 CO-tagged candidates it was simply wrong in both
+ * directions: **both** proxies that served the live host failed the Cloudflare
+ * request (these proxies reach the appspot host but not cloudflare.com), so the
+ * gate discarded every proxy we could actually have used, while two proxies it
+ * passed failed the live host. In production it took the verified pool from 4-5
+ * down to 1 and pushed the first verified proxy past 100 s. The live host is the
+ * only filter that answers the question being asked.
+ */
+const MAX_TEST_CANDIDATES = 500;
 const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
 
 const LIVE_TEST_HOST = LIVE_API_HOST;
-// Stage 1 of verification. The exit country IS the filter (only a CO exit can
-// read the geofenced live host), and asking a neutral endpoint for it means the
-// live host is not the instrument we test hundreds of scraped proxies with:
-// MAX_TEST_CANDIDATES used to mean up to 500 upstream requests per refresh,
-// every 10 minutes, dwarfing the traffic of actual users (§5.2.3 volume).
-const TRACE_HOST = 'www.cloudflare.com';
-const TRACE_PATH = '/cdn-cgi/trace';
-const TRACE_TIMEOUT_MS = 8000;
-const TRACE_MAX_BODY_CHARS = 8 * 1024;
 // Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
 // only inspected for coordinates, so it never needs to be buffered whole.
 const PROBE_MAX_BODY_CHARS = 512 * 1024;
@@ -135,7 +140,15 @@ class ProxyManagerClass {
     this.refreshPromise = this.refresh().catch((err) => console.error('[ProxyManager] Init error:', err));
     // `unref` so these timers never hold the process open (a CLI script that
     // imports this module must still be able to exit) — same as the live warm-up.
-    setInterval(() => this.refreshInBackground('scheduled'), REFRESH_INTERVAL_MS).unref();
+    // The scheduled re-scrape only runs when the pool actually needs proxies.
+    // It used to run unconditionally every 10 minutes and re-probe the whole
+    // candidate list — one live-host request each — which was the project's
+    // single largest source of upstream traffic, larger than the riders using
+    // it (§5.2.3). A healthy pool is left alone; eviction and the top-up timer
+    // below are what notice when it stops being healthy.
+    setInterval(() => {
+      if (shouldRefreshPool(this.pool.size, TARGET_POOL_SIZE)) this.refreshInBackground('scheduled');
+    }, REFRESH_INTERVAL_MS).unref();
     setInterval(() => {
       // Keep-warm: re-scrape eagerly whenever the verified pool runs low.
       if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('top-up');
@@ -244,44 +257,31 @@ class ProxyManagerClass {
       console.log('[ProxyManager] Refreshing Colombian proxy pool...');
       try {
         const candidates = await this.fetchCandidates();
-        console.log(`[ProxyManager] ${candidates.length} candidates. Verifying (exit country, then live API)...`);
+        console.log(`[ProxyManager] ${candidates.length} candidates. Verifying against live API (geofence filters to CO)...`);
 
         let verified = 0;
-        let countryChecked = 0;
-        let colombianFound = 0;
-        // Chunked so the two stages interleave: a chunk's country check (cheap,
-        // wide) feeds that chunk's live-host confirms (the only upstream cost)
-        // and the pool gets its first entries after the first chunk instead of
-        // after all 500 candidates. CO-tagged sources come first, so the early
-        // chunks have the best hit rate.
-        for (let i = 0; i < candidates.length; i += COUNTRY_BATCH) {
-          const chunk = candidates.slice(i, i + COUNTRY_BATCH);
-          const countries = await Promise.all(chunk.map((p) => this.probeExitCountry(p.ip, p.port)));
-          const colombian = chunk.filter((_, idx) => countries[idx] === 'CO');
-          countryChecked += chunk.length;
-          colombianFound += colombian.length;
+        let tested = 0;
+        for (let i = 0; i < candidates.length; i += TEST_BATCH) {
+          const batch = candidates.slice(i, i + TEST_BATCH);
+          const results = await Promise.all(batch.map((p) => this.probeLiveHost(p.ip, p.port)));
+          tested += batch.length;
+          results.forEach((latency, idx) => {
+            if (latency !== null) {
+              // Add to the pool immediately so waitForReady() can return early.
+              this.reportSuccess(batch[idx].ip, batch[idx].port, latency);
+              verified++;
+            }
+          });
 
-          for (let j = 0; j < colombian.length; j += TEST_BATCH) {
-            const batch = colombian.slice(j, j + TEST_BATCH);
-            const results = await Promise.all(batch.map((p) => this.probeLiveHost(p.ip, p.port)));
-            results.forEach((latency, idx) => {
-              if (latency !== null) {
-                // Add to the pool immediately so waitForReady() can return early.
-                this.reportSuccess(batch[idx].ip, batch[idx].port, latency);
-                verified++;
-              }
-            });
-          }
-
-          // Enough is enough: a full pool does not need the rest of the list
-          // probed, and every skipped candidate is an upstream request not made
-          // (§5.2.3). The top-up timer re-scrapes whenever the pool runs low.
+          // Enough is enough: a pool at target does not need the rest of the
+          // list probed, and every skipped candidate is an upstream request not
+          // made (§5.2.3). The top-up timer re-scrapes whenever it runs low.
           if (this.pool.size >= TARGET_POOL_SIZE) {
-            console.log(`[ProxyManager] Pool at target (${this.pool.size}); stopping after ${countryChecked}/${candidates.length} candidates.`);
+            console.log(`[ProxyManager] Pool at target (${this.pool.size}); stopping after ${tested}/${candidates.length} candidates.`);
             break;
           }
         }
-        console.log(`[ProxyManager] Refresh complete. ${countryChecked} country-checked, ${colombianFound} CO, ${verified} newly verified; pool size ${this.pool.size}.`);
+        console.log(`[ProxyManager] Refresh complete. ${tested} tested, ${verified} newly verified; pool size ${this.pool.size}.`);
       } catch (err: any) {
         console.error('[ProxyManager] Refresh failed:', err.message);
       } finally {
@@ -353,58 +353,11 @@ class ProxyManagerClass {
   }
 
   /**
-   * Stage 1 of verification: the proxy's exit country per Cloudflare's trace
-   * endpoint, or null if it failed. The country IS the filter (only a CO exit
-   * can read the geofenced live host), and asking a neutral endpoint for it
-   * keeps the live host from being the instrument hundreds of scraped proxies
-   * are tested with (§5.2.3).
+   * Resolves with round-trip latency (ms) if the proxy reaches the live API from
+   * CO, else null. The live host is the only usable filter — see the note above
+   * `MAX_TEST_CANDIDATES` for the cheaper pre-filter that was tried and
+   * measured worse.
    */
-  private probeExitCountry(ip: string, port: number): Promise<string | null> {
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (value: string | null) => {
-        if (!done) {
-          done = true;
-          resolve(value);
-        }
-      };
-
-      const req = https.request(
-        {
-          hostname: TRACE_HOST,
-          port: 443,
-          path: TRACE_PATH,
-          method: 'GET',
-          headers: { 'User-Agent': 'okhttp/4.12.0', Connection: 'close' },
-          agent: new SimpleProxyAgent(ip, port),
-          timeout: TRACE_TIMEOUT_MS,
-        },
-        (res) => {
-          let body = '';
-          // Same rule as every other read of an untrusted middlebox: cap it, and
-          // never leave the stream without an 'error' listener (§5.2.5).
-          res.on('data', (chunk) => {
-            if (body.length > TRACE_MAX_BODY_CHARS) {
-              res.destroy();
-              return finish(null);
-            }
-            body += chunk;
-          });
-          res.on('error', () => finish(null));
-          res.on('end', () => finish(res.statusCode === 200 ? parseTraceCountry(body) : null));
-        }
-      );
-
-      req.on('error', () => finish(null));
-      req.on('timeout', () => {
-        req.destroy();
-        finish(null);
-      });
-      req.end();
-    });
-  }
-
-  /** Stage 2: one live-host request through the proxy. Latency (ms), or null. */
   private probeLiveHost(ip: string, port: number): Promise<number | null> {
     return new Promise((resolve) => {
       const started = Date.now();
