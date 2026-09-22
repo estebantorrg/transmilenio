@@ -7143,5 +7143,1679 @@
       }
     ],
     "borrador": false
+  },
+  "TM0145": {
+    "source": "Plano de ubicacion, Portal 20 de Julio, version noviembre de 2024.",
+    "why": "ONE island platform with a green bed capping each end, and both of its kerbs cut as five shallow ramps that step back together at four points — so the slab is drawn from its measured outline rather than as a band. TWO pedestrian bridges cross it and they are what divide its boarding zones: C25 and K10 board the northern edge, route 2, M82, B18 and D81 the southern. The zonal platforms are north of it, drawn as the sheet draws them: Plataforma Norte is the alimentador ARRIVAL area, one long scalloped bar and no bays, and Plataforma Sur carries the eight departure bays, each tagged above with its código and destination. South of the platform the sheet draws the concourse it stands in — the Plazoleta IPES, the Super CADE, the commercial strip and the access hall with its TransMiBici, ramp, stair, torniquetes and taquilla — and the evacuation route running the width of it to Carrera 5a.",
+    "vista": [
+      232,
+      148,
+      730,
+      400
+    ],
+    "teja": 16,
+    "kerb": 1.8,
+    "chip": {
+      "k": 10.3,
+      "h": 28,
+      "min": 35,
+      "gap": 1,
+      "base": 0.72
+    },
+    "tipo": {
+      "chip": 18.6,
+      "bay": 4.8,
+      "bay-code": 5.2,
+      "cap": 9.3,
+      "tag": 12.1,
+      "evac": 8.6,
+      "place-sm": 9.6,
+      "place-en": 7.5,
+      "street": 14,
+      "anchor": 15
+    },
+    "tonos": {
+      "losa": {
+        "papel": "#B2B2B2",
+        "oscuro": "#4E5158"
+      },
+      "anden": {
+        "papel": "#D9D9D9",
+        "oscuro": "#2A2C31"
+      },
+      "bahia": {
+        "papel": "#808080",
+        "oscuro": "#4A4D54"
+      },
+      "eje": {
+        "papel": "#999999",
+        "oscuro": "#565960"
+      },
+      "bloque": {
+        "papel": "#808080",
+        "oscuro": "#4A4D54"
+      },
+      "verde": {
+        "papel": "#85B930",
+        "oscuro": "#3F5A22"
+      },
+      "caja": {
+        "papel": "#EAEAEA",
+        "oscuro": "#2A2C31"
+      },
+      "piso": {
+        "papel": "#BFBFBF",
+        "oscuro": "#34373D"
+      },
+      "reja": {
+        "papel": "#B7B7B7",
+        "oscuro": "#4A4D54"
+      },
+      "lane": {
+        "papel": "#E7F4FC",
+        "oscuro": "#20303A"
+      },
+      "limite": {
+        "papel": "#8DD3F5",
+        "oscuro": "#2E4A5A"
+      },
+      "azul": {
+        "papel": "#83CEF5",
+        "oscuro": "#22384A"
+      },
+      "crema": {
+        "papel": "#FEEFDA",
+        "oscuro": "#2E2A24"
+      },
+      "calle": {
+        "papel": "#DDC3A2",
+        "oscuro": "#2A2621"
+      },
+      "evac": {
+        "papel": "#83C77E",
+        "oscuro": "#274A2C"
+      }
+    },
+    "poligonos": [
+      {
+        "rect": [
+          258,
+          514,
+          700,
+          13
+        ],
+        "tono": "calle"
+      },
+      {
+        "rect": [
+          262,
+          501,
+          598,
+          7
+        ],
+        "tono": "evac"
+      },
+      {
+        "rect": [
+          262,
+          379,
+          156,
+          121
+        ],
+        "tono": "caja"
+      },
+      {
+        "rect": [
+          421,
+          379,
+          178,
+          120
+        ],
+        "tono": "azul"
+      },
+      {
+        "rect": [
+          600,
+          379,
+          52,
+          121
+        ],
+        "tono": "crema"
+      },
+      {
+        "rect": [
+          678,
+          378,
+          213,
+          120
+        ],
+        "tono": "piso"
+      },
+      {
+        "rect": [
+          726,
+          379,
+          120,
+          46
+        ],
+        "tono": "caja"
+      },
+      {
+        "rect": [
+          798,
+          389,
+          48,
+          12
+        ],
+        "tono": "eje"
+      },
+      {
+        "rect": [
+          798,
+          402,
+          48,
+          16
+        ],
+        "tono": "eje"
+      },
+      {
+        "rect": [
+          747,
+          409,
+          28,
+          8
+        ],
+        "tono": "eje"
+      },
+      {
+        "rect": [
+          680,
+          428,
+          166,
+          24
+        ],
+        "tono": "anden"
+      },
+      {
+        "rect": [
+          866,
+          380,
+          15,
+          50
+        ],
+        "tono": "lane"
+      },
+      {
+        "rect": [
+          683,
+          440,
+          26,
+          59
+        ],
+        "tono": "anden"
+      },
+      {
+        "rect": [
+          734,
+          440,
+          25,
+          59
+        ],
+        "tono": "anden"
+      },
+      {
+        "rect": [
+          893,
+          380,
+          140,
+          180
+        ],
+        "rx": 26,
+        "tono": "calle"
+      },
+      {
+        "rect": [
+          265.5,
+          192,
+          218.5,
+          50
+        ],
+        "rx": 10,
+        "tono": "anden"
+      },
+      {
+        "pts": [
+          [
+            486,
+            192
+          ],
+          [
+            880,
+            192
+          ],
+          [
+            886,
+            198
+          ],
+          [
+            886,
+            212
+          ],
+          [
+            903,
+            216
+          ],
+          [
+            906,
+            222
+          ],
+          [
+            906,
+            236
+          ],
+          [
+            900,
+            242
+          ],
+          [
+            486,
+            242
+          ]
+        ],
+        "tono": "anden"
+      },
+      {
+        "pts": [
+          [
+            292,
+            270.9
+          ],
+          [
+            288.08,
+            271.27
+          ],
+          [
+            284.24,
+            272.38
+          ],
+          [
+            280.52,
+            274.2
+          ],
+          [
+            277,
+            276.71
+          ],
+          [
+            273.74,
+            279.86
+          ],
+          [
+            270.79,
+            283.6
+          ],
+          [
+            268.2,
+            287.86
+          ],
+          [
+            266.02,
+            292.57
+          ],
+          [
+            264.28,
+            297.66
+          ],
+          [
+            263.02,
+            303.03
+          ],
+          [
+            262.26,
+            308.59
+          ],
+          [
+            262,
+            314.25
+          ],
+          [
+            262.26,
+            319.91
+          ],
+          [
+            263.02,
+            325.47
+          ],
+          [
+            264.28,
+            330.84
+          ],
+          [
+            266.02,
+            335.93
+          ],
+          [
+            268.2,
+            340.64
+          ],
+          [
+            270.79,
+            344.9
+          ],
+          [
+            273.74,
+            348.64
+          ],
+          [
+            277,
+            351.79
+          ],
+          [
+            280.52,
+            354.3
+          ],
+          [
+            284.24,
+            356.12
+          ],
+          [
+            288.08,
+            357.23
+          ],
+          [
+            292,
+            357.6
+          ]
+        ],
+        "tono": "verde"
+      },
+      {
+        "pts": [
+          [
+            886,
+            270.7
+          ],
+          [
+            889.92,
+            271.07
+          ],
+          [
+            893.76,
+            272.18
+          ],
+          [
+            897.48,
+            274.01
+          ],
+          [
+            901,
+            276.52
+          ],
+          [
+            904.26,
+            279.67
+          ],
+          [
+            907.21,
+            283.42
+          ],
+          [
+            909.8,
+            287.69
+          ],
+          [
+            911.98,
+            292.41
+          ],
+          [
+            913.72,
+            297.51
+          ],
+          [
+            914.98,
+            302.89
+          ],
+          [
+            915.74,
+            308.46
+          ],
+          [
+            916,
+            314.13
+          ],
+          [
+            915.74,
+            319.79
+          ],
+          [
+            914.98,
+            325.36
+          ],
+          [
+            913.72,
+            330.74
+          ],
+          [
+            911.98,
+            335.84
+          ],
+          [
+            909.8,
+            340.56
+          ],
+          [
+            907.21,
+            344.83
+          ],
+          [
+            904.26,
+            348.58
+          ],
+          [
+            901,
+            351.73
+          ],
+          [
+            897.48,
+            354.24
+          ],
+          [
+            893.76,
+            356.07
+          ],
+          [
+            889.92,
+            357.18
+          ],
+          [
+            886,
+            357.55
+          ]
+        ],
+        "tono": "verde"
+      },
+      {
+        "rect": [
+          283,
+          194,
+          174,
+          9.5
+        ],
+        "tono": "eje"
+      },
+      {
+        "rect": [
+          367,
+          231,
+          52,
+          9
+        ],
+        "tono": "bahia"
+      },
+      {
+        "rect": [
+          690,
+          231,
+          55,
+          9
+        ],
+        "tono": "bahia"
+      },
+      {
+        "rect": [
+          448.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          457.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          466.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          654.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          663.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          672.4,
+          236,
+          3.2,
+          7.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          437.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          445.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          453.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          477.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          485.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          871,
+          493.5,
+          6.5,
+          2.5
+        ],
+        "tono": "tinta"
+      },
+      {
+        "pts": [
+          [
+            632,
+            534
+          ],
+          [
+            641,
+            539
+          ],
+          [
+            632,
+            544
+          ]
+        ],
+        "tono": "tinta"
+      }
+    ],
+    "losas": [
+      {
+        "pts": [
+          [
+            292,
+            270.9
+          ],
+          [
+            377,
+            272.45
+          ],
+          [
+            377,
+            266.4
+          ],
+          [
+            510,
+            272.5
+          ],
+          [
+            510,
+            266.5
+          ],
+          [
+            614.5,
+            272.5
+          ],
+          [
+            614.5,
+            266
+          ],
+          [
+            742,
+            270.7
+          ],
+          [
+            742,
+            265.1
+          ],
+          [
+            846,
+            270.7
+          ],
+          [
+            886,
+            270.7
+          ],
+          [
+            886,
+            357.55
+          ],
+          [
+            846,
+            357.55
+          ],
+          [
+            742,
+            362.4
+          ],
+          [
+            742,
+            357.45
+          ],
+          [
+            614.5,
+            362.1
+          ],
+          [
+            614.5,
+            356
+          ],
+          [
+            510,
+            362.2
+          ],
+          [
+            510,
+            356
+          ],
+          [
+            377,
+            362.1
+          ],
+          [
+            377,
+            356.25
+          ],
+          [
+            292,
+            357.6
+          ]
+        ],
+        "tono": "losa"
+      }
+    ],
+    "bordillos": [
+      {
+        "pts": [
+          [
+            292,
+            270.9
+          ],
+          [
+            377,
+            272.45
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            377,
+            266.4
+          ],
+          [
+            510,
+            272.5
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            510,
+            266.5
+          ],
+          [
+            614.5,
+            272.5
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            614.5,
+            266
+          ],
+          [
+            742,
+            270.7
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            742,
+            265.1
+          ],
+          [
+            846,
+            270.7
+          ],
+          [
+            846,
+            270.7
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            292,
+            357.6
+          ],
+          [
+            377,
+            356.25
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            377,
+            362.1
+          ],
+          [
+            510,
+            356
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            510,
+            362.2
+          ],
+          [
+            614.5,
+            356
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            614.5,
+            362.1
+          ],
+          [
+            742,
+            357.45
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            742,
+            362.4
+          ],
+          [
+            846,
+            357.55
+          ],
+          [
+            846,
+            357.55
+          ]
+        ],
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            285.5,
+            193.7
+          ],
+          [
+            306,
+            195
+          ],
+          [
+            309.6,
+            193.7
+          ],
+          [
+            330.1,
+            195
+          ],
+          [
+            333.7,
+            193.7
+          ],
+          [
+            354.2,
+            195
+          ],
+          [
+            357.8,
+            193.7
+          ],
+          [
+            378.3,
+            195
+          ],
+          [
+            381.9,
+            193.7
+          ],
+          [
+            402.4,
+            195
+          ],
+          [
+            406,
+            193.7
+          ],
+          [
+            426.5,
+            195
+          ],
+          [
+            430.1,
+            193.7
+          ],
+          [
+            450.6,
+            195
+          ],
+          [
+            454.2,
+            193.7
+          ],
+          [
+            458,
+            195
+          ]
+        ],
+        "w": 2
+      },
+      {
+        "pts": [
+          [
+            510,
+            193.6
+          ],
+          [
+            544,
+            193.5
+          ],
+          [
+            546,
+            194.9
+          ],
+          [
+            592,
+            193.6
+          ],
+          [
+            594,
+            194.9
+          ],
+          [
+            634,
+            193.7
+          ],
+          [
+            636,
+            194.9
+          ],
+          [
+            688,
+            193.6
+          ],
+          [
+            690,
+            194.9
+          ],
+          [
+            730,
+            193.7
+          ],
+          [
+            732,
+            194.7
+          ],
+          [
+            778,
+            193.5
+          ],
+          [
+            780,
+            194.6
+          ],
+          [
+            850,
+            194.7
+          ]
+        ],
+        "w": 2
+      }
+    ],
+    "velos": [
+      {
+        "rect": [
+          446,
+          244,
+          24.5,
+          85
+        ],
+        "tono": "anden",
+        "opacidad": 1
+      },
+      {
+        "rect": [
+          652,
+          244,
+          25.5,
+          255
+        ],
+        "tono": "anden",
+        "opacidad": 1
+      },
+      {
+        "rect": [
+          460,
+          307,
+          67,
+          21
+        ],
+        "rx": 10.5,
+        "tono": "anden",
+        "opacidad": 1
+      },
+      {
+        "rect": [
+          665,
+          307,
+          68,
+          21
+        ],
+        "rx": 10.5,
+        "tono": "anden",
+        "opacidad": 1
+      },
+      {
+        "rect": [
+          555,
+          305,
+          46,
+          23
+        ],
+        "tono": "bloque",
+        "opacidad": 1
+      },
+      {
+        "rect": [
+          783,
+          313,
+          22,
+          9
+        ],
+        "tono": "bloque",
+        "opacidad": 1
+      }
+    ],
+    "lineas": [
+      {
+        "pts": [
+          [
+            260,
+            262
+          ],
+          [
+            418,
+            262
+          ],
+          [
+            418,
+            500
+          ],
+          [
+            260,
+            500
+          ],
+          [
+            260,
+            262
+          ]
+        ],
+        "w": 1,
+        "color": "limite",
+        "guion": "4.5 3"
+      },
+      {
+        "pts": [
+          [
+            265,
+            168
+          ],
+          [
+            940,
+            168
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            484.5,
+            192
+          ],
+          [
+            484.5,
+            242
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      }
+    ],
+    "tirasAng": [
+      {
+        "tira": "Plataforma sur · buses alimentadores",
+        "y": 198.5,
+        "marca": "barra",
+        "barra": {
+          "w": 24.5,
+          "h": 5,
+          "tw": 3.6,
+          "th": 2.6
+        },
+        "bahias": [
+          {
+            "x": 636.25,
+            "texto": []
+          },
+          {
+            "x": 666.25,
+            "texto": []
+          },
+          {
+            "x": 695.25,
+            "texto": []
+          },
+          {
+            "x": 724.25,
+            "texto": []
+          },
+          {
+            "x": 754.25,
+            "texto": []
+          },
+          {
+            "x": 783.25,
+            "texto": []
+          },
+          {
+            "x": 812.25,
+            "texto": []
+          },
+          {
+            "x": 842.25,
+            "texto": []
+          }
+        ]
+      },
+      {
+        "tira": "Plataforma sur · buses alimentadores",
+        "y": 184.4,
+        "marca": "tick",
+        "tick": {
+          "w": 2.1,
+          "h": 10.8
+        },
+        "dx": 3.5,
+        "dy": -0.9,
+        "alto": 5.3,
+        "bahias": [
+          {
+            "x": 623,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 653,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 682,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 711,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 741,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 770,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 799,
+            "izq": true,
+            "color": "#226A38"
+          },
+          {
+            "x": 829,
+            "izq": true,
+            "color": "#226A38"
+          }
+        ]
+      }
+    ],
+    "equipoAng": [
+      {
+        "recto": true,
+        "iconos": [
+          "taquilla",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            392,
+            235
+          ],
+          [
+            715,
+            235
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "torniquete"
+        ],
+        "pts": [
+          [
+            458,
+            252
+          ],
+          [
+            664,
+            252
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "escalera",
+          "rampa",
+          "escalera",
+          "rampa"
+        ],
+        "pts": [
+          [
+            433.5,
+            316.5
+          ],
+          [
+            500.5,
+            318
+          ],
+          [
+            642,
+            316.5
+          ],
+          [
+            703.5,
+            318
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "rampa",
+          "tbici",
+          "rampa",
+          "escalera"
+        ],
+        "pts": [
+          [
+            663,
+            360
+          ],
+          [
+            702,
+            399
+          ],
+          [
+            811,
+            441
+          ],
+          [
+            720,
+            472.5
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "taquilla",
+          "torniquete"
+        ],
+        "pts": [
+          [
+            860,
+            387.5
+          ],
+          [
+            869,
+            416.5
+          ],
+          [
+            873,
+            466.5
+          ]
+        ]
+      }
+    ],
+    "trazos": [
+      {
+        "pts": [
+          [
+            446,
+            244
+          ],
+          [
+            446,
+            329
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            470.5,
+            244
+          ],
+          [
+            470.5,
+            329
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            652,
+            244
+          ],
+          [
+            652,
+            499
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            677.5,
+            244
+          ],
+          [
+            677.5,
+            499
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            680,
+            458
+          ],
+          [
+            762,
+            458
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            680,
+            487
+          ],
+          [
+            762,
+            487
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            851,
+            380
+          ],
+          [
+            851,
+            497
+          ]
+        ],
+        "w": 0.8
+      },
+      {
+        "pts": [
+          [
+            680,
+            428
+          ],
+          [
+            846,
+            428
+          ],
+          [
+            846,
+            452
+          ],
+          [
+            680,
+            452
+          ]
+        ],
+        "w": 0.8,
+        "color": "crema"
+      }
+    ],
+    "desembarcos": [
+      {
+        "desde": 683,
+        "hasta": 709,
+        "y0": 440,
+        "y1": 499,
+        "h": 59,
+        "tramos": [
+          [
+            683,
+            709
+          ]
+        ],
+        "paso": 2.6,
+        "w": 0.7,
+        "tono": "reja"
+      },
+      {
+        "desde": 734,
+        "hasta": 759,
+        "y0": 440,
+        "y1": 499,
+        "h": 59,
+        "tramos": [
+          [
+            734,
+            759
+          ]
+        ],
+        "paso": 2.6,
+        "w": 0.7,
+        "tono": "reja"
+      }
+    ],
+    "senales": [
+      {
+        "x": 842,
+        "y": 472.5,
+        "w": 15,
+        "h": 14,
+        "lado": 12,
+        "margen": 1,
+        "icono": "evacuacion"
+      }
+    ],
+    "chips": [
+      {
+        "codigos": [
+          "C25"
+        ],
+        "x": 388,
+        "y": 275.5
+      },
+      {
+        "codigos": [
+          "K10"
+        ],
+        "x": 537,
+        "y": 276
+      },
+      {
+        "codigos": [
+          "2"
+        ],
+        "x": 427,
+        "y": 350.5
+      },
+      {
+        "codigos": [
+          "M82"
+        ],
+        "x": 537,
+        "y": 350.5
+      },
+      {
+        "codigos": [
+          "B18"
+        ],
+        "x": 688,
+        "y": 354.5
+      },
+      {
+        "codigos": [
+          "D81"
+        ],
+        "x": 775,
+        "y": 352.5
+      }
+    ],
+    "etiquetas": [
+      {
+        "x": 322,
+        "y": 209,
+        "w": 86,
+        "h": 14,
+        "texto": "Plataforma Norte",
+        "base": 3.8
+      },
+      {
+        "x": 583,
+        "y": 209,
+        "w": 77,
+        "h": 14,
+        "texto": "Plataforma Sur",
+        "base": 3.8
+      },
+      {
+        "x": 890,
+        "y": 464,
+        "w": 58,
+        "h": 13.5,
+        "texto": "Acceso",
+        "fs": 13.3,
+        "base": 3.5,
+        "flecha": "izq"
+      },
+      {
+        "x": 890,
+        "y": 477.5,
+        "w": 58,
+        "h": 13.5,
+        "texto": "peatonal",
+        "fs": 13.3,
+        "base": 3.5
+      }
+    ],
+    "rotulos": [
+      {
+        "x": 583,
+        "y": 161,
+        "clase": "street",
+        "centro": true,
+        "fs": 15,
+        "texto": "Patio taller"
+      },
+      {
+        "x": 373,
+        "y": 186,
+        "clase": "cap",
+        "texto": "Zona Llegada de pasajeros (Alimentadores)"
+      },
+      {
+        "x": 459,
+        "y": 280,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "Puente peatonal"
+      },
+      {
+        "x": 459.5,
+        "y": 293,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian bridge"
+      },
+      {
+        "x": 665,
+        "y": 284,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "Puente peatonal"
+      },
+      {
+        "x": 665,
+        "y": 298,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian bridge"
+      },
+      {
+        "x": 334.5,
+        "y": 443.5,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Plazoleta IPES"
+      },
+      {
+        "x": 514.5,
+        "y": 446,
+        "clase": "anchor",
+        "centro": true,
+        "fs": 14.4,
+        "texto": "Super CADE"
+      },
+      {
+        "x": 768,
+        "y": 476,
+        "clase": "evac",
+        "texto": "Ruta de evacuación"
+      },
+      {
+        "x": 590,
+        "y": 541,
+        "clase": "street",
+        "centro": true,
+        "fs": 17.5,
+        "texto": "Carrera 5a"
+      },
+      {
+        "x": 243.5,
+        "y": 365.5,
+        "clase": "street",
+        "centro": true,
+        "ang": -90,
+        "texto": "Calle 30 a Sur"
+      },
+      {
+        "x": 949.5,
+        "y": 285.5,
+        "clase": "street",
+        "centro": true,
+        "ang": -90,
+        "texto": "Calle 32 Sur"
+      }
+    ],
+    "borrador": false
   }
 }

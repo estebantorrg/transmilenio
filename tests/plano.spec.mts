@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 // The renderer itself — the same module the app and the prerender both call, so
 // a drawing can be produced here without a browser or a catalog.
 import { buildSheetPlano } from '../shared/plano.js';
-import { buildPortalSvg } from '../shared/plano_svg.js';
+import { buildPortalSvg, PALETA } from '../shared/plano_svg.js';
 
 /**
  * The station plan (`shared/plano.js`, spec §5.5.6).
@@ -698,6 +698,59 @@ test.describe('a portal on its sheet', () => {
       for (const d of geo.desembarcos ?? []) {
         const pasos = (d.tramos ?? []).reduce((n: number, [a, b]: number[]) => n + Math.floor((b - a) / (d.paso ?? 2.2)), 0);
         if (pasos && cuenta(/<line x1=/g) < pasos) wrong.push(code + ': a tunnel landing is drawn without its treads');
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  /**
+   * What a station says about its own drawing that the palette and the shared
+   * defaults have no name for.
+   *
+   * Every one of these is a line in the renderer that a sheet asked for and
+   * nothing else uses yet, which is exactly the kind of thing a refactor drops
+   * without a sound: a surface named by the station falls back to the platform
+   * grey, a veil loses its round nose, a kerb grows a blob at every step, a
+   * boundary is ruled solid, a bay's código is set at its destination's size.
+   */
+  test("a station's own surfaces, cuts and dashes reach its drawing", () => {
+    const base = new Set(Object.keys(PALETA.oscuro));
+    const wrong: string[] = [];
+    for (const code of portales) {
+      const geo = geos[code];
+      const svg = portalFor(code);
+      // A tone the palette does not carry, published by the station itself.
+      const propios = Object.keys(geo.tonos ?? {}).filter((k) => !base.has(k));
+      for (const t of propios) {
+        if (!svg.includes('--pq-' + t + ':')) wrong.push(code + ': ' + t + ' is never defined');
+        const usada = [...(geo.poligonos ?? []), ...(geo.losas ?? []), ...(geo.velos ?? [])]
+          .some((f: any) => f.tono === t);
+        if (usada && !svg.includes('var(--pq-' + t + ')')) {
+          wrong.push(code + ': a shape measured in ' + t + ' is not drawn in it');
+        }
+      }
+      // A veil with a corner radius is a rounded rectangle, arcs and all.
+      for (const v of (geo.velos ?? []).filter((x: any) => x.rx)) {
+        const esquina = 'A' + v.rx + ',' + v.rx;
+        if (!svg.includes(esquina)) wrong.push(code + ': a veil loses the round end it was measured with');
+        if (v.opacidad !== undefined && !svg.includes('fill-opacity="' + v.opacidad + '"')) {
+          wrong.push(code + ': a veil is not drawn at the opacity it was measured at');
+        }
+      }
+      // A kerb the sheet cuts square keeps its ends square.
+      if ((geo.bordillos ?? []).some((k: any) => k.cuadrado) && !svg.includes('stroke-linecap="butt"')) {
+        wrong.push(code + ': a kerb cut square is drawn with round caps');
+      }
+      // A line the sheet breaks is drawn broken.
+      for (const l of (geo.lineas ?? []).filter((x: any) => x.guion)) {
+        if (!svg.includes('stroke-dasharray="' + l.guion + '"')) {
+          wrong.push(code + ': a dashed rule is drawn solid');
+        }
+      }
+      // A bay's código is a tspan, so its size cannot ride on the text rule.
+      const codigo = geo.tipo?.['bay-code'];
+      if (codigo && !svg.includes('tspan.pq-bay-code{font-size:' + codigo + 'px}')) {
+        wrong.push(code + ": a bay's código is not set at the size it was measured at");
       }
     }
     expect(wrong).toEqual([]);

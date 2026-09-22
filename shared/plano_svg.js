@@ -104,7 +104,17 @@ export function buildPortalSvg(input) {
   // into the drawing's own <style>, so the paper view is a class on the root
   // rather than a second render, and @media print can force it with nobody
   // toggling anything.
-  const C = Object.fromEntries(Object.keys(PALETA.oscuro).map((k) => [k, 'var(--pq-' + k + ')']));
+  // The station's OWN surfaces count as references too. A sheet prints things
+  // this palette has no name for — Portal 20 de Julio's Super CADE blue, the
+  // cream of the shops beside it, the beige of Carrera 5a and the green of its
+  // evacuation route — and `tonos` already publishes each as a CSS variable in
+  // both themes. Built from the palette's keys alone, a reference to one of
+  // them came back undefined and the shape fell through to the platform grey,
+  // which is how four coloured blocks were drawn as one grey slab.
+  const C = Object.fromEntries(
+    [...new Set([...Object.keys(PALETA.oscuro), ...Object.keys(geo.tonos ?? {})])]
+      .map((k) => [k, 'var(--pq-' + k + ')'])
+  );
   const inicial = input.tema === 'papel' ? ' pq-papel' : '';
   const D = input.detalle ?? {};
   const tiras = Object.fromEntries(
@@ -189,7 +199,10 @@ export function buildPortalSvg(input) {
     // Three is Portal Norte's weight. Portal Sur rules its kerbs at half that,
     // so the width belongs to the station rather than to the renderer.
     '" fill="none" stroke="' + KERB + '" stroke-width="' + (k.w ?? geo.kerb ?? 3) +
-    '" stroke-linecap="round" stroke-linejoin="round"/>';
+    // Square where the sheet cuts it square. Portal 20 de Julio's kerbs run in
+    // teeth that break at every step, and a round cap put a yellow blob at
+    // both ends of all ten runs.
+    '" stroke-linecap="' + (k.cuadrado ? 'butt' : 'round') + '" stroke-linejoin="round"/>';
 
   /**
    * A walled corridor: a light fill inside a DASHED outline.
@@ -268,7 +281,12 @@ export function buildPortalSvg(input) {
   // three boxes round the drawing instead.
   const linea = (l) =>
     '<path class="pq-linea" d="' + trazar(l.pts) + '" fill="none" stroke="' + (l.color ? C[l.color] ?? C.trazo : C.trazo) +
-    '" stroke-width="' + (l.w ?? 0.9) + '" stroke-linecap="round"/>';
+    '" stroke-width="' + (l.w ?? 0.9) +
+    // Broken where the sheet breaks it: Portal 20 de Julio rules the boundary
+    // of the plaza it stands in as a dashed blue line, which drawn solid reads
+    // as a wall around a square anyone can walk across.
+    (l.guion ? '" stroke-dasharray="' + l.guion : '') +
+    '" stroke-linecap="round"/>';
 
   /**
    * One flight of the escalator bank beside the shopping centre.
@@ -944,8 +962,12 @@ export function buildPortalSvg(input) {
     // house style: Portal 80 is drawn half again as large on the same page and
     // its badges are nearly twice the size, so a station may carry its own. Same
     // specificity as the rules above and written after them, so these win.
+    // 'bay-code' is the one that is not a text element: a bay's código is a
+    // tspan inside its destination, and the sheets set the two at different
+    // sizes — Portal 20 de Julio's códigos are a third larger than the names
+    // under them, and one size for both made every tag in the strip too wide.
     Object.entries(geo.tipo ?? {})
-      .map(([k, v]) => '.pq text.pq-' + k + '{font-size:' + v + 'px}')
+      .map(([k, v]) => '.pq ' + (k === 'bay-code' ? 'tspan' : 'text') + '.pq-' + k + '{font-size:' + v + 'px}')
       .join('') +
     '.pq a{cursor:pointer}' +
     '.pq a:hover rect{stroke:' + C.tinta + ';stroke-width:1.5}' +
@@ -1022,11 +1044,15 @@ export function buildPortalSvg(input) {
     (geo.tiras ?? []).map(bahias).join('') +
     (geo.tiras ?? []).map(equipo).join('') +
     (geo.tirasAng ?? []).map(tiraAngulada).join('') +
-    // A structure seen THROUGH: Portal Américas' bridge crosses its platforms
-    // as a pale veil, and the bays and kerbs under it show paler rather than
-    // being painted out.
+    // A structure OVER the platforms. Portal Américas' bridge crosses its as a
+    // pale veil, the bays and kerbs under it showing paler rather than being
+    // painted out; Portal 20 de Julio's two bridges are drawn solid, each with
+    // a landing whose nose is round, and its shelters are solid blocks on the
+    // platform — so the opacity and the corner radius are the shape's own.
+    // Drawn here, after the platform: given as ground, a bridge that crosses a
+    // platform was painted over by it and disappeared.
     (geo.velos ?? [])
-      .map((v) => '<path class="pq-velo" d="' + rectangulo(v.rect, 0) + '" fill="' + (C[v.tono] ?? C.papel) +
+      .map((v) => '<path class="pq-velo" d="' + rectangulo(v.rect, v.rx ?? 0) + '" fill="' + (C[v.tono] ?? C.papel) +
         '" fill-opacity="' + (v.opacidad ?? 0.3) + '"/>')
       .join('') +
     (geo.cajas ?? []).map(caja).join('') +
