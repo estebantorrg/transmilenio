@@ -4,7 +4,8 @@
  *
  * The windows are the risky part. They are Bogotá time read from wherever the
  * browser happens to be, and Marly's weeknight closure crosses midnight — so
- * the edges are pinned here minute by minute, on the real notices in the file.
+ * the edges are pinned here minute by minute: on the notice the file still
+ * carries, and on a fixture for the weekend one it has outlived.
  */
 
 import { readFileSync } from 'node:fs';
@@ -19,8 +20,29 @@ const { avisos } = JSON.parse(readFileSync(root('server/src/data/avisos.json'), 
 const planos = JSON.parse(readFileSync(root('server/src/data/plano_vagones.json'), 'utf8'));
 
 const byId = (id: string) => avisos.find((a: { id: string }) => a.id === id);
-const FIN_DE_SEMANA = byId('marly-2026-09-18-cierre-fin-de-semana');
 const NOCTURNO = byId('marly-cierre-nocturno');
+/**
+ * The weekend closure Marly ran from 18 to 21 September 2026, kept here as a
+ * fixture rather than read from the file.
+ *
+ * It ended, so it is no longer in `avisos.json` — and it could not be tested
+ * from there even if it were: the server drops a notice whose `hasta` has
+ * passed when it builds the catalog, using the real clock, so a test that
+ * pins the BROWSER's clock to that weekend gets a catalog that never carried
+ * it. That is exactly how this suite broke after the notice expired. It
+ * stays as a fixture because it is the best case there is for a window with
+ * an end, for services that skip a stop and for a closed access.
+ */
+const FIN_DE_SEMANA = {
+  id: 'marly-2026-09-18-cierre-fin-de-semana',
+  desde: '2026-09-18T22:00:00-05:00',
+  hasta: '2026-09-21T04:00:00-05:00',
+  cierra: { vagones: ['2'], accesos: ['Calle 50'] },
+  omiten: ['D24', 'J24', 'B23', 'K23'],
+  trasladan: { 2: '1' },
+  titulo: 'Cierre del vagón 2 y del acceso norte (Calle 50)',
+  detalle: 'Por las obras del Metro de Bogotá, hasta el lunes 21 de septiembre a las 4:00 a. m.',
+};
 /** A Bogotá wall-clock time as an instant. */
 const bog = (local: string) => new Date(`${local}:00-05:00`);
 
@@ -66,19 +88,19 @@ test.describe('when a notice is in force', () => {
   });
 
   test('merges what the notices in force close, skip and move', () => {
-    const weekend = estadoAvisos(avisos, bog('2026-09-19T10:00'));
+    const weekend = estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-19T10:00'));
     expect(weekend.vigentes.map((a) => a.id)).toEqual([FIN_DE_SEMANA.id]);
     expect(weekend.vagones).toEqual(['2']);
     expect(weekend.accesos).toEqual(['Calle 50']);
     expect(weekend.omiten.sort()).toEqual(['B23', 'D24', 'J24', 'K23']);
     expect(weekend.traslados).toEqual({ 2: '1' });
 
-    const night = estadoAvisos(avisos, bog('2026-09-22T23:00'));
+    const night = estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-22T23:00'));
     expect(night.vigentes.map((a) => a.id)).toEqual([NOCTURNO.id]);
     expect(night.accesos).toEqual([]);
     expect(night.omiten).toEqual([]);
 
-    expect(estadoAvisos(avisos, bog('2026-09-22T12:00')).vigentes).toEqual([]);
+    expect(estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-22T12:00')).vigentes).toEqual([]);
   });
 });
 
@@ -126,8 +148,16 @@ test.describe('the notice on screen', () => {
   test.describe.configure({ timeout: 240_000 });
 
   test('in force: the notice over the plan, and the plan marked to match', async ({ page }) => {
-    await page.clock.setFixedTime(bog('2026-09-19T10:00'));
     await openMarly(page);
+    // The station's own page, handed the weekend notice through the same
+    // function the app calls every minute. The notice is given here rather
+    // than left to the catalog because it has ended and the catalog no longer
+    // carries it — what is under test is the marking, not the delivery, and
+    // the delivery is covered by the test below.
+    await page.evaluate(async ({ aviso, cuando }) => {
+      const mod = await import('/src/ui/avisos.ts');
+      mod.applyAvisos(document.getElementById('station-page')!, [aviso], new Date(cuando));
+    }, { aviso: FIN_DE_SEMANA, cuando: bog('2026-09-19T10:00').toISOString() });
     const pagina = page.locator('#station-page');
 
     const banner = pagina.locator('.station-avisos');
@@ -152,9 +182,14 @@ test.describe('the notice on screen', () => {
     await expect(vagon2.locator('[data-route-code="F60"]')).toHaveClass(/aviso-traslado/);
     await expect(vagon2.locator('[data-route-code="F60"]')).toHaveAttribute('title', /para en el Vagón 1/);
 
-    // The popup the page hands back to says the same.
+    // The popup the page hands back to marks the same plan the same way.
     await pagina.getByText('Ver en el mapa').click();
     const popup = page.locator('.tm-popup');
+    await popup.waitFor({ state: 'visible', timeout: 20_000 });
+    await page.evaluate(async ({ aviso, cuando }) => {
+      const mod = await import('/src/ui/avisos.ts');
+      mod.applyAvisos(document.querySelector('.tm-popup')!, [aviso], new Date(cuando));
+    }, { aviso: FIN_DE_SEMANA, cuando: bog('2026-09-19T10:00').toISOString() });
     await expect(popup.locator('.popup-avisos .aviso-titulo')).toHaveText(FIN_DE_SEMANA.titulo);
     await expect(popup.locator('.pvg[data-vagon="2"]')).toHaveClass(/aviso-cerrado/);
     await expect(popup.locator('.popup-plano .aviso-omite')).toHaveCount(4);

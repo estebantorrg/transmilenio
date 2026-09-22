@@ -3,31 +3,34 @@
     "what": "Operator notices that change how a station works for a stretch of time: a vagón or an access closed, services that skip the stop, services moved to another vagón. Each is shown on the station page and in its map popup only while it is in force, and marks the drawn plan to match.",
     "time": "`desde` and `hasta` are instants with their offset. `franja` narrows a notice to a daily window in Bogotá time (UTC-5, no daylight saving): `dias` are the days a window STARTS on (0 Sunday … 6 Saturday), and a window that crosses midnight belongs to the day it starts, so Friday 22:00 to 04:00 runs into Saturday morning.",
     "fields": "`cierra.vagones` are the vagón numbers as printed on the platform signs; `cierra.accesos` names an access by the street its Salida sign prints on the plano (the notice's \"acceso norte\" at Marly is the Calle 50 block); `omiten` are service códigos that do not stop; `trasladan` maps a closed vagón to the one its services board at instead. `titulo` and `detalle` are shown to the rider as written.",
-    "source_rule": "Copied from TransMilenio's own published notice and nothing else: `fuente` names it. A notice with no end date stays until it is removed here, and one whose `hasta` has passed is dropped from the catalog when it is built."
+    "source_rule": "Copied from TransMilenio's own published notice and nothing else: `fuente` names it. A notice with no end date stays until it is removed here, and one whose `hasta` has passed is dropped from the catalog when it is built — so an ended notice is taken out of this file rather than left to rot: while it sits here it is dead weight, and a test that pins the browser clock cannot bring it back, because the catalog it would have to appear in was built without it."
   },
   "avisos": [
-    {
-      "id": "marly-2026-09-18-cierre-fin-de-semana",
-      "estacion": "TM0006",
-      "fuente": "Aviso de TransMilenio 'Estacion temporal Marly', publicado el 18 de septiembre de 2026.",
-      "motivo": "Obras de construccion del Metro de Bogota.",
-      "desde": "2026-09-18T22:00:00-05:00",
-      "hasta": "2026-09-21T04:00:00-05:00",
-      "cierra": { "vagones": ["2"], "accesos": ["Calle 50"] },
-      "omiten": ["D24", "J24", "B23", "K23"],
-      "trasladan": { "2": "1" },
-      "titulo": "Cierre del vagón 2 y del acceso norte (Calle 50)",
-      "detalle": "Por las obras del Metro de Bogotá, hasta el lunes 21 de septiembre a las 4:00 a. m. Los servicios D24, J24, B23 y K23 omiten la parada; los demás paran en el vagón 1."
-    },
     {
       "id": "marly-cierre-nocturno",
       "estacion": "TM0006",
       "fuente": "Aviso de TransMilenio 'Estacion temporal Marly', publicado el 18 de septiembre de 2026.",
       "motivo": "Obras de construccion del Metro de Bogota.",
       "desde": "2026-09-21T04:00:00-05:00",
-      "franja": { "dias": [1, 2, 3, 4, 5], "desde": "22:00", "hasta": "04:00" },
-      "cierra": { "vagones": ["2"] },
-      "trasladan": { "2": "1" },
+      "franja": {
+        "dias": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "desde": "22:00",
+        "hasta": "04:00"
+      },
+      "cierra": {
+        "vagones": [
+          "2"
+        ]
+      },
+      "trasladan": {
+        "2": "1"
+      },
       "titulo": "Cierre nocturno del vagón 2",
       "detalle": "De lunes a viernes, de 10:00 p. m. a 4:00 a. m., los servicios del vagón 2 paran en el vagón 1."
     }
