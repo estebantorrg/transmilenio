@@ -452,6 +452,13 @@ export function buildPortalSvg(input) {
   const CH = geo.chip ?? {};
   const anchoChip = (c) => Math.max(CH.min ?? 19, c.length * (CH.k ?? 7.4) + 5);
   const ALTO_CHIP = CH.h ?? 23;
+  // The badges are ROUNDED, like every route tag the app draws elsewhere: the
+  // sheets print square corners, but a rider meets these códigos as rounded
+  // tags on every other surface here — the popup, the estación page, the
+  // route list — and a square one on the portal read as a different kind of
+  // thing. The app's tag is 22px tall on a 5px radius, so the corner is that
+  // proportion of whatever height the station's own badge is.
+  const RADIO_CHIP = CH.rx ?? ALTO_CHIP * (5 / 22);
   const SUB_Y = CH.sub ?? 6;
 
   /** A run of chips, butted together the way the sheet sets them. */
@@ -475,7 +482,8 @@ export function buildPortalSvg(input) {
       const fondo = colorDe(c);
       const borde = /^#(0|1)/.test(fondo) ? ' stroke="' + C.trazo + '" stroke-width="0.8"' : '';
       const cuerpo =
-        '<rect class="pq-badge" width="' + num(w) + '" height="' + ALTO_CHIP + '" fill="' + fondo + '"' + borde + '/>' +
+        '<rect class="pq-badge" width="' + num(w) + '" height="' + ALTO_CHIP + '" rx="' + num(RADIO_CHIP) +
+        '" fill="' + fondo + '"' + borde + '/>' +
         (sub ? '<text x="' + num(w / 2) + '" y="' + SUB_Y + '" class="pq-chip-sub">' + escapeHtml(sub) + '</text>' : '') +
         // A badge with a strapline over it sets its code LOWER, not centred: the
         // sheet gives the strapline the room and lets the code sit on the floor.

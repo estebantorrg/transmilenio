@@ -796,6 +796,18 @@ test.describe('a portal on its sheet', () => {
           wrong.push(code + ": an arrival zone's marker is not turned over");
         }
       }
+      // Every badge is ROUNDED, at the proportion the app's own route tags use
+      // — 5 on 22 — whatever height the station's badge is. The sheets print
+      // square corners; these are the same códigos a rider meets as rounded
+      // tags on every other surface here, and drawn square on the portal they
+      // read as a different kind of thing.
+      const radio = geo.chip?.rx ?? (geo.chip?.h ?? 23) * (5 / 22);
+      const badges = [...svg.matchAll(/<rect class="pq-badge"[^>]*?rx="([\d.]+)"/g)].map((m) => Number(m[1]));
+      const todos = (svg.match(/<rect class="pq-badge"/g) ?? []).length;
+      if (badges.length !== todos) wrong.push(code + ': a badge is drawn with square corners');
+      if (badges.some((v) => Math.abs(v - radio) > 0.02)) {
+        wrong.push(code + ': a badge is not rounded at the proportion its height asks for');
+      }
       // A tag the sheet prints in another colour, lettered in another ink, or
       // pointing down at what it names.
       for (const e of (geo.etiquetas ?? []).filter((x: any) => x.fondo && x.fondo !== 'none')) {
