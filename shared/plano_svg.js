@@ -457,6 +457,13 @@ export function buildPortalSvg(input) {
   /** A run of chips, butted together the way the sheet sets them. */
   function chips(grupo) {
     let cx = grupo.x, out = '';
+    // On an ANGLED platform a sheet may turn the badges with it: Portal Tunal
+    // sets B27 and B13 along Plataforma 2 at the platform's own angle, while
+    // Portal 80 leaves its upright. Which it is belongs to the station, so the
+    // group carries the platform it turns with or nothing at all.
+    const vuelta = grupo.anden === undefined
+      ? ''
+      : 'rotate(' + num(giro(grupo.anden, grupo.x)) + ' ' + num(grupo.x) + ' ' + num(grupo.y) + ')';
     for (const c of grupo.codigos) {
       const sub = (grupo.sub ?? {})[c];
       const w = anchoChip(c);
@@ -475,7 +482,8 @@ export function buildPortalSvg(input) {
         '<text x="' + num(w / 2) + '" y="' + num(ALTO_CHIP * (sub ? CH.baseSub ?? 0.78 : CH.base ?? 0.71)) +
         '" class="pq-chip">' + escapeHtml(c) + '</text>';
       const g =
-        '<g transform="translate(' + num(cx) + ' ' + num(grupo.y - ALTO_CHIP / 2) + ')">' + cuerpo + '</g>';
+        '<g transform="' + (vuelta ? vuelta + ' ' : '') + 'translate(' + num(cx) + ' ' +
+        num(grupo.y - ALTO_CHIP / 2) + ')">' + cuerpo + '</g>';
       out += href
         ? '<a href="' + escapeHtml(href) + '" class="pq-link" aria-label="Ruta ' + escapeHtml(c) + '">' + g + '</a>'
         : g;
@@ -739,7 +747,16 @@ export function buildPortalSvg(input) {
           num(tw) + ' l' + num(-tw / 2) + ',' +
           num((b.abajo ?? t.barra?.abajo) ? th : -th) + ' z" fill="' + C.trazo + '"/>';
       } else {
-        out += '<path class="pq-bahia" d="M' + num(m.x - 4.5) + ',' + num(m.y - 3.5) + ' h9 l-4.5,7 z" fill="' + C.trazo + '"/>';
+        // The triangle cut into a bay bar. Nine by seven is Portal Norte's;
+        // Portal Tunal's sheet is drawn at half the scale and cuts a smaller
+        // one, so the size belongs to the strip rather than to the renderer.
+        const tw = t.tri?.w ?? 9, th = t.tri?.h ?? 7;
+        // Pointing down at the kerb the bus pulls in against, or UP at it where
+        // the bay is on the other side of the bar: Portal Tunal marks its two
+        // arrival zones with the same triangle turned over.
+        const sube = b.arriba ?? t.arriba;
+        out += '<path class="pq-bahia" d="M' + num(m.x - tw / 2) + ',' + num(m.y + (sube ? th : -th) / 2) +
+          ' h' + num(tw) + ' l' + num(-tw / 2) + ',' + num(sube ? -th : th) + ' z" fill="' + C.trazo + '"/>';
       }
       const lineas = b.texto
         // The sheet's own wording where it is not the route's: the arrival zone
@@ -774,9 +791,14 @@ export function buildPortalSvg(input) {
         // rather than a bay at a point. A sheet that centres every name over its
         // bay still sets some of them a few pixels off the mark, so the offset is
         // the bay's own where it was measured.
-        out += '<text x="' + num(m.x + (b.dx ?? (centrado ? 0 : t.dx ?? 2))) +
-          '" y="' + num(m.y + (t.dy ?? 15.5) + (k - arriba) * (t.alto ?? 11)) +
-          '" class="pq-bay' + (centrado ? '' : ' pq-bay-izq') + '">' + n + '</text>';
+        const tx = m.x + (b.dx ?? (centrado ? 0 : t.dx ?? 2));
+        const ty = m.y + (t.dy ?? 15.5) + (k - arriba) * (t.alto ?? 11);
+        // Level unless the sheet turns them. Portal 80 sets the names of its
+        // angled platforms square to the page and Portal Tunal runs them along
+        // Plataforma 2, so the choice is the strip's rather than the renderer's.
+        const giroN = t.nombresAng ? ' transform="rotate(' + num(giro(t.anden, b.x)) + ' ' + num(tx) + ' ' + num(ty) + ')"' : '';
+        out += '<text x="' + num(tx) + '" y="' + num(ty) + '"' + giroN +
+          ' class="pq-bay' + (centrado ? '' : ' pq-bay-izq') + '">' + n + '</text>';
       });
     });
     return out;
@@ -897,17 +919,30 @@ export function buildPortalSvg(input) {
         ? '<path d="M' + t.x + ',' + num(t.y + t.h / 2) + ' l7,-5.5 v11 z" fill="' + KERB + '"/>'
         : t.flecha === 'arriba'
           ? '<path d="M' + num(t.x + (t.punta ?? t.w / 2) - (t.pw ?? 5.5)) + ',' + num(t.y + 0.5) + ' l' +
-            (t.pw ?? 5.5) + ',' + -(t.ph ?? 7.5) + ' l' + (t.pw ?? 5.5) + ',' + (t.ph ?? 7.5) + ' z" fill="' + KERB + '"/>'
+            (t.pw ?? 5.5) + ',' + -(t.ph ?? 7.5) + ' l' + (t.pw ?? 5.5) + ',' + (t.ph ?? 7.5) + ' z" fill="' +
+            (t.fondo ?? KERB) + '"/>'
+        : t.flecha === 'abajo'
+          ? '<path d="M' + num(t.x + (t.punta ?? t.w / 2) - (t.pw ?? 5.5)) + ',' + num(t.y + t.h - 0.5) + ' l' +
+            (t.pw ?? 5.5) + ',' + (t.ph ?? 7.5) + ' l' + (t.pw ?? 5.5) + ',' + -(t.ph ?? 7.5) + ' z" fill="' +
+            (t.fondo ?? KERB) + '"/>'
           : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
     return punta +
       '<rect x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
-      '" fill="' + KERB + '"/>' +
+      // Yellow is what a platform tag is; a station may print another kind.
+      // Portal Tunal names its TransMiCable station on an orange plate with
+      // white lettering, which drawn in the platform yellow read as a third
+      // platform rather than as the cable station it points at.
+      '" fill="' + (t.fondo ?? KERB) + '"/>' +
       // A sheet does not set every yellow tag at one size: Portal Sur's platform
       // names are a point and a half larger than the two naming the floors of
       // its access block, and at this scale that is a visible difference rather
       // than a typographic nicety.
       '<text x="' + num(x0 + t.w / 2) + '" y="' + num(t.y + t.h - (t.base ?? 3.5)) +
-      '" class="pq-tag"' + (t.fs ? ' style="font-size:' + t.fs + 'px"' : '') + '>' +
+      '" class="pq-tag"' +
+      (t.fs || t.tinta
+        ? ' style="' + [t.fs ? 'font-size:' + t.fs + 'px' : '', t.tinta ? 'fill:' + t.tinta : '']
+          .filter(Boolean).join(';') + '"'
+        : '') + '>' +
       escapeHtml(t.texto) + '</text>';
   };
 

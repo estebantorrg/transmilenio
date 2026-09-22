@@ -11502,5 +11502,1339 @@
       }
     ],
     "borrador": false
+  },
+  "TM0119": {
+    "source": "Plano de ubicacion, Portal Tunal, version junio de 2025.",
+    "why": "TWO platforms that do not lie the same way: Plataforma 1 runs along Avenida Boyacá and Plataforma 2 leaves it at 27 degrees, running down to the TransMiCable station — so its badges, its platform tag, its bay markers AND its bay names all turn with it, which no other portal sheet asks for. Each platform is a boarding strip with a darker bay bar along its outer edge, a kerb on each side, and a zonal arrivals zone at its far end. North of them runs the access concourse with its torniquetes, TransMiBici and taquilla, reached from Avenida Boyacá; two pedestrian TUNNELS land on the platforms, each drawn as the sheet draws it — a diamond with its own furniture. What makes this sheet unlike every other is the south-east corner: the cable station is a disc with a hexagonal hall inside it, the cabin drawn in TransMiCable red on its own angle, planting curved round the outside, and the line itself running off the page to Juan Pablo II, Manitas and Mirador del Paraíso, its three stops drawn as beads on the cable. The plate naming it is the operator's orange rather than the platform yellow, because it names a different system.",
+    "vista": [
+      262,
+      128,
+      632,
+      424
+    ],
+    "teja": 10,
+    "kerb": 1.6,
+    "chip": {
+      "k": 7.4,
+      "h": 19,
+      "min": 25,
+      "gap": 1,
+      "base": 0.74
+    },
+    "tipo": {
+      "chip": 13,
+      "bay": 3.1,
+      "bay-code": 3.4,
+      "cap": 4.4,
+      "tag": 8.4,
+      "evac": 5.4,
+      "place-sm": 7.4,
+      "place-en": 5.6,
+      "street": 11,
+      "anchor": 9,
+      "sub-sm": 4.6
+    },
+    "tonos": {
+      "anden": {
+        "papel": "#C6C6C6",
+        "oscuro": "#3A3C40"
+      },
+      "bahia": {
+        "papel": "#B4B2B3",
+        "oscuro": "#4A4D54"
+      },
+      "caja": {
+        "papel": "#E9E9E9",
+        "oscuro": "#2A2C31"
+      },
+      "eje": {
+        "papel": "#C0BEBF",
+        "oscuro": "#34373D"
+      },
+      "bloque": {
+        "papel": "#9D9D9D",
+        "oscuro": "#45474B"
+      },
+      "verde": {
+        "papel": "#AACE76",
+        "oscuro": "#35502A"
+      },
+      "cable": {
+        "papel": "#BD161D",
+        "oscuro": "#BD161D"
+      },
+      "naranja": {
+        "papel": "#F07C1E",
+        "oscuro": "#F07C1E"
+      },
+      "remate": {
+        "papel": "#231F20",
+        "oscuro": "#20232A"
+      }
+    },
+    "poligonos": [
+      {
+        "rect": [
+          402,
+          177,
+          200,
+          20
+        ],
+        "tono": "anden"
+      },
+      {
+        "pts": [
+          [
+            598,
+            226
+          ],
+          [
+            697,
+            226
+          ],
+          [
+            700,
+            240
+          ],
+          [
+            700,
+            268
+          ],
+          [
+            645,
+            274
+          ],
+          [
+            598,
+            274
+          ]
+        ],
+        "tono": "anden"
+      },
+      {
+        "pts": [
+          [
+            287.5,
+            224
+          ],
+          [
+            306,
+            242
+          ],
+          [
+            287.5,
+            260
+          ],
+          [
+            269,
+            242
+          ]
+        ],
+        "tono": "eje"
+      },
+      {
+        "pts": [
+          [
+            642.5,
+            248
+          ],
+          [
+            666.5,
+            258.5
+          ],
+          [
+            642.5,
+            269
+          ],
+          [
+            619,
+            258.5
+          ]
+        ],
+        "tono": "caja"
+      },
+      {
+        "pts": [
+          [
+            757.05,
+            488.05
+          ],
+          [
+            750.66,
+            488.79
+          ],
+          [
+            744.24,
+            489
+          ],
+          [
+            737.83,
+            488.67
+          ],
+          [
+            731.46,
+            487.8
+          ],
+          [
+            725.19,
+            486.41
+          ],
+          [
+            719.06,
+            484.5
+          ],
+          [
+            713.11,
+            482.08
+          ],
+          [
+            707.38,
+            479.18
+          ],
+          [
+            701.91,
+            475.81
+          ],
+          [
+            696.74,
+            472
+          ],
+          [
+            691.91,
+            467.77
+          ],
+          [
+            687.44,
+            463.15
+          ],
+          [
+            683.38,
+            458.17
+          ],
+          [
+            679.74,
+            452.87
+          ],
+          [
+            676.56,
+            447.29
+          ],
+          [
+            673.86,
+            441.47
+          ],
+          [
+            671.65,
+            435.43
+          ],
+          [
+            669.95,
+            429.24
+          ],
+          [
+            668.78,
+            422.92
+          ],
+          [
+            668.13,
+            416.53
+          ],
+          [
+            668.02,
+            410.11
+          ],
+          [
+            668.45,
+            403.7
+          ],
+          [
+            669.41,
+            397.35
+          ],
+          [
+            670.89,
+            391.1
+          ],
+          [
+            672.89,
+            384.99
+          ],
+          [
+            675.39,
+            379.08
+          ],
+          [
+            678.38,
+            373.39
+          ],
+          [
+            681.83,
+            367.97
+          ],
+          [
+            685.72,
+            362.86
+          ],
+          [
+            690.02,
+            358.09
+          ],
+          [
+            694.71,
+            353.69
+          ],
+          [
+            699.74,
+            349.71
+          ],
+          [
+            703.27,
+            354.56
+          ],
+          [
+            698.62,
+            358.24
+          ],
+          [
+            694.3,
+            362.29
+          ],
+          [
+            690.34,
+            366.69
+          ],
+          [
+            686.75,
+            371.4
+          ],
+          [
+            683.57,
+            376.4
+          ],
+          [
+            680.82,
+            381.64
+          ],
+          [
+            678.51,
+            387.1
+          ],
+          [
+            676.67,
+            392.73
+          ],
+          [
+            675.3,
+            398.49
+          ],
+          [
+            674.41,
+            404.35
+          ],
+          [
+            674.02,
+            410.26
+          ],
+          [
+            674.12,
+            416.18
+          ],
+          [
+            674.72,
+            422.07
+          ],
+          [
+            675.8,
+            427.9
+          ],
+          [
+            677.37,
+            433.61
+          ],
+          [
+            679.4,
+            439.17
+          ],
+          [
+            681.9,
+            444.54
+          ],
+          [
+            684.83,
+            449.69
+          ],
+          [
+            688.18,
+            454.57
+          ],
+          [
+            691.93,
+            459.16
+          ],
+          [
+            696.04,
+            463.42
+          ],
+          [
+            700.5,
+            467.32
+          ],
+          [
+            705.27,
+            470.84
+          ],
+          [
+            710.31,
+            473.95
+          ],
+          [
+            715.59,
+            476.62
+          ],
+          [
+            721.08,
+            478.85
+          ],
+          [
+            726.74,
+            480.61
+          ],
+          [
+            732.52,
+            481.89
+          ],
+          [
+            738.39,
+            482.69
+          ],
+          [
+            744.3,
+            483
+          ],
+          [
+            750.22,
+            482.81
+          ],
+          [
+            756.11,
+            482.13
+          ]
+        ],
+        "tono": "verde"
+      },
+      {
+        "pts": [
+          [
+            783.18,
+            432
+          ],
+          [
+            752,
+            450
+          ],
+          [
+            720.82,
+            432
+          ],
+          [
+            720.82,
+            396
+          ],
+          [
+            752,
+            378
+          ],
+          [
+            783.18,
+            396
+          ]
+        ],
+        "tono": "bloque"
+      },
+      {
+        "pts": [
+          [
+            757.4,
+            401.9
+          ],
+          [
+            800.4,
+            440.9
+          ],
+          [
+            785.6,
+            457.1
+          ],
+          [
+            742.6,
+            418.1
+          ]
+        ],
+        "tono": "cable"
+      },
+      {
+        "rect": [
+          737,
+          400,
+          11,
+          13
+        ],
+        "tono": "remate"
+      },
+      {
+        "pts": [
+          [
+            272,
+            156
+          ],
+          [
+            280,
+            152
+          ],
+          [
+            280,
+            160
+          ]
+        ],
+        "tono": "tenue"
+      },
+      {
+        "pts": [
+          [
+            318,
+            172
+          ],
+          [
+            310,
+            168
+          ],
+          [
+            310,
+            176
+          ]
+        ],
+        "tono": "tenue"
+      },
+      {
+        "rect": [
+          432,
+          134,
+          8,
+          8
+        ],
+        "tono": "tinta"
+      },
+      {
+        "rect": [
+          548,
+          134,
+          8,
+          8
+        ],
+        "tono": "tinta"
+      }
+    ],
+    "circulos": [
+      {
+        "x": 745,
+        "y": 412,
+        "r": 71,
+        "tono": "eje"
+      },
+      {
+        "x": 819.5,
+        "y": 456.5,
+        "r": 2.6,
+        "tono": "cable"
+      },
+      {
+        "x": 805.5,
+        "y": 456,
+        "r": 2.6,
+        "tono": "remate"
+      },
+      {
+        "x": 801.5,
+        "y": 464,
+        "r": 2.6,
+        "tono": "cable"
+      }
+    ],
+    "velos": [
+      {
+        "rect": [
+          345,
+          238.5,
+          29,
+          11.5
+        ],
+        "tono": "caja",
+        "opacidad": 1
+      }
+    ],
+    "andenes": [
+      {
+        "pts": [
+          [
+            316,
+            243.5
+          ],
+          [
+            612,
+            243.5
+          ]
+        ],
+        "ancho": 31,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            696,
+            252.8
+          ],
+          [
+            886,
+            351.4
+          ]
+        ],
+        "ancho": 23,
+        "cuadrado": true
+      }
+    ],
+    "barras": [
+      {
+        "anden": 0,
+        "desde": 316,
+        "hasta": 612,
+        "off": 20.5,
+        "h": 9
+      },
+      {
+        "anden": 1,
+        "desde": 700,
+        "hasta": 880,
+        "off": 7,
+        "h": 9
+      }
+    ],
+    "bordillos": [
+      {
+        "pts": [
+          [
+            332,
+            226.3
+          ],
+          [
+            612,
+            226.3
+          ]
+        ],
+        "w": 1.6,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            332,
+            269
+          ],
+          [
+            612,
+            269
+          ]
+        ],
+        "w": 1.6,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            700,
+            241.92
+          ],
+          [
+            886,
+            338.44
+          ]
+        ],
+        "w": 1.6,
+        "cuadrado": true
+      },
+      {
+        "pts": [
+          [
+            700,
+            267.92
+          ],
+          [
+            886,
+            364.44
+          ]
+        ],
+        "w": 1.6,
+        "cuadrado": true
+      }
+    ],
+    "tirasAng": [
+      {
+        "tira": "Plataforma 1 · buses zonales",
+        "anden": 0,
+        "off": 21,
+        "dy": 8,
+        "alto": 5,
+        "centrado": true,
+        "tri": {
+          "w": 5.5,
+          "h": 4.5
+        },
+        "bahias": [
+          {
+            "x": 345.5
+          },
+          {
+            "x": 372.5
+          },
+          {
+            "x": 400
+          },
+          {
+            "x": 427
+          },
+          {
+            "x": 454
+          },
+          {
+            "x": 481
+          },
+          {
+            "x": 508.5
+          },
+          {
+            "x": 564.5,
+            "arriba": true,
+            "texto": []
+          }
+        ]
+      },
+      {
+        "tira": "Plataforma 2 · buses zonales",
+        "anden": 1,
+        "off": 11,
+        "dy": 7,
+        "alto": 5,
+        "nombresAng": true,
+        "tri": {
+          "w": 5,
+          "h": 4
+        },
+        "bahias": [
+          {
+            "x": 710
+          },
+          {
+            "x": 729.5
+          },
+          {
+            "x": 749.5
+          },
+          {
+            "x": 769.5
+          },
+          {
+            "x": 789
+          },
+          {
+            "x": 820,
+            "arriba": true,
+            "texto": []
+          }
+        ]
+      }
+    ],
+    "equipoAng": [
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "bici",
+          "torniquete",
+          "taquilla",
+          "torniquete"
+        ],
+        "pts": [
+          [
+            402.5,
+            184
+          ],
+          [
+            477,
+            184
+          ],
+          [
+            530,
+            184
+          ],
+          [
+            543,
+            188
+          ],
+          [
+            554,
+            188
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "rampa"
+        ],
+        "pts": [
+          [
+            287,
+            243
+          ],
+          [
+            378,
+            243
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "torniquete",
+          "taquilla",
+          "taquilla",
+          "taquilla",
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            323.5,
+            247.5
+          ],
+          [
+            400.5,
+            247.5
+          ],
+          [
+            412,
+            253
+          ],
+          [
+            492,
+            253
+          ],
+          [
+            551,
+            253
+          ],
+          [
+            567.5,
+            247.5
+          ],
+          [
+            585,
+            253
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "torniquete",
+          "taquilla"
+        ],
+        "pts": [
+          [
+            693.5,
+            255
+          ],
+          [
+            784,
+            296
+          ]
+        ]
+      },
+      {
+        "recto": true,
+        "iconos": [
+          "rampa",
+          "rampa"
+        ],
+        "pts": [
+          [
+            690,
+            413
+          ],
+          [
+            810,
+            374
+          ]
+        ]
+      }
+    ],
+    "trazos": [
+      {
+        "pts": [
+          [
+            345,
+            238.5
+          ],
+          [
+            374,
+            238.5
+          ],
+          [
+            374,
+            250
+          ],
+          [
+            345,
+            250
+          ],
+          [
+            345,
+            238.5
+          ]
+        ],
+        "w": 0.7
+      },
+      {
+        "pts": [
+          [
+            332,
+            253
+          ],
+          [
+            612,
+            253
+          ]
+        ],
+        "w": 0.7
+      },
+      {
+        "pts": [
+          [
+            332,
+            260
+          ],
+          [
+            332,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            359,
+            260
+          ],
+          [
+            359,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            386,
+            260
+          ],
+          [
+            386,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            413.5,
+            260
+          ],
+          [
+            413.5,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            440.5,
+            260
+          ],
+          [
+            440.5,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            467.5,
+            260
+          ],
+          [
+            467.5,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            494.5,
+            260
+          ],
+          [
+            494.5,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      },
+      {
+        "pts": [
+          [
+            522,
+            260
+          ],
+          [
+            522,
+            268
+          ]
+        ],
+        "w": 0.7,
+        "color": "papel"
+      }
+    ],
+    "senales": [
+      {
+        "x": 616,
+        "y": 186,
+        "w": 15,
+        "h": 14,
+        "lado": 12,
+        "margen": 1,
+        "icono": "evacuacion"
+      }
+    ],
+    "chips": [
+      {
+        "codigos": [
+          "D21"
+        ],
+        "x": 348,
+        "y": 214
+      },
+      {
+        "codigos": [
+          "C15"
+        ],
+        "x": 465,
+        "y": 214
+      },
+      {
+        "codigos": [
+          "3"
+        ],
+        "x": 555,
+        "y": 214
+      },
+      {
+        "codigos": [
+          "B27"
+        ],
+        "x": 722,
+        "y": 240,
+        "anden": 1
+      },
+      {
+        "codigos": [
+          "B13"
+        ],
+        "x": 830,
+        "y": 295,
+        "anden": 1
+      }
+    ],
+    "lineas": [
+      {
+        "pts": [
+          [
+            268,
+            152
+          ],
+          [
+            886,
+            152
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            268,
+            172
+          ],
+          [
+            886,
+            172
+          ]
+        ],
+        "w": 1,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            798,
+            452
+          ],
+          [
+            878,
+            498
+          ]
+        ],
+        "w": 0.8,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            812,
+            444
+          ],
+          [
+            892,
+            490
+          ]
+        ],
+        "w": 0.8,
+        "color": "regla"
+      },
+      {
+        "pts": [
+          [
+            287.5,
+            212
+          ],
+          [
+            287.5,
+            224
+          ]
+        ],
+        "w": 0.8,
+        "color": "punteado",
+        "guion": "3 3"
+      },
+      {
+        "pts": [
+          [
+            642.5,
+            226
+          ],
+          [
+            642.5,
+            248
+          ]
+        ],
+        "w": 0.8,
+        "color": "punteado",
+        "guion": "3 3"
+      }
+    ],
+    "etiquetas": [
+      {
+        "x": 516,
+        "y": 165,
+        "w": 58,
+        "h": 11,
+        "texto": "Acceso peatonal",
+        "fs": 8.4,
+        "base": 3,
+        "flecha": "abajo",
+        "punta": 29,
+        "pw": 4,
+        "ph": 5
+      },
+      {
+        "x": 450,
+        "y": 237,
+        "w": 56,
+        "h": 9,
+        "texto": "Plataforma 1",
+        "fs": 7.4,
+        "base": 2.4
+      },
+      {
+        "x": 742,
+        "y": 279,
+        "w": 56,
+        "h": 9,
+        "texto": "Plataforma 2",
+        "fs": 7.4,
+        "base": 2.4,
+        "anden": 1,
+        "off": -3
+      },
+      {
+        "x": 786,
+        "y": 392,
+        "w": 91,
+        "h": 23,
+        "texto": "Estación TransMiCable",
+        "fs": 6.6,
+        "base": 13,
+        "fondo": "#F07C1E",
+        "tinta": "#FFFFFF"
+      },
+      {
+        "x": 786,
+        "y": 392,
+        "w": 91,
+        "h": 23,
+        "texto": "Portal Tunal",
+        "fs": 6.6,
+        "base": 4,
+        "fondo": "none",
+        "tinta": "#FFFFFF"
+      }
+    ],
+    "rotulos": [
+      {
+        "x": 300,
+        "y": 165,
+        "clase": "street",
+        "texto": "Avenida Boyacá"
+      },
+      {
+        "x": 478,
+        "y": 312,
+        "clase": "anchor",
+        "centro": true,
+        "texto": "Patio taller"
+      },
+      {
+        "x": 318,
+        "y": 210,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 318,
+        "y": 218,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 663,
+        "y": 212,
+        "clase": "place-sm",
+        "centro": true,
+        "texto": "Túnel peatonal"
+      },
+      {
+        "x": 663,
+        "y": 220,
+        "clase": "place-en",
+        "centro": true,
+        "texto": "Pedestrian tunnel"
+      },
+      {
+        "x": 800,
+        "y": 505,
+        "clase": "anchor",
+        "texto": "Cable hacia"
+      },
+      {
+        "x": 808,
+        "y": 518,
+        "clase": "anchor",
+        "texto": "Juan Pablo II"
+      },
+      {
+        "x": 808,
+        "y": 530,
+        "clase": "anchor",
+        "texto": "Manitas"
+      },
+      {
+        "x": 808,
+        "y": 542,
+        "clase": "anchor",
+        "texto": "Mirador del Paraíso"
+      },
+      {
+        "x": 566,
+        "y": 273,
+        "clase": "cap",
+        "centro": true,
+        "texto": "Zona de llegada"
+      },
+      {
+        "x": 566,
+        "y": 280,
+        "clase": "cap",
+        "centro": true,
+        "texto": "de pasajeros de servicios zonales"
+      },
+      {
+        "x": 836,
+        "y": 330,
+        "clase": "cap",
+        "centro": true,
+        "ang": 27.4,
+        "texto": "Zona de llegada"
+      },
+      {
+        "x": 840,
+        "y": 337,
+        "clase": "cap",
+        "centro": true,
+        "ang": 27.4,
+        "texto": "de pasajeros de servicios zonales"
+      },
+      {
+        "x": 440,
+        "y": 139,
+        "clase": "sub-sm",
+        "texto": "Centro Felicidad El Tunal"
+      },
+      {
+        "x": 556,
+        "y": 139,
+        "clase": "sub-sm",
+        "texto": "Centro Deportivo Recreativo y Cultural el Tunal"
+      }
+    ],
+    "borrador": false
   }
 }

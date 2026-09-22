@@ -713,7 +713,17 @@ test.describe('a portal on its sheet', () => {
    * grey, a veil loses its round nose, a kerb grows a blob at every step, a
    * boundary is ruled solid, a bay's código is set at its destination's size.
    */
-  test("a station's own surfaces, cuts and dashes reach its drawing", () => {
+  /** The angle a platform runs at where a feature sits on it (`giro`). */
+  function anguloDe(geo: any, anden: number, x: number): number {
+    const pts = geo.andenes?.[anden]?.pts ?? [];
+    let k = 0;
+    while (k < pts.length - 2 && x > pts[k + 1][0]) k++;
+    const [x0, y0] = pts[k] ?? [0, 0];
+    const [x1, y1] = pts[k + 1] ?? [1, 0];
+    return (Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI;
+  }
+
+  test("a station's own surfaces, cuts, dashes and turns reach its drawing", () => {
     const base = new Set(Object.keys(PALETA.oscuro));
     const wrong: string[] = [];
     for (const code of portales) {
@@ -751,6 +761,52 @@ test.describe('a portal on its sheet', () => {
       const codigo = geo.tipo?.['bay-code'];
       if (codigo && !svg.includes('tspan.pq-bay-code{font-size:' + codigo + 'px}')) {
         wrong.push(code + ": a bay's código is not set at the size it was measured at");
+      }
+      // An ANGLED platform may turn what stands on it. Portal Tunal turns its
+      // badges and its bay names with Plataforma 2 where Portal 80 leaves both
+      // square to the page, so each is the station's own call — and each is a
+      // line in the renderer that a refactor can quietly drop.
+      // The badge's OWN turn, not any turn on the page: a platform tag and a
+      // bay name may share the angle, and matched loosely this passed with
+      // every badge left square to the page.
+      const vueltas = [...svg.matchAll(/rotate\((-?[\d.]+)[^)]*\) translate\(/g)].map((m) => Number(m[1]));
+      for (const grupo of (geo.chips ?? []).filter((c: any) => c.anden !== undefined)) {
+        const ang = anguloDe(geo, grupo.anden, grupo.x);
+        if (!vueltas.some((v) => Math.abs(v - ang) < 0.6)) {
+          wrong.push(code + ': badge ' + grupo.codigos[0] + ' does not turn with its platform');
+        }
+      }
+      for (const t of (geo.tirasAng ?? []).filter((s: any) => s.nombresAng)) {
+        const nombre = (planos.detalle[code]?.zonal ?? [])
+          .find((z: any) => z.nombre === t.tira)?.items
+          ?.find((i: any) => i.t === 'bahia' && i.rutas?.length)?.rutas[0]?.destino;
+        const puesto = nombre && svg.match(new RegExp('<text[^>]*>' + nombre + '</text>'));
+        if (puesto && !/transform="rotate/.test(puesto[0])) {
+          wrong.push(code + ': a bay name on an angled platform is set level');
+        }
+      }
+      // A bay marker the sheet draws smaller than Portal Norte's nine by seven,
+      // and one it turns over because the bus pulls in on the other side.
+      for (const t of geo.tirasAng ?? []) {
+        if (t.tri && !svg.includes('h' + t.tri.w)) {
+          wrong.push(code + ': a bay marker is not the size it was measured at');
+        }
+        const sube = (t.bahias ?? []).some((b: any) => b.arriba) || t.arriba;
+        if (sube && !svg.includes(',-' + (t.tri?.h ?? 7) + ' z')) {
+          wrong.push(code + ": an arrival zone's marker is not turned over");
+        }
+      }
+      // A tag the sheet prints in another colour, lettered in another ink, or
+      // pointing down at what it names.
+      for (const e of (geo.etiquetas ?? []).filter((x: any) => x.fondo && x.fondo !== 'none')) {
+        if (!svg.includes('fill="' + e.fondo + '"')) wrong.push(code + ': a tag is not drawn in its own colour');
+        if (e.tinta && !svg.includes('fill:' + e.tinta)) wrong.push(code + ': a tag is not lettered in its own ink');
+      }
+      for (const e of (geo.etiquetas ?? []).filter((x: any) => x.flecha === 'abajo')) {
+        const pw = e.pw ?? 5.5, ph = e.ph ?? 7.5;
+        if (!svg.includes(' l' + pw + ',' + ph + ' l' + pw + ',-' + ph + ' z')) {
+          wrong.push(code + ': a tag that points down is drawn pointing up');
+        }
       }
     }
     expect(wrong).toEqual([]);
