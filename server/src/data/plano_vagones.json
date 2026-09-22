@@ -14182,7 +14182,7 @@
     },
     "TM0135": {
       "source": "Plano de ubicacion, Portal Eldorado - C.C. NUESTRO BOGOTA, version febrero de 2025.",
-      "why": "ONE platform, drawn here as two rows because its boarding zones alternate between its two edges — the northern four above, the southern four below. Two of the eight are drawn with NO plate, because the sheet names them nothing: they are where K86 and M86 board, the pair the catalog files under its unlettered wagon \"0\". At the western end one entrance block serves the whole platform — TransMiBici, a taquilla, an emergency exit and the torniquetes — drawn once on the sheet and repeated on each row here because the two rows are the two edges of that one platform; at the eastern end a second Entrada and the pedestrian bridge over AV. El Dorado. The zonal bays run along both outer edges — the northern strip for Engativá and the airport, the southern for Fontibón — each ending in an alimentador arrivals zone. NOT drawn: the C.C. Nuestro Bogotá and Hiper Centro Corora buildings, and the AV. El Dorado carriageways. One bay code needs a note: the sheet prints TC6 San Pablo de Jerico, and no TC6 exists — the catalog has K337, \"San Pablo Jerico\", which terminates at this portal and is the only service with that destination here, so the bay is drawn under the codigo a rider can look up. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side with an access block at each end of each, so they are drawn on shared columns and the blocks and the bridge line up between them.",
+      "why": "ONE platform, drawn here as two rows because its boarding zones alternate between its two edges — the northern four above, the southern four below. Two of the eight are drawn with NO plate, because the sheet names them nothing: they are where K86 and M86 board, the pair the catalog files under its unlettered wagon \"0\". At the western end one entrance block serves the whole platform — TransMiBici, a taquilla, an emergency exit and the torniquetes — drawn once on the sheet and repeated on each row here because the two rows are the two edges of that one platform; at the eastern end a second Entrada and the pedestrian bridge over AV. El Dorado. The zonal bays run along both outer edges — the northern strip for Engativá and the airport, the southern for Fontibón — each ending in an alimentador arrivals zone. NOT drawn: the C.C. Nuestro Bogotá and Hiper Centro Corora buildings, and the AV. El Dorado carriageways. Two bay codes need a note: the fourth northern bay was filed as 16-3 Tierra Grata, and both the sheet and the catalog say otherwise — the sheet prints 16-1 Tierra Grata over 16-3 AV. Eldorado Alamos and the catalog has 16-1 Tierra Grata and 16-3 Alamos, so the bay carries both; the catalog's shorter name is the one drawn, because the sheet sets its own over two lines and the tag has room for one. And the sheet prints TC6 San Pablo de Jerico, and no TC6 exists — the catalog has K337, \"San Pablo Jerico\", which terminates at this portal and is the only service with that destination here, so the bay is drawn under the codigo a rider can look up. The bays in the zonal strips are drawn and their codes were each checked against the catalog. The torniquetes, taquillas and ramps along the platform edge are read left to right off the sheet and drawn as one group at the head of each strip: they run the length of the platform rather than standing between particular bays, and where exactly each one falls between two bays is not readable at the size this sheet is published. The two platforms stand side by side with an access block at each end of each, so they are drawn on shared columns and the blocks and the bridge line up between them.",
       "filas": [
         {
           "columnas": [
@@ -14316,8 +14316,12 @@
               "t": "bahia",
               "rutas": [
                 {
-                  "codigo": "16-3",
+                  "codigo": "16-1",
                   "destino": "Tierra Grata"
+                },
+                {
+                  "codigo": "16-3",
+                  "destino": "Álamos"
                 }
               ]
             },
