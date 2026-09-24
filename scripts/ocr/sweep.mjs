@@ -114,7 +114,15 @@ for (const code of detalle) {
   }
   for (const tira of Array.isArray(D.zonal) ? D.zonal : D.zonal ? [D.zonal] : []) {
     for (const it of tira.items ?? []) {
-      if (it.t === 'bahia' && !it.llegada && !(it.rutas ?? []).length && !(it.destinos ?? []).length) say(code, 'a zonal bay names nothing');
+      // Unless the sheet itself leaves it blank, and the data says so in as many
+      // words (`sinRotulo`): Bicentenario's Piso 2 cuts two bays on its south
+      // kerb and labels neither. Silence is still an error; a declared blank is not.
+      if (it.t === 'bahia' && !it.llegada && !it.sinRotulo && !(it.rutas ?? []).length && !(it.destinos ?? []).length) {
+        say(code, 'a zonal bay names nothing');
+      }
+      if (it.sinRotulo && ((it.rutas ?? []).length || (it.destinos ?? []).length)) {
+        say(code, 'a bay marked unlabelled names something');
+      }
       for (const n of it.iconos ?? []) if (!ICONOS.includes(n)) say(code, 'unknown zonal icon "' + n + '"');
       // A bay has to name a real service. That is the hard rule, and the one
       // that matters: these codes are printed beside a coloured bar four

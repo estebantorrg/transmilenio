@@ -716,8 +716,8 @@
         "texto": "Portal 80"
       },
       {
-        "x": 438,
-        "y": 181.05,
+        "x": 441,
+        "y": 180.3,
         "clase": "ruta",
         "centro": true,
         "ang": -14,
@@ -824,7 +824,7 @@
           {
             "x": 872,
             "una": true,
-            "dx": 4
+            "dx": 9
           }
         ],
         "dx": 1
@@ -844,7 +844,8 @@
             "dx": 2
           },
           {
-            "x": 515
+            "x": 515,
+            "dx": 7
           },
           {
             "x": 557
@@ -1980,7 +1981,7 @@
               "Zona de llegada",
               "de pasajeros (alimentadores)"
             ],
-            "dx": 22
+            "dx": 26
           }
         ]
       }
@@ -3156,12 +3157,12 @@
           {
             "x": 698,
             "tx": 4,
-            "dx": -2
+            "dx": -4
           },
           {
             "x": 758.25,
             "tx": 4,
-            "dx": 2
+            "dx": 4
           },
           {
             "x": 818.75,
@@ -3386,27 +3387,27 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 427,
+        "x": 425.5,
         "y": 341.2,
         "clase": "evac",
         "texto": "Ruta de",
         "fin": true
       },
       {
-        "x": 427,
+        "x": 425.5,
         "y": 350.4,
         "clase": "evac",
         "texto": "evacuación",
         "fin": true
       },
       {
-        "x": 556,
+        "x": 557.5,
         "y": 341.2,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 556,
+        "x": 557.5,
         "y": 350.4,
         "clase": "evac",
         "texto": "evacuación"
@@ -3424,27 +3425,27 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 427,
+        "x": 425.5,
         "y": 489.05,
         "clase": "evac",
         "texto": "Ruta de",
         "fin": true
       },
       {
-        "x": 427,
+        "x": 425.5,
         "y": 498.25,
         "clase": "evac",
         "texto": "evacuación",
         "fin": true
       },
       {
-        "x": 556,
+        "x": 557.5,
         "y": 489.05,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 556,
+        "x": 557.5,
         "y": 498.25,
         "clase": "evac",
         "texto": "evacuación"
@@ -3530,14 +3531,14 @@
         "texto": "A5"
       },
       {
-        "x": 519.5,
+        "x": 518,
         "y": 225,
         "clase": "evac",
         "texto": "Ruta de",
         "fin": true
       },
       {
-        "x": 519.5,
+        "x": 518,
         "y": 233.5,
         "clase": "evac",
         "texto": "evacuación",
@@ -6891,7 +6892,7 @@
           },
           {
             "x": 1491,
-            "dx": 7,
+            "dx": 10,
             "una": true
           }
         ]
@@ -6924,14 +6925,14 @@
           {
             "x": 1006.75,
             "ancho": 116.5,
-            "dx": -45,
+            "dx": -48,
             "izq": true
           },
           {
             "x": 1133,
             "ancho": 116,
             "tx": -1,
-            "dx": -45,
+            "dx": -50,
             "izq": true,
             "partir": [
               "Bosa La",
@@ -7116,11 +7117,19 @@
       },
       {
         "x": 1329,
+        "y": 440.5,
+        "clase": "bay",
+        "fs": 12.8,
+        "centro": true,
+        "texto": "Llegada de"
+      },
+      {
+        "x": 1329,
         "y": 459.5,
         "clase": "bay",
         "fs": 12.8,
         "centro": true,
-        "texto": "Llegada de Servicios zonales"
+        "texto": "Servicios zonales"
       },
       {
         "x": 1224,
@@ -8820,7 +8829,7 @@
         "texto": "Super CADE"
       },
       {
-        "x": 833,
+        "x": 831,
         "y": 476,
         "clase": "evac",
         "texto": "Ruta de evacuación",
@@ -11031,7 +11040,11 @@
           {
             "x": 506,
             "izq": true,
-            "color": "#8E6FBE"
+            "color": "#8E6FBE",
+            "partir": [
+              "Villa",
+              "Amalia"
+            ]
           },
           {
             "x": 559,
@@ -12787,14 +12800,14 @@
         "texto": "Patio taller"
       },
       {
-        "x": 318,
+        "x": 314.5,
         "y": 210,
         "clase": "place-sm",
         "centro": true,
         "texto": "Túnel peatonal"
       },
       {
-        "x": 318,
+        "x": 314.5,
         "y": 218,
         "clase": "place-en",
         "centro": true,
@@ -12843,14 +12856,14 @@
         "tono": "tinta"
       },
       {
-        "x": 586,
+        "x": 590,
         "y": 277.5,
         "clase": "cap",
         "centro": true,
         "texto": "Zona de llegada"
       },
       {
-        "x": 586,
+        "x": 590,
         "y": 285,
         "clase": "cap",
         "centro": true,

@@ -6246,8 +6246,9 @@ body.native-app .route-detail-close:active {
    that), unless that would make it taller than the view under the page bar, in
    which case it is as wide as fits that height. Only under the scale floor does
    it scroll inside its own box instead. Two things it is not:
-   · a slab running off both edges of the page — it keeps a gutter, a border and
-     the page's radius, and is centred on the column's axis;
+   · a slab running off both edges of the page — it keeps a gutter and is
+     centred on the column's axis (no border: the drawing lays no ground of its
+     own, so a frame round it was the only thing setting it apart from the page);
    · a picture in a frame. It was held inside a padded card, and since its
      ground is the page colour, the lighter card around it made a mat, and the
      drawing sat back in it — the whole loop looked seen from a distance. Its
@@ -6256,8 +6257,11 @@ body.native-app .route-detail-close:active {
 .station-plano .popup-plano-portal {
   --pq-lienzo: max(100%, min(1320px, 100vw - 48px));
   --pq-entero: calc((100svh - 120px) * var(--pq-vb) / var(--pq-vh));
-  --pq-dibujo: max(calc(var(--pq-vb) * 1.12px), min(var(--pq-lienzo) - 2px, var(--pq-entero)));
-  --pq-caja: min(var(--pq-lienzo), var(--pq-dibujo) + 2px);
+  /* The box IS the drawing now: the 2px these once set aside for a 1px frame
+     line each side, kept after the frame went, made every drawing that fills the
+     view's height one pixel taller than the view. */
+  --pq-dibujo: max(calc(var(--pq-vb) * 1.12px), min(var(--pq-lienzo), var(--pq-entero)));
+  --pq-caja: min(var(--pq-lienzo), var(--pq-dibujo));
   width: var(--pq-caja);
   margin-left: calc(50% - var(--pq-caja) / 2);
   padding-bottom: 0;

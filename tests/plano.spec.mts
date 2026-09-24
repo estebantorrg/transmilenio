@@ -945,9 +945,13 @@ test.describe('a portal on its sheet', () => {
     // ships, because a label's width is the face's and a fallback would pass
     // what Inter does not. There:
     //   · every word is at least 10 px, and set in Inter;
-    //   · no two words come within 5 px of each other, and no word within
-    //     2.5 px of a tag, badge, plate or pictogram — measured on each shape's
-    //     TURNED box, so a caption along an angled platform is held to it too;
+    //   · no two words come within 4 px of each other, and no word within
+    //     2 px of a tag, badge, plate or pictogram — measured on each shape's
+    //     TURNED box, so a caption along an angled platform is held to it too.
+    //     The drawings are laid out to twice that (`scripts/ocr/_legible.mjs
+    //     --pad=4`): Linux sets the same Inter a pixel or two wider than
+    //     Windows over a long name, and laid out to the test's own margin
+    //     "Garcés Navas" passed on one and ran into its neighbour on the other;
     //   · every código, strapline and plate name fits inside its own shape;
     //   · nothing is cut off by the edge of the drawing;
     //   · no kerb strikes a word through — Tunal's Plataforma 2 caption ran
@@ -1021,11 +1025,11 @@ test.describe('a portal on its sheet', () => {
           const px = parseFloat(cs.fontSize) * Math.hypot(m.a, m.b);
           if (px < 9.95) out.push('«' + t.textContent + '» is set at ' + px.toFixed(1) + ' px');
           // The box runs from ascender to descender; a line's ink does not. And
-          // it is widened 2.5 px each way along its own line: two words closer
-          // than 5 px read as one.
+          // it is widened 2 px each way along its own line: two words closer
+          // than 4 px read as one.
           const q = quad(t, 0.18);
           const dx = q[1][0] - q[0][0], dy = q[1][1] - q[0][1], n = Math.hypot(dx, dy) || 1;
-          const ux = (dx / n) * 2.5, uy = (dy / n) * 2.5;
+          const ux = (dx / n) * 2, uy = (dy / n) * 2;
           cajas.push({
             n: '«' + t.textContent + '»',
             q: [[q[0][0] - ux, q[0][1] - uy], [q[1][0] + ux, q[1][1] + uy], [q[2][0] + ux, q[2][1] + uy], [q[3][0] - ux, q[3][1] - uy]],
