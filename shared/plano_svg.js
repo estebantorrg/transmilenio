@@ -242,7 +242,7 @@ export function buildPortalSvg(input) {
         [b[0] - px, b[1] - py], [a[0] - px, a[1] - py],
       ];
     }
-    return '<path d="' + trazar(q.map((p) => [num(p[0]), num(p[1])])) + ' Z" fill="' + C.tunel +
+    return '<path class="pq-tunel" d="' + trazar(q.map((p) => [num(p[0]), num(p[1])])) + ' Z" fill="' + C.tunel +
       '" stroke="' + C.punteado + '" stroke-width="0.7" stroke-dasharray="3 2.4"/>';
   };
 
@@ -418,7 +418,7 @@ export function buildPortalSvg(input) {
     const cx = x + w / 2, s = Math.min(w * 0.55, h * 0.3);
     const ah = Math.min(w * 0.18, h * 0.12), aw = ah * (10 / 9);
     return '<g role="img" aria-label="Paso entre vagones">' +
-      '<rect x="' + num(x) + '" y="' + num(y) + '" width="' + num(w) + '" height="' + num(h) + '" fill="' +
+      '<rect class="pq-paso" x="' + num(x) + '" y="' + num(y) + '" width="' + num(w) + '" height="' + num(h) + '" fill="' +
       (p.tono ? C[p.tono] ?? C.bloque : C.bloque) + '"/>' +
       '<path d="M' + num(cx - aw) + ',' + num(y + h * 0.15) + ' l' + num(aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
       ' z M' + num(cx + aw) + ',' + num(y + h * 0.85) + ' l' + num(-aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
@@ -1146,6 +1146,28 @@ export function buildPortalSvg(input) {
    * off the axis it stands, and it turns with it — drawn square it read as a
    * label stuck on top of the drawing rather than part of it.
    */
+  /**
+   * A sign set as plates stacked edge to edge on one box — Bicentenario's
+   * "Acceso" over "peatonal" — is one sign, so its plates grow to the widest
+   * one's width. Widened each by its own word they stepped, and the wider
+   * one ran into the tile beside it.
+   */
+  const apilar = (dadas) => {
+    const ancho = (d) => {
+      const fs0 = d.fs ?? TIPO.tag, f = legible(fs0) / fs0;
+      return Math.max(d.w * f, anchoTexto(d.texto, legible(fs0), 0.53) + d.h * f * 0.7);
+    };
+    const grupo = dadas.map((_, i) => i);
+    const raiz = (i) => (grupo[i] === i ? i : (grupo[i] = raiz(grupo[i])));
+    dadas.forEach((a, i) => dadas.forEach((b, j) => {
+      if (a.anden === undefined && b.anden === undefined && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.w - b.w) < 0.5 &&
+        Math.abs(a.y + a.h - b.y) < 0.6) grupo[raiz(j)] = raiz(i);
+    }));
+    const mayor = new Map();
+    dadas.forEach((d, i) => mayor.set(raiz(i), Math.max(mayor.get(raiz(i)) ?? 0, ancho(d))));
+    return dadas.map((d, i) => (dadas.some((_, j) => j !== i && raiz(j) === raiz(i)) ? { ...d, pila: mayor.get(raiz(i)) } : d));
+  };
+
   const etiqueta = (dada) => {
     // The plate grows with its words where the floor raised them, about its
     // own centre, so a name set larger than the sheet's is still ON its plate.
@@ -1154,7 +1176,7 @@ export function buildPortalSvg(input) {
     // And WIDER where the app's face needs it: the sheet's plate was cut for
     // its own condensed lettering, and Inter's is a fifth wider.
     const h = dada.h * f;
-    const w = Math.max(dada.w * f, anchoTexto(dada.texto, legible(fs0), 0.53) + h * 0.7);
+    const w = Math.max(dada.w * f, anchoTexto(dada.texto, legible(fs0), 0.53) + h * 0.7, dada.pila ?? 0);
     const t = w === dada.w && f === 1 ? dada : {
       ...dada,
       w: +w.toFixed(2), h: +h.toFixed(2),
@@ -1422,7 +1444,7 @@ export function buildPortalSvg(input) {
         C.trazo + '"/>')
       .join('')) +
 
-    (geo.etiquetas ?? []).map(etiqueta).join('') +
+    apilar(geo.etiquetas ?? []).map(etiqueta).join('') +
     (geo.rotulos ?? []).map(rotulo).join('') +
     (geo.chips ?? []).map(chips).join('') +
     (geo.carriles ?? []).map(regla).join('');

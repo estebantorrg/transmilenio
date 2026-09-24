@@ -1061,6 +1061,37 @@ test.describe('a portal on its sheet', () => {
             if (!quad(t, 0.18).every((p) => enQuad(fq, p, -0.6))) out.push('«' + t.textContent + '» spills out of its ' + f.classList[0]);
           }
         }
+        // No badge, tag or plate sits on a tunnel, a crossing, a pictogram or
+        // another one: AV. 1° de Mayo's M83 hung over the tunnel's mouth. Each
+        // is sampled on a grid, every point asked of the obstacle in its own
+        // coordinates. Two plates stacked into one sign only meet at an edge.
+        const piezas = formas.filter((f) => !f.parentElement?.matches('g[role="img"]'));
+        const estorbos = [...piezas, ...svgEl.querySelectorAll('path.pq-tunel, rect.pq-paso, ' +
+          'g[role="img"]:not([aria-label="Paso entre vagones"]) > rect')] as any[];
+        piezas.forEach((a: any, ia) => {
+          const b = a.getBBox(), ma = a.getScreenCTM();
+          const pts: DOMPoint[] = [];
+          for (let i = 0; i <= 6; i++) {
+            for (let j = 0; j <= 3; j++) {
+              pts.push(new DOMPoint(b.x + b.width * (0.04 + (0.92 * i) / 6), b.y + b.height * (0.08 + (0.84 * j) / 3)).matrixTransform(ma));
+            }
+          }
+          for (const e of estorbos) {
+            const ie = piezas.indexOf(e);
+            if (e === a || (ie >= 0 && ie < ia)) continue;
+            // One route's badges share a group; so do a tag and its link.
+            if (a.parentElement === e.parentElement && a.parentElement.tagName !== 'svg') continue;
+            if (a.classList.contains('pq-placa') && e.classList.contains('pq-placa')) {
+              const ra = a.getBoundingClientRect(), re = e.getBoundingClientRect();
+              if (Math.min(ra.bottom, re.bottom) - Math.max(ra.top, re.top) < 3) continue;
+            }
+            const inv = e.getScreenCTM().inverse();
+            if (pts.some((p) => e.isPointInFill(p.matrixTransform(inv)))) {
+              out.push('[' + (a.parentElement?.textContent || a.nextElementSibling?.textContent || a.classList[0]) + '] sits on ' +
+                (e.classList[0] ?? e.parentElement?.getAttribute('aria-label')));
+            }
+          }
+        });
         const lienzo = svgEl.getBoundingClientRect();
         for (const t of textos) {
           if (!quad(t, 0.18).every(([x, y]) => x >= lienzo.left - 0.5 && x <= lienzo.right + 0.5 && y >= lienzo.top - 0.5 && y <= lienzo.bottom + 0.5)) {

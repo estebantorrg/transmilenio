@@ -7045,6 +7045,32 @@
         {
           "t": "puente"
         }
+      ],
+      "zonal": [
+        {
+          "nombre": "Integración con servicio urbano",
+          "items": [
+            {
+              "t": "bahia",
+              "rutas": [
+                {
+                  "codigo": "CSM",
+                  "destino": "Circular San Mateo"
+                }
+              ]
+            },
+            {
+              "t": "equipo",
+              "iconos": [
+                "torniquete",
+                "taquilla",
+                "bici",
+                "banos",
+                "rampa"
+              ]
+            }
+          ]
+        }
       ]
     },
     "TM0023": {
