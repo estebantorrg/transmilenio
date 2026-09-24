@@ -412,7 +412,11 @@ export function buildPortalSvg(input) {
    */
   const paso = (p) => {
     const [x, y, w, h] = p.rect;
-    const cx = x + w / 2, s = Math.min(w * 0.55, h * 0.3), ah = w * 0.18, aw = w * 0.2;
+    // The arrows sized by the passage, but never taller than its height allows:
+    // General Santander's walkways are wider than they are tall, and sized by
+    // width alone their arrows filled them.
+    const cx = x + w / 2, s = Math.min(w * 0.55, h * 0.3);
+    const ah = Math.min(w * 0.18, h * 0.12), aw = ah * (10 / 9);
     return '<g role="img" aria-label="Paso entre vagones">' +
       '<rect x="' + num(x) + '" y="' + num(y) + '" width="' + num(w) + '" height="' + num(h) + '" fill="' +
       (p.tono ? C[p.tono] ?? C.bloque : C.bloque) + '"/>' +

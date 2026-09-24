@@ -772,12 +772,15 @@ export function buildSheetPlano(input) {
       tema: input.tema,
     });
     if (svg) {
-      const puestos = new Set();
-      for (const row of layout.rows ?? []) {
-        for (const v of row.vagones ?? []) {
-          for (const c of [...(v.arriba ?? []), ...(v.abajo ?? [])]) puestos.add(normalizeCode(c));
-        }
-      }
+      // What the drawing DRAWS: its badges, not the layout's lists. The two
+      // part where a sheet is older than the catalog — General Santander's
+      // December 2025 sheet prints S43 (as G43) on Vagón 3, while the catalog
+      // files G53, a newer route, on that wagon and the layout has to keep it
+      // to pass its gate. Counted from the layout, G53 was taken as drawn and
+      // vanished from the list of services the drawing does not show.
+      const puestos = new Set(
+        (input.geo.chips ?? []).flatMap((grupo) => (grupo.codigos ?? []).map(normalizeCode))
+      );
       return {
         html:
           // The sheet window's width and height, handed to the page as numbers
