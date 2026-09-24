@@ -571,7 +571,7 @@ test.describe('a portal on its sheet', () => {
             // A bay the geometry gives its own wording is checked against THAT:
             // a sheet may print a bay differently from how the catalog files it,
             // and where it does, the sheet wins.
-            const b = (t.bahias ?? [])[i] ?? {};
+            const b = (t.bahias ?? [])[i - (t.desde ?? 0)] ?? {};
             // Or, where a name is too long for the room between two bays, the
             // words it is broken into — a list for a one-route bay, by código
             // where the bay has two.
@@ -691,7 +691,12 @@ test.describe('a portal on its sheet', () => {
         (tira?.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any, i: number) => {
           const rutas = it.rutas ?? [];
           if (rutas.length < 2) return;
-          const base = eje + (t.off ?? 0) + t.dy + ((t.bahias ?? [])[i]?.fila ?? 0) * (t.fila ?? 0);
+          // A bay may stand at its own height and hang its names at its own
+          // distance (Bicentenario's Piso 2), and a strip may start part-way
+          // through its list.
+          const bb = (t.bahias ?? [])[i - (t.desde ?? 0)];
+          if (!bb) return;
+          const base = (bb.y ?? eje + (t.off ?? 0)) + (bb.dy ?? t.dy) + (bb.fila ?? 0) * (t.fila ?? 0);
           const ultima = rutas[rutas.length - 1];
           const y = [...svg.matchAll(/<text x="[\d.-]+" y="([\d.-]+)" class="pq-bay[^"]*">(.*?)<\/text>/g)]
             .filter((m) => m[2] === ultima.destino).pop()?.[1];

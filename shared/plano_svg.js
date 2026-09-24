@@ -67,6 +67,11 @@ const TILE_BG = '#0E0E10';
  * subtle, and the furniture rows are half turnstiles, so it was most of what
  * those rows' error was made of.
  */
+/** A walker, for the crossings between vagones: the sheet's white figure. */
+const CAMINANTE =
+  '<circle cx="13.5" cy="3.6" r="2.3" fill="#FFFFFF"/>' +
+  '<path d="M11.4 7.2c-.9.2-1.6.7-2.1 1.5L7 12.4l1.6 1 2-3 .7 3.3-2.8 8.8h2.2l2.1-6.6 2.2 2.6v4h2v-4.8l-2.6-3.1.6-3.2 1.3 1.6 3.2 1.1.6-1.8-2.6-.9-2.2-3c-.6-.8-1.6-1.3-2.7-1.3z" fill="#FFFFFF"/>';
+
 const TORNIQUETE = {
   label: 'Torniquetes',
   vb: '0 0 24 24',
@@ -396,6 +401,26 @@ export function buildPortalSvg(input) {
         ? '<g transform="translate(' + num(s.x * 2) + ' 0) scale(-1 1)">' + glifo + '</g>'
         : glifo) +
       '</g>';
+  };
+
+  /**
+   * A crossing between two vagones: the grey passage with its two arrows —
+   * one each way, top and bottom — and a walker between them.
+   *
+   * Bicentenario prints one between each pair of vagones. It is not furniture
+   * on a tile, so it is drawn as the sheet draws it: the passage IS the mark.
+   */
+  const paso = (p) => {
+    const [x, y, w, h] = p.rect;
+    const cx = x + w / 2, s = Math.min(w * 0.55, h * 0.3), ah = w * 0.18, aw = w * 0.2;
+    return '<g role="img" aria-label="Paso entre vagones">' +
+      '<rect x="' + num(x) + '" y="' + num(y) + '" width="' + num(w) + '" height="' + num(h) + '" fill="' +
+      (p.tono ? C[p.tono] ?? C.bloque : C.bloque) + '"/>' +
+      '<path d="M' + num(cx - aw) + ',' + num(y + h * 0.15) + ' l' + num(aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
+      ' z M' + num(cx + aw) + ',' + num(y + h * 0.85) + ' l' + num(-aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
+      ' z" fill="#FFFFFF"/>' +
+      '<svg x="' + num(cx - s / 2) + '" y="' + num(y + h / 2 - s / 2) + '" width="' + num(s) + '" height="' + num(s) +
+      '" viewBox="0 0 24 24">' + CAMINANTE + '</svg></g>';
   };
 
   const A = geo.anillo ?? {};
@@ -908,14 +933,21 @@ export function buildPortalSvg(input) {
         num(ang) + ' ' + num(c.x) + ' ' + num(c.y) + ')">' + escapeHtml(texto) + '</text>';
     }
     items.forEach((it, i) => {
-      const b = (t.bahias ?? [])[i];
+      // A strip may start part-way through its list (`desde`): Bicentenario's
+      // Piso 2 is one list of bays, the first three on its upper kerb and the
+      // rest on its lower one, drawn as two strips.
+      const b = (t.bahias ?? [])[i - (t.desde ?? 0)];
       if (!b) return;
       // Upright, like the names under it. The sheet turns the caption and the
       // platform's tag with the platform and leaves everything else square to
       // the page — the bay markers, the furniture, the badges.
       // A strip on a level platform drawn from its own outline has no axis to
       // hang off, so it is given its own row instead.
-      const m = t.y !== undefined ? { x: b.x, y: t.y + (t.off ?? 0) } : sobre(t.anden, b.x, t.off ?? 39);
+      // Or at its own height, where the strip's bays step up a kerb that is
+      // not straight: Bicentenario's Piso 2 cuts each upper bay a step higher.
+      const m = b.y !== undefined
+        ? { x: b.x, y: b.y }
+        : t.y !== undefined ? { x: b.x, y: t.y + (t.off ?? 0) } : sobre(t.anden, b.x, t.off ?? 39);
       const rutas = it.rutas ?? [];
       if (t.marca === 'tick') {
         // Portal Sur does not cut a triangle into a bay bar, because it has no
@@ -984,14 +1016,14 @@ export function buildPortalSvg(input) {
       // a bay's names UPWARD off the kerb — for the last, with a second route
       // going above it rather than below. A station may move a bay's block
       // down a row (`fila`) where two neighbours' names would otherwise meet.
-      const ty = m.y + (t.dy ?? 15.5) + (b.fila ?? 0) * (t.fila ?? 0);
+      const ty = m.y + (b.dy ?? t.dy ?? 15.5) + (b.fila ?? 0) * (t.fila ?? 0);
       const arriba = t.apila === 'arriba';
       const bloque = bloqueBahia(lineas, {
         x: tx,
         y: arriba ? ty + FS_BAY * 0.19 : ty - TIPO.bay * 0.72 - FS_BAY * 0.17,
         arriba,
         centrado,
-        fin: Boolean(t.fin),
+        fin: Boolean(b.fin ?? t.fin),
         // And a strip may hang every name clear of what lies under its tags:
         // Portal 20 de Julio's bays are grey bars along the kerb, and a name
         // set across them read as struck through.
@@ -1348,6 +1380,13 @@ export function buildPortalSvg(input) {
     // Signs last among the marks: Portal Usme posts its evacuation signs ON the
     // platforms, which drawn with the ground went under them.
     (geo.senales ?? []).map(senal).join('') +
+    (geo.pasos ?? []).map(paso).join('') +
+    // Small marks ON the floors, drawn over them: the queue posts along a line
+    // of torniquetes and the bollards where a tunnel meets the street.
+    // Given as circles they went under the floor they stand on.
+    (geo.puntos ?? [])
+      .map(([x, y]) => '<ellipse cx="' + num(x) + '" cy="' + num(y) + '" rx="1.9" ry="1.5" fill="' + C.trazo + '"/>')
+      .join('') +
     (geo.escaleras ?? []).map(([x, y]) => tile('escalera', x, y)).join('') +
 
     // The bridge: a narrow shaft with a switchback ramp hooked off each end and

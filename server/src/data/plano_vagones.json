@@ -10865,7 +10865,7 @@
     },
     "TM0139": {
       "source": "Plano de ubicacion, Estacion Bicentenario, version julio de 2025.",
-      "why": "Not a portal, but drawn like one. The troncal platform is three vagones with a crossing between each pair; its west end is a pedestrian TUNNEL, not a bridge, running from a taquilla and torniquetes beside the Bicentenario roundabout — the sheet marks that entrance \"Acceso peatonal\" rather than naming a street, so no exit is drawn on it. Its east end is bare but for the torniquetes on the deck edge, which is why the block there carries nothing else. Above the platform the sheet draws a two-floor intermodal building, and both floors are drawn: Piso 1 is the alimentador arrivals hall with its torniquetes, taquillas, staircases, ramp and TransMiBici; Piso 2 carries the zonal bays. Two further doors on the south edge of Piso 2 are drawn without labels, and the toilets on that floor are left out for want of a glyph.",
+      "why": "Not a portal, but drawn like one. The troncal platform is three vagones with a crossing between each pair; its west end is a pedestrian TUNNEL, not a bridge, running from a taquilla and torniquetes beside the Bicentenario roundabout — the sheet marks that entrance \"Acceso peatonal\" rather than naming a street, so no exit is drawn on it. Its east end is bare but for the torniquetes on the deck edge, which is why the block there carries nothing else. Above the platform the sheet draws a two-floor intermodal building, and both floors are drawn: Piso 1 is the alimentador arrivals hall with its torniquetes, taquillas, staircases, ramp and TransMiBici; Piso 2 carries the zonal bays. Piso 2 cuts seven bays: three along its upper kerb (15-5, 14-6, and 580 with L813 sharing one) and four along its lower one, the first two of which the sheet leaves unlabelled — they are bays with no route here, as printed. The toilets on that floor are left out for want of a glyph.",
       "columnas": [
         {
           "t": "vestibulo",
@@ -10952,19 +10952,20 @@
               "t": "bahia",
               "rutas": [
                 {
+                  "codigo": "580",
+                  "destino": "Bosa San José"
+                },
+                {
                   "codigo": "L813",
                   "destino": "Est. AV. 1° Mayo"
                 }
               ]
             },
             {
-              "t": "bahia",
-              "rutas": [
-                {
-                  "codigo": "580",
-                  "destino": "Bosa San José"
-                }
-              ]
+              "t": "bahia"
+            },
+            {
+              "t": "bahia"
             },
             {
               "t": "bahia",
@@ -10991,8 +10992,7 @@
                 "taquilla",
                 "escalera",
                 "rampa"
-              ],
-              "nota": "Dos bahías más, sin rotular, en el borde sur"
+              ]
             }
           ]
         }
