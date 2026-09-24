@@ -890,6 +890,30 @@ test.describe('a portal on its sheet', () => {
     expect(wrong).toEqual([]);
   });
 
+  test("in the app's view a portal is drawn in the page's own surfaces, unframed", () => {
+    // Drawn in each sheet's own greys, no two portals looked alike and none
+    // looked like the page it sat on — Tunal's and El Dorado's platforms were a
+    // step lighter than the rest — and a bordered box set the plan apart as a
+    // pasted-in picture. The app's view takes the page's tokens; each sheet's
+    // greys stay for print, where the plan IS the sheet.
+    const token = (n: string) => new RegExp('--' + n + ':\\s*([^;]+);').exec(appCss)?.[1].trim().toUpperCase();
+    expect(PALETA.oscuro.papel.toUpperCase()).toBe(token('bg-primary'));
+    expect(PALETA.oscuro.anden.toUpperCase()).toBe(token('bg-secondary'));
+    const wrong: string[] = [];
+    for (const code of portales) {
+      // The first `.pq{...}` block is the app's view; `.pq.pq-papel` follows it.
+      const oscuro = /\.pq\{([^}]*)\}/.exec(portalFor(code))?.[1] ?? '';
+      for (const [k, v] of Object.entries(PALETA.oscuro)) {
+        if (!oscuro.includes('--pq-' + k + ':' + v + ';') && !oscuro.endsWith('--pq-' + k + ':' + v)) {
+          wrong.push(code + ': draws ' + k + ' in its own grey, not the page\'s');
+        }
+      }
+    }
+    expect(wrong).toEqual([]);
+    const caja = /\.station-plano \.popup-plano-portal \{([^}]*)\}/.exec(appCss)?.[1] ?? '';
+    expect(caja).not.toMatch(/border|background|box-shadow/);
+  });
+
   test('a badge printed black is still visible on the dark page', () => {
     // The sheet gives a plain service number a BLACK badge. On the dark view
     // that is black on black; the outline is the ink colour, so it disappears

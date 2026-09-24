@@ -2143,7 +2143,8 @@
         "x": 859,
         "y": 233,
         "clase": "sub",
-        "texto": "Buses troncales"
+        "texto": "Buses troncales",
+        "tono": "tinta"
       },
       {
         "x": 861,
@@ -2155,13 +2156,15 @@
         "x": 859,
         "y": 339.5,
         "clase": "sub",
-        "texto": "Buses troncales"
+        "texto": "Buses troncales",
+        "tono": "tinta"
       },
       {
         "x": 861,
         "y": 421,
         "clase": "place-sm",
-        "texto": "METRO"
+        "texto": "METRO",
+        "tono": "tenue"
       },
       {
         "x": 860,
@@ -2174,14 +2177,16 @@
         "y": 469,
         "clase": "place-sm",
         "centro": true,
-        "texto": "SUPER"
+        "texto": "SUPER",
+        "tono": "tenue"
       },
       {
         "x": 834,
         "y": 479,
         "clase": "place-sm",
         "centro": true,
-        "texto": "CADE"
+        "texto": "CADE",
+        "tono": "tenue"
       },
       {
         "x": 566.5,
@@ -11447,7 +11452,8 @@
         "clase": "anchor",
         "centro": true,
         "fs": 5.5,
-        "texto": "Acceso peatonal"
+        "texto": "Acceso peatonal",
+        "tono": "tinta"
       },
       {
         "x": 240,
@@ -11484,37 +11490,43 @@
         "x": 863,
         "y": 209.5,
         "clase": "sub-sm",
-        "texto": "ZONA DE LLEGADA"
+        "texto": "ZONA DE LLEGADA",
+        "tono": "tinta"
       },
       {
         "x": 863,
         "y": 219,
         "clase": "sub-sm",
-        "texto": "DE PASAJEROS"
+        "texto": "DE PASAJEROS",
+        "tono": "tinta"
       },
       {
         "x": 863,
         "y": 228.5,
         "clase": "sub-sm",
-        "texto": "(ALIMENTADORES)"
+        "texto": "(ALIMENTADORES)",
+        "tono": "tinta"
       },
       {
         "x": 383,
         "y": 405,
         "clase": "sub-sm",
-        "texto": "ZONA DE LLEGADA"
+        "texto": "ZONA DE LLEGADA",
+        "tono": "tinta"
       },
       {
         "x": 383,
         "y": 414.5,
         "clase": "sub-sm",
-        "texto": "DE PASAJEROS"
+        "texto": "DE PASAJEROS",
+        "tono": "tinta"
       },
       {
         "x": 383,
         "y": 424,
         "clase": "sub-sm",
-        "texto": "(ALIMENTADORES)"
+        "texto": "(ALIMENTADORES)",
+        "tono": "tinta"
       },
       {
         "x": 736,
@@ -12806,25 +12818,29 @@
         "x": 800,
         "y": 505,
         "clase": "anchor",
-        "texto": "Cable hacia"
+        "texto": "Cable hacia",
+        "tono": "tinta"
       },
       {
         "x": 808,
         "y": 518,
         "clase": "anchor",
-        "texto": "Juan Pablo II"
+        "texto": "Juan Pablo II",
+        "tono": "tinta"
       },
       {
         "x": 808,
         "y": 530,
         "clase": "anchor",
-        "texto": "Manitas"
+        "texto": "Manitas",
+        "tono": "tinta"
       },
       {
         "x": 808,
         "y": 542,
         "clase": "anchor",
-        "texto": "Mirador del Paraíso"
+        "texto": "Mirador del Paraíso",
+        "tono": "tinta"
       },
       {
         "x": 586,

@@ -6261,8 +6261,6 @@ body.native-app .route-detail-close:active {
   width: var(--pq-caja);
   margin-left: calc(50% - var(--pq-caja) / 2);
   padding-bottom: 0;
-  border: 1px solid var(--border-subtle);
-  border-radius: calc(var(--radius-md) * var(--tm-scale, 1));
 }
 
 /* In the popup the plate's sub-label is a bare number for want of room; on the

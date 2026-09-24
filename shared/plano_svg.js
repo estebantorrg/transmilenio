@@ -33,13 +33,18 @@ export const PALETA = {
     rampa: '#D2D2D2', regla: '#D7D7D7', tinta: '#231F20', tenue: '#5A5A5A',
     punteado: '#A8A8A8', losa: '#A6A6A6', caja: '#F6F6F6', glifo: '#9D9D9D',
   },
+  // The app's own surfaces (`client/style.css` :root): the page is
+  // --bg-primary, a platform is --bg-secondary, a rule a step above
+  // --border-card (at --border-card itself a bay's marker vanished into its bar), and
+  // everything between is a step of the same cool grey, so the plan reads as
+  // part of the page rather than as a picture pasted onto it.
   oscuro: {
-    papel: '#0C0C0C', anden: '#2A2C31', trazo: '#6B6E76', tunel: '#1A1C20',
-    bahia: '#4A4D54', radios: '#565960', verde: '#2C3A22', eje: '#3C3F45',
-    bloque: '#40434A', descanso: '#24262B', escalera: '#3C3F45', peldano: '#5A5D64',
-    rampa: '#34373D', regla: 'rgba(255,255,255,.16)', tinta: '#FFFFFF',
-    tenue: 'rgba(255,255,255,.55)',
-    punteado: 'rgba(255,255,255,.34)', losa: '#4E5158', caja: '#3C3F45', glifo: '#C9CCD2',
+    papel: '#0C0C0C', anden: '#202329', trazo: '#62666F', tunel: '#16181C',
+    bahia: '#34373F', radios: '#3A3D45', verde: '#243220', eje: '#2B2E35',
+    bloque: '#33373F', descanso: '#1A1C21', escalera: '#2B2E35', peldano: '#4D5059',
+    rampa: '#26292F', regla: 'rgba(255,255,255,.14)', tinta: '#FFFFFF',
+    tenue: 'rgba(255,255,255,.6)',
+    punteado: 'rgba(255,255,255,.3)', losa: '#2E3139', caja: '#2B2E35', glifo: '#C9CCD2',
   },
 };
 
@@ -1173,14 +1178,21 @@ export function buildPortalSvg(input) {
   // surfaces — so the plan reads as part of the page rather than as a scan of
   // the operator's sheet dropped into it.
   // A station may print a surface differently from the others: Portal 80's bay
-  // band is 189 grey against Portal Norte's 157, which at the same width reads
-  // as a different drawing. So the palette is the default and the sheet's own
-  // measurement wins, in BOTH themes — overriding only the paper value would put
-  // the two views back out of step with each other.
+  // band is 189 grey against Portal Norte's 157. On PAPER — the print view,
+  // which is the sheet — the sheet's own measurement wins. In the app's view it
+  // does not: there every portal is drawn in the app's one set of greys, the
+  // same surfaces as the page around it, and each station keeps only what the
+  // palette has no name for (20 de Julio's Super CADE blue, El Dorado's rooms,
+  // Tunal's cable red). Drawn in each sheet's own greys, no two portals looked
+  // alike and none looked like the page they sat on.
   const vars = (base, tema) =>
     Object.entries({
       ...base,
-      ...Object.fromEntries(Object.entries(geo.tonos ?? {}).map(([k, v]) => [k, v[tema] ?? base[k]])),
+      ...Object.fromEntries(
+        Object.entries(geo.tonos ?? {})
+          .filter(([k]) => tema === 'papel' || !(k in base))
+          .map(([k, v]) => [k, v[tema] ?? base[k]])
+      ),
     })
       .map(([k, v]) => '--pq-' + k + ':' + v)
       .join(';');
@@ -1211,8 +1223,13 @@ export function buildPortalSvg(input) {
     '.pq text.pq-place{font-weight:700}' +
     '.pq text.pq-place-sm{font-weight:700}' +
     '.pq text.pq-place-en{font-style:italic;fill:' + C.tenue + '}' +
-    '.pq text.pq-street{font-weight:700}' +
-    '.pq text.pq-anchor{font-weight:700}' +
+    // What stands AROUND the station — its streets, its neighbours — in the
+    // app's secondary grey, the way the page sets everything that is context
+    // rather than content. In the sheet's ink they weighed as much as the
+    // platforms and the badges.
+    '.pq text.pq-street{font-weight:700;fill:' + C.tenue + '}' +
+    '.pq text.pq-anchor{font-weight:700;fill:' + C.tenue + '}' +
+    '.pq text.pq-sub,.pq text.pq-sub-sm{fill:' + C.tenue + '}' +
     '.pq text.pq-norte{font-weight:700;text-anchor:middle;fill:#231F20}' +
     // Set under the disc it is on the page rather than on the yellow, so it
     // takes the ink colour of the theme instead of the disc's black.
