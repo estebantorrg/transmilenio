@@ -573,8 +573,10 @@ test.describe('a portal on its sheet', () => {
             // and where it does, the sheet wins.
             const b = (t.bahias ?? [])[i] ?? {};
             // Or, where a name is too long for the room between two bays, the
-            // words it is broken into.
-            const esperados: string[] = b.texto ?? b.partir ?? it.destinos ?? (it.rutas ?? []).map((r: any) => r.destino);
+            // words it is broken into — a list for a one-route bay, by código
+            // where the bay has two.
+            const esperados: string[] = b.texto ?? (Array.isArray(b.partir) ? b.partir : null) ?? it.destinos ??
+              (it.rutas ?? []).flatMap((r: any) => b.partir?.[r.codigo] ?? [r.destino]);
             for (const nombre of esperados) {
               if (nombre && !svg.includes(nombre)) wrong.push(code + ': bay "' + nombre + '" is not named');
             }
@@ -907,9 +909,20 @@ test.describe('a portal on its sheet', () => {
     // three and a half pixels, 20 de Julio's at five, and a rider could not tell
     // which feeder left from where. Each portal is drawn here at the SMALLEST
     // scale the page ever gives it — 1.12 px per 1024-sheet pixel, times the
-    // station's `escala` — and every word must be at least 10 px there, no two
-    // labels may run into each other, and every bay's código must be a tag that
-    // opens its route.
+    // station's `escala` — in the app's own Inter, loaded from the file the app
+    // ships, because a label's width is the face's and a fallback would pass
+    // what Inter does not. There:
+    //   · every word is at least 10 px, and set in Inter;
+    //   · no two words come within 5 px of each other, and no word within
+    //     2.5 px of a tag, badge, plate or pictogram — measured on each shape's
+    //     TURNED box, so a caption along an angled platform is held to it too;
+    //   · every código, strapline and plate name fits inside its own shape;
+    //   · nothing is cut off by the edge of the drawing;
+    //   · no kerb strikes a word through — Tunal's Plataforma 2 caption ran
+    //     across its kerb — and no ruled line does unless the word's halo
+    //     knocks it out, which it can only do from on top;
+    //   · every bay's código is a tag that opens its route.
+    const inter = readFileSync(root('client/public/fonts/inter-latin-var.woff2')).toString('base64');
     const wrong: string[] = [];
     for (const code of portales) {
       const geo = geos[code];
@@ -929,40 +942,117 @@ test.describe('a portal on its sheet', () => {
       const escala = 1.12 * (1024 / (geo.hoja ?? 1024)) * (geo.escala ?? 1);
       const ancho = Math.round(geo.vista[2] * escala);
       await page.setViewportSize({ width: ancho + 20, height: Math.round(geo.vista[3] * escala) + 20 });
-      await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0}.pq{display:block;width:' +
-        ancho + 'px;height:auto}</style>' + svg);
+      await page.setContent('<!doctype html><meta charset="utf-8"><style>@font-face{font-family:Inter;' +
+        'font-weight:400 800;src:url(data:font/woff2;base64,' + inter + ') format("woff2")}' +
+        'body{margin:0}.pq{display:block;width:' + ancho + 'px;height:auto}</style>' + svg);
+      await page.evaluate(() => document.fonts.ready);
       const hallado = await page.evaluate(() => {
         const out: string[] = [];
-        type Caja = { n: string; x0: number; x1: number; y0: number; y1: number; el: Element };
-        const cajas: Caja[] = [];
-        // Turned labels are left out of the collision check: their box on the
-        // page is the square around a slanted line, which meets its neighbours'
-        // without the words themselves touching.
-        const recto = (el: Element) => Math.abs((el as SVGGraphicsElement).getScreenCTM()?.b ?? 0) < 1e-3;
-        for (const t of document.querySelectorAll('svg.pq text')) {
-          if (!t.textContent?.trim()) continue;
-          const m = (t as SVGTextElement).getScreenCTM()!;
-          const px = parseFloat(getComputedStyle(t).fontSize) * Math.hypot(m.a, m.b);
+        type P = [number, number];
+        // A shape's box, turned as it is on the page: four corners on screen.
+        const quad = (el: any, trim = 0): P[] => {
+          const b = el.getBBox(), m = el.getScreenCTM();
+          const t = b.height * trim;
+          return ([[b.x, b.y + t], [b.x + b.width, b.y + t], [b.x + b.width, b.y + b.height - t], [b.x, b.y + b.height - t]] as P[])
+            .map(([x, y]) => [m.a * x + m.c * y + m.e, m.b * x + m.d * y + m.f] as P);
+        };
+        // Separating axes: how deep two convex quads interpenetrate (0 = apart).
+        const hondo = (A: P[], B: P[]) => {
+          let min = Infinity;
+          for (const Q of [A, B]) {
+            for (let i = 0; i < 4; i++) {
+              const [x1, y1] = Q[i], [x2, y2] = Q[(i + 1) % 4];
+              const nx = y1 - y2, ny = x2 - x1, n = Math.hypot(nx, ny) || 1;
+              const pa = A.map(([x, y]) => (x * nx + y * ny) / n), pb = B.map(([x, y]) => (x * nx + y * ny) / n);
+              const o = Math.min(Math.max(...pa), Math.max(...pb)) - Math.max(Math.min(...pa), Math.min(...pb));
+              if (o <= 0) return 0;
+              min = Math.min(min, o);
+            }
+          }
+          return min;
+        };
+        // Whether a point is inside a quad, `m` px in from its edges (negative: out).
+        const enQuad = (Q: P[], [x, y]: P, m: number) => {
+          for (let i = 0; i < 4; i++) {
+            const [x1, y1] = Q[i], [x2, y2] = Q[(i + 1) % 4];
+            if ((x2 - x1) * (y - y1) - (y2 - y1) * (x - x1) < m * Math.hypot(x2 - x1, y2 - y1)) return false;
+          }
+          return true;
+        };
+        const svgEl = document.querySelector('svg.pq')!;
+        const textos = [...svgEl.querySelectorAll('text')].filter((t) => t.textContent?.trim());
+        const cajas: { n: string; q: P[]; el: Element; texto: boolean }[] = [];
+        for (const t of textos) {
+          const cs = getComputedStyle(t);
+          if (!/^"?Inter/.test(cs.fontFamily)) out.push('«' + t.textContent + '» is not set in Inter');
+          const m = (t as any).getScreenCTM();
+          const px = parseFloat(cs.fontSize) * Math.hypot(m.a, m.b);
           if (px < 9.95) out.push('«' + t.textContent + '» is set at ' + px.toFixed(1) + ' px');
-          if (!recto(t)) continue;
-          const b = t.getBoundingClientRect();
-          // The box runs from ascender to descender; a line's ink does not.
-          const r = b.height * 0.18;
-          cajas.push({ n: t.textContent!, x0: b.left, x1: b.right, y0: b.top + r, y1: b.bottom - r, el: t });
+          // The box runs from ascender to descender; a line's ink does not. And
+          // it is widened 2.5 px each way along its own line: two words closer
+          // than 5 px read as one.
+          const q = quad(t, 0.18);
+          const dx = q[1][0] - q[0][0], dy = q[1][1] - q[0][1], n = Math.hypot(dx, dy) || 1;
+          const ux = (dx / n) * 2.5, uy = (dy / n) * 2.5;
+          cajas.push({
+            n: '«' + t.textContent + '»',
+            q: [[q[0][0] - ux, q[0][1] - uy], [q[1][0] + ux, q[1][1] + uy], [q[2][0] + ux, q[2][1] + uy], [q[3][0] - ux, q[3][1] - uy]],
+            el: t,
+            texto: true,
+          });
         }
-        for (const el of document.querySelectorAll('svg.pq rect.pq-badge, svg.pq rect.pq-bay-tag, svg.pq rect.pq-placa')) {
-          if (!recto(el)) continue;
-          const b = el.getBoundingClientRect();
-          cajas.push({ n: '[' + (el.parentElement?.textContent ?? '') + ']', x0: b.left, x1: b.right, y0: b.top, y1: b.bottom, el });
-        }
+        const formas = [...svgEl.querySelectorAll('rect.pq-badge, rect.pq-bay-tag, rect.pq-placa, g[role="img"] > rect')]
+          .filter((r) => r.getAttribute('fill') !== 'none');
+        for (const f of formas) cajas.push({ n: '[' + (f.parentElement?.textContent || f.classList[0]) + ']', q: quad(f), el: f, texto: false });
+        // A shape's own words: inside its group, or the text right after it.
+        const propio = (f: Element, t: Element) =>
+          (f.parentElement === t.parentElement && !['svg', 'a'].includes(f.parentElement!.tagName)) || f.nextElementSibling === t;
+        // Lettering laid ON another plate, on a plate of its own with no fill.
+        const encima = (t: Element, f: Element) =>
+          t.previousElementSibling?.getAttribute('fill') === 'none' && f.classList.contains('pq-placa');
         for (let i = 0; i < cajas.length; i++) {
           for (let j = i + 1; j < cajas.length; j++) {
             const a = cajas[i], c = cajas[j];
-            // A tag and its own código, a plate and its own name.
-            if (a.el.parentElement === c.el.parentElement && (a.el.tagName === 'rect' || c.el.tagName === 'rect')) continue;
-            const ox = Math.min(a.x1, c.x1) - Math.max(a.x0, c.x0);
-            const oy = Math.min(a.y1, c.y1) - Math.max(a.y0, c.y0);
-            if (ox > 0.8 && oy > 0.8) out.push('«' + a.n + '» runs into «' + c.n + '»');
+            if (!a.texto && !c.texto) continue;
+            if ((a.texto && !c.texto && (propio(c.el, a.el) || encima(a.el, c.el))) ||
+                (c.texto && !a.texto && (propio(a.el, c.el) || encima(c.el, a.el)))) continue;
+            if (hondo(a.q, c.q) > 0.8) out.push(a.n + ' runs into ' + c.n);
+          }
+        }
+        for (const f of formas.filter((f) => !f.parentElement?.matches('g[role="img"]'))) {
+          const fq = quad(f);
+          for (const t of textos.filter((t) => propio(f, t))) {
+            if (!quad(t, 0.18).every((p) => enQuad(fq, p, -0.6))) out.push('«' + t.textContent + '» spills out of its ' + f.classList[0]);
+          }
+        }
+        const lienzo = svgEl.getBoundingClientRect();
+        for (const t of textos) {
+          if (!quad(t, 0.18).every(([x, y]) => x >= lienzo.left - 0.5 && x <= lienzo.right + 0.5 && y >= lienzo.top - 0.5 && y <= lienzo.bottom + 0.5)) {
+            out.push('«' + t.textContent + '» is cut off by the edge of the drawing');
+          }
+        }
+        // Kerbs and ruled lines, sampled along their length.
+        for (const p of [...svgEl.querySelectorAll('path, line')] as any[]) {
+          const kerb = (p.getAttribute('stroke') ?? '').toUpperCase() === '#FEED01';
+          if (!kerb && !p.classList.contains('pq-linea')) continue;
+          const m = p.getScreenCTM();
+          const sw = (parseFloat(p.getAttribute('stroke-width') ?? '1') * Math.hypot(m.a, m.b)) / 2;
+          const pts: P[] = [];
+          for (let l = 0, L = p.getTotalLength(); l <= L; l += 0.5) {
+            const q = p.getPointAtLength(l);
+            pts.push([m.a * q.x + m.c * q.y + m.e, m.b * q.x + m.d * q.y + m.f]);
+          }
+          for (const t of textos) {
+            // On its own badge, tag or plate, painted over the line: hidden.
+            const suyo = formas.find((f) => propio(f, t));
+            if (suyo && p.compareDocumentPosition(suyo) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
+            // A rule under a haloed word is knocked out around its letters.
+            const cs = getComputedStyle(t);
+            const halo = parseFloat(cs.strokeWidth) > 0 && cs.stroke !== 'none';
+            if (!kerb && halo && p.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING) continue;
+            // A line that only grazes a word's ascenders is not striking it through.
+            const Q = quad(t, 0.22);
+            if (pts.some((pt) => enQuad(Q, pt, -sw + 1))) out.push('«' + t.textContent + '» is struck through by a ' + (kerb ? 'kerb' : 'rule'));
           }
         }
         return out;

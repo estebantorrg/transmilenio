@@ -2637,23 +2637,8 @@ body.sidebar-collapsed .sidebar-fab {
   height: auto;
 }
 
-.plano-vista {
-  margin-top: calc(8px * var(--tm-scale, 1));
-  padding: calc(5px * var(--tm-scale, 1)) calc(11px * var(--tm-scale, 1));
-  border: 1px solid var(--border-medium);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: calc(11px * var(--tm-scale, 1));
-  cursor: pointer;
-}
-
-.plano-vista:hover { color: var(--text-primary); border-color: var(--border-card); }
-
-/* The control is for the screen. On paper the drawing is already the sheet. */
+/* On paper the whole drawing prints; there is nothing to scroll. */
 @media print {
-  .plano-vista { display: none; }
   .popup-plano-portal { overflow: visible; }
 }
 

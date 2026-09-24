@@ -455,7 +455,11 @@ export function buildPortalSvg(input) {
   };
 
   const CH = geo.chip ?? {};
-  const anchoChip = (c) => Math.max(CH.min ?? 19, c.length * (CH.k ?? 7.4) + 5);
+  // The sheet's badge, or wider where the app's face needs the room: Inter's
+  // bold códigos run a fifth wider than the condensed face the sheets set, and
+  // measured by the sheet alone "D21" came out through both ends of its badge.
+  const anchoChip = (c) =>
+    Math.max(CH.min ?? 19, c.length * (CH.k ?? 7.4) + 5, anchoCodigo(c, tam('chip')) + ALTO_CHIP * 0.3);
   const ALTO_CHIP = CH.h ?? 23;
   // The badges are ROUNDED, like every route tag the app draws elsewhere: the
   // sheets print square corners, but a rider meets these códigos as rounded
@@ -500,12 +504,20 @@ export function buildPortalSvg(input) {
    * How wide a run of text will set, near enough to lay things out by.
    *
    * The drawing cannot measure its own text — it is a string, built where there
-   * is no layout engine — so widths are estimated from the character count at a
-   * condensed face's average advance. Generous rather than tight: the face the
-   * reader gets may be a wider fallback than Arial Narrow, and a tag that is a
-   * little roomy reads fine where one that clips its código does not.
+   * is no layout engine — so widths are estimated from the character count at
+   * Inter's average advance, measured off the app's own font file: 0.49 em for
+   * a regular name, 0.52 for a bold one. Generous rather than tight: a tag that
+   * is a little roomy reads fine where one that clips its código does not.
    */
   const anchoTexto = (s, fs, k = 0.5) => String(s).length * fs * k;
+  /**
+   * A código's width in Inter bold, by what it is made of — digits, dashes and
+   * a capital or two, not running text: 0.62 em a digit, 0.47 a dash, 0.69 a
+   * capital, measured off the font. Averaged like a word, "13-10" came out
+   * wider than the room between two of Portal 20 de Julio's bays.
+   */
+  const anchoCodigo = (c, fs) =>
+    [...String(c)].reduce((a, ch) => a + (/\d/.test(ch) ? 0.63 : /[-.]/.test(ch) ? 0.48 : 0.71), 0) * fs;
 
   // A bay's código is a ROUTE TAG, the same rounded tag the app draws for a
   // route everywhere else, and a link to that route. The sheets set it as a
@@ -514,13 +526,7 @@ export function buildPortalSvg(input) {
   const FS_BAY = tam('bay');
   const FS_COD = legible(TIPO['bay-code'] ?? TIPO.bay);
   const ALTO_TAG = FS_COD * 1.34;
-  // A código is digits, dashes and a capital or two, not running text, so it
-  // is measured by what it is made of: a dash is a third of a digit's advance
-  // narrower, a capital a little wider. Averaged like a word, "13-10" came out
-  // wider than the room between two of Portal 20 de Julio's bays.
-  const anchoTag = (c) =>
-    [...String(c)].reduce((a, ch) => a + (/d/.test(ch) ? 0.5 : /[-.]/.test(ch) ? 0.34 : 0.62), 0) * FS_COD +
-    FS_COD * 0.75;
+  const anchoTag = (c) => anchoCodigo(c, FS_COD) + FS_COD * 0.7;
   // Lines of a name block: a tag line is as tall as its tag, a text line as
   // tall as its face, and the gap between them is a fraction of the face.
   const ALTO_LINEA = FS_BAY * 1.08;
@@ -626,7 +632,9 @@ export function buildPortalSvg(input) {
     return rutas.flatMap((r) => {
       // A destination too long for the room between two bays is broken where
       // the station says, word by word.
-      const partes = (b.partir && rutas.length === 1 ? b.partir : null) ?? [r.destino ?? ''];
+      // Given as a list for a one-route bay, or by código where the bay has two.
+      const partes = (Array.isArray(b.partir) ? (rutas.length === 1 ? b.partir : null) : b.partir?.[r.codigo]) ??
+        [r.destino ?? ''];
       return b.una
         ? [{ tags: [r.codigo], ...texto(partes[0]), ruta: r.codigo }, ...partes.slice(1).map((p) => ({ ...texto(p), ruta: r.codigo }))]
         : [{ tags: [r.codigo], ruta: r.codigo }, ...partes.map((p) => ({ ...texto(p), ruta: r.codigo }))];
@@ -978,7 +986,9 @@ export function buildPortalSvg(input) {
         // And a strip may hang every name clear of what lies under its tags:
         // Portal 20 de Julio's bays are grey bars along the kerb, and a name
         // set across them read as struck through.
-        salto: (t.bajo ?? 0) + (t.escalon && i % 2 ? ALTO_LINEA + HUECO_LINEA : 0),
+        // Two rows, or three (`escalon: 3`) where even every other bay is too
+        // close: Portal 20 de Julio's "Los Libertadores" is wider than two bays.
+        salto: (t.bajo ?? 0) + (t.escalon ? (i % (t.escalon === true ? 2 : t.escalon)) * (ALTO_LINEA + HUECO_LINEA) : 0),
       });
       // Level unless the sheet turns them. Portal 80 sets the names of its
       // angled platforms square to the page and Portal Tunal runs them along
@@ -1067,8 +1077,15 @@ export function buildPortalSvg(input) {
     // centre across the road — is background to the station, not part of it.
     // And a sheet does not always set the same name at one size: Portal Norte's
     // two "Túnel peatonal" labels differ by two points, one at each end.
-    (r.tono || r.fs
-      ? ' style="' + (r.tono ? 'fill:' + (C[r.tono] ?? C.tinta) + ';' : '') + (r.fs ? 'font-size:' + num(legible(r.fs)) + 'px' : '') + '"'
+    // And a halo in the colour of what the word stands on (`halo`), where a
+    // rule runs behind it: Portal 20 de Julio names each bridge where it
+    // crosses the platform, across the bridge's own edges.
+    (r.tono || r.fs || r.halo
+      ? ' style="' + [
+          r.tono ? 'fill:' + (C[r.tono] ?? C.tinta) : '',
+          r.fs ? 'font-size:' + num(legible(r.fs)) + 'px' : '',
+          r.halo ? 'stroke:' + (C[r.halo] ?? C.papel) + ';stroke-width:' + num(tam(r.clase ?? 'place') * 0.24) + 'px' : '',
+        ].filter(Boolean).join(';') + '"'
       : '') +
     // A street name runs ALONG its street and a corridor's name along the
     // corridor. Set level they read as labels dropped on the drawing rather
@@ -1089,11 +1106,15 @@ export function buildPortalSvg(input) {
     // own centre, so a name set larger than the sheet's is still ON its plate.
     const fs0 = dada.fs ?? TIPO.tag;
     const f = legible(fs0) / fs0;
-    const t = f === 1 ? dada : {
+    // And WIDER where the app's face needs it: the sheet's plate was cut for
+    // its own condensed lettering, and Inter's is a fifth wider.
+    const h = dada.h * f;
+    const w = Math.max(dada.w * f, anchoTexto(dada.texto, legible(fs0), 0.53) + h * 0.7);
+    const t = w === dada.w && f === 1 ? dada : {
       ...dada,
-      w: +(dada.w * f).toFixed(2), h: +(dada.h * f).toFixed(2),
-      x: dada.anden === undefined ? +(dada.x - (dada.w * (f - 1)) / 2).toFixed(2) : dada.x,
-      y: dada.anden === undefined ? +(dada.y - (dada.h * (f - 1)) / 2).toFixed(2) : dada.y,
+      w: +w.toFixed(2), h: +h.toFixed(2),
+      x: dada.anden === undefined ? +(dada.x - (w - dada.w) / 2).toFixed(2) : dada.x,
+      y: dada.anden === undefined ? +(dada.y - (h - dada.h) / 2).toFixed(2) : dada.y,
       base: (dada.base ?? 3.5) * f,
       fs: dada.fs === undefined ? undefined : legible(dada.fs),
     };
@@ -1148,7 +1169,9 @@ export function buildPortalSvg(input) {
   // The type travels WITH the drawing. Putting it in a stylesheet would rebuild
   // exactly the split that let the app and the prerender disagree; inline, the
   // two surfaces cannot render this differently, because they get the same
-  // bytes. The stack is condensed because the sheet's own face is.
+  // bytes. The face is the app's own — Inter, self-hosted and loaded by both
+  // surfaces — so the plan reads as part of the page rather than as a scan of
+  // the operator's sheet dropped into it.
   // A station may print a surface differently from the others: Portal 80's bay
   // band is 189 grey against Portal Norte's 157, which at the same width reads
   // as a different drawing. So the palette is the default and the sheet's own
@@ -1172,7 +1195,14 @@ export function buildPortalSvg(input) {
     // Every rule is scoped '.pq text.x' so it out-specifies the base one. As
     // '.pq-chip' alone it lost to '.pq text' and every chip label came out in
     // the ink colour — invisible on a black badge.
-    '.pq text{font-family:"Arial Narrow","Roboto Condensed","Segoe UI",system-ui,sans-serif;fill:' + C.tinta + '}' +
+    '.pq text{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;fill:' + C.tinta +
+    // A HALO in the page colour, painted under the letters: where a street's
+    // centreline, a bridge's edge or a platform's rule runs behind a word it
+    // is knocked out around every glyph instead of striking the word through.
+    // Zero by default. Only the bay names and the street names take it: they
+    // stand on the page, where the halo is invisible but for what it cuts
+    // away. On a grey platform it drew a dark outline round every caption.
+    ';paint-order:stroke;stroke:' + C.papel + ';stroke-linejoin:round;stroke-width:0}' +
     '.pq text.pq-chip{fill:#fff;font-weight:700;text-anchor:middle}' +
     '.pq text.pq-chip-sub{fill:#fff;font-weight:700;text-anchor:middle}' +
     '.pq text.pq-cap{text-anchor:middle}' +
@@ -1199,6 +1229,9 @@ export function buildPortalSvg(input) {
     Object.entries(TIPO)
       .filter(([k]) => k !== 'bay-code')
       .map(([k, v]) => '.pq text.pq-' + k + '{font-size:' + num(legible(v)) + 'px}')
+      .join('') +
+    ['bay', 'street']
+      .map((k) => '.pq text.pq-' + k + '{stroke-width:' + num(tam(k) * 0.24) + 'px}')
       .join('') +
     // A bay's código, white on its route's tag.
     '.pq text.pq-bay-cod{fill:#fff;font-weight:700;text-anchor:middle;font-size:' + num(FS_COD) + 'px}' +

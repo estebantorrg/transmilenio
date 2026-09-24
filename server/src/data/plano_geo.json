@@ -144,8 +144,7 @@
           "y": 399
         },
         "capX": [
-          377.5,
-          485.5
+          432.5
         ]
       },
       {
@@ -303,7 +302,7 @@
         "texto": "Plataforma 2"
       },
       {
-        "x": 606,
+        "x": 599.5,
         "y": 329,
         "w": 42,
         "h": 12,
@@ -313,7 +312,7 @@
         "base": 3
       },
       {
-        "x": 612,
+        "x": 605.5,
         "y": 341,
         "w": 42,
         "h": 12,
@@ -324,15 +323,15 @@
     ],
     "rotulos": [
       {
-        "x": 621,
-        "y": 242,
+        "x": 540,
+        "y": 207,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
-        "x": 621,
-        "y": 251,
+        "x": 540,
+        "y": 216.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian bridge"
@@ -703,22 +702,22 @@
         "texto": "Pedestrian tunnel"
       },
       {
-        "x": 273,
+        "x": 284,
         "y": 157,
         "clase": "anchor",
         "centro": true,
         "texto": "Centro Comercial"
       },
       {
-        "x": 273,
+        "x": 284,
         "y": 168,
         "clase": "anchor",
         "centro": true,
         "texto": "Portal 80"
       },
       {
-        "x": 430,
-        "y": 183,
+        "x": 438,
+        "y": 181.05,
         "clase": "ruta",
         "centro": true,
         "ang": -14,
@@ -824,7 +823,8 @@
           },
           {
             "x": 872,
-            "una": true
+            "una": true,
+            "dx": 4
           }
         ],
         "dx": 1
@@ -840,7 +840,8 @@
         },
         "bahias": [
           {
-            "x": 458
+            "x": 458,
+            "dx": 2
           },
           {
             "x": 515
@@ -1894,7 +1895,8 @@
             "texto": [
               "Zona de llegada",
               "de pasajeros (alimentadores)"
-            ]
+            ],
+            "dx": 20
           }
         ]
       },
@@ -1977,7 +1979,8 @@
             "texto": [
               "Zona de llegada",
               "de pasajeros (alimentadores)"
-            ]
+            ],
+            "dx": 22
           }
         ]
       }
@@ -2008,7 +2011,7 @@
         "codigos": [
           "B11"
         ],
-        "x": 506,
+        "x": 514.5,
         "y": 239.5
       },
       {
@@ -2089,14 +2092,14 @@
     ],
     "rotulos": [
       {
-        "x": 582,
+        "x": 590,
         "y": 238,
         "clase": "place",
         "centro": true,
         "texto": "Túnel peatonal"
       },
       {
-        "x": 582,
+        "x": 590,
         "y": 247.5,
         "clase": "place-en",
         "centro": true,
@@ -3147,11 +3150,13 @@
           },
           {
             "x": 698,
-            "tx": 4
+            "tx": 4,
+            "dx": -2
           },
           {
             "x": 758.25,
-            "tx": 4
+            "tx": 4,
+            "dx": 2
           },
           {
             "x": 818.75,
@@ -3187,15 +3192,24 @@
           },
           {
             "x": 642,
-            "tx": 4
+            "tx": 4,
+            "dx": -2
           },
           {
             "x": 702,
-            "tx": 4
+            "tx": 4,
+            "dx": -3,
+            "partir": {
+              "3-12": [
+                "La Esperanza",
+                "Sur"
+              ]
+            }
           },
           {
             "x": 763,
-            "tx": 4
+            "tx": 4,
+            "dx": 3
           },
           {
             "x": 823,
@@ -3216,7 +3230,7 @@
         "codigos": [
           "C17"
         ],
-        "x": 600.5,
+        "x": 610,
         "y": 354.3
       },
       {
@@ -3230,14 +3244,14 @@
         "codigos": [
           "M83"
         ],
-        "x": 266,
+        "x": 262,
         "y": 501.3
       },
       {
         "codigos": [
           "D20"
         ],
-        "x": 318,
+        "x": 319,
         "y": 501.3
       },
       {
@@ -3367,27 +3381,27 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 428.5,
+        "x": 427,
         "y": 341.2,
         "clase": "evac",
         "texto": "Ruta de",
         "fin": true
       },
       {
-        "x": 428.5,
+        "x": 427,
         "y": 350.4,
         "clase": "evac",
         "texto": "evacuación",
         "fin": true
       },
       {
-        "x": 555,
+        "x": 556,
         "y": 341.2,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 555,
+        "x": 556,
         "y": 350.4,
         "clase": "evac",
         "texto": "evacuación"
@@ -3405,27 +3419,27 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 428.5,
+        "x": 427,
         "y": 489.05,
         "clase": "evac",
         "texto": "Ruta de",
         "fin": true
       },
       {
-        "x": 428.5,
+        "x": 427,
         "y": 498.25,
         "clase": "evac",
         "texto": "evacuación",
         "fin": true
       },
       {
-        "x": 555,
+        "x": 556,
         "y": 489.05,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 555,
+        "x": 556,
         "y": 498.25,
         "clase": "evac",
         "texto": "evacuación"
@@ -4922,7 +4936,7 @@
       },
       {
         "x": 586.5,
-        "y": 193.5,
+        "y": 190.5,
         "clase": "evac",
         "fin": true,
         "texto": "Ruta de evacuación"
@@ -4935,7 +4949,7 @@
       },
       {
         "x": 471.5,
-        "y": 368.5,
+        "y": 365.5,
         "clase": "evac",
         "fin": true,
         "texto": "Ruta de evacuación"
@@ -4949,8 +4963,8 @@
         "texto": "Super CADE"
       },
       {
-        "x": 279.9,
-        "y": 478.8,
+        "x": 289,
+        "y": 474,
         "clase": "street",
         "centro": true,
         "ang": 45,
@@ -6851,28 +6865,28 @@
             "tx": -1,
             "abajo": true,
             "texto": [
-              "Zona de llegada de pasajeros de Servicios zonales"
+              "Llegada de servicios zonales"
             ],
             "dx": -1
           },
           {
             "x": 1085,
-            "dx": 1,
+            "dx": -12,
             "una": true
           },
           {
             "x": 1220.5,
-            "dx": -1.5,
+            "dx": -8,
             "una": true
           },
           {
             "x": 1355.5,
-            "dx": -2,
+            "dx": 7,
             "una": true
           },
           {
             "x": 1491,
-            "dx": -1.5,
+            "dx": 7,
             "una": true
           }
         ]
@@ -6905,15 +6919,19 @@
           {
             "x": 1006.75,
             "ancho": 116.5,
-            "dx": -33.75,
+            "dx": -45,
             "izq": true
           },
           {
             "x": 1133,
             "ancho": 116,
             "tx": -1,
-            "dx": -69,
-            "izq": true
+            "dx": -45,
+            "izq": true,
+            "partir": [
+              "Bosa La",
+              "Independencia"
+            ]
           },
           {
             "x": 1321.5,
@@ -6951,7 +6969,7 @@
             "ancho": 303,
             "abajo": true,
             "texto": [
-              "Zona de llegada de pasajeros de Servicios zonales"
+              "Llegada de servicios zonales"
             ],
             "dx": -0.5
           },
@@ -7013,14 +7031,14 @@
         "codigos": [
           "C19"
         ],
-        "x": 975,
+        "x": 962,
         "y": 734
       },
       {
         "codigos": [
           "A60"
         ],
-        "x": 1041,
+        "x": 1039,
         "y": 734
       },
       {
@@ -7100,14 +7118,14 @@
         "texto": "Llegada de Servicios zonales"
       },
       {
-        "x": 1126,
+        "x": 1224,
         "y": 774.5,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
-        "x": 1131.5,
+        "x": 1224,
         "y": 792.5,
         "clase": "place-en",
         "centro": true,
@@ -8377,7 +8395,7 @@
             "color": "#226A38"
           }
         ],
-        "escalon": true,
+        "escalon": 3,
         "bajo": 12
       }
     ],
@@ -8750,32 +8768,36 @@
         "texto": "Zona Llegada de pasajeros (Alimentadores)"
       },
       {
-        "x": 459,
+        "x": 475,
         "y": 280,
         "clase": "place-sm",
         "centro": true,
-        "texto": "Puente peatonal"
+        "texto": "Puente peatonal",
+        "halo": "anden"
       },
       {
-        "x": 459.5,
+        "x": 475.5,
         "y": 293,
         "clase": "place-en",
         "centro": true,
-        "texto": "Pedestrian bridge"
+        "texto": "Pedestrian bridge",
+        "halo": "anden"
       },
       {
         "x": 665,
         "y": 284,
         "clase": "place-sm",
         "centro": true,
-        "texto": "Puente peatonal"
+        "texto": "Puente peatonal",
+        "halo": "anden"
       },
       {
         "x": 665,
         "y": 298,
         "clase": "place-en",
         "centro": true,
-        "texto": "Pedestrian bridge"
+        "texto": "Pedestrian bridge",
+        "halo": "anden"
       },
       {
         "x": 334.5,
@@ -8793,13 +8815,14 @@
         "texto": "Super CADE"
       },
       {
-        "x": 768,
+        "x": 833,
         "y": 476,
         "clase": "evac",
-        "texto": "Ruta de evacuación"
+        "texto": "Ruta de evacuación",
+        "fin": true
       },
       {
-        "x": 590,
+        "x": 583,
         "y": 541,
         "clase": "street",
         "centro": true,
@@ -10959,7 +10982,7 @@
           "G43"
         ],
         "x": 658,
-        "y": 268.5
+        "y": 271.5
       },
       {
         "codigos": [
@@ -11008,7 +11031,11 @@
           {
             "x": 559,
             "izq": true,
-            "color": "#2E6B33"
+            "color": "#2E6B33",
+            "partir": [
+              "Engativá",
+              "Centro"
+            ]
           },
           {
             "x": 616.5,
@@ -11058,7 +11085,11 @@
           {
             "x": 569,
             "izq": true,
-            "color": "#CBA97B"
+            "color": "#CBA97B",
+            "partir": [
+              "Fontibón",
+              "Centro"
+            ]
           },
           {
             "x": 632,
@@ -11427,15 +11458,7 @@
         "texto": "pedestrian access"
       },
       {
-        "x": 278,
-        "y": 334,
-        "clase": "anchor",
-        "fs": 12.4,
-        "tono": "tenue",
-        "texto": "Entrada"
-      },
-      {
-        "x": 921,
+        "x": 926,
         "y": 321,
         "clase": "anchor",
         "fin": true,
@@ -11444,51 +11467,51 @@
         "texto": "Entrada"
       },
       {
-        "x": 971,
+        "x": 963,
         "y": 299,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
-        "x": 971,
+        "x": 963,
         "y": 308.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian bridge"
       },
       {
-        "x": 861,
+        "x": 863,
         "y": 209.5,
         "clase": "sub-sm",
         "texto": "ZONA DE LLEGADA"
       },
       {
-        "x": 861,
+        "x": 863,
         "y": 219,
         "clase": "sub-sm",
         "texto": "DE PASAJEROS"
       },
       {
-        "x": 861,
+        "x": 863,
         "y": 228.5,
         "clase": "sub-sm",
         "texto": "(ALIMENTADORES)"
       },
       {
-        "x": 381,
+        "x": 383,
         "y": 405,
         "clase": "sub-sm",
         "texto": "ZONA DE LLEGADA"
       },
       {
-        "x": 381,
+        "x": 383,
         "y": 414.5,
         "clase": "sub-sm",
         "texto": "DE PASAJEROS"
       },
       {
-        "x": 381,
+        "x": 383,
         "y": 424,
         "clase": "sub-sm",
         "texto": "(ALIMENTADORES)"
@@ -12804,14 +12827,14 @@
         "texto": "Mirador del Paraíso"
       },
       {
-        "x": 571,
+        "x": 586,
         "y": 277.5,
         "clase": "cap",
         "centro": true,
         "texto": "Zona de llegada"
       },
       {
-        "x": 571,
+        "x": 586,
         "y": 285,
         "clase": "cap",
         "centro": true,
@@ -12819,28 +12842,20 @@
       },
       {
         "x": 836,
-        "y": 330,
+        "y": 328,
         "clase": "cap",
         "centro": true,
         "ang": 27.4,
-        "texto": "Zona de llegada"
+        "texto": "Llegada de servicios zonales"
       },
       {
-        "x": 832.5,
-        "y": 337.5,
-        "clase": "cap",
-        "centro": true,
-        "ang": 27.4,
-        "texto": "de pasajeros de servicios zonales"
-      },
-      {
-        "x": 440,
+        "x": 442.5,
         "y": 139,
         "clase": "sub-sm",
         "texto": "Centro Felicidad El Tunal"
       },
       {
-        "x": 556,
+        "x": 558.5,
         "y": 139,
         "clase": "sub-sm",
         "texto": "Centro Deportivo Recreativo y Cultural el Tunal"
