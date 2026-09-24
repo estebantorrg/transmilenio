@@ -899,6 +899,9 @@ test.describe('a portal on its sheet', () => {
     const token = (n: string) => new RegExp('--' + n + ':\\s*([^;]+);').exec(appCss)?.[1].trim().toUpperCase();
     expect(PALETA.oscuro.papel.toUpperCase()).toBe(token('bg-primary'));
     expect(PALETA.oscuro.anden.toUpperCase()).toBe(token('bg-secondary'));
+    // And no ground of its own: the page's orange glow runs on behind the
+    // plan, where an opaque ground cut it off square at the drawing's top edge.
+    expect(PALETA.oscuro.suelo).toBe('transparent');
     const wrong: string[] = [];
     for (const code of portales) {
       // The first `.pq{...}` block is the app's view; `.pq.pq-papel` follows it.

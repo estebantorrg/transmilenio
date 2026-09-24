@@ -27,7 +27,7 @@ import { ICONOS, escapeHtml } from './plano.js';
  */
 export const PALETA = {
   papel: {
-    papel: '#FFFFFF', anden: '#D9D9D9', trazo: '#231F20', tunel: '#EFEFEF',
+    papel: '#FFFFFF', suelo: '#FFFFFF', anden: '#D9D9D9', trazo: '#231F20', tunel: '#EFEFEF',
     bahia: '#9C9C9C', radios: '#C4C4C4', verde: '#CCDCAD', eje: '#B4B4B4',
     bloque: '#B9B9B9', descanso: '#E9E9E9', escalera: '#BEBEBE', peldano: '#8E8E8E',
     rampa: '#D2D2D2', regla: '#D7D7D7', tinta: '#231F20', tenue: '#5A5A5A',
@@ -39,7 +39,11 @@ export const PALETA = {
   // everything between is a step of the same cool grey, so the plan reads as
   // part of the page rather than as a picture pasted onto it.
   oscuro: {
-    papel: '#0C0C0C', anden: '#202329', trazo: '#62666F', tunel: '#16181C',
+    // `suelo` is the ground the drawing lays down under itself: none at all
+    // in the app, so the page shows through — its orange glow included, which
+    // an opaque ground cut off square at the drawing's top edge. `papel` stays
+    // the page colour for what is knocked out of the drawing IN that colour.
+    papel: '#0C0C0C', suelo: 'transparent', anden: '#202329', trazo: '#62666F', tunel: '#16181C',
     bahia: '#34373F', radios: '#3A3D45', verde: '#243220', eje: '#2B2E35',
     bloque: '#33373F', descanso: '#1A1C21', escalera: '#2B2E35', peldano: '#4D5059',
     rampa: '#26292F', regla: 'rgba(255,255,255,.14)', tinta: '#FFFFFF',
@@ -1260,12 +1264,12 @@ export function buildPortalSvg(input) {
   const [vx, vy, vw, vh] = geo.vista;
   const cuerpo =
     estilo +
-    // The drawing's own ground. In the app's theme this is the page colour and
-    // invisible; in the paper view it is what makes the paper view paper —
+    // The drawing's own ground. In the app's theme there is none — the page is
+    // the ground, glow and all; on paper it is what makes the print paper —
     // without it the roadway and everything over it stayed the dark page and a
     // light drawing floated on black.
     '<rect x="' + geo.vista[0] + '" y="' + geo.vista[1] + '" width="' + geo.vista[2] +
-    '" height="' + geo.vista[3] + '" fill="' + C.papel + '"/>' +
+    '" height="' + geo.vista[3] + '" fill="' + C.suelo + '"/>' +
     // Only where there IS a ring: measured on a lozenge portal it came out as
     // `undefined` and `NaN`, which the browser rejects and reports.
     (hayAnillo ? entorno() : '') +
