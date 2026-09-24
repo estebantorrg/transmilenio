@@ -14537,7 +14537,8 @@
           "taquilla",
           "rampa",
           "torniquete",
-          "escalera"
+          "escalera",
+          "banos"
         ],
         "pts": [
           [
@@ -14563,6 +14564,10 @@
           [
             868,
             242
+          ],
+          [
+            683.3,
+            273.3
           ]
         ]
       },
@@ -16512,7 +16517,8 @@
           "taquilla",
           "tbici",
           "torniquete",
-          "rampa"
+          "rampa",
+          "banos"
         ],
         "pts": [
           [
@@ -16542,6 +16548,10 @@
           [
             478.7,
             301.5
+          ],
+          [
+            426,
+            249
           ]
         ]
       },

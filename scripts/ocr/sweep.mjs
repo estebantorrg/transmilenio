@@ -101,7 +101,7 @@ for (const code of detalle) {
 
   // 6. An exit needs a street, an icon has to exist, and a bay has to carry
   //    either services or the arrivals mark.
-  const ICONOS = ['taquilla', 'torniquete', 'rampa', 'escalera', 'emergencia', 'ascensor', 'bici', 'cable', 'zonal'];
+  const ICONOS = ['taquilla', 'torniquete', 'rampa', 'escalera', 'emergencia', 'ascensor', 'bici', 'cable', 'zonal', 'banos'];
   for (const col of cols) {
     for (const s of col.salidas ?? []) if (!s.calle) say(code, 'an exit has no street');
     // Only a block carries icons. On a `vagones` column `arriba` is the vagón's
