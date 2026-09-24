@@ -58,9 +58,12 @@ export function normalizeName(value) {
 /**
  * A portal's window onto its sheet, in the pixels of a 1024-wide sheet: one of
  * the `vista` numbers (2 = width, 3 = height) scaled by the sheet's own width
- * (`hoja`, where it is not 1024).
+ * (`hoja`, where it is not 1024) and by `escala` where the sheet draws its
+ * station smaller than the others do: Portal Tunal's is at about two thirds
+ * of their scale, and held to the same floor its bays came out too close
+ * together for their names to be set at a size anyone can read.
  */
-const referencia = (geo, i) => +(geo.vista[i] * (1024 / (geo.hoja ?? 1024))).toFixed(2);
+const referencia = (geo, i) => +(geo.vista[i] * (1024 / (geo.hoja ?? 1024)) * (geo.escala ?? 1)).toFixed(2);
 
 function normalizeCode(value) {
   return String(value ?? '').trim().toUpperCase();

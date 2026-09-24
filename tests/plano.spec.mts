@@ -572,7 +572,9 @@ test.describe('a portal on its sheet', () => {
             // a sheet may print a bay differently from how the catalog files it,
             // and where it does, the sheet wins.
             const b = (t.bahias ?? [])[i] ?? {};
-            const esperados: string[] = b.texto ?? it.destinos ?? (it.rutas ?? []).map((r: any) => r.destino);
+            // Or, where a name is too long for the room between two bays, the
+            // words it is broken into.
+            const esperados: string[] = b.texto ?? b.partir ?? it.destinos ?? (it.rutas ?? []).map((r: any) => r.destino);
             for (const nombre of esperados) {
               if (nombre && !svg.includes(nombre)) wrong.push(code + ': bay "' + nombre + '" is not named');
             }
@@ -677,19 +679,21 @@ test.describe('a portal on its sheet', () => {
       }
       // Names stacked UPWARD off the kerb end on one baseline: the last line of
       // every bay sits where a one-line bay does, and a second route goes above
-      // it rather than down into the platform.
+      // it rather than down into the platform. The last line is the last
+      // route's destination — under its tag, or beside it on one line, which
+      // centres it on the tag and lifts it a point or two.
       for (const t of geo.tirasAng ?? []) {
         if (t.apila !== 'arriba') continue;
         const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
-        const eje = geo.andenes?.[t.anden]?.pts?.[0]?.[1];
-        (tira?.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any) => {
+        const eje = t.y ?? geo.andenes?.[t.anden]?.pts?.[0]?.[1];
+        (tira?.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any, i: number) => {
           const rutas = it.rutas ?? [];
           if (rutas.length < 2) return;
-          const base = eje + t.off + t.dy;
+          const base = eje + (t.off ?? 0) + t.dy + ((t.bahias ?? [])[i]?.fila ?? 0) * (t.fila ?? 0);
           const ultima = rutas[rutas.length - 1];
           const y = [...svg.matchAll(/<text x="[\d.-]+" y="([\d.-]+)" class="pq-bay[^"]*">(.*?)<\/text>/g)]
-            .find((m) => m[2].includes('>' + ultima.codigo + '<'))?.[1];
-          if (y === undefined || Math.abs(Number(y) - base) > 0.05) {
+            .filter((m) => m[2] === ultima.destino).pop()?.[1];
+          if (y === undefined || Math.abs(Number(y) - base) > 2) {
             wrong.push(code + ': ' + ultima.codigo + ' is not on the bays\' baseline (' + y + ' against ' + base + ')');
           }
         });
@@ -757,9 +761,12 @@ test.describe('a portal on its sheet', () => {
           wrong.push(code + ': a dashed rule is drawn solid');
         }
       }
-      // A bay's código is a tspan, so its size cannot ride on the text rule.
+      // A bay's código is its own size, not its destination's — raised to the
+      // legibility floor like every other size on the page.
       const codigo = geo.tipo?.['bay-code'];
-      if (codigo && !svg.includes('tspan.pq-bay-code{font-size:' + codigo + 'px}')) {
+      const piso = 10 / (1.12 * (1024 / (geo.hoja ?? 1024)) * (geo.escala ?? 1));
+      const talla = Math.round(Math.max(codigo ?? 0, piso) * 100) / 100;
+      if (codigo && !new RegExp('text\\.pq-bay-cod\\{[^}]*font-size:' + talla + 'px\\}').test(svg)) {
         wrong.push(code + ": a bay's código is not set at the size it was measured at");
       }
       // An ANGLED platform may turn what stands on it. Portal Tunal turns its
@@ -780,8 +787,11 @@ test.describe('a portal on its sheet', () => {
         const nombre = (planos.detalle[code]?.zonal ?? [])
           .find((z: any) => z.nombre === t.tira)?.items
           ?.find((i: any) => i.t === 'bahia' && i.rutas?.length)?.rutas[0]?.destino;
-        const puesto = nombre && svg.match(new RegExp('<text[^>]*>' + nombre + '</text>'));
-        if (puesto && !/transform="rotate/.test(puesto[0])) {
+        // The bay's whole block turns as one — tag and name together — so the
+        // name sits inside a turned group rather than carrying a turn itself.
+        const girado = nombre &&
+          new RegExp('<g transform="rotate\\([^"]*\\)">(?:(?!</g>).)*>' + nombre + '</text>').test(svg);
+        if (nombre && svg.includes('>' + nombre + '</text>') && !girado) {
           wrong.push(code + ': a bay name on an angled platform is set level');
         }
       }
@@ -887,6 +897,87 @@ test.describe('a portal on its sheet', () => {
       for (const m of portalFor(code).matchAll(/<rect class="pq-badge"[^>]*fill="(#[0-9a-fA-F]{6})"([^/]*)\/>/g)) {
         const claro = parseInt(m[1].slice(1, 3), 16) + parseInt(m[1].slice(3, 5), 16) + parseInt(m[1].slice(5), 16);
         if (claro < 120 && !m[2].includes('stroke=')) wrong.push(code + ': badge ' + m[1] + ' has no outline');
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  test('every word on a portal can be read, and every bay links to its route', async ({ page }) => {
+    // The sheets set their bay names for a wall: Portal Tunal's came out at
+    // three and a half pixels, 20 de Julio's at five, and a rider could not tell
+    // which feeder left from where. Each portal is drawn here at the SMALLEST
+    // scale the page ever gives it — 1.12 px per 1024-sheet pixel, times the
+    // station's `escala` — and every word must be at least 10 px there, no two
+    // labels may run into each other, and every bay's código must be a tag that
+    // opens its route.
+    const wrong: string[] = [];
+    for (const code of portales) {
+      const geo = geos[code];
+      const detalle = planos.detalle[code];
+      const zonal = Array.isArray(detalle?.zonal) ? detalle.zonal : detalle?.zonal ? [detalle.zonal] : [];
+      // With NO routes filed at the station: a bay links from its código alone,
+      // because the sheet — or an operator notice — can place a service before
+      // the catalog files it there, as Portal Usme's notice did with five.
+      const svg = buildPortalSvg({
+        geo: { ...geo, borrador: false },
+        detalle,
+        layout: planos.layouts[code],
+        tema: 'oscuro',
+        byCode: new Map(),
+        routeHref: (r: any) => '/ruta/' + r.codigo + '/',
+      } as any).replace(/<a href/g, '<a data-x href');
+      const escala = 1.12 * (1024 / (geo.hoja ?? 1024)) * (geo.escala ?? 1);
+      const ancho = Math.round(geo.vista[2] * escala);
+      await page.setViewportSize({ width: ancho + 20, height: Math.round(geo.vista[3] * escala) + 20 });
+      await page.setContent('<!doctype html><meta charset="utf-8"><style>body{margin:0}.pq{display:block;width:' +
+        ancho + 'px;height:auto}</style>' + svg);
+      const hallado = await page.evaluate(() => {
+        const out: string[] = [];
+        type Caja = { n: string; x0: number; x1: number; y0: number; y1: number; el: Element };
+        const cajas: Caja[] = [];
+        // Turned labels are left out of the collision check: their box on the
+        // page is the square around a slanted line, which meets its neighbours'
+        // without the words themselves touching.
+        const recto = (el: Element) => Math.abs((el as SVGGraphicsElement).getScreenCTM()?.b ?? 0) < 1e-3;
+        for (const t of document.querySelectorAll('svg.pq text')) {
+          if (!t.textContent?.trim()) continue;
+          const m = (t as SVGTextElement).getScreenCTM()!;
+          const px = parseFloat(getComputedStyle(t).fontSize) * Math.hypot(m.a, m.b);
+          if (px < 9.95) out.push('«' + t.textContent + '» is set at ' + px.toFixed(1) + ' px');
+          if (!recto(t)) continue;
+          const b = t.getBoundingClientRect();
+          // The box runs from ascender to descender; a line's ink does not.
+          const r = b.height * 0.18;
+          cajas.push({ n: t.textContent!, x0: b.left, x1: b.right, y0: b.top + r, y1: b.bottom - r, el: t });
+        }
+        for (const el of document.querySelectorAll('svg.pq rect.pq-badge, svg.pq rect.pq-bay-tag, svg.pq rect.pq-placa')) {
+          if (!recto(el)) continue;
+          const b = el.getBoundingClientRect();
+          cajas.push({ n: '[' + (el.parentElement?.textContent ?? '') + ']', x0: b.left, x1: b.right, y0: b.top, y1: b.bottom, el });
+        }
+        for (let i = 0; i < cajas.length; i++) {
+          for (let j = i + 1; j < cajas.length; j++) {
+            const a = cajas[i], c = cajas[j];
+            // A tag and its own código, a plate and its own name.
+            if (a.el.parentElement === c.el.parentElement && (a.el.tagName === 'rect' || c.el.tagName === 'rect')) continue;
+            const ox = Math.min(a.x1, c.x1) - Math.max(a.x0, c.x0);
+            const oy = Math.min(a.y1, c.y1) - Math.max(a.y0, c.y0);
+            if (ox > 0.8 && oy > 0.8) out.push('«' + a.n + '» runs into «' + c.n + '»');
+          }
+        }
+        return out;
+      });
+      for (const h of hallado) wrong.push(code + ': ' + h);
+      // Every route a bay carries is a tag, and the tag is a link.
+      const dibujadas = new Set([...(geo.tirasAng ?? []), ...(geo.tiras ?? [])].map((t: any) => t.tira));
+      for (const tira of zonal.filter((z: any) => dibujadas.has(z.nombre))) {
+        for (const it of (tira.items ?? []).filter((i: any) => i.t === 'bahia')) {
+          for (const r of it.rutas ?? []) {
+            const enlace = new RegExp('<a data-x href="/ruta/' + r.codigo + '/" class="pq-link pq-bay-link"[^>]*>' +
+              '(?:(?!</a>).)*<rect class="pq-bay-tag"(?:(?!</a>).)*>' + r.codigo + '</text>');
+            if (!enlace.test(svg)) wrong.push(code + ': bay ' + r.codigo + ' is not a tag linked to its route');
+          }
+        }
       }
     }
     expect(wrong).toEqual([]);

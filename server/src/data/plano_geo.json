@@ -304,12 +304,22 @@
       },
       {
         "x": 606,
-        "y": 334,
-        "w": 78,
-        "h": 15,
-        "texto": "Acceso peatonal",
+        "y": 329,
+        "w": 42,
+        "h": 12,
+        "texto": "Acceso",
         "flecha": true,
-        "fs": 10.6
+        "fs": 9.5,
+        "base": 3
+      },
+      {
+        "x": 612,
+        "y": 341,
+        "w": 42,
+        "h": 12,
+        "texto": "peatonal",
+        "fs": 9.5,
+        "base": 3
       }
     ],
     "rotulos": [
@@ -379,32 +389,32 @@
       },
       {
         "x": 995.5,
-        "y": 459,
+        "y": 466,
         "clase": "street",
         "fin": true,
         "texto": "Autopista Norte"
       },
       {
         "x": 657,
-        "y": 267,
+        "y": 266.4,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
         "x": 657,
-        "y": 275.5,
+        "y": 276.1,
         "clase": "evac",
         "texto": "evacuación"
       },
       {
         "x": 657,
-        "y": 419.5,
+        "y": 418.9,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
         "x": 657,
-        "y": 428.3,
+        "y": 428.9,
         "clase": "evac",
         "texto": "evacuación"
       }
@@ -1855,11 +1865,19 @@
           },
           {
             "x": 431.5,
-            "color": "#00628F"
+            "color": "#00628F",
+            "partir": [
+              "Nueva",
+              "Roma"
+            ]
           },
           {
             "x": 476.5,
-            "color": "#00628F"
+            "color": "#00628F",
+            "partir": [
+              "Parques de",
+              "Bogotá"
+            ]
           },
           {
             "x": 539,
@@ -1911,7 +1929,8 @@
               "Circular",
               "San Mateo"
             ],
-            "color": "#00628F"
+            "color": "#00628F",
+            "una": true
           },
           {
             "x": 717,
@@ -2078,7 +2097,7 @@
       },
       {
         "x": 582,
-        "y": 245,
+        "y": 247.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian tunnel"
@@ -2092,7 +2111,7 @@
       },
       {
         "x": 582,
-        "y": 353,
+        "y": 355.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian tunnel"
@@ -2106,7 +2125,7 @@
       },
       {
         "x": 582,
-        "y": 453,
+        "y": 455.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian tunnel"
@@ -2119,7 +2138,7 @@
       },
       {
         "x": 859,
-        "y": 231.5,
+        "y": 233,
         "clase": "sub",
         "texto": "Buses troncales"
       },
@@ -2131,7 +2150,7 @@
       },
       {
         "x": 859,
-        "y": 338,
+        "y": 339.5,
         "clase": "sub",
         "texto": "Buses troncales"
       },
@@ -2143,7 +2162,7 @@
       },
       {
         "x": 860,
-        "y": 427,
+        "y": 430.5,
         "clase": "sub-sm",
         "texto": "Supermercado"
       },
@@ -3120,34 +3139,23 @@
           },
           {
             "x": 577,
-            "tx": 4,
-            "dx": 3.5,
-            "una": true
+            "tx": 4
           },
           {
             "x": 637.25,
-            "tx": 4,
-            "dx": -17.25,
-            "izq": true,
-            "una": true
+            "tx": 4
           },
           {
             "x": 698,
-            "tx": 4,
-            "dx": 3.5,
-            "una": true
+            "tx": 4
           },
           {
             "x": 758.25,
-            "tx": 4,
-            "dx": 3.75,
-            "una": true
+            "tx": 4
           },
           {
             "x": 818.75,
-            "tx": 4,
-            "dx": -1,
-            "una": true
+            "tx": 4
           }
         ]
       },
@@ -3175,37 +3183,23 @@
           },
           {
             "x": 581,
-            "tx": 4,
-            "dx": -22,
-            "izq": true,
-            "una": true
+            "tx": 4
           },
           {
             "x": 642,
-            "tx": 4,
-            "dx": -20,
-            "izq": true,
-            "una": true
+            "tx": 4
           },
           {
             "x": 702,
-            "tx": 4,
-            "dx": -30.3,
-            "izq": true,
-            "una": true
+            "tx": 4
           },
           {
             "x": 763,
-            "tx": 4,
-            "dx": -17.2,
-            "izq": true,
-            "una": true
+            "tx": 4
           },
           {
             "x": 823,
-            "tx": 4,
-            "dx": 1.5,
-            "una": true
+            "tx": 4
           }
         ]
       }
@@ -3373,26 +3367,28 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 397,
-        "y": 342.5,
+        "x": 428.5,
+        "y": 341.2,
+        "clase": "evac",
+        "texto": "Ruta de",
+        "fin": true
+      },
+      {
+        "x": 428.5,
+        "y": 350.4,
+        "clase": "evac",
+        "texto": "evacuación",
+        "fin": true
+      },
+      {
+        "x": 555,
+        "y": 341.2,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 397,
-        "y": 349.2,
-        "clase": "evac",
-        "texto": "evacuación"
-      },
-      {
         "x": 555,
-        "y": 342.5,
-        "clase": "evac",
-        "texto": "Ruta de"
-      },
-      {
-        "x": 555,
-        "y": 349.2,
+        "y": 350.4,
         "clase": "evac",
         "texto": "evacuación"
       },
@@ -3409,26 +3405,28 @@
         "texto": "Salida de TransMiZonales"
       },
       {
-        "x": 397,
-        "y": 490.35,
+        "x": 428.5,
+        "y": 489.05,
+        "clase": "evac",
+        "texto": "Ruta de",
+        "fin": true
+      },
+      {
+        "x": 428.5,
+        "y": 498.25,
+        "clase": "evac",
+        "texto": "evacuación",
+        "fin": true
+      },
+      {
+        "x": 555,
+        "y": 489.05,
         "clase": "evac",
         "texto": "Ruta de"
       },
       {
-        "x": 397,
-        "y": 497.05,
-        "clase": "evac",
-        "texto": "evacuación"
-      },
-      {
         "x": 555,
-        "y": 490.35,
-        "clase": "evac",
-        "texto": "Ruta de"
-      },
-      {
-        "x": 555,
-        "y": 497.05,
+        "y": 498.25,
         "clase": "evac",
         "texto": "evacuación"
       },
@@ -3513,16 +3511,18 @@
         "texto": "A5"
       },
       {
-        "x": 497,
-        "y": 226.3,
-        "clase": "evac-sm",
-        "texto": "Ruta de"
+        "x": 519.5,
+        "y": 225,
+        "clase": "evac",
+        "texto": "Ruta de",
+        "fin": true
       },
       {
-        "x": 497,
-        "y": 231.2,
-        "clase": "evac-sm",
-        "texto": "evacuación"
+        "x": 519.5,
+        "y": 233.5,
+        "clase": "evac",
+        "texto": "evacuación",
+        "fin": true
       }
     ],
     "norte": {
@@ -4729,7 +4729,8 @@
             "x": 425.5,
             "dx": -30.5,
             "izq": true,
-            "una": true
+            "una": true,
+            "fila": 1
           },
           {
             "x": 489.5,
@@ -4738,7 +4739,8 @@
           },
           {
             "x": 554.5,
-            "una": true
+            "una": true,
+            "fila": 1
           },
           {
             "x": 618.5,
@@ -4748,7 +4750,8 @@
           {
             "x": 683.5,
             "dx": 0.5,
-            "una": true
+            "una": true,
+            "fila": 1
           },
           {
             "x": 747.5,
@@ -4757,14 +4760,16 @@
           },
           {
             "x": 812.5,
-            "una": true
+            "una": true,
+            "fila": 1
           },
           {
             "x": 876.5,
             "dx": 0.5,
             "una": true
           }
-        ]
+        ],
+        "fila": 13.4
       },
       {
         "tira": "Plataforma 1 · llegada de servicios zonales",
@@ -6837,7 +6842,7 @@
           "ty": -3.9
         },
         "centrado": true,
-        "dy": -19.25,
+        "dy": -26.25,
         "alto": 16,
         "bahias": [
           {
@@ -6885,7 +6890,7 @@
         },
         "centrado": true,
         "apila": "arriba",
-        "dy": -19.25,
+        "dy": -26.25,
         "alto": 13.5,
         "bahias": [
           {
@@ -6938,7 +6943,7 @@
           "ty": -3.9
         },
         "centrado": true,
-        "dy": -17.75,
+        "dy": -24.75,
         "alto": 16,
         "bahias": [
           {
@@ -7096,14 +7101,14 @@
       },
       {
         "x": 1126,
-        "y": 766.5,
+        "y": 774.5,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
         "x": 1131.5,
-        "y": 784.5,
+        "y": 792.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian bridge"
@@ -8371,7 +8376,9 @@
             "izq": true,
             "color": "#226A38"
           }
-        ]
+        ],
+        "escalon": true,
+        "bajo": 12
       }
     ],
     "equipoAng": [
@@ -8700,7 +8707,7 @@
         "base": 3.8
       },
       {
-        "x": 583,
+        "x": 540,
         "y": 209,
         "w": 77,
         "h": 14,
@@ -8816,7 +8823,8 @@
         "texto": "Calle 32 Sur"
       }
     ],
-    "borrador": false
+    "borrador": false,
+    "escala": 1.19
   },
   "TM0135": {
     "source": "Plano de ubicacion, Portal Eldorado - C.C. NUESTRO BOGOTA, version febrero de 2025.",
@@ -11404,7 +11412,7 @@
       },
       {
         "x": 240,
-        "y": 326,
+        "y": 324,
         "clase": "anchor",
         "centro": true,
         "fs": 5.5,
@@ -11412,7 +11420,7 @@
       },
       {
         "x": 240,
-        "y": 332,
+        "y": 333,
         "clase": "place-en",
         "centro": true,
         "fs": 4,
@@ -11437,51 +11445,51 @@
       },
       {
         "x": 971,
-        "y": 302,
+        "y": 299,
         "clase": "place-sm",
         "centro": true,
         "texto": "Puente peatonal"
       },
       {
         "x": 971,
-        "y": 307.5,
+        "y": 308.5,
         "clase": "place-en",
         "centro": true,
         "texto": "Pedestrian bridge"
       },
       {
         "x": 861,
-        "y": 212.8,
+        "y": 209.5,
         "clase": "sub-sm",
         "texto": "ZONA DE LLEGADA"
       },
       {
         "x": 861,
-        "y": 218.2,
+        "y": 219,
         "clase": "sub-sm",
         "texto": "DE PASAJEROS"
       },
       {
         "x": 861,
-        "y": 224.6,
+        "y": 228.5,
         "clase": "sub-sm",
         "texto": "(ALIMENTADORES)"
       },
       {
         "x": 381,
-        "y": 417.8,
+        "y": 405,
         "clase": "sub-sm",
         "texto": "ZONA DE LLEGADA"
       },
       {
         "x": 381,
-        "y": 423.2,
+        "y": 414.5,
         "clase": "sub-sm",
         "texto": "DE PASAJEROS"
       },
       {
         "x": 381,
-        "y": 429.6,
+        "y": 424,
         "clase": "sub-sm",
         "texto": "(ALIMENTADORES)"
       },
@@ -12215,15 +12223,15 @@
             "arriba": true,
             "texto": []
           }
-        ]
+        ],
+        "escalon": true
       },
       {
         "tira": "Plataforma 2 · buses zonales",
         "anden": 1,
         "off": 11,
-        "dy": 7,
+        "dy": 6.5,
         "alto": 5,
-        "nombresAng": true,
         "tri": {
           "w": 5,
           "h": 4
@@ -12249,7 +12257,10 @@
             "arriba": true,
             "texto": []
           }
-        ]
+        ],
+        "fin": true,
+        "una": true,
+        "dx": -3
       }
     ],
     "equipoAng": [
@@ -12793,15 +12804,15 @@
         "texto": "Mirador del Paraíso"
       },
       {
-        "x": 566,
-        "y": 273,
+        "x": 571,
+        "y": 277.5,
         "clase": "cap",
         "centro": true,
         "texto": "Zona de llegada"
       },
       {
-        "x": 566,
-        "y": 280,
+        "x": 571,
+        "y": 285,
         "clase": "cap",
         "centro": true,
         "texto": "de pasajeros de servicios zonales"
@@ -12815,8 +12826,8 @@
         "texto": "Zona de llegada"
       },
       {
-        "x": 840,
-        "y": 337,
+        "x": 832.5,
+        "y": 337.5,
         "clase": "cap",
         "centro": true,
         "ang": 27.4,
@@ -12835,6 +12846,7 @@
         "texto": "Centro Deportivo Recreativo y Cultural el Tunal"
       }
     ],
-    "borrador": false
+    "borrador": false,
+    "escala": 1.37
   }
 }

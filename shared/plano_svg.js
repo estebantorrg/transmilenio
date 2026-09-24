@@ -444,9 +444,14 @@ export function buildPortalSvg(input) {
     if (/^\d+-/.test(codigo)) return '#3D6739';
     return TRONCAL[codigo[0]] ?? '#555555';
   };
+  // A código the station's own routes do not carry is still a route: Portal
+  // Usme's notice moved five services onto Plataforma 2 before the catalog
+  // re-filed them there, and those five bays were the only ones on the page a
+  // rider could not open. The caller answers from the código alone — the
+  // prerender with null where the network has no such route.
   const hrefDe = (codigo) => {
-    const ruta = (input.byCode?.get(String(codigo).toUpperCase()) ?? [])[0];
-    return ruta && input.routeHref ? input.routeHref(ruta) : null;
+    const ruta = (input.byCode?.get(String(codigo).toUpperCase()) ?? [])[0] ?? { codigo: String(codigo) };
+    return input.routeHref ? input.routeHref(ruta) : null;
   };
 
   const CH = geo.chip ?? {};
@@ -460,6 +465,173 @@ export function buildPortalSvg(input) {
   // proportion of whatever height the station's own badge is.
   const RADIO_CHIP = CH.rx ?? ALTO_CHIP * (5 / 22);
   const SUB_Y = CH.sub ?? 6;
+
+  /**
+   * The LEGIBILITY FLOOR: no text on a portal is set smaller than 10 px on
+   * screen, at the smallest scale the page ever draws it.
+   *
+   * The sizes in `tipo` are the sheet's own, and a sheet is printed for a wall.
+   * Portal Tunal's is drawn at half the scale of the others, so its bay names
+   * came out at three and a half pixels — a grey smudge under each bay — and
+   * Portal 20 de Julio's at five; even the portals drawn at full scale set their
+   * captions a pixel or two under anything the app sets elsewhere. A plan whose
+   * words cannot be read has failed at the one thing a rider opens it for, so
+   * the sheet's size is kept where it is legible and raised to the floor where
+   * it is not. The page never draws a portal under 1.12 px per pixel of a
+   * 1024-wide sheet (`.popup-plano-portal .pq`, `client/style.css`) — times
+   * the station's `escala` where its sheet is drawn small — so the floor is
+   * fixed in the drawing's own units from that.
+   */
+  const PISO = 10 / (1.12 * (1024 / (geo.hoja ?? 1024)) * (geo.escala ?? 1));
+  const legible = (v) => Math.max(v, PISO);
+  /** The sheet's size for a class, the station's own where it measured one. */
+  const TIPO = {
+    chip: 11.5, 'chip-sub': 4.6, cap: 8, bay: 6.8, tag: 7.4, place: 10.5, 'place-sm': 8, 'place-en': 5.8,
+    street: 12.5, anchor: 8.6, ruta: 8, sub: 7, 'sub-sm': 5.6, norte: 14, 'norte-fuera': 24,
+    ...(geo.tipo ?? {}),
+  };
+  const tam = (k) => legible(TIPO[k] ?? PISO);
+  // A strapline over a badge's código is text a rider reads — "Portal Usme",
+  // "Portal Tunal" — so it is held to the floor too, and the badge grows to
+  // carry it rather than the words shrinking to fit the badge.
+  const CRECE_SUB = tam('chip-sub') - TIPO['chip-sub'];
+
+  /**
+   * How wide a run of text will set, near enough to lay things out by.
+   *
+   * The drawing cannot measure its own text — it is a string, built where there
+   * is no layout engine — so widths are estimated from the character count at a
+   * condensed face's average advance. Generous rather than tight: the face the
+   * reader gets may be a wider fallback than Arial Narrow, and a tag that is a
+   * little roomy reads fine where one that clips its código does not.
+   */
+  const anchoTexto = (s, fs, k = 0.5) => String(s).length * fs * k;
+
+  // A bay's código is a ROUTE TAG, the same rounded tag the app draws for a
+  // route everywhere else, and a link to that route. The sheets set it as a
+  // bold word in front of the destination, which at a bay's size was the least
+  // legible thing on the page and the one thing a rider came to find.
+  const FS_BAY = tam('bay');
+  const FS_COD = legible(TIPO['bay-code'] ?? TIPO.bay);
+  const ALTO_TAG = FS_COD * 1.34;
+  // A código is digits, dashes and a capital or two, not running text, so it
+  // is measured by what it is made of: a dash is a third of a digit's advance
+  // narrower, a capital a little wider. Averaged like a word, "13-10" came out
+  // wider than the room between two of Portal 20 de Julio's bays.
+  const anchoTag = (c) =>
+    [...String(c)].reduce((a, ch) => a + (/d/.test(ch) ? 0.5 : /[-.]/.test(ch) ? 0.34 : 0.62), 0) * FS_COD +
+    FS_COD * 0.75;
+  // Lines of a name block: a tag line is as tall as its tag, a text line as
+  // tall as its face, and the gap between them is a fraction of the face.
+  const ALTO_LINEA = FS_BAY * 1.08;
+  const HUECO_LINEA = FS_BAY * 0.15;
+
+  /**
+   * One bay's name block: each route's código as a tag, its destination beside
+   * or under it, the whole of it a link to the route.
+   *
+   * `lineas` is a list of lines, each `{ tags, texto, ruta }` — tags a list of
+   * códigos, texto already escaped, ruta the código the line belongs to (for
+   * its link). Laid out from `y` downward, or upward from it where the strip
+   * stacks its names up off the kerb, left-aligned from `x` or centred on it.
+   */
+  function bloqueBahia(lineas, { x, y, arriba = false, centrado = false, fin = false, salto = 0 }) {
+    // `salto` drops a name further under its tag: where bays stand closer
+    // than their names are wide, every other bay's name goes a row lower, so
+    // two neighbours' names never share a row.
+    const altos = lineas.map((l, k) =>
+      (l.tags ?? []).length
+        ? ALTO_TAG + (l.texto || !lineas[k + 1] || (lineas[k + 1].tags ?? []).length ? 0 : salto)
+        : ALTO_LINEA
+    );
+    const total = altos.reduce((a, b) => a + b, 0) + HUECO_LINEA * Math.max(0, lineas.length - 1);
+    let top = arriba ? y - total : y;
+    const porRuta = new Map();
+    lineas.forEach((l, k) => {
+      const tags = l.tags ?? [];
+      const alto = tags.length ? ALTO_TAG : altos[k];
+      const anchos = tags.map(anchoTag);
+      const anchoTags = anchos.reduce((a, b) => a + b, 0) + Math.max(0, tags.length - 1) * FS_COD * 0.3;
+      const anchoTxt = l.texto ? anchoTexto(l.textoPlano ?? l.texto, FS_BAY, 0.47) : 0;
+      const separa = tags.length && l.texto ? FS_BAY * 0.35 : 0;
+      // Ending AT x (`fin`), the tag against the bay and the name running back
+      // from it: set by its own end, so it needs no estimate of its width.
+      let cx = fin ? x - anchoTags : centrado ? x - (anchoTags + separa + anchoTxt) / 2 : x;
+      let svg = '';
+      // Two códigos on one line each open their OWN route: the line is not
+      // one route's, so it cannot be wrapped as one link.
+      const varias = tags.length > 1;
+      tags.forEach((c, i) => {
+        const fondo = colorDe(c);
+        const borde = /^#(0|1)/.test(fondo) ? ' stroke="' + C.trazo + '" stroke-width="0.6"' : '';
+        const tag = '<rect class="pq-bay-tag" x="' + num(cx) + '" y="' + num(top) + '" width="' + num(anchos[i]) +
+          '" height="' + num(ALTO_TAG) + '" rx="' + num(ALTO_TAG * (5 / 22)) + '" fill="' + fondo + '"' + borde + '/>' +
+          '<text x="' + num(cx + anchos[i] / 2) + '" y="' + num(top + ALTO_TAG / 2 + FS_COD * 0.36) +
+          '" class="pq-bay-cod">' + escapeHtml(c) + '</text>';
+        const href = varias ? hrefDe(c) : null;
+        svg += href
+          ? '<a href="' + escapeHtml(href) + '" class="pq-link pq-bay-link" aria-label="Ruta ' + escapeHtml(c) + '">' + tag + '</a>'
+          : tag;
+        cx += anchos[i] + FS_COD * 0.3;
+      });
+      if (l.texto) {
+        const tx = fin ? x - anchoTags - separa : tags.length ? cx - FS_COD * 0.3 + separa : x;
+        const ty = top + alto / 2 + FS_BAY * 0.35;
+        const suelto = !tags.length && centrado;
+        svg += '<text x="' + num(tx) + '" y="' + num(ty) + '" class="pq-bay' +
+          (fin ? ' pq-bay-fin' : suelto ? '' : ' pq-bay-izq') + '">' + l.texto + '</text>';
+      }
+      const clave = (varias ? null : l.ruta) ?? '#' + k;
+      porRuta.set(clave, (porRuta.get(clave) ?? '') + svg);
+      top += altos[k] + HUECO_LINEA;
+    });
+    return [...porRuta.entries()]
+      .map(([ruta, svg]) => {
+        const href = ruta.startsWith('#') ? null : hrefDe(ruta);
+        if (!href) return svg;
+        const destino = lineas.find((l) => l.ruta === ruta && l.textoPlano)?.textoPlano;
+        return '<a href="' + escapeHtml(href) + '" class="pq-link pq-bay-link" aria-label="Ruta ' + escapeHtml(ruta) +
+          (destino ? ' hacia ' + escapeHtml(destino) : '') + '">' + svg + '</a>';
+      })
+      .join('');
+  }
+
+  /**
+   * The lines a bay's names are set in: one route per tag, its destination on
+   * the same line where the sheet keeps them together (`una`) and under it
+   * otherwise; codes sharing one destination side by side on one line (`junta`).
+   */
+  function lineasBahia(it, b = {}) {
+    const texto = (s) => ({ texto: escapeHtml(s), textoPlano: s });
+    // A bay that carries a route keeps its tag even where the sheet words it
+    // its own way: Portal Sur prints "Circular San Mateo" for CSM, and without
+    // the tag it was the one bay on the page a rider could not open.
+    if (b.texto) {
+      const cods = (it.rutas ?? []).map((r) => r.codigo);
+      if (!b.texto.length || !cods.length) return b.texto.map(texto);
+      const lineas = b.texto.map((s) => ({ ...texto(s), ruta: cods[0] }));
+      return b.una
+        ? [{ tags: cods, ...lineas[0] }, ...lineas.slice(1)]
+        : [{ tags: cods, ruta: cods[0] }, ...lineas];
+    }
+    if (it.llegada) return [texto('Llegada de pasajeros')];
+    if ((it.destinos ?? []).length) return (b.partir ?? it.destinos).map(texto);
+    const rutas = it.rutas ?? [];
+    if (b.junta) {
+      return [
+        { tags: rutas.map((r) => r.codigo), ruta: rutas[0]?.codigo },
+        { ...texto(rutas[0]?.destino ?? ''), ruta: rutas[0]?.codigo },
+      ];
+    }
+    return rutas.flatMap((r) => {
+      // A destination too long for the room between two bays is broken where
+      // the station says, word by word.
+      const partes = (b.partir && rutas.length === 1 ? b.partir : null) ?? [r.destino ?? ''];
+      return b.una
+        ? [{ tags: [r.codigo], ...texto(partes[0]), ruta: r.codigo }, ...partes.slice(1).map((p) => ({ ...texto(p), ruta: r.codigo }))]
+        : [{ tags: [r.codigo], ruta: r.codigo }, ...partes.map((p) => ({ ...texto(p), ruta: r.codigo }))];
+    });
+  }
 
   /** A run of chips, butted together the way the sheet sets them. */
   function chips(grupo) {
@@ -481,13 +653,20 @@ export function buildPortalSvg(input) {
       // thing saying the badge is there.
       const fondo = colorDe(c);
       const borde = /^#(0|1)/.test(fondo) ? ' stroke="' + C.trazo + '" stroke-width="0.8"' : '';
+      // Where the floor raised the strapline, the badge grows UPWARD by as much
+      // and WIDER where the words need it, so the código stays where the sheet
+      // puts it and the strapline gets the room instead of being squeezed.
+      const extra = sub ? CRECE_SUB : 0;
+      const ancho = sub ? Math.max(w, anchoTexto(sub, tam('chip-sub'), 0.6) + ALTO_CHIP * 0.3) : w;
       const cuerpo =
-        '<rect class="pq-badge" width="' + num(w) + '" height="' + ALTO_CHIP + '" rx="' + num(RADIO_CHIP) +
+        '<rect class="pq-badge" ' + (extra ? 'y="' + num(-extra) + '" ' : '') + 'width="' + num(ancho) +
+        '" height="' + num(ALTO_CHIP + extra) + '" rx="' + num(RADIO_CHIP) +
         '" fill="' + fondo + '"' + borde + '/>' +
-        (sub ? '<text x="' + num(w / 2) + '" y="' + SUB_Y + '" class="pq-chip-sub">' + escapeHtml(sub) + '</text>' : '') +
+        (sub ? '<text x="' + num(ancho / 2) + '" y="' + num(SUB_Y + extra * 0.25) + '" class="pq-chip-sub">' +
+          escapeHtml(sub) + '</text>' : '') +
         // A badge with a strapline over it sets its code LOWER, not centred: the
         // sheet gives the strapline the room and lets the code sit on the floor.
-        '<text x="' + num(w / 2) + '" y="' + num(ALTO_CHIP * (sub ? CH.baseSub ?? 0.78 : CH.base ?? 0.71)) +
+        '<text x="' + num(ancho / 2) + '" y="' + num(ALTO_CHIP * (sub ? CH.baseSub ?? 0.78 : CH.base ?? 0.71)) +
         '" class="pq-chip">' + escapeHtml(c) + '</text>';
       const g =
         '<g transform="' + (vuelta ? vuelta + ' ' : '') + 'translate(' + num(cx) + ' ' +
@@ -495,7 +674,7 @@ export function buildPortalSvg(input) {
       out += href
         ? '<a href="' + escapeHtml(href) + '" class="pq-link" aria-label="Ruta ' + escapeHtml(c) + '">' + g + '</a>'
         : g;
-      cx += w + (CH.gap ?? 1);
+      cx += ancho + (CH.gap ?? 1);
     }
     ocupado.push({ x0: grupo.x, x1: cx - 1, y0: grupo.y - ALTO_CHIP / 2, y1: grupo.y + ALTO_CHIP / 2 });
     return out;
@@ -648,16 +827,17 @@ export function buildPortalSvg(input) {
       // An arrival zone is named by the strip's caption and nothing else: the
       // sheet prints no second name under it, and "Llegada de pasajeros" was
       // ours, set in the busway where the sheet has bare page.
-      const nombres = it.llegada
-        ? []
-        : (it.destinos ?? []).length
-          ? [escapeHtml(it.destinos.join(', '))]
-          : (it.rutas ?? []).map(
-              (r) => '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan> ' + escapeHtml(r.destino ?? '')
-            );
-      nombres.forEach((n, k) => {
-        const ny = t.arriba ? t.nameY - (nombres.length - 1 - k) * 8.5 : t.nameY + k * 8.5;
-        out += '<text x="' + num(tx) + '" y="' + num(ny) + '" class="pq-bay">' + n + '</text>';
+      if (it.llegada) return;
+      const lineas = (it.destinos ?? []).length
+        ? [{ texto: escapeHtml(it.destinos.join(', ')), textoPlano: it.destinos.join(', ') }]
+        : lineasBahia(it, { una: t.una });
+      // Hung from the sheet's own baseline: the first line's top where its name
+      // started, or the last line's foot where the names stack up off the kerb.
+      out += bloqueBahia(lineas, {
+        x: tx,
+        y: t.arriba ? t.nameY + FS_BAY * 0.19 : t.nameY - TIPO.bay * 0.72 - FS_BAY * 0.17,
+        arriba: t.arriba,
+        centrado: true,
       });
     });
     return out;
@@ -766,48 +946,46 @@ export function buildPortalSvg(input) {
         out += '<path class="pq-bahia" d="M' + num(m.x - tw / 2) + ',' + num(m.y + (sube ? th : -th) / 2) +
           ' h' + num(tw) + ' l' + num(-tw / 2) + ',' + num(sube ? -th : th) + ' z" fill="' + C.trazo + '"/>';
       }
-      const lineas = b.texto
-        // The sheet's own wording where it is not the route's: the arrival zone
-        // is a caption, not a bay, and it says what it says.
-        ? b.texto.map((s) => escapeHtml(s))
-        : it.llegada
-          ? ['Llegada de pasajeros']
-          : (it.destinos ?? []).length
-            ? it.destinos.map((d) => escapeHtml(d))
-            : b.junta
-              // One bay, two codes, one destination: the sheet sets the codes
-              // together on the first line rather than repeating the name.
-              ? [rutas.map((r) => '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>').join(' / '),
-                 escapeHtml(rutas[0]?.destino ?? '')]
-              : rutas.flatMap((r) => {
-                  const cod = '<tspan class="pq-bay-code">' + escapeHtml(r.codigo) + '</tspan>';
-                  const dest = escapeHtml(r.destino ?? '');
-                  // The sheet breaks after the code for most bays and keeps the
-                  // last couple of each strip on one line, where the run of them
-                  // ends and there is room. Read off the sheet, not guessed.
-                  return b.una ? [cod + ' ' + dest] : [cod, dest];
-                });
-      // Portal Usme stacks a bay's names UPWARD off the kerb: the last line sits
-      // on a fixed baseline and a second route goes above it, not below.
-      const arriba = t.apila === 'arriba' ? lineas.length - 1 : 0;
+      // The sheet's own wording where it is not the route's: the arrival zone
+      // is a caption, not a bay, and it says what it says. Otherwise the
+      // códigos, as tags, and their destinations — one code per line and its
+      // name under it for most bays, the two on one line (`una`) where the
+      // sheet keeps them together, and two codes side by side over the one
+      // destination they share (`junta`).
+      const lineas = lineasBahia(it, { ...b, una: b.una ?? t.una });
+      if (!lineas.length) return;
       // A bay with two routes is set as a BLOCK even where single names are
       // centred: both lines share a left edge, which centring each line broke.
       const centrado = (b.centro || t.centrado) && !b.izq;
-      lineas.forEach((n, k) => {
-        // Beside its marker, or centred on its own where there is no marker to
-        // hang off: the arrival zone is a caption over a stretch of platform
-        // rather than a bay at a point. A sheet that centres every name over its
-        // bay still sets some of them a few pixels off the mark, so the offset is
-        // the bay's own where it was measured.
-        const tx = m.x + (b.dx ?? (centrado ? 0 : t.dx ?? 2));
-        const ty = m.y + (t.dy ?? 15.5) + (k - arriba) * (t.alto ?? 11);
-        // Level unless the sheet turns them. Portal 80 sets the names of its
-        // angled platforms square to the page and Portal Tunal runs them along
-        // Plataforma 2, so the choice is the strip's rather than the renderer's.
-        const giroN = t.nombresAng ? ' transform="rotate(' + num(giro(t.anden, b.x)) + ' ' + num(tx) + ' ' + num(ty) + ')"' : '';
-        out += '<text x="' + num(tx) + '" y="' + num(ty) + '"' + giroN +
-          ' class="pq-bay' + (centrado ? '' : ' pq-bay-izq') + '">' + n + '</text>';
+      // Beside its marker, or centred on its own where there is no marker to
+      // hang off: the arrival zone is a caption over a stretch of platform
+      // rather than a bay at a point. A sheet that centres every name over its
+      // bay still sets some of them a few pixels off the mark, so the offset is
+      // the bay's own where it was measured.
+      const tx = m.x + (b.dx ?? (centrado ? 0 : t.dx ?? 2));
+      // The sheet's baseline for the first line, or — where Portal Usme stacks
+      // a bay's names UPWARD off the kerb — for the last, with a second route
+      // going above it rather than below. A station may move a bay's block
+      // down a row (`fila`) where two neighbours' names would otherwise meet.
+      const ty = m.y + (t.dy ?? 15.5) + (b.fila ?? 0) * (t.fila ?? 0);
+      const arriba = t.apila === 'arriba';
+      const bloque = bloqueBahia(lineas, {
+        x: tx,
+        y: arriba ? ty + FS_BAY * 0.19 : ty - TIPO.bay * 0.72 - FS_BAY * 0.17,
+        arriba,
+        centrado,
+        fin: Boolean(t.fin),
+        // And a strip may hang every name clear of what lies under its tags:
+        // Portal 20 de Julio's bays are grey bars along the kerb, and a name
+        // set across them read as struck through.
+        salto: (t.bajo ?? 0) + (t.escalon && i % 2 ? ALTO_LINEA + HUECO_LINEA : 0),
       });
+      // Level unless the sheet turns them. Portal 80 sets the names of its
+      // angled platforms square to the page and Portal Tunal runs them along
+      // Plataforma 2, so the choice is the strip's rather than the renderer's.
+      out += t.nombresAng
+        ? '<g transform="rotate(' + num(giro(t.anden, b.x)) + ' ' + num(tx) + ' ' + num(ty) + ')">' + bloque + '</g>'
+        : bloque;
     });
     return out;
   }
@@ -890,7 +1068,7 @@ export function buildPortalSvg(input) {
     // And a sheet does not always set the same name at one size: Portal Norte's
     // two "Túnel peatonal" labels differ by two points, one at each end.
     (r.tono || r.fs
-      ? ' style="' + (r.tono ? 'fill:' + (C[r.tono] ?? C.tinta) + ';' : '') + (r.fs ? 'font-size:' + r.fs + 'px' : '') + '"'
+      ? ' style="' + (r.tono ? 'fill:' + (C[r.tono] ?? C.tinta) + ';' : '') + (r.fs ? 'font-size:' + num(legible(r.fs)) + 'px' : '') + '"'
       : '') +
     // A street name runs ALONG its street and a corridor's name along the
     // corridor. Set level they read as labels dropped on the drawing rather
@@ -906,14 +1084,27 @@ export function buildPortalSvg(input) {
    * off the axis it stands, and it turns with it — drawn square it read as a
    * label stuck on top of the drawing rather than part of it.
    */
-  const etiqueta = (t) => {
+  const etiqueta = (dada) => {
+    // The plate grows with its words where the floor raised them, about its
+    // own centre, so a name set larger than the sheet's is still ON its plate.
+    const fs0 = dada.fs ?? TIPO.tag;
+    const f = legible(fs0) / fs0;
+    const t = f === 1 ? dada : {
+      ...dada,
+      w: +(dada.w * f).toFixed(2), h: +(dada.h * f).toFixed(2),
+      x: dada.anden === undefined ? +(dada.x - (dada.w * (f - 1)) / 2).toFixed(2) : dada.x,
+      y: dada.anden === undefined ? +(dada.y - (dada.h * (f - 1)) / 2).toFixed(2) : dada.y,
+      base: (dada.base ?? 3.5) * f,
+      fs: dada.fs === undefined ? undefined : legible(dada.fs),
+    };
     if (t.anden !== undefined) {
       const c = sobre(t.anden, t.x, t.off ?? 0);
       const g = 'rotate(' + num(giro(t.anden, t.x)) + ' ' + num(c.x) + ' ' + num(c.y) + ')';
       return '<g transform="' + g + '">' +
-        '<rect x="' + num(c.x - t.w / 2) + '" y="' + num(c.y - t.h / 2) + '" width="' + t.w +
+        '<rect class="pq-placa" x="' + num(c.x - t.w / 2) + '" y="' + num(c.y - t.h / 2) + '" width="' + t.w +
         '" height="' + t.h + '" fill="' + KERB + '"/>' +
-        '<text x="' + num(c.x) + '" y="' + num(c.y + t.h / 2 - 3.5) + '" class="pq-tag">' +
+        '<text x="' + num(c.x) + '" y="' + num(c.y + t.h / 2 - (t.base ?? 3.5)) + '" class="pq-tag"' +
+        (t.fs ? ' style="font-size:' + num(t.fs) + 'px"' : '') + '>' +
         escapeHtml(t.texto) + '</text></g>';
     }
     // The pointer on the side the tag points from: Portal Norte's access tag
@@ -935,7 +1126,7 @@ export function buildPortalSvg(input) {
             (t.fondo ?? KERB) + '"/>'
           : '<path d="M' + num(x0 + t.w + 7.5) + ',' + num(t.y + t.h / 2) + ' l-8.5,-5.5 v11 z" fill="' + KERB + '"/>';
     return punta +
-      '<rect x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
+      '<rect class="pq-placa" x="' + x0 + '" y="' + t.y + '" width="' + t.w + '" height="' + t.h +
       // Yellow is what a platform tag is; a station may print another kind.
       // Portal Tunal names its TransMiCable station on an orange plate with
       // white lettering, which drawn in the platform yellow read as a third
@@ -982,38 +1173,38 @@ export function buildPortalSvg(input) {
     // '.pq-chip' alone it lost to '.pq text' and every chip label came out in
     // the ink colour — invisible on a black badge.
     '.pq text{font-family:"Arial Narrow","Roboto Condensed","Segoe UI",system-ui,sans-serif;fill:' + C.tinta + '}' +
-    '.pq text.pq-chip{fill:#fff;font-size:11.5px;font-weight:700;text-anchor:middle}' +
-    '.pq text.pq-chip-sub{fill:#fff;font-size:4.6px;font-weight:700;text-anchor:middle}' +
-    '.pq text.pq-cap{font-size:8px;text-anchor:middle}' +
-    '.pq text.pq-bay{font-size:6.8px;text-anchor:middle}' +
-    '.pq tspan.pq-bay-code{font-weight:700}' +
-    '.pq text.pq-tag{font-size:7.4px;font-weight:700;text-anchor:middle;fill:#231F20}' +
-    '.pq text.pq-place{font-size:10.5px;font-weight:700}' +
-    '.pq text.pq-place-sm{font-size:8px;font-weight:700}' +
-    '.pq text.pq-place-en{font-size:5.8px;font-style:italic;fill:' + C.tenue + '}' +
-    '.pq text.pq-street{font-size:12.5px;font-weight:700}' +
-    '.pq text.pq-anchor{font-size:8.6px;font-weight:700}' +
-    '.pq text.pq-ruta{font-size:8px}' +
-    '.pq text.pq-sub{font-size:7px}' +
-    '.pq text.pq-sub-sm{font-size:5.6px}' +
-    '.pq text.pq-norte{font-size:14px;font-weight:700;text-anchor:middle;fill:#231F20}' +
+    '.pq text.pq-chip{fill:#fff;font-weight:700;text-anchor:middle}' +
+    '.pq text.pq-chip-sub{fill:#fff;font-weight:700;text-anchor:middle}' +
+    '.pq text.pq-cap{text-anchor:middle}' +
+    '.pq text.pq-bay{text-anchor:middle}' +
+    '.pq text.pq-tag{font-weight:700;text-anchor:middle;fill:#231F20}' +
+    '.pq text.pq-place{font-weight:700}' +
+    '.pq text.pq-place-sm{font-weight:700}' +
+    '.pq text.pq-place-en{font-style:italic;fill:' + C.tenue + '}' +
+    '.pq text.pq-street{font-weight:700}' +
+    '.pq text.pq-anchor{font-weight:700}' +
+    '.pq text.pq-norte{font-weight:700;text-anchor:middle;fill:#231F20}' +
     // Set under the disc it is on the page rather than on the yellow, so it
     // takes the ink colour of the theme instead of the disc's black.
-    '.pq text.pq-norte-fuera{font-size:24px;fill:' + C.tinta + '}' +
+    '.pq text.pq-norte-fuera{fill:' + C.tinta + '}' +
     '.pq text.pq-bay-izq{text-anchor:start}' +
-    // The sizes above are Portal Norte's, measured off its sheet. They are not a
-    // house style: Portal 80 is drawn half again as large on the same page and
-    // its badges are nearly twice the size, so a station may carry its own. Same
-    // specificity as the rules above and written after them, so these win.
-    // 'bay-code' is the one that is not a text element: a bay's código is a
-    // tspan inside its destination, and the sheets set the two at different
-    // sizes — Portal 20 de Julio's códigos are a third larger than the names
-    // under them, and one size for both made every tag in the strip too wide.
-    Object.entries(geo.tipo ?? {})
-      .map(([k, v]) => '.pq ' + (k === 'bay-code' ? 'tspan' : 'text') + '.pq-' + k + '{font-size:' + v + 'px}')
+    '.pq text.pq-bay-fin{text-anchor:end}' +
+    // The sizes: Portal Norte's by default, measured off its sheet, and the
+    // station's own where it carries them. They are not a house style — Portal
+    // 80 is drawn half again as large on the same page and its badges are
+    // nearly twice the size. Every one of them is held to the legibility floor.
+    // 'bay-code' sizes a bay's código apart from its destination, because the
+    // sheets set the two differently — Portal 20 de Julio's códigos are a third
+    // larger than the names under them — and it is the tag's text below.
+    Object.entries(TIPO)
+      .filter(([k]) => k !== 'bay-code')
+      .map(([k, v]) => '.pq text.pq-' + k + '{font-size:' + num(legible(v)) + 'px}')
       .join('') +
+    // A bay's código, white on its route's tag.
+    '.pq text.pq-bay-cod{fill:#fff;font-weight:700;text-anchor:middle;font-size:' + num(FS_COD) + 'px}' +
     '.pq a{cursor:pointer}' +
     '.pq a:hover rect{stroke:' + C.tinta + ';stroke-width:1.5}' +
+    '.pq a:hover text.pq-bay{text-decoration:underline}' +
     '</style>';
 
   const [vx, vy, vw, vh] = geo.vista;
