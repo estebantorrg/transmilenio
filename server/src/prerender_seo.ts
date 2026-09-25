@@ -39,6 +39,7 @@ import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
+import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, type LegalDoc } from '../../shared/legal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -642,6 +643,40 @@ function systemLabel(route: LightRoute): string {
   return route.sistema === 'TransMilenio' ? 'TransMilenio Troncal' : 'SITP Zonal';
 }
 
+// ─── Legal pages ──────────────────────────────────────────
+/**
+ * `/privacidad/` (spec §5.5.7). The text is `shared/legal.js`, the same copy the
+ * app's overlay page renders, so the indexed page and the one a rider opens in
+ * the app cannot say different things. Emitted like any other page — a real
+ * body for crawlers and for readers without JS, handed over to the interactive
+ * page once the bundle runs (`client/src/ui/legalPage.ts`).
+ */
+function renderLegal(doc: LegalDoc) {
+  const url = doc.path;
+  const trail = [
+    { name: 'Inicio', url: '/' },
+    { name: doc.breadcrumb, url },
+  ];
+  const body = `${PRERENDER_STYLE}
+<style>${LEGAL_CSS}</style>
+<main id="seo-prerender"><div class="rail"></div><div class="wrap">
+${breadcrumbHtml(trail)}
+${legalDocHtml(doc)}
+</div></main>`;
+  const jsonLd: object[] = [
+    breadcrumb(trail),
+    {
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: doc.titulo,
+      description: doc.descripcion,
+      url: `${ORIGIN}${url}`,
+      inLanguage: 'es-CO',
+    },
+  ];
+  return { url, title: doc.titulo, description: clamp(doc.descripcion), jsonLd, body };
+}
+
 // ─── Route pages ──────────────────────────────────────────
 function renderRoute(
   codigo: string,
@@ -1143,6 +1178,17 @@ async function main(): Promise<void> {
     throw new Error(`Built shell not found at ${shellPath} — run the client build first.`);
   });
 
+  // The legal pages come first: they need no catalog, and a build whose catalog
+  // step fails must not also ship a site with no privacy policy on it.
+  const legalUrls: string[] = [];
+  for (const doc of LEGAL_DOCS) {
+    const page = renderLegal(doc);
+    const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
+    legalUrls.push(page.url);
+  }
+
   await loadCatalogFromDisk();
   const { gzip, count } = await getCatalogLightGzip();
   if (count === 0) {
@@ -1289,7 +1335,7 @@ async function main(): Promise<void> {
   const lastmod = new Date().toISOString().slice(0, 10);
   await writeFile(path.join(CLIENT_DIST, 'sitemap-rutas.xml'), sitemapUrlset(routeUrls, lastmod));
   await writeFile(path.join(CLIENT_DIST, 'sitemap-estaciones.xml'), sitemapUrlset(stationUrls, lastmod));
-  await writeFile(path.join(CLIENT_DIST, 'sitemap-paginas.xml'), sitemapUrlset(['/'], lastmod));
+  await writeFile(path.join(CLIENT_DIST, 'sitemap-paginas.xml'), sitemapUrlset(['/', ...legalUrls], lastmod));
   await writeFile(
     path.join(CLIENT_DIST, 'sitemap.xml'),
     sitemapIndex(['sitemap-paginas.xml', 'sitemap-rutas.xml', 'sitemap-estaciones.xml'], lastmod)
@@ -1297,8 +1343,9 @@ async function main(): Promise<void> {
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
   console.log(`[seo] /estacion/*  — ${stationUrls.length} pages`);
+  console.log(`[seo] legal       — ${legalUrls.join(', ')}`);
   console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
-  console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + 1} URLs)`);
+  console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + legalUrls.length + 1} URLs)`);
 }
 
 main().catch((error) => {

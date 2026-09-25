@@ -30,6 +30,7 @@ import {
 import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
 import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshRoutePage } from './ui/routePage';
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
+import { initLegalPages } from './ui/legalPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
@@ -300,6 +301,10 @@ initRoutePage({
   },
   onLiveRefresh: refreshLiveNow,
 });
+
+// The legal pages need no catalog, so a visitor landing on `/privacidad/` gets
+// the page now rather than when the network data arrives (spec §5.5.7).
+initLegalPages();
 
 function getPlannerModule(): Promise<PlannerModule> {
   plannerModulePromise ??= import('./ui/planner').catch((error) => {
