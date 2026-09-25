@@ -49,15 +49,21 @@
  *     it *contradicts* the brand manual (§5.5.5), so it is an observation rather
  *     than an assumption inherited from the spec.
  *   • On the units in `TmRuteroCatalog/`, lit LEDs sample to a cool white
- *     (≈ rgb(200, 220, 228)) over a panel near rgb(8, 15, 25). The manual
- *     mandates that colour: "leds de color blanco sobre fondo negro".
- *     **Amber units also exist** — every TransMilenio bus found on Wikimedia
- *     Commons carries an amber display, including articulated troncales. Both
- *     generations run. White is drawn here because it is what the catalogued
- *     photographs show and what the manual specifies, not because it is the
- *     only colour in service.
+ *     (≈ rgb(200, 220, 228)) over a panel near rgb(8, 15, 25). The current
+ *     manual (V.6, Resolución 511 de 2025, "Rutero electrónico frontal") allows
+ *     three: "leds de color blanco, ámbar o amarillo limón sobre fondo negro".
+ *     So the **amber units** — every TransMilenio bus found on Wikimedia
+ *     Commons carries one, articulated troncales included — are not a lapse
+ *     from the manual but one of its options. White is drawn here because it is
+ *     what the catalogued photographs show, not because it is the only colour
+ *     the manual or the fleet uses. (Zonal panels are RGB and also carry the
+ *     destination zone's colour in the top strip and the código box — ITS Fase
+ *     III/V RF016, manual "Contraste / Señalética 2020". Not drawn yet.)
  *   • The panel holds about 20 characters — a character *count*, not a
- *     measurement ("F23 PORTAL AMERICAS" is 19 and fills it).
+ *     measurement ("F23 PORTAL AMERICAS" is 19 and fills it). The procurement
+ *     spec agrees without settling it: ITS Fase IV, Tabla 3 requires at least
+ *     20 characters on one line at a 16-dot font and more than 20 below that,
+ *     which is a floor the hardware must meet, not the panel's actual width.
  *   • The layout rule below. It is a **ratio inside one image**, so perspective
  *     and scale cancel: 4 px of gap for "M83" + 14 characters against 25 px for
  *     "D21" + 9 is the same relationship however badly the photo was taken.

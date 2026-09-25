@@ -7,9 +7,12 @@
  * prerendered pages and the social cards fall back to the raw catalog colour —
  * is what put the two surfaces out of step: measured over the 1 755 services
  * filed on the 139 estación pages, **1 622 (92.4%)** were drawn in a different
- * colour from the app's chip for the same route. Most are near-misses the
- * catalog ships for the same corridor (`#009CDE` against the palette's
- * `#00B0E8`), but the rutas fáciles are a hard disagreement: códigos 1–8 are a
+ * colour from the app's chip for the same route. Most were near-misses the
+ * catalog ships for the same corridor (`#009CDE` against the palette's old
+ * `#00B0E8`) — and there the catalog was right: the corridor colours below are
+ * now the official ones (Manual de imagen y normas gráficas V.6, Res. 511 de
+ * 2025, "Colores – identificación de servicios"), which the catalog's troncal
+ * routes already carry exactly. The rutas fáciles stay a hard disagreement: códigos 1–8 are a
  * TRONCAL family the app paints **black**, while the catalog gives each variant
  * its own colour — which is why one código could appear in two colours on the
  * same station page (spec §5.4.3: both clients render the same transit
@@ -18,13 +21,13 @@
 
 /** Corridor letter → colour. Keep in step with the client's TRONCAL_COLORS. */
 export const TRONCAL_COLORS: Record<string, string> = {
-  A: '#0C3A95', B: '#75C347', C: '#FFB741', D: '#6867B4', E: '#B76416',
-  F: '#FB2C17', G: '#00B0E8', H: '#FF8525', J: '#E49DAA', K: '#D3AA78',
-  L: '#00B0A9', M: '#852D89', P: '#25206F', T: '#808000', RF: '#000000',
+  A: '#26358C', B: '#80BA27', C: '#FCBD1B', D: '#8064A9', E: '#AE6B00',
+  F: '#DC0814', G: '#009CDE', H: '#F18500', J: '#E1A2AC', K: '#D5B079',
+  L: '#009A9D', M: '#009A9D', P: '#A80F79', T: '#808000', RF: '#000000',
   // Z shares F's red and S shares G's cyan, deliberately — see the client's
   // TRONCAL_COLORS for why: both are second directions or extensions of a trunk
   // that is already drawn, and a colour of their own splits one busway in two.
-  Z: '#FB2C17', S: '#00B0E8',
+  Z: '#DC0814', S: '#009CDE',
 };
 
 const ALIMENTADOR_COLOR = '#009944';

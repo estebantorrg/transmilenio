@@ -1,26 +1,37 @@
 import type { RouteListItem } from '../types/transmilenio';
 
+// The official corridor colours — Manual de imagen y normas gráficas V.6
+// (Resolución 511 de 2025), "Colores – identificación de servicios", which gives
+// each letter its Pantone, CMYK, RGB and hex. The catalog's own troncal routes
+// carry these exact values, all thirteen letters, so the manual is not a design
+// aspiration here but what TRANSMILENIO's own systems use. The palette it replaces
+// was not invented: A `#0C3A95` and H `#FF8525` are what the October 2022 route
+// plegables still print (`#0c3b96` / `#ff8525` in their vector fills). The printed
+// pieces lag the manual; the manual and the catalog agree, so they win. It also
+// gave M a purple and P a navy that the manual colours differently — M takes
+// Carrera 10's teal. Zonal zones reuse the same letters and colours by design: a
+// zonal service is coloured by its DESTINATION zone.
 export const TRONCAL_COLORS: Record<string, string> = {
-  A: '#0C3A95',
-  B: '#75C347',
-  C: '#FFB741',
-  D: '#6867B4',
-  E: '#B76416',
-  F: '#FB2C17',
-  G: '#00B0E8',
-  H: '#FF8525',
-  J: '#E49DAA',
-  K: '#D3AA78',
-  L: '#00B0A9',
-  M: '#852D89',
-  P: '#25206F',
+  A: '#26358C', // Caracas / Centro — Pantone Reflex Blue C
+  B: '#80BA27', // Norte / Usaquén — Pantone 368 C
+  C: '#FCBD1B', // Suba
+  D: '#8064A9', // Calle 80 / Engativá
+  E: '#AE6B00', // NQS Central — Pantone 724 C
+  F: '#DC0814', // Américas / Kennedy
+  G: '#009CDE', // NQS Sur / Bosa
+  H: '#F18500', // Caracas Sur / Usme–Ciudad Bolívar — Pantone Orange 021 C
+  J: '#E1A2AC', // Eje Ambiental — Pantone 507 C
+  K: '#D5B079', // Calle 26 / Fontibón — Pantone 465 C
+  L: '#009A9D', // Carrera 10 / San Cristóbal
+  M: '#009A9D', // Carrera 7 — the manual gives it Carrera 10's teal, not a colour of its own
+  P: '#A80F79', // Avenida 68
   T: '#808000',
   RF: '#000000',
   // Same red as `F`, deliberately: the `Z…` services are the second direction of
   // the Américas family (`F63`/`Z63` on the Bosa–Tibanica extension), so they
   // ride and colour the same trunk. A colour of their own split one corridor into
   // two on the map.
-  Z: '#FB2C17',
+  Z: '#DC0814',
   // Same cyan as `G`, for the same reason. The `S…` services (S41…S48) are the
   // Soacha extension — everything running past Portal Sur to Bosa, La Despensa,
   // León XIII, Terreros and San Mateo — and they ride the NQS Sur trunk out of
@@ -28,7 +39,7 @@ export const TRONCAL_COLORS: Record<string, string> = {
   // ("Soacha", `station_corridors.json`), because that is what the signage and
   // the rider call it; the trunk they ride is still G's, so giving S its own
   // colour would draw one busway in two.
-  S: '#00B0E8',
+  S: '#009CDE',
 };
 
 /** The two networks a service can belong to — `RouteListItem['type']`. */

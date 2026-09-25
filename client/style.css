@@ -5517,10 +5517,10 @@ body.native-app .route-detail-close:active {
    the flat background, which is the same page minus one flourish.
 
    **Two layers, because half this palette is dark.** One long ramp at a single
-   alpha reads fine for the bright líneas (cyan `#00B0E8`, green `#75C347`) and
+   alpha reads fine for the bright líneas (cyan `#009CDE`, green `#80BA27`) and
    all but disappears for the dark ones: over this page's `#0C0C0C`, navy
-   `#0C3A95` at 20% composites to `rgb(12,21,39)` — nine points of green and
-   twenty-seven of blue away from the background, which is a smudge nobody sees.
+   `#26358C` at 20% composites to `rgb(17,20,38)` — eight points of green and
+   twenty-six of blue away from the background, which is a smudge nobody sees.
    So a short, stronger band under the masthead gives every corridor a colour
    that registers, and a long soft tail carries it into the page without turning
    the top of it into a banner. */
@@ -6163,7 +6163,7 @@ body.native-app .route-detail-close:active {
 }
 
 /* The corridor's name, marked with the corridor's own colour rather than set in
-   it: half this palette is dark (Caracas navy `#0C3A95`, Carrera 7 purple), and
+   it: half this palette is dark (Caracas navy `#26358C`, Avenida 68 `#A80F79`), and
    a corridor name printed in navy on this page's near-black is a name nobody can
    read. The dot carries the colour, the text keeps its contrast. */
 .station-hero-corridor {
