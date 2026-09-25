@@ -26,6 +26,8 @@ import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
+import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
+import { api } from '../services/api';
 import {
   formatSchedule,
   parseRoutePathname,
@@ -130,6 +132,50 @@ function ruteroBlock(route: RouteListItem): string {
   `;
 }
 
+let ruterosPromise: Promise<RuterosTradicionales | null> | null = null;
+let ruteros: RuterosTradicionales | null = null;
+
+/** The printed ruteros, fetched once per session; `null` if the fetch fails. */
+function loadRuteros(): Promise<RuterosTradicionales | null> {
+  ruterosPromise ??= api
+    .getRuterosTradicionales()
+    .then((res) => (ruteros = res.success && res.rutas ? { fuente: res.fuente, rutas: res.rutas } : null))
+    .catch(() => null)
+    // A failed fetch is not the answer for the session: a page opened a minute
+    // later asks again (not every re-render — the live card refreshes the page).
+    .then((loaded) => {
+      if (!loaded) window.setTimeout(() => (ruterosPromise = null), 60_000);
+      return loaded;
+    });
+  return ruterosPromise;
+}
+
+/**
+ * The rutero printed on the paradero's plegable — corredores and the barrios
+ * beside them — for the direction on screen only (one route, one sign: the
+ * sentido whose destino is this route's). Empty until the data has loaded, for
+ * routes TRANSMILENIO's artwork doesn't cover yet, and when no printed destino
+ * matches the catalog's: nothing here picks a sentido by guess.
+ */
+function tablaRuteroSection(route: RouteListItem): string {
+  const ruta = ruteros?.rutas[route.code];
+  // The catalog's `nombre` is the service's destino ("Unicentro"); `destination`
+  // is only the barrio of its last paradero ("Br. Bella Suiza"), the fallback.
+  const byName = sentidosHacia(ruta, route.name);
+  const sentidos = byName.length ? byName : sentidosHacia(ruta, route.destination);
+  if (!ruta || !sentidos.length) return '';
+  ensureTablaRuteroStyle();
+  const color = safeColor(getRouteAccentColor(route));
+  return `
+    <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
+      <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
+      ${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido })).join('')}
+      <p class="page-note">${ruta.formato === 'digital'
+        ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'
+        : 'Como lo imprime TRANSMILENIO en el plegable de la ruta: en amarillo los corredores por los que va, en oscuro el principal, y al lado los barrios que atiende.'}</p>
+    </section>`;
+}
+
 /**
  * Origen → destino as the line it is: two labelled ends with the route's own
  * colour running between them. The old page set this as a sentence with a drawn
@@ -192,6 +238,8 @@ function render(route: RouteListItem): string {
 
       ${facts}
 
+      <div class="route-rutero-slot">${tablaRuteroSection(route)}</div>
+
       <section class="page-section" aria-labelledby="live-h">
         <h2 class="page-section-title" id="live-h">En vivo</h2>
         ${renderLiveCard()}
@@ -251,6 +299,18 @@ function wire(el: HTMLElement, route: RouteListItem): void {
   // search result — and `refreshRoutePage` has to know which route is on screen
   // whichever way it got there.
   openRoute = route;
+
+  if (!ruteros) {
+    void loadRuteros().then(() => {
+      const slot = el.querySelector<HTMLElement>('.route-rutero-slot');
+      if (!slot || openRoute !== route) return;
+      slot.innerHTML = tablaRuteroSection(route);
+      ajustarTablasRutero(slot);
+    });
+  } else {
+    // After layout, so the cells have their widths.
+    requestAnimationFrame(() => ajustarTablasRutero(el));
+  }
 
   el.querySelector('.live-status-refresh')?.addEventListener('click', () => {
     document.querySelectorAll('.live-status-refresh').forEach((btn) => btn.classList.add('spinning'));

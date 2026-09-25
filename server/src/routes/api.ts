@@ -333,6 +333,12 @@ router.get('/transmibici', dataFileEndpoint<any[]>(
 router.get('/planner-calibration', dataFileEndpoint<object>(
   'planner_calibration.json', 'planner calibration', (calibration) => calibration
 ));
+// The printed ruteros of the zonal routes (código, destino, corredor/hito rows),
+// read off TRANSMILENIO's final artwork by scripts/ocr/ruteros.mjs. ~90 KB,
+// fetched once by the route page.
+router.get('/ruteros-tradicionales', dataFileEndpoint<object>(
+  'ruteros_tradicionales.json', 'ruteros tradicionales', (ruteros) => ruteros
+));
 
 // ─── Cable Endpoints ──────────────────────────────────────
 

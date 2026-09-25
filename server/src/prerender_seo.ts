@@ -33,6 +33,7 @@ import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
+import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
@@ -594,6 +595,8 @@ backdrop-filter:blur(24px) saturate(1.2);-webkit-backdrop-filter:blur(24px) satu
 background:#202329;border:1px solid #4D5059;border-radius:12px;padding:8px 13px;cursor:pointer}
 #seo-prerender .seo-dismiss button:hover{border-color:#D8102D;background:rgba(216,16,45,.14)}
 #seo-prerender .seo-dismiss button:focus-visible{outline:2px solid #7DD3FC;outline-offset:2px}
+#seo-prerender .tabla-ruteros{margin:22px 0 0}
+${TABLA_RUTERO_CSS}
 </style>`;
 
 function breadcrumb(trail: Array<{ name: string; url: string }>): object {
@@ -640,7 +643,12 @@ function systemLabel(route: LightRoute): string {
 }
 
 // ─── Route pages ──────────────────────────────────────────
-function renderRoute(codigo: string, variants: LightRoute[], stationByCode: Map<string, LightStation>) {
+function renderRoute(
+  codigo: string,
+  variants: LightRoute[],
+  stationByCode: Map<string, LightStation>,
+  impreso: RuteroTradicional | undefined
+) {
   const primary = variants[0];
   const url = routeUrl(codigo);
   const name = tidy(primary.nombre) || codigo;
@@ -727,6 +735,15 @@ ${items}
   // across the three surfaces (`stopTagColor`, §5.4.3).
   const accent = stopTagColor(codigo, primary.color, isZonalService(primary.sistema, primary.tipoServicio));
 
+  // The rutero as the paradero's piece prints it (shared/tabla_rutero.js), every
+  // sentido the piece carries: this page describes the route whole.
+  const tablas = impreso
+    ? `<div class="tabla-ruteros">${impreso.sentidos
+        .map((sentido) => tablaRuteroHtml({ codigo, color: accent, formato: impreso.formato, sentido }))
+        .join('')}</div>
+<p class="meta">Como lo imprime TRANSMILENIO en el plegable de la ruta: los corredores por los que va y los barrios que atiende.</p>`
+    : '';
+
   const facts = factsHtml([
     { label: 'Paradas', value: stopCount ? String(stopCount) : null },
     { label: 'Sentidos', value: variants.length > 1 ? String(variants.length) : null },
@@ -746,6 +763,7 @@ ${breadcrumbHtml(trail)}
 </header>
 ${ruteros}
 ${ruteros ? `<p class="meta">El letrero LED sobre el parabrisas del bus, un sentido por letrero: con él se reconoce en el andén qué bus es cuál.</p>` : ''}
+${tablas}
 ${facts}
 ${directions}
 </div></main>`;
@@ -1187,9 +1205,13 @@ async function main(): Promise<void> {
   }
   console.log(`[seo] backdrop     — ${backdrop.length} troncal traces`);
 
+  const impresos = JSON.parse(
+    await readFile(path.resolve(__dirname, 'data', 'ruteros_tradicionales.json'), 'utf-8')
+  ) as RuterosTradicionales;
+
   const routeUrls: string[] = [];
   for (const [codigo, variants] of routeCodes) {
-    const page = renderRoute(codigo, variants, stationByCode);
+    const page = renderRoute(codigo, variants, stationByCode, impresos.rutas[codigo]);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));

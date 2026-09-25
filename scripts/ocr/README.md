@@ -98,6 +98,16 @@ Trampas del dibujo que ya se manejan:
 - un chip oscuro que abarca varias filas con un hito por fila (el corredor destacado);
 - **un hito que abarca varias filas** (TC14: `AV. V/CIO` │ `JACQUELINE`): no hay
   rectángulo de hito, pero sí regla separadora; donde falta, las filas son una;
+- **un chip que es UN rectángulo del alto de varias filas** (260: `AV. BOYACÁ`
+  junto a MODELIA y SEVILLANA; 26 piezas): se parte a la altura de fila de la
+  propia tabla y las partes se leen como una unión. Antes esas filas
+  desaparecían sin aviso. Dentro de ese rectángulo puede haber **una regla**
+  que separa dos chips (T795: `AV. SUBA` en dos filas y, bajo la regla,
+  `CL 100`): las partes se unen solo donde no la cruza una línea de lado a lado
+  (≥ 90 % del ancho; el texto que cruza el borde tiene huecos);
+- **una placa de fondo** oscura tras dos chips amarillos (10-11): tiene chips
+  encima, así que no es un chip. La clave de deduplicado lleva la altura, o la
+  placa —que comparte esquina con el primer chip— lo borraba;
 - **una fila sin chip** al pie de la tabla (F425: `EST. BANDERAS`): el contorno
   de la tabla baja una fila más que el último chip;
 - **tablas solo para domingos y festivos**: la leyenda bajo la tabla lo dice

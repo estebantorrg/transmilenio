@@ -6,6 +6,7 @@ import type {
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
 import type { PlannerCalibrationData } from '../../../shared/calibration.js';
+import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../utils/liveBus';
@@ -483,6 +484,9 @@ export const api = {
    *  constants if it fails. */
   getPlannerCalibration: () => fetchJson<PlannerCalibrationResponse>('/planner-calibration', 15_000, undefined, 1),
 
+  /** The printed ruteros of the zonal routes (`shared/tabla_rutero.js`). */
+  getRuterosTradicionales: () => fetchJson<RuterosTradicionalesResponse>('/ruteros-tradicionales', 15_000, undefined, 1),
+
   /** Real-time arrivals/ETAs at a paradero (spec §5.8). Never hard-fails.
    *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
    *  0 retries — live requests must not stack (spec §3.4). */
@@ -664,6 +668,11 @@ export interface CardBalanceResponse {
   success: boolean;
   data?: CardBalanceRead;
   error?: string;
+}
+
+/** `/api/ruteros-tradicionales`. */
+export interface RuterosTradicionalesResponse extends RuterosTradicionales {
+  success: boolean;
 }
 
 /** `/api/planner-calibration` (spec §5.6.5). */

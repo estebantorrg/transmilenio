@@ -145,8 +145,10 @@ function layout({ W, fills }) {
   // the bounds scale with the page rather than being tuned twice.
   const k = W / 612;
   const chipsAll = dedupe(
-    fills.filter((f) => f.rect && (isYellow(f.fill) || isDark(f.fill)) && f.w >= 30 * k && f.w <= 70 * k && f.h >= 9 * k && f.h <= 36 * k),
-    (f) => `${f.x0.toFixed(0)}|${f.y0.toFixed(0)}`
+    fills.filter((f) => f.rect && (isYellow(f.fill) || isDark(f.fill)) && f.w >= 30 * k && f.w <= 70 * k && f.h >= 9 * k && f.h <= 160 * k),
+    // Height is part of the key: a backing plate shares its top-left corner
+    // with the first chip drawn on it, and must not knock that chip out.
+    (f) => `${f.x0.toFixed(0)}|${f.y0.toFixed(0)}|${f.h.toFixed(0)}`
   );
   const outlines = dedupe(
     fills.filter((f) => isDark(f.fill) && !f.rect && f.w > 90 * k && f.w < 280 * k && f.h > 70 * k && f.h < 340 * k),
@@ -162,7 +164,24 @@ function layout({ W, fills }) {
     const chips = chipsAll
       .filter((c) => near(c.x0, t.x0, 3) && c.y0 >= t.y0 - 1 && c.y1 <= t.y1 + 1)
       .sort((a, b) => a.y0 - b.y0)
-      .filter((c, i, all) => i === 0 || !(near(c.y0, all[i - 1].y0, 1.5) && near(c.y1, all[i - 1].y1, 1.5)));
+      .filter((c, i, all) => i === 0 || !(near(c.y0, all[i - 1].y0, 1.5) && near(c.y1, all[i - 1].y1, 1.5)))
+      // A chip standing beside several hitos is sometimes ONE rectangle as tall
+      // as those rows (260's AV. BOYACÁ beside MODELIA and SEVILLANA, 26 pieces
+      // in all), not one per row. Split it at the table's own row height; the
+      // pieces are adjacent same-colour chips, so the union read below still
+      // reads the corredor whole. Before this, those rows simply vanished.
+      // A tall rectangle with chips drawn over it is a backing, not a chip
+      // (10-11 puts its two yellow chips on a dark plate the height of both).
+      .flatMap((c, _i, all) => {
+        if (c.h <= 36 * k) return [c];
+        if (all.some((x) => x !== c && x.h <= 36 * k && x.y0 >= c.y0 - 1 && x.y1 <= c.y1 + 1)) return [];
+        const single = all.filter((x) => x.h <= 36 * k).map((x) => x.h).sort((a, b) => a - b);
+        const rowH = single.length ? single[Math.floor(single.length / 2)] : 24.4 * k;
+        const n = Math.round(c.h / rowH);
+        if (n < 2) return [c];
+        const grupo = `${c.x0.toFixed(1)}|${c.y0.toFixed(1)}`;
+        return Array.from({ length: n }, (_, j) => ({ ...c, grupo, y0: c.y0 + (j * c.h) / n, y1: c.y0 + ((j + 1) * c.h) / n, h: c.h / n }));
+      });
     if (chips.length < 2) continue;
     const firstRow = chips[0].y0;
     const tab = fills
@@ -184,6 +203,7 @@ function layout({ W, fills }) {
         chip: { x0: c.x0, y0: c.y0, x1: c.x1, y1: c.y1 },
         dark: isDark(c.fill),
         fill: c.fill,
+        grupo: c.grupo ?? null,
         hito: { x0: c.x1, y0: c.y0, x1: t.x1, y1: c.y1 },
       }))),
     });
@@ -252,7 +272,8 @@ async function renderCrops(file, cropDir) {
   // separator line does: between two hitos there is a dark rule across the
   // column; where there is none, the text runs on and the two rows are one.
   const lum = (d, i) => 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-  const hasRule = (hito, y) => {
+  // `onDark`: the cell is dark (a dark chip), so its rule is a light line.
+  const hasRule = (hito, y, onDark = false, share = 0.6) => {
     const x0 = Math.round((hito.x0 + (hito.x1 - hito.x0) * 0.1) * SCALE);
     const x1 = Math.round((hito.x1 - (hito.x1 - hito.x0) * 0.1) * SCALE);
     const yy = Math.round((y - 1 - top) * SCALE);
@@ -262,9 +283,9 @@ async function renderCrops(file, cropDir) {
     const w = x1 - x0;
     let cols = 0;
     for (let x = 0; x < w; x++) {
-      for (let r = 0; r < hh; r++) if (lum(d, (r * w + x) * 4) < 110) { cols++; break; }
+      for (let r = 0; r < hh; r++) if (onDark ? lum(d, (r * w + x) * 4) > 150 : lum(d, (r * w + x) * 4) < 110) { cols++; break; }
     }
-    return cols / w > 0.6;
+    return cols / w > share;
   };
   for (const t of lay.tables) {
     const merged = [];
@@ -392,14 +413,20 @@ async function renderCrops(file, cropDir) {
       // two look like a contradiction.
       caption: crop(`t${ti}_cap`, { x0: t.box.x0, x1: t.box.x1, y0: t.box.y1 + 1, y1: Math.min(bottom + 26, t.box.y1 + 24) }, 0.5),
     };
-    // Runs of adjacent dark chips: one corridor drawn across several rows.
+    // Runs of adjacent dark chips: one corridor drawn across several rows. The
+    // pieces of one tall chip split by layout() are a run whatever their colour
+    // — up to a rule drawn across it: T795's one yellow column holds AV. SUBA
+    // over two rows and then, under a rule, CL 100. A rule crosses the whole
+    // chip; a line of text crossing the boundary (539's BOYACÁ) has gaps.
+    const joins = (a, b) => a.chip && b.chip && near(b.chip.y0, a.chip.y1, 1)
+      && (a.grupo && a.grupo === b.grupo ? !hasRule(a.chip, a.chip.y1, a.dark, 0.9) : a.dark && b.dark);
     for (let i = 0; i < t.rows.length; i++) {
-      if (!t.rows[i].dark || !t.rows[i].chip) continue;
+      if (!t.rows[i].chip || !(t.rows[i].dark || t.rows[i].grupo)) continue;
       let j = i;
-      while (j + 1 < t.rows.length && t.rows[j + 1].dark && t.rows[j + 1].chip && near(t.rows[j + 1].chip.y0, t.rows[j].chip.y1, 1)) j++;
+      while (j + 1 < t.rows.length && joins(t.rows[j], t.rows[j + 1])) j++;
       if (j > i) {
         const b = { x0: t.rows[i].chip.x0, y0: t.rows[i].chip.y0, x1: t.rows[i].chip.x1, y1: t.rows[j].chip.y1 };
-        t.crops.runs.push({ from: i, to: j, png: crop(`t${ti}_run${i}_${j}`, b, 1.2, t.rows[i].fill) });
+        t.crops.runs.push({ from: i, to: j, grupo: Boolean(t.rows[i].grupo), png: crop(`t${ti}_run${i}_${j}`, b, 1.2, t.rows[i].fill) });
       }
       i = j;
     }
@@ -563,7 +590,9 @@ function assemble(r, ocr, destinos, horariosCat) {
     for (const run of t.crops.runs) {
       const { raw, norm } = voteCorredor(readings(ocr, run.png));
       const partsRead = corredores.slice(run.from, run.to + 1).filter((c) => c.norm).length;
-      if (norm && partsRead < run.to - run.from + 1) {
+      // A split chip's pieces each hold a fragment of one label, so its whole
+      // reading always wins; a run of separate dark chips only where they fail.
+      if (norm && (run.grupo || partsRead < run.to - run.from + 1)) {
         for (let k = run.from; k <= run.to; k++) corredores[k] = { raw, norm, spans: run.to - run.from + 1 };
       }
     }

@@ -61,6 +61,37 @@ for (const r of Object.values(porRuta)) {
 }
 writeFileSync(join(OUT, 'por_ruta.json'), JSON.stringify(porRuta, null, 1));
 
+// ─── what the site publishes ─────────────────────────────────────────────────
+// Only routes with nothing to review: every destino, corredor and hito read and
+// checked. The rest join as the review list is cleared. Facts only — códigos,
+// destinos, corredores, hitos — drawn by the site's own components; none of
+// TRANSMILENIO's artwork. Rows are [corredor | null, destacado 0/1, hito].
+const publicar = {};
+for (const c of Object.keys(porRuta).sort()) {
+  const r = porRuta[c];
+  if (!r.limpia) continue;
+  // A long rutero is printed as two tables side by side under the same destino
+  // (111, 576: the second one carries on where the first stops). Consecutive
+  // tables with the same destino and operación are one sentido.
+  const sentidos = [];
+  for (const s of r.sentidos) {
+    // The digital strip's hitos are read in mixed case and can keep a stray
+    // mark at the end ("Chapinero Occ_", "Sabana Tibabuyes N-", "campin").
+    const hito = (h) => h.replace(/[^\p{L}\d.)]+$/u, '').replace(/^\p{Ll}/u, (c) => c.toLocaleUpperCase('es'));
+    const filas = s.filas.map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]);
+    const prev = sentidos.at(-1);
+    if (prev && prev.destino === s.destino && (prev.operacion ?? null) === (s.operacion ?? null)) prev.filas.push(...filas);
+    else sentidos.push({ destino: s.destino, ...(s.operacion ? { operacion: s.operacion } : {}), filas });
+  }
+  publicar[c] = { formato: r.formato, sentidos };
+}
+const SITE = join(HERE, '..', '..', 'server', 'src', 'data', 'ruteros_tradicionales.json');
+writeFileSync(SITE, JSON.stringify({
+  fuente: 'Artes finales de las piezas TransMiZonal entregadas por TRANSMILENIO S.A. (radicado 2026-ER-47262, septiembre de 2026), leídas por scripts/ocr/ruteros.mjs',
+  rutas: publicar,
+}) + '\n');
+console.log(`publicadas en el sitio: ${Object.keys(publicar).length} rutas → ${SITE}`);
+
 // ─── review list ─────────────────────────────────────────────────────────────
 const codes = Object.keys(porRuta).sort();
 const conAvisos = codes.filter((c) => !porRuta[c].limpia);
