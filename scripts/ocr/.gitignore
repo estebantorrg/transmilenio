@@ -4,6 +4,7 @@ _out/
 _planos/
 _census/
 _probe/
+_ruteros/
 _*.mjs
 _*.png
 _*.json

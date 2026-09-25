@@ -38,10 +38,80 @@ hay es Node, el chromium de Playwright y el motor OCR de Windows con español.
 - [x] Rasterizado sin dependencias nativas
 - [x] OCR con geometría por palabra y acentos correctos
 - [x] Recorte + ampliación para celdas oscuras
-- [ ] Extractor estructural: filas → (corredor, hito), destacado por color de chip
-- [ ] Horarios (`L-S` / `D-F`) y vigencia (p. ej. `ABRIL-2024`)
+- [x] Extractor estructural: filas → (corredor, hito), destacado por color de chip — `ruteros.mjs`
+- [x] Horarios (`L-S` / `D-F`) — `ruteros.mjs`; la vigencia (p. ej. `ABRIL-2024`) aún no
 - [ ] Página 2: listado de paraderos ordenado por sentido
-- [ ] Lote sobre los 207 PDF + informe de confianza
+- [x] Lote + informe de confianza — sobre las **482 artes vectoriales** de la Respuesta A, no sobre los 207 PDF rasterizados
+
+---
+
+# Artes finales → ruteros tradicionales (`ruteros.mjs`)
+
+TRANSMILENIO entregó las artes finales de las piezas TransMiZonal (radicado
+2026-ER-47262): 482 PDF **vectoriales** en `peticiones/Respuesta A/09-2026_Artesfinales TransMiZonales/`.
+No tienen capa de texto — las letras están convertidas a curvas —, pero cada
+celda del rutero es un trazado relleno con su color exacto. Eso cambia el método:
+
+```
+node ruteros.mjs                        # las 482
+node ruteros.mjs --only "AH 605" 139    # solo las que contengan esto
+node ruteros.mjs --jobs 3               # workers de render en paralelo
+```
+
+Escribe `_ruteros/ruteros.json` (borrador, no se publica solo) e imprime un informe.
+
+1. **La geometría sale del dibujo, no de los píxeles.** pdf.js entrega cada
+   relleno con su caja y su color: el contorno oscuro es la tabla entera, la
+   pestaña es el código, la franja de ancho completo es el destino, los chips
+   amarillos (`#ffeb3d`) y oscuros (`#2c2e35`) de ~40–48pt son los corredores.
+   El hito va del borde del chip al borde de la tabla.
+2. **Solo se renderizan y leen esas celdas**, con `@napi-rs/canvas` en Node
+   (sin navegador): la franja de las tablas a 6×.
+3. **Binarizado contra el relleno declarado de cada celda**, no contra la
+   luminancia: los colores de zona van del azul al naranja, y el texto blanco
+   en negrita puede cubrir más celda que su fondo.
+4. **Cada celda se lee en cinco variantes y votan.** El motor lee mal esta
+   tipografía condensada de forma *sistemática* (`H605` → `11605`, `KR 24` →
+   `n 24` a todo tamaño); **estirarla 1,8× en horizontal** lo corrige.
+5. **Lo que el OCR no puede, lo dan otras fuentes exactas:** el código de una
+   pieza de doble sentido sale del **color de la pestaña** (es el color de la
+   zona de destino); el destino se contrasta con el nombre del catálogo para
+   ese código, y si la lectura es ruido (`ARBORMDOUANM`), se toma el del
+   catálogo y se marca `destinoFuente: "catálogo"`.
+6. **Los corredores pasan por el vocabulario oficial** (`shared/nomenclatura.js`,
+   el listado de abreviaturas del Manual V.6): `AKIO` → `AK 10`, `CL48LS` →
+   `CL 48L S`, `AV. 1/MAYO` → `AV. 1° DE MAYO`.
+
+7. **El motor no ve una línea de dos o tres letras sola** (`L-S`, `KR` sobre
+   `72D`, el `12` de una pestaña). Por eso: el código de una pieza de un solo
+   código sale del **nombre del archivo**; las celdas de dos líneas se leen
+   también **con las líneas puestas una al lado de la otra** (`KR 72D`); y el
+   tipo de día de un horario sale del **catálogo**, solo si **todas** las
+   franjas de la pieza coinciden con las del catálogo — si alguna no, los dos
+   horarios difieren y una coincidencia de horas es casualidad (TC14 imprime
+   `S 5:00–8:00 p.m.`, que son exactamente las horas del `D-F` del catálogo).
+
+Trampas del dibujo que ya se manejan:
+
+- chips pintados dos veces con 0,6pt de diferencia (580) — se deduplican por solape;
+- un chip por línea de texto, a media altura (`AV.` / `1/MAYO`);
+- un chip oscuro que abarca varias filas con un hito por fila (el corredor destacado);
+- **un hito que abarca varias filas** (TC14: `AV. V/CIO` │ `JACQUELINE`): no hay
+  rectángulo de hito, pero sí regla separadora; donde falta, las filas son una;
+- **una fila sin chip** al pie de la tabla (F425: `EST. BANDERAS`): el contorno
+  de la tabla baja una fila más que el último chip;
+- **tablas solo para domingos y festivos**: la leyenda bajo la tabla lo dice
+  ("Operación domingos y festivos") y se marca `operacion`.
+
+Auditoría a ojo contra las artes (8 piezas, las tres familias): tras estas
+correcciones, todas las filas coinciden salvo un hito que pierde su número
+(`11 DE NOVIEMBRE` → `DE NOVIEMBRE`). Los destinos ilegibles de una sola pieza
+(`CIRCULAR TIMIZA` → ruido) quedan marcados en `avisos`, no adivinados.
+
+**Lo que las artes dicen y el catálogo no:** cada franja que no coincide con el
+catálogo queda en `avisos`. No es ruido: F425 imprime una segunda franja de
+tarde que el catálogo no tiene, y TC14 un horario L-V / S / D-F donde el
+catálogo dice L-S / D-F.
 
 ---
 
