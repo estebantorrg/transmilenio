@@ -170,9 +170,11 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido }) {
   }
 
   const body = agruparFilas(sentido.filas).map((run) => run.hitos.map((hito, i) => {
-    const corredor = i > 0 ? '' : run.corredor
-      ? `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}>${corredorHtml(run.corredor)}</th>`
-      : '<td class="tr-corredor tr-sin-corredor"></td>';
+    // A row with no corredor runs across the whole table, as the print sets it
+    // (111's ESTACIÓN AV. 1° DE MAYO, the DIRECTO rows of the express stretches).
+    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2">${esc(hito)}</td></tr>`;
+    const corredor = i > 0 ? ''
+      : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}>${corredorHtml(run.corredor)}</th>`;
     return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}">${esc(hito)}</td></tr>`;
   }).join('')).join('');
   // The tab is a trapezoid with rounded shoulders; an SVG stretched to the box
@@ -274,7 +276,7 @@ export const TABLA_RUTERO_CSS = `
   font-weight: 800;
 }
 .tabla-rutero .tr-corredor.tr-destacado { background: var(--tr-tinta-oscura); color: #fff; }
-.tabla-rutero .tr-corredor.tr-sin-corredor { background: #fff; }
+.tabla-rutero .tr-hito.tr-ancha { background: #fff; }
 .tabla-rutero .tr-chip-texto { display: block; white-space: nowrap; letter-spacing: -0.01em; }
 .tabla-rutero .tr-chip-texto.tr-t1 { font-size: 11cqi; }
 .tabla-rutero .tr-chip-texto.tr-t2 { font-size: 8.6cqi; }
@@ -339,6 +341,8 @@ export const TABLA_RUTERO_CSS = `
 .tabla-rutero .tr-franja b { color: #ffeb3d; font-weight: 700; }
 .tabla-rutero .tr-par { white-space: nowrap; }
 .tabla-ruteros { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
+.tabla-ruteros > .tabla-rutero { flex: 1 1 260px; width: auto; max-width: 400px; }
+.tabla-ruteros > .tabla-rutero.tr-digital { flex-basis: 100%; max-width: 640px; }
 `;
 
 /** Adds `TABLA_RUTERO_CSS` to the document once (client only). */

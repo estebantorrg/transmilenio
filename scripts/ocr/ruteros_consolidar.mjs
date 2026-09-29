@@ -55,6 +55,36 @@ for (const p of piezas) {
     for (const a of p.avisos ?? []) if (!esHorario(a) && !r.revisar.includes(a)) r.revisar.push(a);
   }
 }
+// A printed destino a letter or two away from one of the catalog's names for
+// that código is a misread or a catalog typo — `SUBA AORPAS` / `Suba Corpas`,
+// `BARRANCAS NORTE` / `Barancas Norte` — and only a person can say which. It
+// would also be matched to that direction on the site and shown as printed, so
+// it goes to review instead of being published.
+const STOP = new Set(['DE', 'DEL', 'EL', 'LA', 'LOS', 'LAS', 'Y']);
+const clave = (v) => String(v ?? '').normalize('NFD').replace(/\p{M}/gu, '').toUpperCase()
+  .replace(/[^A-Z0-9]+/g, ' ').trim().split(' ').filter((w) => !STOP.has(w)).join('');
+function distancia(a, b) {
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    prev = cur;
+  }
+  return prev[b.length];
+}
+for (const [codigo, r] of Object.entries(porRuta)) {
+  const nombres = [...new Set((routes[codigo] ?? []).map((v) => v.nombre).filter(Boolean))];
+  for (const s of r.sentidos) {
+    const k = clave(s.destino);
+    if (nombres.some((n) => clave(n) === k)) continue;
+    const cerca = nombres.find((n) => { const d = distancia(k, clave(n)); return d > 0 && d <= 2; });
+    if (cerca) {
+      const aviso = `destino "${s.destino}" casi igual a "${cerca}" del catálogo: ¿lectura errada o nombre distinto?`;
+      if (!r.revisar.includes(aviso)) r.revisar.push(aviso);
+    }
+  }
+}
+
 for (const r of Object.values(porRuta)) {
   for (const s of r.sentidos) delete s._key;
   r.limpia = r.sentidos.every((s) => s.limpia) && r.revisar.length === 0;
@@ -66,23 +96,38 @@ writeFileSync(join(OUT, 'por_ruta.json'), JSON.stringify(porRuta, null, 1));
 // checked. The rest join as the review list is cleared. Facts only — códigos,
 // destinos, corredores, hitos — drawn by the site's own components; none of
 // TRANSMILENIO's artwork. Rows are [corredor | null, destacado 0/1, hito].
+// Hitos the engine misreads the same way every time: a place name whose number
+// it drops or garbles (the one station "de Mayo" is Av. 1° de Mayo; the barrio
+// is Once de Noviembre) and NQS read as NOS. A list of seen cases, each checked
+// against its piece — not a rule — so nothing it doesn't name is rewritten.
+const HITOS_REPARADOS = new Map([
+  ['ESTACIÓN AV. DE MAYO', 'ESTACIÓN AV. 1° DE MAYO'], // 111
+  ['EST. AV. 10 DE MAYO', 'EST. AV. 1° DE MAYO'],
+  ['EST. DE MAYO', 'EST. AV. 1° DE MAYO'],
+  ['DE NOVIEMBRE', '11 DE NOVIEMBRE'],
+  ['DIRECTO AV. NOS', 'DIRECTO AV. NQS'], // T26
+  ['SAN FERNANDO/7DE AGOSTO', 'SAN FERNANDO/7 DE AGOSTO'],
+]);
+
+// The digital strip's hitos are read in mixed case and can keep a stray mark at
+// the end ("Chapinero Occ_", "Sabana Tibabuyes N-", "campin").
+function hito(h) {
+  const limpio = h.replace(/[^\p{L}\d.)]+$/u, '').replace(/^\p{Ll}/u, (c) => c.toLocaleUpperCase('es'));
+  return HITOS_REPARADOS.get(limpio.toLocaleUpperCase('es')) ?? limpio;
+}
+
 const publicar = {};
 for (const c of Object.keys(porRuta).sort()) {
   const r = porRuta[c];
   if (!r.limpia) continue;
   // A long rutero is printed as two tables side by side under the same destino
-  // (111, 576: the second one carries on where the first stops). Consecutive
-  // tables with the same destino and operación are one sentido.
-  const sentidos = [];
-  for (const s of r.sentidos) {
-    // The digital strip's hitos are read in mixed case and can keep a stray
-    // mark at the end ("Chapinero Occ_", "Sabana Tibabuyes N-", "campin").
-    const hito = (h) => h.replace(/[^\p{L}\d.)]+$/u, '').replace(/^\p{Ll}/u, (c) => c.toLocaleUpperCase('es'));
-    const filas = s.filas.map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]);
-    const prev = sentidos.at(-1);
-    if (prev && prev.destino === s.destino && (prev.operacion ?? null) === (s.operacion ?? null)) prev.filas.push(...filas);
-    else sentidos.push({ destino: s.destino, ...(s.operacion ? { operacion: s.operacion } : {}), filas });
-  }
+  // (111, 139, 576). They stay two tables — the site draws them side by side
+  // as the piece does; joining them into one tall table was not the piece.
+  const sentidos = r.sentidos.map((s) => ({
+    destino: s.destino,
+    ...(s.operacion ? { operacion: s.operacion } : {}),
+    filas: s.filas.map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]),
+  }));
   publicar[c] = { formato: r.formato, sentidos };
 }
 const SITE = join(HERE, '..', '..', 'server', 'src', 'data', 'ruteros_tradicionales.json');

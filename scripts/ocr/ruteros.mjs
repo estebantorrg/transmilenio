@@ -123,19 +123,28 @@ function mergeLineChips(chips) {
  * table, with no chip beside it. The table outline says it is there — the
  * outline runs a row further down than the last chip — so that space is read
  * as full-width hito rows of the table's usual height.
+ *
+ * The same happens BETWEEN chips (111: "ESTACIÓN AV. 1 DE MAYO" across the
+ * table between AC 6 and KR 11 E; 7 pieces): a gap of a row's height in the
+ * chip column is a chipless row, not nothing. Missing it dropped the row.
  */
 function withChiplessRows(t, rows) {
   if (!rows.length) return rows;
   const heights = rows.map((r) => r.chip.y1 - r.chip.y0).sort((a, b) => a - b);
   const rowH = heights[Math.floor(heights.length / 2)];
-  const last = rows[rows.length - 1].chip.y1;
-  const gap = t.y1 - last;
-  if (gap < rowH * 0.6) return rows;
-  const n = Math.max(1, Math.round(gap / rowH));
-  for (let k = 0; k < n; k++) {
-    rows.push({ chip: null, dark: false, fill: null, hito: { x0: t.x0, y0: last + (k * gap) / n, x1: t.x1, y1: last + ((k + 1) * gap) / n } });
+  const chipless = (y0, y1) => {
+    const gap = y1 - y0;
+    if (gap < rowH * 0.6) return [];
+    const n = Math.max(1, Math.round(gap / rowH));
+    return Array.from({ length: n }, (_, k) => ({ chip: null, dark: false, fill: null, hito: { x0: t.x0, y0: y0 + (k * gap) / n, x1: t.x1, y1: y0 + ((k + 1) * gap) / n } }));
+  };
+  const out = [];
+  for (const [i, row] of rows.entries()) {
+    if (i > 0) out.push(...chipless(rows[i - 1].chip.y1, row.chip.y0));
+    out.push(row);
   }
-  return rows;
+  out.push(...chipless(rows[rows.length - 1].chip.y1, t.y1));
+  return out;
 }
 
 /** Tables, their cells, and the schedule chips, all in page points (top-down). */
@@ -594,6 +603,16 @@ function assemble(r, ocr, destinos, horariosCat) {
       // reading always wins; a run of separate dark chips only where they fail.
       if (norm && (run.grupo || partsRead < run.to - run.from + 1)) {
         for (let k = run.from; k <= run.to; k++) corredores[k] = { raw, norm, spans: run.to - run.from + 1 };
+      } else if (!norm) {
+        // The union didn't read, but the parts did: where the pieces that read
+        // agree on one corredor and the rest hold no text at all, the label sits
+        // in one piece and the others are the same dark chip (139: AV. 1/MAYO
+        // beside RESTREPO and CIUDAD KENNEDY, its top half empty).
+        const parts = corredores.slice(run.from, run.to + 1);
+        const read = [...new Set(parts.filter((c) => c.norm).map((c) => c.norm))];
+        if (read.length === 1 && parts.every((c) => c.norm || !String(c.raw ?? '').trim())) {
+          for (let k = run.from; k <= run.to; k++) corredores[k] = { raw: read[0], norm: read[0], spans: run.to - run.from + 1 };
+        }
       }
     }
     const rows = t.rows.map((row, ri) => {

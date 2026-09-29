@@ -95,6 +95,16 @@ test.describe('the drawing', () => {
     expect(html).not.toContain('<table');
   });
 
+  test('a row with no corredor runs across the whole table, as printed', () => {
+    const html = tablaRuteroHtml({
+      codigo: '111',
+      color: '#1c6695',
+      sentido: { destino: 'GAVIOTAS', filas: [['AC 6', 0, 'RICAURTE'], [null, 0, 'ESTACIÓN AV. 1° DE MAYO'], ['KR 11 E', 0, 'NUEVA GLORIA']] },
+    });
+    expect(html).toContain('colspan="2">ESTACIÓN AV. 1° DE MAYO<');
+    expect(html.match(/class="tr-corredor/g)).toHaveLength(2);
+  });
+
   test('text is escaped', () => {
     const html = tablaRuteroHtml({ codigo: '1', color: '#000000', sentido: { destino: '<b>', filas: [['KR 1', 0, 'A&B']] } });
     expect(html).toContain('&lt;b&gt;');

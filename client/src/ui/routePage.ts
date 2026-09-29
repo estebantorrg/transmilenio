@@ -169,7 +169,7 @@ function tablaRuteroSection(route: RouteListItem): string {
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
-      ${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido })).join('')}
+      <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'
         : 'Como lo imprime TRANSMILENIO en el plegable de la ruta: en amarillo los corredores por los que va, en oscuro el principal, y al lado los barrios que atiende.'}</p>
