@@ -105,6 +105,13 @@ test.describe('where it lives', () => {
   test('has no in-page anchors, which the page shell would swallow', () => {
     expect(legalDocHtml(PRIVACIDAD)).not.toMatch(/href="#/);
   });
+
+  test('is kept out of search results, and names its controller by initials only', () => {
+    // The page is for the people whose data it describes; it is not a search
+    // result tying a private person to the site (spec §5.5.7).
+    expect(PRIVACIDAD.noindex).toBe(true);
+    expect(RESPONSABLE.nombre).toMatch(/^(\p{Lu}\.\s?)+$/u);
+  });
 });
 
 test.describe('the page in the app', () => {

@@ -65,6 +65,10 @@ function dato(titulo, filas) {
 /** @type {import('./legal').LegalDoc} */
 export const PRIVACIDAD = {
   path: '/privacidad/',
+  // The page names the controller, a natural person. It is there for the people
+  // whose data it describes, which the law requires; it need not be a search
+  // result that ties that person to the site for everyone else.
+  noindex: true,
   titulo: 'Política de tratamiento de datos personales',
   breadcrumb: 'Política de privacidad',
   descripcion:

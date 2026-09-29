@@ -8,6 +8,8 @@ export interface LegalSection {
 export interface LegalDoc {
   /** Canonical pathname, with the trailing slash the static mount serves. */
   path: string;
+  /** Kept out of search results (`noindex` + left out of the sitemap). */
+  noindex?: boolean;
   titulo: string;
   /** Short name for the breadcrumb and links. */
   breadcrumb: string;

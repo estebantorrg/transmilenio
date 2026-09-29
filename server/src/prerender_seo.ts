@@ -221,7 +221,7 @@ const stationCardUrl = (st: LightStation) => `/og/estacion/${slugify(st.nombre)}
  */
 function renderPage(
   shell: string,
-  page: { url: string; title: string; description: string; jsonLd: object[]; body: string; ogImage?: string }
+  page: { url: string; title: string; description: string; jsonLd: object[]; body: string; ogImage?: string; noindex?: boolean }
 ): string {
   const absolute = `${ORIGIN}${page.url}`;
   const title = escapeHtml(page.title);
@@ -229,6 +229,9 @@ function renderPage(
 
   let html = shell;
   html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`);
+  if (page.noindex) {
+    html = html.replace(/<meta name="robots" content="[^"]*"\s*\/?>/, '<meta name="robots" content="noindex, follow" />');
+  }
   html = html.replace(
     /<meta name="description" content="[^"]*"\s*\/?>/,
     `<meta name="description" content="${description}" />`
@@ -674,7 +677,7 @@ ${legalDocHtml(doc)}
       inLanguage: 'es-CO',
     },
   ];
-  return { url, title: doc.titulo, description: clamp(doc.descripcion), jsonLd, body };
+  return { url, title: doc.titulo, description: clamp(doc.descripcion), jsonLd, body, noindex: Boolean(doc.noindex) };
 }
 
 // ─── Route pages ──────────────────────────────────────────
@@ -1180,13 +1183,16 @@ async function main(): Promise<void> {
 
   // The legal pages come first: they need no catalog, and a build whose catalog
   // step fails must not also ship a site with no privacy policy on it.
-  const legalUrls: string[] = [];
+  const legalUrls: string[] = []; // the indexable ones, for the sitemap
+  const legalPages: string[] = [];
   for (const doc of LEGAL_DOCS) {
     const page = renderLegal(doc);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
-    legalUrls.push(page.url);
+    // A noindex page listed in the sitemap sends Search Console two opposite signals.
+    legalPages.push(page.url + (page.noindex ? ' (noindex)' : ''));
+    if (!page.noindex) legalUrls.push(page.url);
   }
 
   await loadCatalogFromDisk();
@@ -1343,7 +1349,7 @@ async function main(): Promise<void> {
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
   console.log(`[seo] /estacion/*  — ${stationUrls.length} pages`);
-  console.log(`[seo] legal       — ${legalUrls.join(', ')}`);
+  console.log(`[seo] legal       — ${legalPages.join(', ')}`);
   console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
   console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + legalUrls.length + 1} URLs)`);
 }
