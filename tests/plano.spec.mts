@@ -565,7 +565,10 @@ test.describe('a portal on its sheet', () => {
         const marcas = cuenta(/class="pq-bahia"/g);
         if (marcas !== bahias) wrong.push(code + ': ' + bahias + ' bays measured, ' + marcas + ' markers drawn');
         for (const t of geo.tirasAng ?? []) {
-          const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
+          // `zonal` is one strip or a list of them, as the drawing reads it
+          // (shared/plano_svg.js): TM0143's data carries a single object.
+          const zonal = planos.detalle[code]?.zonal;
+          const tira = (Array.isArray(zonal) ? zonal : zonal ? [zonal] : []).find((z: any) => z.nombre === t.tira);
           if (!tira) { wrong.push(code + ': strip "' + t.tira + '" is not in the station data'); continue; }
           (tira.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any, i: number) => {
             // A bay the geometry gives its own wording is checked against THAT:
