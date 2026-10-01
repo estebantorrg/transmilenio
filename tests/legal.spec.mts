@@ -11,7 +11,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, legalDocForPath, legalDocHtml } from '../shared/legal.js';
+import { LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, TERMINOS, legalDocForPath, legalDocHtml } from '../shared/legal.js';
 
 /** The rendered policy as plain text, the way a reader (or a regulator) reads it. */
 const texto = legalDocHtml(PRIVACIDAD)
@@ -134,5 +134,49 @@ test.describe('the page in the app', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#legal-page')).toHaveCount(0);
     await expect(page).toHaveURL(/\/$/);
+  });
+});
+
+test.describe('the terms of use', () => {
+  const terminos = legalDocHtml(TERMINOS).replace(/<[^>]+>/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ');
+
+  test('live at /terminos/, indexed, beside the policy', () => {
+    expect(legalDocForPath('/terminos')).toBe(TERMINOS);
+    expect(LEGAL_DOCS).toEqual([PRIVACIDAD, TERMINOS]);
+    // Unlike the policy, nothing here ties a person to the site beyond initials.
+    expect(TERMINOS.noindex).toBeFalsy();
+    expect(legalDocHtml(TERMINOS)).not.toMatch(/href="#/);
+  });
+
+  test('say what the service is not, and what it cannot excuse', () => {
+    expect(terminos).toContain('No está afiliado a TRANSMILENIO S.A.');
+    // Dolo and culpa grave cannot be excused in advance (Código Civil art. 1522);
+    // a clause claiming otherwise would be void, so the terms must not.
+    expect(terminos).toContain('dolo o culpa grave');
+    expect(terminos).toContain('1522');
+    expect(legalDocHtml(TERMINOS)).toContain('href="/privacidad/"');
+    expect(terminos).toContain(RESPONSABLE.correo);
+  });
+
+  test('/terminos/ opens as a page', async ({ page }) => {
+    await page.goto('/terminos/');
+    const legal = page.locator('#legal-page');
+    await expect(legal).toBeVisible();
+    await expect(legal.locator('h1')).toHaveText(TERMINOS.titulo);
+    await expect(legal.locator('.legal-sec')).toHaveCount(TERMINOS.secciones.length);
+    await expect(legal.locator('.legal-summary')).toHaveAttribute('aria-label', 'Resumen de los términos');
+  });
+});
+
+test.describe('the card consent notice', () => {
+  test('sits under the card field, describes it, and links the policy (policy §2.1)', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#card-balance-open').click();
+    const notice = page.locator('#card-consent');
+    await expect(notice).toBeVisible();
+    await expect(notice).toContainText('TRANSMILENIO S.A.');
+    await expect(notice).toContainText('no guardamos el número');
+    await expect(notice.locator('a')).toHaveAttribute('href', '/privacidad/');
+    await expect(page.locator('#card-number-input')).toHaveAttribute('aria-describedby', 'card-consent');
   });
 });

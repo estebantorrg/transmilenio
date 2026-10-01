@@ -1657,6 +1657,20 @@ body.sidebar-collapsed .sidebar-fab {
   position: relative;
 }
 
+/* The consent notice under the card field (privacy policy §2.1). */
+.card-consent {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+  color: var(--text-tertiary);
+}
+
+.card-consent a {
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .card-number-input {
   height: 44px;
   padding-left: 14px;

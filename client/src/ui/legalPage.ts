@@ -1,5 +1,5 @@
 /**
- * The legal pages — `/privacidad/` (spec §5.5.7) — as in-app pages.
+ * The legal pages — `/privacidad/` and `/terminos/` (spec §5.5.7) — as in-app pages.
  *
  * They are real URLs like the route and estación pages, and they open in the
  * same shell (`pageShell.ts`): masthead, map inert behind, Escape and "Ver en el

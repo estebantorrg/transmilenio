@@ -19,11 +19,14 @@ export interface LegalDoc {
   vigencia: string;
   /** The notice at the top of the page (the aviso de privacidad, for the policy). */
   resumen: string;
+  /** Accessible name of that notice; defaults to "Aviso de privacidad". */
+  resumenEtiqueta?: string;
   secciones: LegalSection[];
 }
 
 export declare const RESPONSABLE: { nombre: string; correo: string; ciudad: string };
 export declare const PRIVACIDAD: LegalDoc;
+export declare const TERMINOS: LegalDoc;
 export declare const LEGAL_DOCS: LegalDoc[];
 
 /** The legal page at `pathname` (trailing slash and case ignored), or null. */

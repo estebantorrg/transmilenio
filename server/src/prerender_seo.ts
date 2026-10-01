@@ -648,7 +648,7 @@ function systemLabel(route: LightRoute): string {
 
 // ─── Legal pages ──────────────────────────────────────────
 /**
- * `/privacidad/` (spec §5.5.7). The text is `shared/legal.js`, the same copy the
+ * `/privacidad/` and `/terminos/` (spec §5.5.7). The text is `shared/legal.js`, the same copy the
  * app's overlay page renders, so the indexed page and the one a rider opens in
  * the app cannot say different things. Emitted like any other page — a real
  * body for crawlers and for readers without JS, handed over to the interactive

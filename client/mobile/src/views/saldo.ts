@@ -37,11 +37,23 @@ export function createSaldoView(): View {
     maxlength: '24',
     placeholder: 'XXXX XXXX XXXX XXXX',
     'aria-label': 'Número de tarjeta',
+    'aria-describedby': 'card-consent',
   }) as HTMLInputElement;
+
+  // The notice the privacy policy (§2.1, shared/legal.js) says sits beside the
+  // field: pressing Consultar after reading it is the express authorisation.
+  // The app asks TRANSMILENIO directly (native HTTP), so unlike the website's
+  // notice this one names no server of ours. The link leaves the app for the
+  // system browser — Capacitor hands any off-app URL to it.
+  const consent = h('p', {
+    class: 'card-consent',
+    id: 'card-consent',
+    html: 'Al pulsar «Consultar», tu teléfono envía el número a TRANSMILENIO S.A. para obtener el saldo, sin pasar por nuestro servidor. La app recuerda los últimos cinco números en este teléfono. <a href="https://transmilenio.onrender.com/privacidad/" target="_blank" rel="noopener">Política de privacidad</a>',
+  });
 
   const submit = h('button', { class: 'btn btn-primary card-submit', type: 'submit', html: `${ICONS.card}<span>Consultar</span>` });
   const nfcBtn = h('button', { class: 'btn btn-ghost card-nfc', type: 'button', html: `${NFC_ICON}<span>Acercar tarjeta (NFC)</span>` });
-  const formChildren: (HTMLElement | string)[] = [h('label', { class: 'field-label', text: 'Número de tarjeta' }), input, submit];
+  const formChildren: (HTMLElement | string)[] = [h('label', { class: 'field-label', text: 'Número de tarjeta' }), input, consent, submit];
   if (isNfcSupported()) {
     formChildren.push(nfcBtn);
   } else {

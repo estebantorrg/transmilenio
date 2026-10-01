@@ -1,5 +1,5 @@
 /**
- * The site's legal pages — `/privacidad/` today (spec §5.5.7) — as one copy of
+ * The site's legal pages — `/privacidad/` and `/terminos/` (spec §5.5.7) — as one copy of
  * the text that both the prerender and the app render.
  *
  * A legal text read two ways has to say the same thing both ways: the static
@@ -232,8 +232,118 @@ ${destinatario('Servidores proxy públicos', 'Colombia', 'Transportan tráfico c
   ],
 };
 
+/**
+ * The terms of use. Like the policy, every promise here has to be true of the
+ * code: the service is free, has no accounts, stores nothing of yours on our
+ * side, and shows information it does not own and cannot guarantee. The
+ * liability clause stops where Colombian law does — dolo and culpa grave cannot
+ * be excused in advance (Código Civil art. 1522) and a clause that tried would
+ * be void (Ley 1480 de 2011 art. 43) — so it says so instead of overreaching.
+ *
+ * @type {import('./legal').LegalDoc}
+ */
+export const TERMINOS = {
+  path: '/terminos/',
+  titulo: 'Términos y condiciones de uso',
+  breadcrumb: 'Términos de uso',
+  descripcion:
+    'Las condiciones para usar este servicio independiente de rutas, mapas y tiempos de Bogotá: qué ofrece, qué no garantiza y qué uso está permitido.',
+  vigencia: '30 de septiembre de 2026',
+  resumenEtiqueta: 'Resumen de los términos',
+  resumen: `
+<p><strong>En resumen.</strong> Este es un servicio gratuito e independiente para consultar rutas, estaciones, paraderos, buses en vivo y el saldo de tu tarjeta tu llave en Bogotá. No es de TRANSMILENIO S.A. ni está respaldado por ella.</p>
+<p>La información viene de terceros y puede estar equivocada, atrasada o incompleta: úsala como ayuda y confírmala con la información oficial del sistema cuando importe. Al usar el sitio web o la app para Android aceptas estos términos; si no estás de acuerdo, no uses el servicio.</p>`,
+  secciones: [
+    {
+      titulo: '1. Quién presta el servicio',
+      html: `
+<dl class="legal-facts">
+  <div class="legal-row"><dt>Responsable</dt><dd>${esc(RESPONSABLE.nombre)} (persona natural)</dd></div>
+  <div class="legal-row"><dt>Domicilio</dt><dd>${esc(RESPONSABLE.ciudad)}</dd></div>
+  <div class="legal-row"><dt>Correo</dt><dd>${CORREO}</dd></div>
+</dl>
+<p>El servicio es un proyecto independiente y sin ánimo de lucro: no cobra, no vende nada y no muestra publicidad. No está afiliado a TRANSMILENIO S.A., ni patrocinado, autorizado o respaldado por ella ni por ninguna otra entidad del Distrito. Los nombres TransMilenio, SITP y tu llave se usan solo para decir de qué sistema habla el servicio, y pertenecen a sus titulares.</p>`,
+    },
+    {
+      titulo: '2. Aceptación',
+      html: `
+<p>Estos términos son un acuerdo entre tú y el responsable. Los aceptas al usar el sitio web o la app, de acuerdo con la Ley 527 de 1999 sobre mensajes de datos. Si eres menor de edad, usa el servicio con la autorización de tu madre, tu padre o tu representante legal.</p>
+<p>El tratamiento de tus datos personales se rige por la <a href="/privacidad/">política de tratamiento de datos personales</a>, que forma parte de estos términos.</p>`,
+    },
+    {
+      titulo: '3. La información que muestra el servicio',
+      html: `
+<p>El servicio reúne y presenta información de terceros: la que TRANSMILENIO S.A. pone a disposición del público en sus sistemas, aplicaciones y respuestas a peticiones; datos abiertos del Distrito; y mapas de OpenStreetMap y CARTO. No es información oficial y no la producimos nosotros. En particular:</p>
+<ul>
+  <li><strong>Rutas, paradas y horarios</strong> pueden cambiar sin que el servicio lo refleje a tiempo: desvíos, cierres de estaciones, obras, eventos o cambios de operación.</li>
+  <li><strong>La posición de los buses y los tiempos de llegada</strong> son estimaciones a partir de los datos que publica el sistema. Pueden fallar, atrasarse o no estar disponibles, sobre todo fuera del horario en que el sistema los publica.</li>
+  <li><strong>Los dibujos del servicio</strong> —el letrero LED, el rutero impreso, los planos de las estaciones— son representaciones propias hechas a partir de esos datos. No son las piezas oficiales del sistema y pueden diferir de lo que ves en la estación o en el bus.</li>
+  <li><strong>El planificador de viajes</strong> sugiere opciones con base en esos datos; no garantiza que existan, que sean las más rápidas ni que se cumplan los tiempos.</li>
+</ul>
+<p>No uses el servicio como única fuente para decisiones en las que llegar tarde o equivocarte de bus tenga consecuencias serias. La información oficial está en <a href="https://www.transmilenio.gov.co" rel="noopener">www.transmilenio.gov.co</a>, en la señalización de estaciones y paraderos y en la línea 195.</p>`,
+    },
+    {
+      titulo: '4. Consulta de saldo',
+      html: `
+<p>La consulta de saldo muestra el saldo que el sistema de TRANSMILENIO S.A. tiene registrado para la tarjeta, que puede tener hasta un día de atraso. El saldo que vale es el del sistema: el servicio no hace recargas, no mueve dinero y no puede modificar tu tarjeta. La lectura por NFC de la app solo lee la tarjeta; no escribe en ella.</p>
+<p>Consulta solo tarjetas tuyas o de quien te haya autorizado.</p>`,
+    },
+    {
+      titulo: '5. Uso permitido',
+      html: `
+<p>Puedes usar el servicio para tu uso personal, de buena fe y conforme a la ley. No está permitido:</p>
+<ul>
+  <li>Hacer consultas automatizadas o masivas a nuestro servidor o a sus interfaces (robots, extracción de datos, scraping) que afecten su funcionamiento.</li>
+  <li>Intentar acceder a partes del servicio o de sus servidores que no están abiertas al público, saltar sus límites o afectar su seguridad.</li>
+  <li>Sobrecargar o interrumpir el servicio, o usarlo para atacar o perjudicar a terceros, incluido el sistema de TRANSMILENIO S.A.</li>
+  <li>Consultar tarjetas ajenas sin autorización de su titular.</li>
+  <li>Presentar el servicio, o lo que muestra, como información oficial de TRANSMILENIO S.A.</li>
+</ul>
+<p>Podemos limitar o bloquear el acceso a quien use el servicio de forma contraria a estos términos.</p>`,
+    },
+    {
+      titulo: '6. Propiedad intelectual',
+      html: `
+<ul>
+  <li><strong>El código</strong> del servicio es software libre, publicado bajo la licencia MIT.</li>
+  <li><strong>Los datos</strong> del sistema de transporte pertenecen a sus titulares, principalmente TRANSMILENIO S.A. El servicio no reclama derechos sobre ellos.</li>
+  <li><strong>Los mapas</strong> usan datos © colaboradores de OpenStreetMap, disponibles bajo la licencia Open Database License (ODbL), y estilos e imágenes © CARTO.</li>
+  <li><strong>Las marcas</strong> TransMilenio, SITP, tu llave y las demás que aparecen pertenecen a sus titulares y se mencionan solo para identificar el sistema del que habla el servicio.</li>
+</ul>
+<p>Si eres titular de un derecho y crees que el servicio lo afecta, escríbenos a ${CORREO} y lo revisaremos.</p>`,
+    },
+    {
+      titulo: '7. Disponibilidad',
+      html: `
+<p>El servicio se ofrece gratis y sin compromiso de disponibilidad. Puede cambiar, interrumpirse o dejar de funcionar, en todo o en parte, sin aviso previo. Varias funciones dependen de servicios de terceros —el sistema de TRANSMILENIO S.A., el alojamiento, los mapas, la búsqueda de direcciones— y dejan de funcionar cuando ellos fallan o cambian.</p>`,
+    },
+    {
+      titulo: '8. Responsabilidad',
+      html: `
+<p>El servicio se presenta tal como está y según esté disponible. En la medida en que la ley colombiana lo permite, el responsable no responde por daños que resulten de errores, demoras, omisiones o interrupciones de la información o del servicio, ni de los servicios de terceros de los que depende; por ejemplo, perder un bus o llegar tarde por un tiempo de llegada equivocado.</p>
+<p>Nada en estos términos limita la responsabilidad por dolo o culpa grave, que la ley no permite excluir de antemano (artículo 1522 del Código Civil), ni los derechos que la ley te reconoce y que no se pueden renunciar.</p>`,
+    },
+    {
+      titulo: '9. Servicios y enlaces de terceros',
+      html: `
+<p>El servicio enlaza a sitios de terceros y usa servicios de terceros, como el reconocimiento de voz de tu teléfono. Cada uno se rige por sus propios términos y políticas, que no controlamos.</p>`,
+    },
+    {
+      titulo: '10. Cambios a estos términos',
+      html: `
+<p>Publicaremos cualquier cambio en esta página, con su nueva fecha. Si un cambio es sustancial, lo avisaremos en el sitio web y en la app antes de aplicarlo. Si sigues usando el servicio después de que un cambio entre en vigor, lo aceptas.</p>`,
+    },
+    {
+      titulo: '11. Ley aplicable y contacto',
+      html: `
+<p>Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se resolverá ante los jueces competentes de Colombia. Para preguntas, reclamos o avisos escribe a ${CORREO}.</p>
+<p>Estos términos rigen desde el 30 de septiembre de 2026.</p>`,
+    },
+  ],
+};
+
 /** Every legal page, in the order the site lists them. */
-export const LEGAL_DOCS = [PRIVACIDAD];
+export const LEGAL_DOCS = [PRIVACIDAD, TERMINOS];
 
 /**
  * The legal page that lives at `pathname`, or null. Matches with or without the
@@ -264,7 +374,7 @@ export function legalDocHtml(doc) {
   <h1>${esc(doc.titulo)}</h1>
   <p class="legal-date">Vigente desde el ${esc(doc.vigencia)}</p>
 </header>
-<aside class="legal-summary" aria-label="Aviso de privacidad">${doc.resumen}</aside>
+<aside class="legal-summary" aria-label="${esc(doc.resumenEtiqueta ?? 'Aviso de privacidad')}">${doc.resumen}</aside>
 ${sections}
 </article>`;
 }
