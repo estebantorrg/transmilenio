@@ -9,6 +9,7 @@ import zlib from 'zlib';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { anyPublicProxyAllowed, publicProxyAllowed } from '../services/public_proxy_policy.js';
 
 const router = Router();
 
@@ -709,7 +710,8 @@ router.get('/debug-buses', async (req: Request, res: Response) => {
     diagnostics.success = true;
     diagnostics.config = {
       relayConfigured: Boolean(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL),
-      publicProxyEnabled: process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1',
+      publicProxyEnabled: publicProxyAllowed('live'),
+      publicProxyCardEnabled: publicProxyAllowed('card'),
       renderRuntime: Boolean(process.env.RENDER)
     };
 
@@ -747,7 +749,7 @@ router.get('/health', async (_req: Request, res: Response) => {
 
   // Surface the proxy pool only when the fallback is enabled (importing it boots
   // the background scraper, so we don't load it otherwise).
-  if (process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1') {
+  if (anyPublicProxyAllowed()) {
     try {
       const { ProxyManager } = await import('../services/proxy_manager.js');
       body.proxyPool = ProxyManager.getStats();

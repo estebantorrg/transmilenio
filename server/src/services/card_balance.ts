@@ -2,6 +2,7 @@ import https from 'https';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
+import { publicProxyAllowed } from './public_proxy_policy.js';
 
 const CARD_API_HOST = LIVE_API_HOST;
 const CARD_API_PATH = '/lectura_tarjeta';
@@ -15,8 +16,9 @@ const CO_PROXY_READY_TIMEOUT_MS = 18_000; // spec §5.5.2 pool readiness wait
 const CO_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS) || 14_000;
 const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH) || 5;
 
+// Card reads have their own switch, defaulting to the live one (public_proxy_policy.ts).
 function allowPublicColombianProxyFallback(): boolean {
-  return process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1';
+  return publicProxyAllowed('card');
 }
 
 const CARD_HEADERS_BASE = {
@@ -259,7 +261,7 @@ async function fetchCardRowsViaColombianEgress(
   }
 
   throw new CardBalanceError(
-    'Card API is CO-IP geofenced and this server egress is not Colombian. Configure the Colombia relay (TRANSMILENIO_COLOMBIA_RELAY_URL) or set TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1, or run the backend from a Colombian egress.',
+    'Card API is CO-IP geofenced and this server egress is not Colombian. Configure the Colombia relay (TRANSMILENIO_COLOMBIA_RELAY_URL) or allow the public proxies for card reads (TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1, unless TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY_CARD=0), or run the backend from a Colombian egress.',
     503,
     geofenceUpstreamStatus
   );

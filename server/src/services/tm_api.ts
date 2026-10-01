@@ -30,6 +30,7 @@ import {
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { stationAvisos } from './avisos.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
+import { publicProxyAllowed } from './public_proxy_policy.js';
 import {
   correctRecorrido,
   isRetiredRoute,
@@ -1752,8 +1753,9 @@ function getColombiaRelaySecret(): string {
   return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
 }
 
+// Live buses and arrivals may use the public CO proxy pool (spec §5.2.5).
 function allowPublicColombianProxyFallback(): boolean {
-  return process.env.TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY === '1';
+  return publicProxyAllowed('live');
 }
 
 /** Shared decode + JSON + upstream-error handling for any live-host endpoint.

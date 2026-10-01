@@ -109,6 +109,15 @@ visible at `GET /api/health` → `proxyPool`.
 Tunables: `LIVE_PROXY_TIMEOUT_MS` (default `14000`), `CO_PROXY_RACE_WIDTH`
 (default `5`).
 
+Card balance reads use the same pool by default. To keep card numbers off the
+public proxies while live tracking keeps using them:
+
+```bash
+TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY_CARD=0
+```
+
+Unset, it follows `TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY`.
+
 ---
 
 ## 🚀 Getting Started
