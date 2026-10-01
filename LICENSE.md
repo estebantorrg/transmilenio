@@ -1,10 +1,16 @@
-# 📄 License & Legal Disclaimer
+# 📄 License & Legal Notice
 
-This repository contains the software license for the **TransMilenio Explorer** project, alongside a legal notice regarding data usage.
+The **source code** of this project is released under the MIT License below.
+
+**The MIT License covers only the code written for this project.** It does not
+cover the data, maps, fonts, 3D models, trademarks or any other third-party
+material the project uses or ships. Those belong to their owners and are used
+under their own terms, listed in [`NOTICE.md`](NOTICE.md). Nothing in this
+repository grants any right over them.
 
 ---
 
-## ⚖️ MIT License
+## ⚖️ MIT License (source code only)
 
 ```text
 MIT License
@@ -30,22 +36,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
+"Software" above means the project's own source code: everything in this
+repository except the material listed in `NOTICE.md`.
+
 ---
 
-## ⚠️ Legal Notice & Data Disclaimer
+## ⚠️ Legal notice
 
-> [!IMPORTANT]  
-> This software is an independent, non-official project. It is **not** affiliated, associated, authorized, endorsed by, or in any way officially connected with **TransMilenio S.A.**, **ORDENAMIENTO TERRITORIAL**, or any of their subsidiaries or affiliates.
->
-> The official TransMilenio website can be found at [transmilenio.gov.co](https://www.transmilenio.gov.co).
+> [!IMPORTANT]
+> This is an independent, non-commercial project. It is **not** affiliated
+> with, authorized, sponsored or endorsed by **TRANSMILENIO S.A.** or any other
+> entity of the District of Bogotá. Official information is at
+> [transmilenio.gov.co](https://www.transmilenio.gov.co).
 
-### 1. Data Ownership & Sources
-The data utilized in this application is fetched from publicly accessible endpoints of the TransMilenio mobile application ecosystem.
-* The developer does **not** claim ownership over this transit data.
-* All trademarks, service marks, trade names, product names, and logos appearing in the app are the property of their respective owners.
-
-### 2. No Warranty & Liability Limitation
-* This project is provided for **educational and informational purposes only**.
-* The developer assumes no responsibility or liability for:
-  * Errors, omissions, or inaccuracies in the contents of the service.
-  * Any legal implications arising from the use of data fetched or processed through this tool.
+* **Data.** The transit data the project shows is published by TRANSMILENIO
+  S.A. through its public systems, applications and responses to public
+  information requests. The project claims no ownership over it.
+* **Trademarks.** TransMilenio, SITP, tu llave and every other name or logo
+  mentioned belong to their owners and are used only to identify the transit
+  system the project describes.
+* **No warranty.** The information can be wrong, outdated or incomplete. Use of
+  the hosted service is governed by its terms of use
+  (`https://transmilenio.onrender.com/terminos/`) and its privacy policy
+  (`https://transmilenio.onrender.com/privacidad/`).

@@ -43,12 +43,14 @@
  *
  * `TmRuteroCatalog/` — six crops, 130–195 px wide, of screenshots of
  * photographs — cannot resolve a lattice, but it is the record of the fleet
- * this app describes, and these hold at any quality:
+ * this app describes, and these hold at any quality. (The crops were removed
+ * from the repository in October 2026: they were other people's photographs,
+ * which the code licence cannot cover. The findings below stand.)
  *   • ALL CAPS and no diacritics — the F23 unit reads "PORTAL AMERICAS" for a
  *     destination the catalog spells "Portal Américas". Legible at any blur, and
  *     it *contradicts* the brand manual (§5.5.5), so it is an observation rather
  *     than an assumption inherited from the spec.
- *   • On the units in `TmRuteroCatalog/`, lit LEDs sample to a cool white
+ *   • On those units, lit LEDs sample to a cool white
  *     (≈ rgb(200, 220, 228)) over a panel near rgb(8, 15, 25). The current
  *     manual (V.6, Resolución 511 de 2025, "Rutero electrónico frontal") allows
  *     three: "leds de color blanco, ámbar o amarillo limón sobre fondo negro".

@@ -308,6 +308,7 @@ export const TERMINOS = {
   <li><strong>El código</strong> del servicio es software libre, publicado bajo la licencia MIT.</li>
   <li><strong>Los datos</strong> del sistema de transporte pertenecen a sus titulares, principalmente TRANSMILENIO S.A. El servicio no reclama derechos sobre ellos.</li>
   <li><strong>Los mapas</strong> usan datos © colaboradores de OpenStreetMap, disponibles bajo la licencia Open Database License (ODbL), y estilos e imágenes © CARTO.</li>
+  <li><strong>El modelo 3D de los buses</strong> es «Busscar - Urbanuss Pluss S5 (Padrão Colômbia)», creado por Satyr y publicado para el juego Cities: Skylines.</li>
   <li><strong>Las marcas</strong> TransMilenio, SITP, tu llave y las demás que aparecen pertenecen a sus titulares y se mencionan solo para identificar el sistema del que habla el servicio.</li>
 </ul>
 <p>Si eres titular de un derecho y crees que el servicio lo afecta, escríbenos a ${CORREO} y lo revisaremos.</p>`,
