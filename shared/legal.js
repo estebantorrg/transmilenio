@@ -346,6 +346,20 @@ export const TERMINOS = {
 export const LEGAL_DOCS = [PRIVACIDAD, TERMINOS];
 
 /**
+ * Links to every legal page, built from `LEGAL_DOCS` so a new page is linked
+ * everywhere at once: the website's sidebar footer, the foot of every
+ * prerendered page, and the APK's home screen. `base` is the origin for a
+ * surface that is not the site itself (the APK), which must open the hosted
+ * pages in the browser rather than resolve them against its own files.
+ *
+ * @param {string} [base]
+ */
+export function legalLinksHtml(base = '') {
+  const links = LEGAL_DOCS.map((doc) => `<a href="${esc(base)}${doc.path}">${esc(doc.breadcrumb)}</a>`);
+  return `<nav class="legal-links" aria-label="Información legal">${links.join('<span aria-hidden="true"> · </span>')}</nav>`;
+}
+
+/**
  * The legal page that lives at `pathname`, or null. Matches with or without the
  * trailing slash (Express 301s `/privacidad` to `/privacidad/`, but a link typed
  * by hand or a Back entry can carry either) and case-insensitively, as the

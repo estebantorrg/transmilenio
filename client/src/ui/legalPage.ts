@@ -18,7 +18,7 @@
  */
 
 import { crumbsHtml, mastheadHtml, openOverlayPage, registerPageResolver, type OverlayPage } from './pageShell';
-import { ensureLegalStyle, legalDocForPath, legalDocHtml, type LegalDoc } from '../../../shared/legal.js';
+import { ensureLegalStyle, legalDocForPath, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../../shared/legal.js';
 
 const PAGE_ID = 'legal-page';
 
@@ -48,6 +48,10 @@ function descriptor(doc: LegalDoc): OverlayPage {
  * `initPageShell`.
  */
 export function initLegalPages(): void {
+  // The links live at the foot of the sidebar, under "Consultar saldo": always
+  // on screen on the map view, and plain anchors the shell turns into pages.
+  document.querySelector('.sidebar-footer')?.insertAdjacentHTML('beforeend', legalLinksHtml());
+
   registerPageResolver((pathname) => {
     const doc = legalDocForPath(pathname);
     if (!doc) return null;

@@ -47,7 +47,7 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
 
 /** Canonical public origin (spec §5.5.4) — a shared route has to be openable by
  *  someone who doesn't have the app. */
-const WEB_ORIGIN = 'https://transmilenio.onrender.com';
+export const WEB_ORIGIN = 'https://transmilenio.onrender.com';
 
 /** Share a route via the native share sheet, Web Share, or clipboard fallback. */
 async function shareRoute(route: RouteListItem): Promise<void> {

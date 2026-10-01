@@ -491,6 +491,9 @@ input { font-family: inherit; }
 .card-again { margin-top: 12px; padding: 11px; font-size: 13.5px; }
 .card-nfc-note { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .card-nfc-note svg { width: 18px; height: 18px; flex: none; margin-top: 1px; color: var(--muted-2); }
+.home-legal { margin: 26px 0 8px; text-align: center; color: var(--muted-2); font-size: 12px; }
+.home-legal a { color: var(--muted); text-decoration: none; padding: 6px 4px; }
+.home-legal a:active { color: var(--text, #fff); text-decoration: underline; }
 .card-consent { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .card-consent a { color: var(--blue); text-decoration: underline; text-underline-offset: 2px; }
 .mv-section { margin-top: 18px; }

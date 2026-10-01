@@ -7,7 +7,8 @@ import { formatClock, greeting, needsDarkText } from '../lib/format';
 import { bus, state } from '../state';
 import { getFavorites, getRecents } from '../lib/storage';
 import { app } from '../appContext';
-import { openRouteSheet } from '../ui/detailSheets';
+import { WEB_ORIGIN, openRouteSheet } from '../ui/detailSheets';
+import { legalLinksHtml } from '../../../../shared/legal.js';
 import { ICONS, routeBadge } from '../ui/components';
 import type { View } from './types';
 
@@ -174,7 +175,11 @@ export function createInicioView(): View {
   renderLines();
   renderZones();
 
-  el.append(hero, statusCard, actions, favSection, recentSection, lineSection, zoneSection);
+  // Privacidad · Términos at the foot of the home screen. They are pages of the
+  // website, so they open in the browser (Capacitor hands off-app URLs to it).
+  const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
+
+  el.append(hero, statusCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {

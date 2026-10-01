@@ -39,7 +39,7 @@ import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
-import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, type LegalDoc } from '../../shared/legal.js';
+import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../shared/legal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -278,7 +278,10 @@ function renderPage(
   // removes it once the map is live (client/src/main.ts). The body class is what
   // suppresses the boot overlay above it (PRERENDER_STYLE).
   html = html.replace('<body>', '<body class="seo-static">');
-  return html.replace('</body>', `${page.body}\n</body>`);
+  // Every static page ends with the links to the legal pages, as the app's
+  // sidebar does — here, for crawlers and readers without JS.
+  const body = page.body.replace(/<\/div><\/main>\s*$/, `<footer class="seo-legal">${legalLinksHtml()}</footer>\n</div></main>`);
+  return html.replace('</body>', `${body}\n</body>`);
 }
 
 /**
@@ -322,6 +325,9 @@ background-repeat:no-repeat;background-attachment:local,local}
 #seo-prerender .crumbs{padding:16px 0 0;font-size:.75rem;color:rgba(255,255,255,.38)}
 #seo-prerender .crumbs a{color:rgba(255,255,255,.6);text-decoration:none}
 #seo-prerender .crumbs a:hover{color:#fff;text-decoration:underline}
+#seo-prerender .seo-legal{margin:36px 0 24px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);text-align:center;font-size:.75rem;color:rgba(255,255,255,.38)}
+#seo-prerender .seo-legal a{color:rgba(255,255,255,.6);text-decoration:none}
+#seo-prerender .seo-legal a:hover{color:#fff;text-decoration:underline}
 /* ── Hero ───────────────────────────────────────────────────────────────────
    The código at the size it is on the bus, in the route's own colour, beside the
    name — not a pill above a centred headline. The inner hairline keeps a black

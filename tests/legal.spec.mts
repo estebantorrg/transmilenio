@@ -11,7 +11,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, TERMINOS, legalDocForPath, legalDocHtml } from '../shared/legal.js';
+import { LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, TERMINOS, legalDocForPath, legalDocHtml, legalLinksHtml } from '../shared/legal.js';
 
 /** The rendered policy as plain text, the way a reader (or a regulator) reads it. */
 const texto = legalDocHtml(PRIVACIDAD)
@@ -178,5 +178,24 @@ test.describe('the card consent notice', () => {
     await expect(notice).toContainText('no guardamos el número');
     await expect(notice.locator('a')).toHaveAttribute('href', '/privacidad/');
     await expect(page.locator('#card-number-input')).toHaveAttribute('aria-describedby', 'card-consent');
+  });
+});
+
+test.describe('links to the legal pages', () => {
+  test('one link per legal page, on the site or with an origin for the APK', () => {
+    const site = legalLinksHtml();
+    for (const doc of LEGAL_DOCS) expect(site).toContain(`href="${doc.path}"`);
+    const apk = legalLinksHtml('https://transmilenio.onrender.com');
+    expect(apk).toContain('href="https://transmilenio.onrender.com/privacidad/"');
+    expect(apk).toContain('href="https://transmilenio.onrender.com/terminos/"');
+  });
+
+  test('sit at the foot of the sidebar and open the pages', async ({ page }) => {
+    await page.goto('/');
+    const links = page.locator('.sidebar-footer .legal-links');
+    await expect(links.locator('a')).toHaveCount(LEGAL_DOCS.length);
+    await links.getByRole('link', { name: TERMINOS.breadcrumb }).click();
+    await expect(page).toHaveURL(/\/terminos\/$/);
+    await expect(page.locator('#legal-page h1')).toHaveText(TERMINOS.titulo);
   });
 });

@@ -3795,6 +3795,24 @@ body.sidebar-collapsed .sidebar-fab {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* Privacidad · Términos, under the footer action (shared/legal.js). */
+.sidebar-footer .legal-links {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+}
+
+.sidebar-footer .legal-links a {
+  color: var(--text-tertiary);
+  text-decoration: none;
+}
+
+.sidebar-footer .legal-links a:hover,
+.sidebar-footer .legal-links a:focus-visible {
+  color: var(--text-secondary);
+  text-decoration: underline;
+}
+
 .footer-action {
   display: flex;
   align-items: center;

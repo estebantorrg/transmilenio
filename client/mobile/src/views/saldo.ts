@@ -5,6 +5,7 @@ import { h, haptic, toast } from '../lib/dom';
 import { forgetCard, getCards, rememberCard } from '../lib/storage';
 import { isNfcSupported, scanCard, canReadCardBalance, readCardBalance, type NfcCardRead, type NfcBalanceRead } from '../services/nfc';
 import { ICONS } from '../ui/components';
+import { WEB_ORIGIN } from '../ui/detailSheets';
 import type { View } from './types';
 
 const NFC_ICON =
@@ -48,7 +49,7 @@ export function createSaldoView(): View {
   const consent = h('p', {
     class: 'card-consent',
     id: 'card-consent',
-    html: 'Al pulsar «Consultar», tu teléfono envía el número a TRANSMILENIO S.A. para obtener el saldo, sin pasar por nuestro servidor. La app recuerda los últimos cinco números en este teléfono. <a href="https://transmilenio.onrender.com/privacidad/" target="_blank" rel="noopener">Política de privacidad</a>',
+    html: `Al pulsar «Consultar», tu teléfono envía el número a TRANSMILENIO S.A. para obtener el saldo, sin pasar por nuestro servidor. La app recuerda los últimos cinco números en este teléfono. <a href="${WEB_ORIGIN}/privacidad/" target="_blank" rel="noopener">Política de privacidad</a>`,
   });
 
   const submit = h('button', { class: 'btn btn-primary card-submit', type: 'submit', html: `${ICONS.card}<span>Consultar</span>` });

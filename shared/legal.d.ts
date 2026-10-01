@@ -32,6 +32,9 @@ export declare const LEGAL_DOCS: LegalDoc[];
 /** The legal page at `pathname` (trailing slash and case ignored), or null. */
 export declare function legalDocForPath(pathname: string): LegalDoc | null;
 
+/** A `<nav>` linking every legal page; `base` prefixes an origin (the APK). */
+export declare function legalLinksHtml(base?: string): string;
+
 /** The document body without page chrome, identical in the prerender and the app. */
 export declare function legalDocHtml(doc: LegalDoc): string;
 
