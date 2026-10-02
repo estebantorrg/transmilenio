@@ -927,6 +927,20 @@ test.describe('a portal on its sheet', () => {
     expect(caja).not.toMatch(/border|background|box-shadow/);
   });
 
+  test('a badge shows its código alone, with no strapline', () => {
+    // The sheets print "Portal Usme" or "Portal Tunal" over some H códigos; a
+    // rider meets these códigos as plain tags everywhere else in the app, and
+    // on the portal the strapline made the same route look like another thing.
+    const wrong: string[] = [];
+    for (const code of portales) {
+      for (const g of geos[code].chips ?? []) {
+        for (const [c, s] of Object.entries(g.sub ?? {})) wrong.push(code + ': ' + c + ' carries "' + s + '"');
+      }
+      if (portalFor(code).includes('class="pq-chip-sub"')) wrong.push(code + ': a badge is drawn with a strapline');
+    }
+    expect(wrong).toEqual([]);
+  });
+
   test('a badge printed black is still visible on the dark page', () => {
     // The sheet gives a plain service number a BLACK badge. On the dark view
     // that is black on black; the outline is the ink colour, so it disappears
