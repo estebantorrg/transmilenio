@@ -10189,6 +10189,7 @@
         }
       ],
       "zonal": {
+        "nombre": "Plataforma zonal",
         "items": [
           {
             "t": "equipo",
