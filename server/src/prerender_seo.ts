@@ -41,6 +41,7 @@ import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
 import { LEDGER_FILE, contentHash, dateLedger, liveLedger, shellHash } from './seo_lastmod.js';
+import { renderLlmsTxt, type LlmsInput, type LlmsRoute, type LlmsStation } from './llms_txt.js';
 import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../shared/legal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1305,6 +1306,10 @@ async function main(): Promise<void> {
   const legalPages: string[] = [];
   // What each published page says, for its `lastmod` (`LEDGER_FILE`).
   const hashes = new Map<string, string>();
+  // And what `/llms.txt` lists: the same indexable pages the sitemaps do.
+  const llmsExtra: LlmsInput['extra'] = [];
+  const llmsRoutes: LlmsRoute[] = [];
+  const llmsStations: LlmsStation[] = [];
   const anota = (page: { url: string; title: string; description: string; jsonLd: object[]; body: string }): void => {
     hashes.set(page.url, contentHash(page.title, page.description, page.jsonLd, page.body));
   };
@@ -1318,6 +1323,7 @@ async function main(): Promise<void> {
     // A noindex page listed in the sitemap sends Search Console two opposite signals.
     legalPages.push(page.url + (page.noindex ? ' (noindex)' : ''));
     if (!page.noindex) legalUrls.push(page.url);
+    if (!page.noindex) llmsExtra.push({ url: page.url, titulo: doc.titulo });
   }
 
   await loadCatalogFromDisk();
@@ -1396,6 +1402,13 @@ async function main(): Promise<void> {
     anota(page);
 
     const primary = variants[0];
+    llmsRoutes.push({
+      url: page.url,
+      codigo,
+      origen: tidy(primary.origin),
+      destino: tidy(primary.destination),
+      tipo: String(primary.tipoServicio ?? ''),
+    });
     await writeFile(
       path.join(CLIENT_DIST, routeCardUrl(codigo).replace(/^\//, '')),
       renderRouteCard({
@@ -1432,7 +1445,10 @@ async function main(): Promise<void> {
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     // A noindex page listed in the sitemap sends Search Console two opposite signals.
-    if (!('noindex' in page && page.noindex)) stationUrls.push(page.url);
+    if (!('noindex' in page && page.noindex)) {
+      stationUrls.push(page.url);
+      llmsStations.push({ url: page.url, nombre: tidy(station.nombre), corredor: station.corridor?.nombre });
+    }
     anota(page);
 
     const { vagones, unassigned, feeders } = page.platform;
@@ -1493,6 +1509,16 @@ async function main(): Promise<void> {
   const newest = (name: string): string => sets[name].map(lastmod).sort().pop() ?? today;
   await writeFile(path.join(CLIENT_DIST, 'sitemap.xml'), sitemapIndex(Object.keys(sets), newest));
   await writeFile(path.join(CLIENT_DIST, LEDGER_FILE), JSON.stringify({ v: 1, pages: ledger }));
+  await writeFile(
+    path.join(CLIENT_DIST, 'llms.txt'),
+    renderLlmsTxt({
+      origin: ORIGIN,
+      routes: llmsRoutes,
+      stations: llmsStations,
+      extra: llmsExtra,
+      repo: 'https://github.com/estebantorrg/transmilenio',
+    })
+  );
   const cambiadas = Object.values(ledger).filter(([, date]) => date === today).length;
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);

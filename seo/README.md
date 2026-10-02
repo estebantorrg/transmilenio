@@ -21,6 +21,8 @@ build output and are written into **`client/dist`**:
 | `sitemap-paginas.xml` | `/` |
 | `sitemap-rutas.xml` | 213 troncal route pages |
 | `sitemap-estaciones.xml` | 139 troncal estación pages |
+| `sitemap-lastmod.json` | `/sitemap-lastmod.json` — URL → content hash + the day it last changed; the next build reads it to keep each page's `lastmod` (`server/src/seo_lastmod.ts`) |
+| `llms.txt` | `/llms.txt` — the site described for language models (llmstxt.org), listing the same pages as the sitemaps (`server/src/llms_txt.ts`) |
 
 They still answer at the site root because the `client/dist` mount comes *before*
 this folder's mount in `server/src/index.ts`. Keeping them out of `seo/` preserves
