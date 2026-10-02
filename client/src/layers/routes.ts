@@ -247,10 +247,25 @@ export function corridorGapFeatures(
   stations: TroncalStationFeature[],
   fullTraces?: Map<string, number[][][]>
 ): CorridorGapPatch {
+  // Every cell the surveyed centreline PASSES THROUGH, not only the cells its
+  // vertices fall in. ArcGIS draws a straight stretch with vertices hundreds of
+  // metres apart, and indexed by vertex alone the Caracas between Calle 49 and
+  // Calle 51 counted as unsurveyed: its temporary stations became "new trunk"
+  // stations, Z61 rides past them, and the stretch was patched in Z red over
+  // the Caracas blue. So each segment is walked in steps shorter than a cell.
   const covered = new Set<string>();
   for (const corridor of surveyed) {
     for (const path of corridor.geometry?.paths ?? []) {
-      for (const [lng, lat] of path) covered.add(cellKey(lng, lat));
+      for (let i = 0; i < path.length; i++) {
+        const [lng, lat] = path[i];
+        covered.add(cellKey(lng, lat));
+        if (i === 0) continue;
+        const [plng, plat] = path[i - 1];
+        const steps = Math.ceil(Math.max(Math.abs(lng - plng), Math.abs(lat - plat)) / (CORRIDOR_CELL_DEG / 2));
+        for (let s = 1; s < steps; s++) {
+          covered.add(cellKey(plng + ((lng - plng) * s) / steps, plat + ((lat - plat) * s) / steps));
+        }
+      }
     }
   }
   if (covered.size === 0) return { features: [], codes: [] };
