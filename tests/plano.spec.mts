@@ -689,7 +689,9 @@ test.describe('a portal on its sheet', () => {
       // centres it on the tag and lifts it a point or two.
       for (const t of geo.tirasAng ?? []) {
         if (t.apila !== 'arriba') continue;
-        const tira = (planos.detalle[code]?.zonal ?? []).find((z: any) => z.nombre === t.tira);
+        // One strip or a list of them, as above: Molinos' data carries a single object.
+        const zonal = planos.detalle[code]?.zonal;
+        const tira = (Array.isArray(zonal) ? zonal : zonal ? [zonal] : []).find((z: any) => z.nombre === t.tira);
         const eje = t.y ?? geo.andenes?.[t.anden]?.pts?.[0]?.[1];
         (tira?.items ?? []).filter((i: any) => i.t === 'bahia').forEach((it: any, i: number) => {
           const rutas = it.rutas ?? [];

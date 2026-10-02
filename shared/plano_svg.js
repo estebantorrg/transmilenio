@@ -1159,13 +1159,24 @@ export function buildPortalSvg(input) {
     };
     const grupo = dadas.map((_, i) => i);
     const raiz = (i) => (grupo[i] === i ? i : (grupo[i] = raiz(grupo[i])));
+    const encima = new Set(), debajo = new Set();
     dadas.forEach((a, i) => dadas.forEach((b, j) => {
       if (a.anden === undefined && b.anden === undefined && Math.abs(a.x - b.x) < 0.5 && Math.abs(a.w - b.w) < 0.5 &&
-        Math.abs(a.y + a.h - b.y) < 0.6) grupo[raiz(j)] = raiz(i);
+        Math.abs(a.y + a.h - b.y) < 0.6) {
+        grupo[raiz(j)] = raiz(i);
+        debajo.add(i);
+        encima.add(j);
+      }
     }));
     const mayor = new Map();
     dadas.forEach((d, i) => mayor.set(raiz(i), Math.max(mayor.get(raiz(i)) ?? 0, ancho(d))));
-    return dadas.map((d, i) => (dadas.some((_, j) => j !== i && raiz(j) === raiz(i)) ? { ...d, pila: mayor.get(raiz(i)) } : d));
+    // And it grows AWAY from the edge its plates share: the top one upward, the
+    // bottom one downward. Grown each about its own centre, Molinos' "Salida"
+    // and "KR 9" ran a pixel into each other at the seam.
+    const crece = (i) => (debajo.has(i) && !encima.has(i) ? 'arriba' : encima.has(i) && !debajo.has(i) ? 'abajo' : null);
+    return dadas.map((d, i) => (dadas.some((_, j) => j !== i && raiz(j) === raiz(i))
+      ? { ...d, pila: mayor.get(raiz(i)), crece: crece(i) }
+      : d));
   };
 
   const etiqueta = (dada) => {
@@ -1181,7 +1192,8 @@ export function buildPortalSvg(input) {
       ...dada,
       w: +w.toFixed(2), h: +h.toFixed(2),
       x: dada.anden === undefined ? +(dada.x - (w - dada.w) / 2).toFixed(2) : dada.x,
-      y: dada.anden === undefined ? +(dada.y - (h - dada.h) / 2).toFixed(2) : dada.y,
+      y: dada.anden !== undefined || dada.crece === 'abajo' ? dada.y
+        : +(dada.y - (h - dada.h) / (dada.crece === 'arriba' ? 1 : 2)).toFixed(2),
       base: (dada.base ?? 3.5) * f,
       fs: dada.fs === undefined ? undefined : legible(dada.fs),
     };
