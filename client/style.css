@@ -1155,12 +1155,48 @@ body.sidebar-collapsed .sidebar-fab {
   gap: 6px;
   padding: 6px 12px 16px;
 }
-/* Station/paradero hits shown above the routes while searching (Explore tab). */
+/* Place hits while searching (Explore tab): under the routes in the mixed view,
+   alone when one kind is the scope. Set as route rows are — no gap of their own,
+   each row's 2px margin, as in the route list. */
 .search-points {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  margin-bottom: 10px;
+  margin: 10px 0;
+}
+.search-points:first-child {
+  margin-top: 0;
+}
+/* A place row IS a route row (.route-item), as a button. */
+.place-item {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
+}
+/* Where a route's badge carries its código, a place's carries its kind's
+   glyph, on that kind's colour. */
+.place-badge {
+  padding: 0;
+  color: #fff;
+}
+.place-badge.is-station {
+  background: var(--tm-red);
+}
+.place-badge.is-stop {
+  background: #2563eb;
+}
+.place-badge.is-recharge {
+  background: #16a34a;
+}
+.place-badge.is-personalizacion {
+  background: #9333ea;
+}
+.place-badge.is-transmibici {
+  background: #0284c7;
+}
+.place-badge.is-cable {
+  background: #64748b;
 }
 .search-points-title {
   font-size: 10.5px;

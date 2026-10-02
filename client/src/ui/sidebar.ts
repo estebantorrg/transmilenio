@@ -21,12 +21,13 @@ import {
   slugifyRoute,
 } from './routeDetail';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
-import { nearRowHtml, type NearbyPoint } from './cerca';
+import { type NearbyPoint } from './cerca';
 import {
   countPointMatches,
   emptyPointMatches,
   POINT_KINDS,
   POINT_KIND_LABELS,
+  POINT_KIND_META,
   previewPointsAcrossKinds,
   rankPointsByKind,
   type PointKind,
@@ -1279,6 +1280,56 @@ function renderResults(routes: RouteListItem[], points: PointMatches): void {
   renderRouteList(routes, pointMatches, placeTotal, heading);
 }
 
+/**
+ * The glyph a place's badge carries, where a route's carries its código: a
+ * place has no code a rider reads, but it has a kind, and the kind is what tells
+ * a recarga from an estación at a glance. 24-unit stroke icons, set white on
+ * the kind's own colour.
+ */
+const PLACE_GLYPHS: Record<PointKind, string> = {
+  // A platform under a roof.
+  station: '<path d="M4 9l8-5 8 5"/><path d="M6 9v9M18 9v9M4 18h16"/>',
+  // A bus.
+  stop: '<rect x="5" y="4" width="14" height="13" rx="2"/><path d="M5 11h14M8 20v-3M16 20v-3"/>',
+  // The tullave card.
+  recharge: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  // A card with a face on it.
+  personalizacion: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.5 1.5-2 2.5-2s1.9.5 2.5 2M14 10h4M14 13h3"/>',
+  // A bicycle.
+  transmibici: '<circle cx="6.5" cy="15.5" r="3.5"/><circle cx="17.5" cy="15.5" r="3.5"/><path d="M6.5 15.5l4-7h4l3 7M10.5 8.5h-2"/>',
+  // A gondola on its cable.
+  cable: '<path d="M3 5l18 3M12 6.5V10"/><rect x="7" y="10" width="10" height="9" rx="2"/><path d="M7 14h10"/>',
+};
+
+/**
+ * A place among the search results, set as a route row is: a badge, the name,
+ * and a meta line of kind and detail. Drawn as the Cerca tab's card — a framed
+ * box with a dot and a pill — it sat in the route list as a different kind of
+ * object from the clean rows around it. The Cerca tab keeps its own rows; they
+ * carry a distance, which search results do not.
+ */
+function searchPointRowHtml(point: NearbyPoint): string {
+  const meta = POINT_KIND_META[point.kind];
+  const sub = meta.carriesExtra
+    ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
+    : point.direccion || meta.fallback;
+  return `
+    <button class="route-item place-item" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}"
+            aria-label="${escapeHTML(`${point.name}, ${meta.label}, ${sub}`)}">
+      <span class="route-item-badge place-badge ${meta.cls}" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">${PLACE_GLYPHS[point.kind]}</svg>
+      </span>
+      <div class="route-item-info">
+        <div class="route-item-name">${escapeHTML(point.name)}</div>
+        <div class="route-item-meta">
+          <span class="route-item-type">${escapeHTML(meta.label)}</span>
+          <span class="route-item-endpoints">${escapeHTML(sub)}</span>
+        </div>
+      </div>
+    </button>`;
+}
+
 /** The list when a single place kind is the scope: every hit, no route chrome. */
 function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
   const container = document.getElementById('route-list')!;
@@ -1300,7 +1351,7 @@ function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
 
   const visible = matches.slice(0, SEARCH_POINT_LIMIT * pointPages);
   container.innerHTML =
-    `<div class="search-points">${visible.map((p) => nearRowHtml(p)).join('')}</div>` +
+    `<div class="search-points">${visible.map((p) => searchPointRowHtml(p)).join('')}</div>` +
     overflowHtml(visible.length, matches.length, 'points');
 
   wirePointRows(container, visible);
@@ -1310,7 +1361,7 @@ function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
 
 /** Selecting a place row focuses it on the map + opens its popup (main.ts). */
 function wirePointRows(container: HTMLElement, pool: NearbyPoint[]): void {
-  container.querySelectorAll<HTMLButtonElement>('.search-points .near-row').forEach((row) => {
+  container.querySelectorAll<HTMLButtonElement>('.search-points .place-item').forEach((row) => {
     row.addEventListener('click', () => {
       const point = pool.find((p) => p.kind === row.dataset.kind && p.codigo === row.dataset.code);
       if (point) onPointSelect?.(point);
@@ -1318,11 +1369,11 @@ function wirePointRows(container: HTMLElement, pool: NearbyPoint[]): void {
   });
 }
 
-/** One keyboard column across BOTH result kinds: place rows first, then route
- *  items. ArrowUp from the top result returns to the search box. */
+/** One keyboard column across BOTH result kinds, in the order they are drawn —
+ *  routes, then places. ArrowUp from the top result returns to the search box. */
 function wireResultKeyboardColumn(container: HTMLElement): void {
   const focusables = Array.from(
-    container.querySelectorAll<HTMLElement>('.search-points .near-row, .route-item')
+    container.querySelectorAll<HTMLElement>('.route-item')
   );
   focusables.forEach((el, index) => {
     el.addEventListener('keydown', (e) => {
@@ -1399,13 +1450,20 @@ function renderRouteList(
 
   syncListHeading(heading.label, heading.count);
 
+  // Routes first: they are what the list is, and what most queries are for.
+  // Placed above them, a recarga that happened to share a word with the query
+  // ("Iserra 100" for "100") pushed the routes that run there off the top.
+  // The places follow under their own heading; the scope chips above open any
+  // one kind in full.
   const pointsHtml = pointMatches.length
     ? `
       <div class="search-points">
         <div class="search-points-title">Lugares<span class="search-points-count">${placeTotal}</span></div>
-        ${pointMatches.map((p) => nearRowHtml(p)).join('')}
-        ${routes.length > 0 ? `<div class="search-points-title">Rutas<span class="search-points-count">${routes.length}</span></div>` : ''}
+        ${pointMatches.map((p) => searchPointRowHtml(p)).join('')}
       </div>`
+    : '';
+  const routesTitle = pointMatches.length && routes.length
+    ? `<div class="search-points-title">Rutas<span class="search-points-count">${routes.length}</span></div>`
     : '';
   const wirePointClicks = (): void => wirePointRows(container, pointMatches);
 
@@ -1432,7 +1490,7 @@ function renderRouteList(
 
   const visible = routes.slice(0, ROUTE_PAGE_SIZE * routePages);
 
-  container.innerHTML = pointsHtml + visible
+  container.innerHTML = routesTitle + visible
     .map((route) => {
       const badgeColor = safeColor(getRouteAccentColor(route));
       const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
@@ -1472,12 +1530,12 @@ function renderRouteList(
     })
     .join('');
 
-  container.innerHTML += overflowHtml(visible.length, routes.length, 'routes');
+  container.innerHTML += overflowHtml(visible.length, routes.length, 'routes') + pointsHtml;
 
   wireShowMore(container);
   wireResultKeyboardColumn(container);
 
-  container.querySelectorAll<HTMLElement>('.route-item').forEach((el) => {
+  container.querySelectorAll<HTMLElement>('.route-item:not(.place-item)').forEach((el) => {
     const open = () => {
       const route = allRoutes.find((item) => item.id === el.dataset.id);
       if (route) selectRoute(route);
