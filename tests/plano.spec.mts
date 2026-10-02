@@ -42,7 +42,12 @@ const drawn: string[] = Object.keys(planos.detalle ?? {});
 // that draw a plan on the page: every stop's, and those platforms'.
 const geosTodos = JSON.parse(readFileSync(root('server/src/data/plano_geo.json'), 'utf8')) as Record<string, any>;
 const plataformas: string[] = STATION_PLATFORMS.map((p: { codigo: string }) => p.codigo).filter((c: string) => geosTodos[c]);
-const conPagina: string[] = [...drawn, ...plataformas];
+// The merged stops themselves (TM0069, TM0013) keep their layout, which the
+// renders below still draw, but their PAGE is a chooser between the halves with
+// no plan on it (`tests/station_chooser.spec.mts`), so the page tests skip them.
+const fusionadas = new Set(STATION_PLATFORMS.map((p: { parent: string }) => p.parent));
+const enPagina: string[] = drawn.filter((c) => !fusionadas.has(c));
+const conPagina: string[] = [...enPagina, ...plataformas];
 
 const appCss = readFileSync(root('client/style.css'), 'utf8');
 /** The prerender's inlined copy of the same rules, read as text so that pulling
@@ -266,7 +271,7 @@ test.describe('the plan, on the page', () => {
   test('every station draws its plan, with its decks on one line', async ({ page }) => {
     await bootApp(page);
     const wrong: string[] = [];
-    for (const code of drawn) {
+    for (const code of enPagina) {
       await openStation(page, code);
       const found = await page.evaluate(() => {
         const byBand = new Map<Element | null, number[]>();
@@ -314,7 +319,7 @@ test.describe('the plan, on the page', () => {
     // caño read "CAÑ".
     await bootApp(page);
     const wrong: string[] = [];
-    for (const code of drawn) {
+    for (const code of enPagina) {
       if (!planos.layouts[code]?.divider) continue;
       await openStation(page, code);
       const covered = await page.evaluate(() => {
