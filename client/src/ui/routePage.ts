@@ -50,6 +50,7 @@ import {
   type OverlayPage,
 } from './pageShell';
 import { routesWithCode } from './sidebar';
+import { routeStopFacts } from '../layers/stations';
 
 const PAGE_ID = 'route-page';
 
@@ -254,7 +255,7 @@ function render(route: RouteListItem): string {
 
       <section class="page-section page-section-stops" aria-labelledby="paradas-h">
         <h2 class="page-section-title" id="paradas-h">Paradas${stopCount ? ` <span class="page-count">${stopCount}</span>` : ''}</h2>
-        ${renderStopsTimeline(route, { linkStations: true })}
+        ${renderStopsTimeline(route, { linkStations: true, facts: (stop) => routeStopFacts(stop.codigo, route) })}
       </section>
     </div>
   `;

@@ -13,7 +13,9 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML } from '../utils/html';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/schedule';
-import { isAlimentadorRoute } from '../utils/routeColors';
+import { isAlimentadorRoute, TRONCAL_COLORS } from '../utils/routeColors';
+import type { RouteStopFacts } from '../layers/stations';
+import { vagonTexto } from '../../../shared/route_stop.js';
 /** Estación test — the server's stamp, `TM…` code shape as fallback (§5.5.6). */
 import { isStationStopCode } from '../data/routeCatalog';
 
@@ -229,7 +231,12 @@ export function renderLiveCard(): string {
  */
 export function renderStopsTimeline(
   route: RouteListItem,
-  options: { linkStations?: boolean } = {}
+  options: {
+    linkStations?: boolean;
+    /** What the route page says about each stop beyond its name: the vagón it
+     *  boards and the lines it meets there (`routeStopFacts`, spec §5.5.5). */
+    facts?: (stop: { codigo: string }) => RouteStopFacts | null;
+  } = {}
 ): string {
   const stops = route.stops;
   if (!stops || stops.length === 0) {
@@ -242,8 +249,21 @@ export function renderStopsTimeline(
     const isLast = i === stops.length - 1;
     const dotClass = isFirst ? 'origin' : isLast ? 'destination' : 'intermediate';
     const label = isFirst ? 'Origen' : isLast ? 'Destino' : '';
-    const href = options.linkStations ? stationPageHref(stop) : null;
+    const facts = options.facts?.(stop) ?? null;
+    // At a stop the catalog files as two stations, the platform this route
+    // actually stops at.
+    const href = options.linkStations ? facts?.href ?? stationPageHref(stop) : null;
     const name = escapeHTML(stop.nombre);
+    // An estación's TM código is the catalog's, never printed where a rider
+    // stands; a paradero's code IS on its sign, so it stays.
+    const sub = stop.direccion || (stop.codigo && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : '');
+    const vagon = facts?.vagon ? vagonTexto(facts.vagon) : '';
+    const lineas = facts && (facts.lineas.length || facts.alimentadores)
+      ? `<div class="timeline-stop-lines" aria-label="${escapeHTML(['Conexiones', ...facts.lineas, ...(facts.alimentadores ? ['alimentadores'] : [])].join(' '))}">` +
+        facts.lineas.map((l) => `<span class="timeline-line-tile" style="background:${TRONCAL_COLORS[l]}">${escapeHTML(l)}</span>`).join('') +
+        (facts.alimentadores ? '<span class="timeline-line-tile is-feeder" title="Alimentadores y zonales">Alim.</span>' : '') +
+        '</div>'
+      : '';
 
     html += `
       <div class="timeline-stop ${dotClass}" data-index="${i}">
@@ -252,9 +272,13 @@ export function renderStopsTimeline(
           ${!isLast ? '<div class="timeline-line"></div>' : ''}
         </div>
         <div class="timeline-stop-info">
-          <div class="timeline-stop-name">${href ? `<a href="${href}">${name}</a>` : name}</div>
+          <div class="timeline-stop-head">
+            <div class="timeline-stop-name">${href ? `<a href="${href}">${name}</a>` : name}</div>
+            ${vagon ? `<span class="timeline-vagon">${escapeHTML(vagon)}</span>` : ''}
+          </div>
           ${label ? `<div class="timeline-stop-label">${label}</div>` : ''}
-          ${stop.direccion ? `<div class="timeline-stop-code">${escapeHTML(stop.direccion)}</div>` : (stop.codigo ? `<div class="timeline-stop-code"># ${escapeHTML(stop.codigo)}</div>` : '')}
+          ${sub ? `<div class="timeline-stop-code">${escapeHTML(sub)}</div>` : ''}
+          ${lineas}
         </div>
       </div>
     `;

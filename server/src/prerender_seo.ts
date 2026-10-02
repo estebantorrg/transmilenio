@@ -35,6 +35,7 @@ import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
+import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
@@ -382,6 +383,8 @@ text-align:right;font-size:.75rem;font-variant-numeric:tabular-nums;color:rgba(2
 border-radius:50%;border:2px solid var(--accent);background:#0C0C0C;box-sizing:border-box}
 #seo-prerender ol.stops li:first-child,#seo-prerender ol.stops li:last-child{font-weight:600}
 #seo-prerender ol.stops li:last-child{border-left-color:transparent}
+#seo-prerender ol.stops .vag{display:inline-block;margin-left:6px;padding:0 6px;border-radius:4px;background:#FEED01;
+color:#231F20;font-size:.72rem;font-weight:700;line-height:1.5;vertical-align:1px;white-space:nowrap}
 #seo-prerender ol.stops a{text-decoration:underline;text-decoration-color:rgba(255,255,255,.24);
 text-underline-offset:3px}
 #seo-prerender ol.stops a:hover{text-decoration-color:currentColor}
@@ -725,8 +728,13 @@ function renderRoute(
           const station = stationByCode.get(String(stop.codigo).toUpperCase());
           const label = escapeHtml(tidy(stop.nombre));
           const distance = formatDistance(stop.posicion);
-          const linked = station ? `<a href="${stationUrl(station)}">${label}</a>` : label;
-          return `<li>${linked}${distance ? ` <span class="meta">${distance}</span>` : ''}</li>`;
+          // The vagón it boards and, at a stop filed as two stations, the
+          // platform it stops at — the app's answer (`shared/route_stop.js`).
+          const abordaje = station ? abordajeEn(station, codigo, variant.destination) : null;
+          const target = (abordaje?.platform && stationByCode.get(abordaje.platform.codigo)) || station;
+          const linked = target ? `<a href="${stationUrl(target)}">${label}</a>` : label;
+          const vagon = abordaje?.vagon ? ` <span class="vag">${escapeHtml(vagonTexto(abordaje.vagon))}</span>` : '';
+          return `<li>${linked}${vagon}${distance ? ` <span class="meta">${distance}</span>` : ''}</li>`;
         })
         .join('\n');
 

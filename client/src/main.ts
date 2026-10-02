@@ -703,6 +703,12 @@ async function main(): Promise<void> {
     void catalogPromise
       .then((res) => {
         if (!res.data?.routes) return;
+        // The stations too, as the estación page below does: the stop list
+        // names the vagón each stop boards from and the lines it meets there
+        // (`routeStopFacts`), and those come off the stations. Left to the full
+        // boot, a page opened before the map could draw — a background tab, a
+        // slow instance — listed bare names until it did.
+        if (res.data.stations) setCatalog(res.data);
         const target = buildCatalogRouteList(res.data, { onlyCode: deepRouteCode })[0];
         if (target) openRoutePage(target, { push: false });
       })

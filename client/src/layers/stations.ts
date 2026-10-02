@@ -12,7 +12,7 @@ import { markClickHandled, normalizeRouteCode, normalizeRouteCodeForMatch } from
 import { showPopup } from './popup';
 import { planActionsHtml } from './popupActions';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getStopTagColor } from '../utils/routeColors';
+import { getStopTagColor, getTroncalLetter, TRONCAL_COLORS } from '../utils/routeColors';
 import type { MasterCatalog, CatalogRoute, CatalogPlanGroup, CatalogStation } from '../types/catalog';
 import {
   buildStationKey,
@@ -25,6 +25,7 @@ import {
 } from './stationCatalogResolver';
 import { catalogRouteNetwork, isZonalService } from '../utils/routeType';
 import { isStationStopCode } from '../data/routeCatalog';
+import { abordajeEn } from '../../../shared/route_stop.js';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
 import { stationPageHref, stationPagePath } from '../ui/routeDetail';
 import { initChipRowScroll } from '../ui/chipRow';
@@ -33,6 +34,7 @@ import { avisosSlotHtml, watchAvisos } from '../ui/avisos';
 import { routePagePath } from '../ui/routeDetail';
 import {
   platformForMatchMethod,
+  platformsOf,
   platformStation,
   stationPlatform,
   tunnelFrom,
@@ -818,6 +820,58 @@ export interface StationPageData {
   nodes: string[];
   wifi: boolean;
   bikeCapacity: number | null;
+}
+
+/** What a route page says about one of its stops, beyond its name. */
+export interface RouteStopFacts {
+  /** The vagón this route boards from here, as its sign reads ("3", "T7"), when
+   *  the station's own plan or its published plate says so unambiguously. */
+  vagon?: string;
+  /** The OTHER troncal lines a rider can change to on this platform, as their
+   *  letters, in the network's order. */
+  lineas: string[];
+  /** Whether feeders or zonales leave from this station too. */
+  alimentadores: boolean;
+  /** The estación page to link to: the platform this route actually stops at,
+   *  where the catalog files two stations as one stop (Ricaurte, Av. Jiménez). */
+  href?: string;
+}
+
+/**
+ * Where a route boards at one of its stops, and what else meets it there — for
+ * the route page's stop list (spec §5.5.5). The platform and the vagón are the
+ * shared answer (`shared/route_stop.js`), so the prerendered page says the same.
+ */
+export function routeStopFacts(stopCode: string, route: { code: string; destination?: string }): RouteStopFacts | null {
+  const wanted = String(stopCode || '').trim().toUpperCase();
+  const parent =
+    _catalog.stations[wanted] ?? Object.values(_catalog.stations).find((s) => String(s.codigo).toUpperCase() === wanted);
+  const abordaje = abordajeEn(parent, route.code, route.destination);
+  if (!abordaje) return null;
+  const { station, platform, vagon } = abordaje;
+
+  // The other lines on this platform, and whether feeders leave from here.
+  const propia = getTroncalLetter(route.code);
+  const lineas = new Set<string>();
+  let alimentadores = false;
+  for (const [key, routes] of Object.entries((station as CatalogStation).wagons ?? {})) {
+    for (const r of routes as CatalogRoute[]) {
+      if (isZonalService(r.sistema, r.tipoServicio)) {
+        alimentadores = true;
+        continue;
+      }
+      if (key === '0') continue;
+      const letra = getTroncalLetter(r.codigo);
+      if (letra && letra !== 'RF' && letra !== propia && letra in TRONCAL_COLORS) lineas.add(letra);
+    }
+  }
+  const orden = Object.keys(TRONCAL_COLORS);
+  return {
+    ...(vagon ? { vagon } : {}),
+    lineas: [...lineas].sort((a, b) => orden.indexOf(a) - orden.indexOf(b)),
+    alimentadores,
+    ...(platform ? { href: stationPagePath(platform.nombre, platform.codigo) } : {}),
+  };
 }
 
 export function getStationPageData(code: string): StationPageData | null {

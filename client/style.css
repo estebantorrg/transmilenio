@@ -6112,6 +6112,55 @@ body.native-app .route-detail-close:active {
   text-decoration-color: currentColor;
 }
 
+/* What a stop's name does not say: the vagón this route boards from, set as
+   the platform's own yellow plate so it reads as the sign the rider looks for,
+   and the lines they can change to there, as each troncal's letter tile. */
+.timeline-stop-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+.timeline-vagon {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #feed01;
+  color: #231f20;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+.timeline-stop-lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 4px;
+}
+.timeline-line-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 3px;
+  border-radius: 4px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+}
+.timeline-line-tile.is-feeder {
+  padding: 0 5px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+.route-page .timeline-stop-info {
+  padding-bottom: 8px;
+}
+
 /* ══ Operator notices ═════════════════════════════════════════════════════
    `ui/avisos.ts`: a notice in force, over the plan it changes, and the plan
    marked to match. Yellow because that is the colour the operator's own
