@@ -417,12 +417,16 @@ export function buildPortalSvg(input) {
     // width alone their arrows filled them.
     const cx = x + w / 2, s = Math.min(w * 0.55, h * 0.3);
     const ah = Math.min(w * 0.18, h * 0.12), aw = ah * (10 / 9);
+    // ◀ over ▶ unless the sheet prints them the other way round (`invertir`):
+    // Av. Jiménez's Caracas sheet sets ▶ over ◀, and drawn the common way its
+    // crossings pointed opposite to the plano posted in the station.
+    const [arriba, abajo] = p.invertir ? [-1, 1] : [1, -1];
+    const flecha = (sentido, yc) =>
+      'M' + num(cx - sentido * aw) + ',' + num(yc) + ' l' + num(sentido * aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) + ' z';
     return '<g role="img" aria-label="Paso entre vagones">' +
       '<rect class="pq-paso" x="' + num(x) + '" y="' + num(y) + '" width="' + num(w) + '" height="' + num(h) + '" fill="' +
       (p.tono ? C[p.tono] ?? C.bloque : C.bloque) + '"/>' +
-      '<path d="M' + num(cx - aw) + ',' + num(y + h * 0.15) + ' l' + num(aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
-      ' z M' + num(cx + aw) + ',' + num(y + h * 0.85) + ' l' + num(-aw * 2) + ',' + num(-ah) + ' v' + num(ah * 2) +
-      ' z" fill="#FFFFFF"/>' +
+      '<path d="' + flecha(arriba, y + h * 0.15) + ' ' + flecha(abajo, y + h * 0.85) + '" fill="#FFFFFF"/>' +
       '<svg x="' + num(cx - s / 2) + '" y="' + num(y + h / 2 - s / 2) + '" width="' + num(s) + '" height="' + num(s) +
       '" viewBox="0 0 24 24">' + CAMINANTE + '</svg></g>';
   };

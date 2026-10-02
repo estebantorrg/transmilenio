@@ -30570,8 +30570,8 @@
     "borrador": false
   },
   "TM0013CAR": {
-    "source": "Plano de ubicacion, Estacion temporal Av. Jimenez, A (Caracas), version enero de 2026.",
-    "why": "NOT A PORTAL, drawn like one: the Caracas platform of Av. Jiménez, vagones 3, 2, 1 with a crossing between each pair and an access block at each end — Calle 8 west, Calle 10 east — each with its exit above and its taquilla below. The sheet is the temporal station's, and draws no tunnel: the one to the Calle 13 platform is closed.",
+    "source": "Plano de ubicacion, Estacion temporal Av. Jimenez, A (Caracas), version enero de 2026 — geometry only; the services per vagón are the station as it runs, which is the official catalog's grouping, not the sheet's.",
+    "why": "NOT A PORTAL, drawn like one: the Caracas platform of Av. Jiménez, vagones 3, 2, 1 with a crossing between each pair and an access block at each end — Calle 8 west, Calle 10 east — each with its exit above and its taquilla below. The sheet is the temporal station's, and draws no tunnel: the one to the Calle 13 platform is closed. THE SHEET'S SERVICES ARE NOT THE STATION'S. It puts 3/5/8 on both sides of Vagón 3, B on Vagón 2 and C/J/K over H15/H27/L18 on Vagón 1; the station runs (maintainer, 2026-10-02, and the catalog's own wagons C, B, A agree) Vagón 1 = B18 B27 B75 over 3 5 8 southbound, Vagón 2 = 3 5 8 northbound over H54 H75 H76, Vagón 3 = C15 J76 K54 over H15 H27 L18. Each service sits on the side its direction boards, as the sheet's own convention has it: northbound (towards AutoNorte) on top. Its crossings print ▶ over ◀, hence `invertir`.",
     "hoja": 1920,
     "vista": [
       405,
@@ -31110,7 +31110,8 @@
           86.5,
           170
         ],
-        "tono": "paso"
+        "tono": "paso",
+        "invertir": true
       },
       {
         "rect": [
@@ -31119,7 +31120,8 @@
           87.5,
           170
         ],
-        "tono": "paso"
+        "tono": "paso",
+        "invertir": true
       }
     ],
     "lineas": [
@@ -31370,29 +31372,29 @@
     "chips": [
       {
         "codigos": [
-          "3",
-          "5",
-          "8"
+          "C15",
+          "J76",
+          "K54"
         ],
-        "x": 566.75,
+        "x": 546.22,
         "y": 497.5
       },
       {
         "codigos": [
-          "3",
-          "5",
-          "8"
+          "H15",
+          "H27",
+          "L18"
         ],
-        "x": 573,
+        "x": 552.47,
         "y": 750
       },
       {
         "codigos": [
-          "B18",
-          "B27",
-          "B75"
+          "3",
+          "5",
+          "8"
         ],
-        "x": 960.97,
+        "x": 981.5,
         "y": 497.5
       },
       {
@@ -31406,20 +31408,20 @@
       },
       {
         "codigos": [
-          "C15",
-          "J76",
-          "K54"
+          "B18",
+          "B27",
+          "B75"
         ],
         "x": 1379.97,
         "y": 497.5
       },
       {
         "codigos": [
-          "H15",
-          "H27",
-          "L18"
+          "3",
+          "5",
+          "8"
         ],
-        "x": 1378.72,
+        "x": 1399.25,
         "y": 750
       }
     ],

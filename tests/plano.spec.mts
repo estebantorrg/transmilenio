@@ -974,6 +974,32 @@ test.describe('a portal on its sheet', () => {
     expect(wrong).toEqual([]);
   });
 
+  test('Av. Jiménez - Caracas carries the services the station runs, not its temporal sheet\'s', () => {
+    // Sheet A ("Estación temporal", enero 2026) puts 3/5/8 on both sides of
+    // Vagón 3 and B on Vagón 2. The station runs (maintainer, 2026-10-02 — and
+    // the catalog's own wagons C, B, A say the same) as below, each service on
+    // the side its direction boards: northbound on top.
+    const esperado: Record<string, [string[], string[]]> = {
+      '3': [['C15', 'J76', 'K54'], ['H15', 'H27', 'L18']],
+      '2': [['3', '5', '8'], ['H54', 'H75', 'H76']],
+      '1': [['B18', 'B27', 'B75'], ['3', '5', '8']],
+    };
+    const fila = planos.layouts.TM0013.rows[0];
+    for (const v of fila.vagones) expect([v.vagon, v.arriba, v.abajo]).toEqual([v.vagon, ...esperado[v.vagon]]);
+    expect(planos.printed.TM0013).toEqual({ A: '3', B: '2', C: '1', D: '4', E: '5' });
+    // The drawing: west to east the sheet's Vagón 3, 2, 1, tops then bottoms.
+    const chips = geosTodos.TM0013CAR.chips as Array<{ codigos: string[]; x: number; y: number }>;
+    const arriba = chips.filter((c) => c.y < 600).sort((a, b) => a.x - b.x).map((c) => c.codigos);
+    const abajo = chips.filter((c) => c.y > 600).sort((a, b) => a.x - b.x).map((c) => c.codigos);
+    expect(arriba).toEqual(['3', '2', '1'].map((v) => esperado[v][0]));
+    expect(abajo).toEqual(['3', '2', '1'].map((v) => esperado[v][1]));
+    // Its crossings print ▶ over ◀, the other way round from the rest.
+    const svg = buildPortalSvg({ geo: geosTodos.TM0013CAR, tema: 'papel' }) as string;
+    const flechas = [...svg.matchAll(/aria-label="Paso entre vagones">.*?<path d="M([\d.]+),[\d.]+ l(-?[\d.]+)/g)];
+    expect(flechas.length).toBe(2);
+    for (const [, , dx] of flechas) expect(Number(dx)).toBeLessThan(0);
+  });
+
   test("a platform's page is keyed to its own troncal, not its parent stop's", () => {
     // The corridor was copied from the parent with only its name replaced, so
     // Ricaurte - CL 13 read "Américas" in NQS brown — and carried the NQS pair
