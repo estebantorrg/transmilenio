@@ -6364,6 +6364,18 @@ body.native-app .route-detail-close:active {
   padding-bottom: 0;
 }
 
+/* A PLATFORM's sheet (Ricaurte, Av. Jiménez — `.station-plano-plataforma`) is
+   an ordinary station drawn on a portal's grammar, not a portal: three vagones
+   in a strip, nothing a rider has to find their way round. Grown like a portal
+   to the full figure width, a strip that short is always "seen whole", so it
+   never stopped — Ricaurte - NQS came out 1300px across with 45px badges over a
+   760px page. It is drawn at the floor instead (1.12x its sheet: badges about
+   the size of the 29px route tags on every other estación's plan), centred,
+   and scrolls inside its box below that like any plan. */
+.station-plano-plataforma .popup-plano-portal {
+  --pq-dibujo: calc(var(--pq-vb) * 1.12px);
+}
+
 /* In the popup the plate's sub-label is a bare number for want of room; on the
    page "Vagón 1 · 5" has to say what the 5 counts — as the prerendered plan
    already does. */

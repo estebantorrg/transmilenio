@@ -389,7 +389,7 @@ test.describe('the plan, on the page', () => {
     expect(wrong).toEqual([]);
   });
 
-  test('a portal is drawn as large as the screen can show it whole', async ({ page }) => {
+  test('a portal is drawn as large as the screen can show it whole, a platform at its floor', async ({ page }) => {
     // Held to a 1040px card, Portal Norte stopped at 1.2x its sheet on every
     // desktop — at 1920 across, with 440px of empty page either side of it — and
     // the card's lighter ground around a drawing whose ground is the page colour
@@ -422,9 +422,20 @@ test.describe('the plan, on the page', () => {
             if (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' || cs.backgroundImage !== 'none') mates.push(el.className + ' paints a ground');
             if (parseFloat(cs.paddingLeft) + parseFloat(cs.paddingTop) > 0) mates.push(el.className + ' pads the drawing');
           }
-          return { ancho: marco.width, alto: dibujo.height, vista: innerWidth, vistaAlto: innerHeight, mates };
+          const vb = Number(caja.style.getPropertyValue('--pq-vb') || 0);
+          return { ancho: marco.width, alto: dibujo.height, escala: dibujo.width / (vb || 1), vista: innerWidth, vistaAlto: innerHeight, mates };
         });
         if (!medida) continue;
+        for (const m of medida.mates) wrong.push(`${code} at ${width}x${height}: ${m}`);
+        // A platform's sheet is not a portal: three vagones in a strip, always
+        // "seen whole", so grown to the figure width Ricaurte - NQS came out
+        // 1300px across with 45px badges. It stays at the floor.
+        if (plataformas.includes(code)) {
+          if (Math.abs(medida.escala - 1.12) > 0.01) {
+            wrong.push(`${code} at ${width}x${height}: a platform drawn at ${medida.escala.toFixed(2)}x its sheet, not 1.12x`);
+          }
+          continue;
+        }
         const lienzo = Math.min(1320, medida.vista - 48);
         const entero = medida.vistaAlto - 120;
         if (medida.alto > entero + 1) {
@@ -436,7 +447,6 @@ test.describe('the plan, on the page', () => {
               `short of both the ${lienzo}px figure width and the ${entero}px view height`
           );
         }
-        for (const m of medida.mates) wrong.push(`${code} at ${width}x${height}: ${m}`);
       }
     }
     await page.setViewportSize({ width: 1280, height: 900 });
