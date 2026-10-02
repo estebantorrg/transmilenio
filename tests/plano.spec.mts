@@ -964,6 +964,24 @@ test.describe('a portal on its sheet', () => {
     expect(wrong).toEqual([]);
   });
 
+  test("a platform's page is keyed to its own troncal, not its parent stop's", () => {
+    // The corridor was copied from the parent with only its name replaced, so
+    // Ricaurte - CL 13 read "Américas" in NQS brown — and carried the NQS pair
+    // of directions for its sides.
+    const { letters } = JSON.parse(readFileSync(root('server/src/data/station_corridors.json'), 'utf8'));
+    const nqs = { positive: 'norte', negative: 'sur' };
+    const wrong: string[] = [];
+    for (const p of STATION_PLATFORMS as Array<{ codigo: string; parent: string; corridor: string; letra: string }>) {
+      if (letters[p.corridor] !== p.letra) wrong.push(`${p.codigo}: ${p.corridor} is ${letters[p.corridor]}, filed as ${p.letra}`);
+      const padre = { codigo: p.parent, wagons: {}, corridor: { nombre: 'NQS Central', letra: 'E', sentidos: nqs } };
+      const pagina = platformStation(p, padre) as any;
+      if (pagina?.corridor?.letra !== p.letra) wrong.push(`${p.codigo} is coloured as ${pagina?.corridor?.letra}`);
+      const mismo = p.corridor === 'NQS Central';
+      if (mismo !== Boolean(pagina?.corridor?.sentidos)) wrong.push(`${p.codigo} ${mismo ? 'lost' : 'inherited'} the parent's directions`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
   test('a badge shows its código alone, with no strapline', () => {
     // The sheets print "Portal Usme" or "Portal Tunal" over some H códigos; a
     // rider meets these códigos as plain tags everywhere else in the app, and

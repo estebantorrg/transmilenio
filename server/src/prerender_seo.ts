@@ -34,7 +34,7 @@ import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLa
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
-import { STATION_PLATFORMS, platformStation } from '../../shared/station_platforms.js';
+import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
 import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
@@ -397,6 +397,17 @@ text-transform:uppercase;margin-bottom:6px}
 #seo-prerender .dir+.dir{padding-top:10px;border-top:1px solid rgba(255,255,255,.08)}
 #seo-prerender .svc{list-style:none;padding:0;display:grid;gap:6px}
 #seo-prerender .svc li{margin:0}
+/* The chooser at a stop filed as one and standing as two (Ricaurte, Av. Jiménez):
+   a card per half, keyed to its troncal, with the códigos that stop there. */
+#seo-prerender .choices{list-style:none;padding:0;margin:14px 0 0;display:grid;gap:12px;
+grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+#seo-prerender .choice{display:flex;flex-direction:column;gap:8px;height:100%;box-sizing:border-box;padding:14px 16px 16px;
+border:1px solid rgba(255,255,255,.08);border-left:3px solid var(--half);border-radius:8px;background:rgba(18,18,18,.78);
+text-decoration:none;color:rgba(255,255,255,.6)}
+#seo-prerender .choice:hover{background:rgba(255,255,255,.06)}
+#seo-prerender .choice strong{font-size:1.05rem;color:#fff}
+#seo-prerender .choice .codes{display:flex;flex-wrap:wrap;gap:4px}
+#seo-prerender .choice .chip{min-width:34px}
 /* ── Station plan view ──────────────────────────────────────────────────────
    A drawn plan of the platforms, from the same catalog data the list below it
    carries. Wide stations scroll inside this box rather than pushing the page
@@ -1173,6 +1184,98 @@ ${wagonSections || '<section class="sec"><p class="meta">El catálogo oficial no
   return { url, title, description, jsonLd, body, ogImage: stationCardUrl(station), platform };
 }
 
+/**
+ * The page at the stop's own URL for the two stops the catalog files as one and
+ * that stand as two stations (Ricaurte, Av. Jiménez): a choice between the
+ * halves, the same page the bundle draws (`renderChooser`, `ui/stationPage.ts`).
+ *
+ * Nothing on the site links here — a route page links the half it stops at —
+ * but a search for "Ricaurte" and every link shared before the split land here,
+ * and that reader does not know yet which half they need. `noindex, follow`
+ * and out of the sitemap, so the halves are what a search ranks, and this
+ * address keeps working for whoever already has it.
+ */
+function renderStationChooser(
+  station: LightStation,
+  halves: Array<{ station: LightStation; tunnel: boolean }>,
+  routeIndex: Map<string, string>
+) {
+  const url = stationUrl(station);
+  const nombre = tidy(station.nombre);
+  const direccion = tidy(station.direccion);
+  const cuantas = halves.length === 2 ? 'dos' : String(halves.length);
+  const joined = halves.every((h) => h.tunnel)
+    ? 'en troncales distintas, unidas por un túnel peatonal'
+    : 'en troncales distintas; el túnel entre ellas figura cerrado en su plano oficial';
+
+  const cards = halves
+    .map(({ station: half }) => {
+      const platform = buildPlatform(half, routeIndex);
+      const services =
+        platform.vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
+        platform.unassigned.reduce((n, d) => n + d.services.length, 0) +
+        platform.feeders.length;
+      const codes = new Map<string, string>();
+      for (const routes of Object.values((half.wagons ?? {}) as Record<string, any[]>)) {
+        for (const r of routes ?? []) {
+          const codigo = String(r.codigo ?? '').trim();
+          if (codigo && !codes.has(codigo)) {
+            codes.set(codigo, stopTagColor(codigo, r.color, isZonalService(r.sistema, r.tipoServicio)));
+          }
+        }
+      }
+      const tags = [...codes.entries()]
+        .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+        .map(([codigo, fill]) => `<span class="chip" style="background:${fill};color:${readableOn(fill)}">${escapeHtml(codigo)}</span>`)
+        .join('');
+      const facts = [
+        half.corridor?.nombre ? `Troncal ${half.corridor.nombre}` : '',
+        platform.vagones.length ? `${platform.vagones.length} ${platform.vagones.length === 1 ? 'vagón' : 'vagones'}` : '',
+        services ? `${services} servicios` : '',
+      ].filter(Boolean);
+      const accent = TRONCAL_COLORS[String(half.corridor?.letra ?? '').toUpperCase()] ?? '#D8102D';
+      return `  <li><a class="choice" href="${stationUrl(half)}" style="--half:${accent}">
+    <strong>${escapeHtml(tidy(half.nombre))}</strong>
+    <span>${escapeHtml(facts.join(' · '))}</span>
+    <span class="codes">${tags}</span>
+  </a></li>`;
+    })
+    .join('\n');
+
+  // "Estación Ricaurte — NQS o CL 13": each half by what follows its dash.
+  const lados = halves.map((h) => tidy(h.station.nombre).split(' - ').pop() ?? '');
+  const title = pageTitle(`Estación ${nombre}`, ` — ${lados.join(' o ')}`, '');
+  const description = clamp(
+    `${nombre} son ${cuantas} estaciones de TransMilenio ${joined}, cada una con sus propios vagones y servicios. ` +
+      `Elige la de tu ruta.`
+  );
+  const trail = [
+    { name: 'Inicio', url: '/' },
+    { name: `Estación ${nombre}`, url },
+  ];
+
+  const body = `${PRERENDER_STYLE}
+<main id="seo-prerender"><div class="rail"></div><div class="wrap">
+${breadcrumbHtml(trail)}
+<header class="hero">
+  <div>
+    <p class="kind"><span class="tag">ESTACIÓN</span><span>${escapeHtml(cuantas[0].toUpperCase() + cuantas.slice(1))} estaciones</span></p>
+    <h1>${escapeHtml(nombre)}</h1>
+    <p class="sub">${escapeHtml(direccion || 'Bogotá, Colombia')}</p>
+  </div>
+</header>
+<section class="sec">
+<h2>¿A cuál vas?</h2>
+<p class="sub">${escapeHtml(nombre)} son ${cuantas} estaciones ${joined}. Cada una tiene sus propios vagones y no comparten servicios: elige la de la ruta que vas a tomar.</p>
+<ul class="choices">
+${cards}
+</ul>
+</section>
+</div></main>`;
+
+  return { url, title, description, jsonLd: [breadcrumb(trail)], body, ogImage: stationCardUrl(station), noindex: true };
+}
+
 // ─── Sitemaps ─────────────────────────────────────────────
 function sitemapUrlset(urls: string[], lastmod: string): string {
   const entries = urls
@@ -1227,8 +1330,8 @@ async function main(): Promise<void> {
   // stop. Avenida Jiménez and Ricaurte are each a trunk platform and a Calle 13
   // platform, on different troncals, joined by a tunnel and sharing no service
   // — so a rider standing on one of them was reading a page that described the
-  // other as well. The merged page stays: it is the whole interchange, and it
-  // is what every existing link points at.
+  // other as well. The merged stop's own address stays, as a chooser between
+  // the two (`renderStationChooser`): it is what every older link points at.
   for (const platform of STATION_PLATFORMS) {
     const parent = stations.find((st) => st.codigo.toUpperCase() === platform.parent);
     if (!parent) {
@@ -1306,11 +1409,21 @@ async function main(): Promise<void> {
 
   const stationUrls: string[] = [];
   for (const station of stations) {
-    const page = renderStation(station, routeIndex);
+    // A stop filed as one and standing as two gets the chooser at its own
+    // address; its halves are pages of their own, built from it above.
+    const halves = platformsOf(station.codigo).flatMap((p: { codigo: string; tunelA?: string }) => {
+      const half = stationByCode.get(p.codigo.toUpperCase());
+      return half ? [{ station: half, tunnel: Boolean(p.tunelA) }] : [];
+    });
+    const page =
+      halves.length > 1
+        ? { ...renderStationChooser(station, halves, routeIndex), platform: buildPlatform(station, routeIndex) }
+        : renderStation(station, routeIndex);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
-    stationUrls.push(page.url);
+    // A noindex page listed in the sitemap sends Search Console two opposite signals.
+    if (!('noindex' in page && page.noindex)) stationUrls.push(page.url);
 
     const { vagones, unassigned, feeders } = page.platform;
     // Same palette as the page and the app (stopTagColor), so a card and the
@@ -1362,7 +1475,7 @@ async function main(): Promise<void> {
   );
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
-  console.log(`[seo] /estacion/*  — ${stationUrls.length} pages`);
+  console.log(`[seo] /estacion/*  — ${stationUrls.length} pages, plus ${stations.length - stationUrls.length} chooser (noindex)`);
   console.log(`[seo] legal       — ${legalPages.join(', ')}`);
   console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
   console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + legalUrls.length + 1} URLs)`);

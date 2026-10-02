@@ -27,6 +27,7 @@ import { closeActivePopup } from '../layers/popup';
 import {
   buildStationWagonView,
   getStationPageData,
+  stationCodeTagsHtml,
   wirePlanoScroll,
   type StationPageData,
 } from '../layers/stations';
@@ -44,6 +45,7 @@ import {
   type OverlayPage,
 } from './pageShell';
 import { parseStationPathname, stationPagePath, tidy } from './routeDetail';
+import { platformsOf } from '../../../shared/station_platforms.js';
 
 const PAGE_ID = 'station-page';
 
@@ -193,8 +195,107 @@ function heroChips(station: StationPageData, serviceCount: number): string {
     .join('')}</ul>`;
 }
 
+const planActionsHtml = `
+      <div class="page-actions">
+        <button type="button" class="page-action" data-station-plan="origin">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>
+          Viajar desde aquí
+        </button>
+        <button type="button" class="page-action" data-station-plan="destination">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+          Viajar hasta aquí
+        </button>
+      </div>`;
+
+/** The halves of a stop the catalog files as one, each as a page of its own. */
+interface Half {
+  href: string;
+  station: StationPageData;
+  serviceCount: number;
+  tunnel: boolean;
+}
+
+function halvesOf(code: string): Half[] {
+  return platformsOf(code).flatMap((platform) => {
+    const station = getStationPageData(platform.codigo);
+    if (!station) return [];
+    const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout, station.code, station.planoDetalle, station.planoGeo);
+    return [{ href: stationPagePath(platform.nombre, platform.codigo), station, serviceCount: view.serviceCount, tunnel: Boolean(platform.tunelA) }];
+  });
+}
+
+/**
+ * The page at the stop's own URL, for the two stops the catalog files as one
+ * (Ricaurte, Av. Jiménez): a choice between its halves, not a drawing of both.
+ *
+ * Each half is a station on its own troncal with its own vagones and no service
+ * in common with the other, and each has its own page. Nothing on the site
+ * links here any more — a route page links the half it stops at — but this is
+ * the address a search for "Ricaurte" finds and the one every link shared
+ * before the split points at, and that reader does not yet know which half
+ * they need. So the page answers that one question: the two halves, each with
+ * its troncal and the códigos that stop there, so "I am taking the G43" picks
+ * one. The tunnel is named only where it is open — Av. Jiménez's own plano
+ * strikes its tunnel through, so there the page says that instead.
+ */
+function renderChooser(station: StationPageData, halves: Half[]): string {
+  const name = tidy(station.name);
+  const tunnel = halves.every((h) => h.tunnel);
+  const cuantas = halves.length === 2 ? 'dos' : String(halves.length);
+  const joined = tunnel
+    ? 'en troncales distintas, unidas por un túnel peatonal'
+    : 'en troncales distintas; el túnel entre ellas figura cerrado en su plano oficial';
+  const cards = halves
+    .map(({ href, station: half, serviceCount }) => {
+      const accent = stationAccent(half);
+      const facts = [
+        half.corridor ? `Troncal ${tidy(half.corridor)}` : '',
+        half.platformCount ? `${half.platformCount} ${half.platformCount === 1 ? 'vagón' : 'vagones'}` : '',
+        serviceCount ? `${serviceCount} servicios` : '',
+      ].filter(Boolean);
+      return `
+        <li>
+          <a class="station-choice" href="${href}" style="--choice-accent:${accent}">
+            <span class="station-choice-head">
+              <span class="station-choice-name">${escapeHTML(tidy(half.name))}</span>
+              <span class="station-choice-arrow" aria-hidden="true"></span>
+            </span>
+            <span class="station-choice-facts">${escapeHTML(facts.join(' · '))}</span>
+            <span class="station-choice-tags">${stationCodeTagsHtml(half.wagons)}</span>
+          </a>
+        </li>`;
+    })
+    .join('');
+
+  return `
+    ${mastheadHtml()}
+
+    <div class="page-inner">
+      ${crumbsHtml([
+        { label: 'Inicio', href: '/' },
+        { label: `Estación ${name}` },
+      ])}
+
+      <header class="station-hero">
+        <p class="station-hero-corridor">${cuantas[0].toUpperCase() + cuantas.slice(1)} estaciones</p>
+        <h1 class="station-hero-name">${escapeHTML(name)}</h1>
+        ${station.direccion ? `<p class="station-hero-address">${escapeHTML(tidy(station.direccion))}</p>` : ''}
+      </header>
+
+      <section class="page-section" aria-labelledby="eleccion-h">
+        <h2 class="page-section-title" id="eleccion-h">¿A cuál vas?</h2>
+        <p class="page-note">${escapeHTML(name)} son ${cuantas} estaciones ${joined}. Cada una tiene sus propios vagones y no comparten servicios: elige la de la ruta que vas a tomar.</p>
+        <ul class="station-choices">${cards}</ul>
+      </section>
+      ${planActionsHtml}
+    </div>
+  `;
+}
+
 function render(station: StationPageData): string {
-  const view = buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout, station.code, station.planoDetalle, station.planoGeo);
+  const halves = halvesOf(station.code);
+  if (halves.length > 1) return renderChooser(station, halves);
+  const view =buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout, station.code, station.planoDetalle, station.planoGeo);
   const name = tidy(station.name);
 
   const planoSection = view.plano
@@ -259,16 +360,7 @@ function render(station: StationPageData): string {
         <p class="page-note">Consultando validaciones…</p>
       </section>
 
-      <div class="page-actions">
-        <button type="button" class="page-action" data-station-plan="origin">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></svg>
-          Viajar desde aquí
-        </button>
-        <button type="button" class="page-action" data-station-plan="destination">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 0 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
-          Viajar hasta aquí
-        </button>
-      </div>
+      ${planActionsHtml}
     </div>
   `;
 }
@@ -278,7 +370,9 @@ function descriptor(station: StationPageData): OverlayPage {
     id: PAGE_ID,
     className: 'station-page',
     path: stationPagePath(station.name, station.code),
-    accent: stationAccent(station),
+    // The chooser is on no one troncal — its halves are — so it takes the
+    // station layer's red rather than the parent stop's corridor.
+    accent: platformsOf(station.code).length ? 'var(--tm-red)' : stationAccent(station),
     render: () => render(station),
     wire: (el) => wire(el, station),
     onLeave: () => {
@@ -375,6 +469,17 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // shared renderer fills the first it finds (`layers/arrivals.ts`).
   closeActivePopup();
 
+  el.querySelectorAll<HTMLElement>('[data-station-plan]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const role = button.dataset.stationPlan === 'destination' ? 'destination' : 'origin';
+      handlers?.onPlan(role, station);
+    });
+  });
+
+  // The chooser has no plan, no board and no ridership of its own: each of
+  // those belongs to one half, and its page has them.
+  if (el.querySelector('.station-choices')) return;
+
   // Same plan, same affordance as in the popup: wheel, drag and edge fades
   // instead of a native scrollbar under the drawing (§5.5.6).
   wirePlanoScroll(el);
@@ -390,13 +495,6 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // closed while the page is up (`openStationPage`), so the shared renderer
   // cannot paint the wrong one of the two.
   void renderStopArrivals(station.code);
-
-  el.querySelectorAll<HTMLElement>('[data-station-plan]').forEach((button) => {
-    button.addEventListener('click', () => {
-      const role = button.dataset.stationPlan === 'destination' ? 'destination' : 'origin';
-      handlers?.onPlan(role, station);
-    });
-  });
 
   // A service chip is the same tag the popup draws (`formatRouteTags`), so it
   // carries the código already; here it opens that route's own page rather than

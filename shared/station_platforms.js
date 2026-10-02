@@ -28,6 +28,7 @@
  * @property {string} nombre      What the platform is called on the map.
  * @property {string[]} wagones   The parent's wagon letters this platform holds.
  * @property {string} corridor    The troncal this platform is actually on.
+ * @property {string} letra       That troncal's letter, the key its colour is drawn from.
  * @property {string} [matchMethod] The map resolver's id for the same platform.
  * @property {string} [tunelA]    Station or platform código the tunnel leads to.
  * @property {string} [nodo]      The register's node id for THIS platform, so a
@@ -43,6 +44,7 @@ export const STATION_PLATFORMS = [
     nombre: 'AV. Jiménez - Caracas',
     wagones: ['A', 'B', 'C'],
     corridor: 'Caracas',
+    letra: 'A',
     matchMethod: 'verified-split:av-jimenez-caracas',
     nodo: '9110',
     // NO `tunelA`. There is a tunnel, and its own plano strikes it through in
@@ -56,6 +58,7 @@ export const STATION_PLATFORMS = [
     nombre: 'AV. Jiménez - CL 13',
     wagones: ['D', 'E'],
     corridor: 'Américas',
+    letra: 'F',
     matchMethod: 'verified-split:av-jimenez-cl13',
     nodo: '14003',
   },
@@ -65,6 +68,7 @@ export const STATION_PLATFORMS = [
     nombre: 'Ricaurte - NQS',
     wagones: ['A', 'B', 'C'],
     corridor: 'NQS Central',
+    letra: 'E',
     matchMethod: 'verified-split:ricaurte-nqs',
     nodo: '7111',
     tunelA: 'TM0069C13',
@@ -75,6 +79,7 @@ export const STATION_PLATFORMS = [
     nombre: 'Ricaurte - CL 13',
     wagones: ['D', 'E', 'F'],
     corridor: 'Américas',
+    letra: 'F',
     matchMethod: 'verified-split:ricaurte-cl13',
     nodo: '12003',
     tunelA: 'TM0069NQS',
@@ -172,7 +177,17 @@ export function platformStation(platform, parentStation) {
     ...(geo ? { planoGeo: geo } : {}),
     codigo: platform.codigo,
     nombre: platform.nombre,
-    corridor: { ...(parentStation.corridor ?? {}), nombre: platform.corridor },
+    // Its OWN troncal: the letter it is coloured by, and the parent's pair of
+    // directions only where the parent sits on the same troncal. Copied whole,
+    // Ricaurte - CL 13 read 'Américas' in NQS brown, and would have named its
+    // sides by the NQS axis.
+    corridor: {
+      nombre: platform.corridor,
+      letra: platform.letra,
+      ...(parentStation.corridor?.nombre === platform.corridor && parentStation.corridor?.sentidos
+        ? { sentidos: parentStation.corridor.sentidos }
+        : {}),
+    },
     wagons,
     vagonLabels,
     wagonPlan,

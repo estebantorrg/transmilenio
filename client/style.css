@@ -6254,6 +6254,76 @@ body.native-app .route-detail-close:active {
   font-variant-numeric: tabular-nums;
 }
 
+/* The chooser at a stop the catalog files as one (Ricaurte, Av. Jiménez): one
+   card per half, keyed to that half's troncal, carrying the códigos that stop
+   there so the route a rider is taking picks the card. The tags are plain
+   here — the card is the link. */
+.station-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.station-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px 16px;
+  border: 1px solid var(--border-subtle);
+  border-left: 3px solid var(--choice-accent, var(--tm-red));
+  border-radius: 8px;
+  background: var(--surface-2, rgba(255, 255, 255, 0.03));
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.station-choice:hover,
+.station-choice:focus-visible {
+  border-color: var(--border-medium);
+  border-left-color: var(--choice-accent, var(--tm-red));
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.station-choice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.station-choice-name {
+  font-size: var(--font-size-lg, 17px);
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.station-choice-arrow {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(45deg);
+  opacity: 0.6;
+}
+
+.station-choice-facts {
+  font-size: var(--font-size-sm, 13px);
+}
+
+.station-choice-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
 /* The plan, at page scale. The popup's plan is drawn in a 340 px card and every
    dimension in it is a multiple of `--tm-scale` (the map's own popup scale), so
    the page raises that one variable instead of restating the drawing — one

@@ -174,6 +174,23 @@ function formatRouteTags(routes: CatalogRoute[], limit = 28, byCodeOnly = false)
 }
 
 /**
+ * Every código a stop's wagons carry, once each, as plain tags — not click
+ * targets. For a surface where the tags sit inside a link that goes somewhere
+ * else (the interchange chooser, `ui/stationPage.ts`): they say which half a
+ * route stops at, and the card around them is what takes you there.
+ */
+export function stationCodeTagsHtml(wagons: ResolvedCatalogWagons): string {
+  const routes = Object.values(wagons).flat();
+  return groupCatalogRoutesByDirection(routes, true)
+    .map((group) => {
+      const route = group.primary;
+      const color = safeColor(getStopTagColor(route.codigo, route.color, catalogRouteNetwork(route)), '#FB2C17');
+      return `<span class="route-tag" style="background:${color}">${escapeHTML(route.codigo)}</span>`;
+    })
+    .join('');
+}
+
+/**
  * A vagón's services split by the side they board from, when the catalog's plan
  * covers them (`wagonPlan`, spec §5.5.4). Returns null when it doesn't, and the
  * caller falls back to one undifferentiated row of tags.
@@ -761,8 +778,7 @@ function stationPageLinkHtml(resolved: ResolvedCatalogStation | undefined): stri
   const stop = resolved?.sourceStops?.[0];
   // A verified-split platform now HAS a page of its own, so it links there
   // rather than to the merged stop it shares with the platform across the
-  // tunnel. That merged page still exists and still shows both halves; it is
-  // just not the answer when you are standing on one of them.
+  // tunnel. The merged stop's own page is now only a chooser between the two.
   const platform = platformForMatchMethod(resolved?.matchMethod);
   const href = platform
     ? stationPagePath(platform.nombre, platform.codigo)

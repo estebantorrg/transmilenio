@@ -20,6 +20,8 @@ export interface StationPlatform {
    *  parent's: Ricaurte's stop is filed under NQS Central and half of it is on
    *  Américas. */
   corridor: string;
+  /** That troncal's letter (`TRONCAL_COLORS`), the key its colour is drawn from. */
+  letra: string;
   /** The map resolver's id for the same platform (`verified-split:…`). */
   matchMethod?: string;
   /** Station or platform código a pedestrian tunnel from here leads to. Absent
