@@ -288,6 +288,83 @@ function descriptor(station: StationPageData): OverlayPage {
   };
 }
 
+/** The widest a figure is on this page, as the portal plans have it: 1320px, or
+ *  the view less a 24px gutter each side. */
+const LIENZO_MAX = 1320;
+const GUTTER = 24;
+
+/**
+ * The column-drawn plan, fitted to the page the way a portal's is.
+ *
+ * It was drawn at one scale (`--tm-scale: 1.3`) inside the 760px text column,
+ * so a station of three vagones with two crossings and a bridge ran past the
+ * column's edge on an ordinary laptop window — "Vagón 1 · 4 serv…" under the
+ * fade — and scrolled sideways while 300px of the page sat empty either side.
+ * Now it is a figure: as large as its page scale where the screen has the room,
+ * stepping out of the column centred on its axis to get it; smaller as the room
+ * shrinks, down to the popup's own scale; and only below that does it scroll
+ * inside its own box. The width is measured, not estimated, because a vagón is
+ * as wide as its longest row of tags.
+ */
+function fitPlan(el: HTMLElement): void {
+  const box = el.querySelector<HTMLElement>('.station-plano');
+  const plano = box?.querySelector<HTMLElement>(':scope > .popup-plano:not(.popup-plano-portal)');
+  const inner = plano?.querySelector<HTMLElement>(':scope > .popup-plano-inner');
+  const column = box?.parentElement;
+  if (!box || !plano || !inner || !column) return;
+
+  const fit = (): void => {
+    box.style.removeProperty('--tm-scale');
+    plano.style.removeProperty('width');
+    plano.style.removeProperty('margin-left');
+    // The page's own scale for the plan (1.3, or 1.05 on a phone).
+    const pagina = parseFloat(getComputedStyle(box).getPropertyValue('--tm-scale')) || 1.3;
+    const medida = column.clientWidth;
+    if (!medida) return;
+    // The page's width without its scrollbar, which the gutter is measured from.
+    // The page scrolls in its own overlay, so that is the box to ask: the
+    // document does not know about the overlay's scrollbar, and measured from it
+    // the plan sat 8px left of the column's axis.
+    const vista = el.clientWidth || document.documentElement.clientWidth || window.innerWidth;
+    const lienzo = Math.max(medida, Math.min(LIENZO_MAX, vista - 2 * GUTTER));
+    // Every dimension in the drawing is a multiple of the scale, so one
+    // measurement gives its width at any other — less 2px, because text widths
+    // round and a plan scaled to fit exactly came out a pixel over and scrolled.
+    const natural = inner.scrollWidth / pagina;
+    // Where even the popup's scale will not fit, that is still the least it has
+    // to scroll: at 1024px Toberín scrolled 190px at 1, and 540px at 1.3.
+    let escala = Math.min(pagina, Math.max(1, (lienzo - 2) / natural));
+    if (Math.abs(escala - pagina) > 0.005) box.style.setProperty('--tm-scale', escala.toFixed(3));
+    // A few of its parts are fixed widths, not multiples of the scale (borders,
+    // the gap between tags), so a scaled-down plan can still come out a pixel or
+    // two over: one more step, measured.
+    if (inner.scrollWidth > lienzo && escala > 1) {
+      escala = Math.max(1, escala * ((lienzo - 2) / inner.scrollWidth));
+      box.style.setProperty('--tm-scale', escala.toFixed(3));
+    }
+    const ancho = Math.min(lienzo, Math.ceil(inner.scrollWidth));
+    if (ancho > medida) {
+      plano.style.width = `${ancho}px`;
+      plano.style.marginLeft = `calc(50% - ${ancho / 2}px)`;
+    }
+  };
+  fit();
+  // Refit as the VIEW changes, not only the column: between 808px and 1320px
+  // the column keeps its 760px measure while the room either side of it — which
+  // is what the plan steps out into — grows and shrinks. A plan that opened at
+  // 1024px kept its width at 800px and ran off both edges. Dropped once the
+  // page has gone.
+  const onResize = (): void => {
+    if (!box.isConnected) {
+      window.removeEventListener('resize', onResize);
+      return;
+    }
+    fit();
+  };
+  window.addEventListener('resize', onResize);
+  new ResizeObserver(() => fit()).observe(column);
+}
+
 function wire(el: HTMLElement, station: StationPageData): void {
   // Set here, not in `openStationPage`: the shell also opens this page straight
   // from a URL — a popup's link, Back/Forward, a search result — and the page
@@ -301,6 +378,7 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // Same plan, same affordance as in the popup: wheel, drag and edge fades
   // instead of a native scrollbar under the drawing (§5.5.6).
   wirePlanoScroll(el);
+  fitPlan(el);
 
   // The operator's notices in force, over the plan they change, re-read every
   // minute while the page is open: a closure that starts at 22:00 has to show
