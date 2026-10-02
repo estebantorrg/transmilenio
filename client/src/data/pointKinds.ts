@@ -43,6 +43,28 @@ export const POINT_KIND_META: Record<PointKind, PointKindMeta> = {
   cable: { cls: 'is-cable', label: 'Cable', plural: 'Cable', fallback: 'Estación TransMiCable' },
 };
 
+/**
+ * The glyph a place's badge carries in a list of results, where a route's
+ * carries its código: a place has no code a rider reads, but it has a kind, and
+ * the kind is what tells a recarga from an estación at a glance. 24-unit stroke
+ * paths, drawn in currentColor on the kind's own colour. Both clients' search
+ * results draw them, so one place looks the same on the web and in the app.
+ */
+export const POINT_KIND_GLYPHS: Record<PointKind, string> = {
+  // A platform under a roof.
+  station: '<path d="M4 9l8-5 8 5"/><path d="M6 9v9M18 9v9M4 18h16"/>',
+  // A bus.
+  stop: '<rect x="5" y="4" width="14" height="13" rx="2"/><path d="M5 11h14M8 20v-3M16 20v-3"/>',
+  // The tullave card.
+  recharge: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h4"/>',
+  // A card with a face on it.
+  personalizacion: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.5 1.5-2 2.5-2s1.9.5 2.5 2M14 10h4M14 13h3"/>',
+  // A bicycle.
+  transmibici: '<circle cx="6.5" cy="15.5" r="3.5"/><circle cx="17.5" cy="15.5" r="3.5"/><path d="M6.5 15.5l4-7h4l3 7M10.5 8.5h-2"/>',
+  // A gondola on its cable.
+  cable: '<path d="M3 5l18 3M12 6.5V10"/><rect x="7" y="10" width="10" height="9" rx="2"/><path d="M7 14h10"/>',
+};
+
 /** Derived, not restated: a hand-written copy of the plurals is one more place
  *  a new kind has to be registered, and the two drifted apart silently. */
 export const POINT_KIND_LABELS: Record<PointKind, string> = Object.fromEntries(

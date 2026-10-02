@@ -21,7 +21,7 @@ import { getZonalAreas } from '../data';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { getFavorites } from '../lib/storage';
 import { openRouteSheet } from '../ui/detailSheets';
-import { pointRow } from '../ui/pointRow';
+import { placeCard } from '../ui/pointRow';
 import { ICONS, routeCard } from '../ui/components';
 import type { View } from './types';
 
@@ -39,7 +39,7 @@ type Scope = 'all' | 'routes' | PointKind;
 /** Route rows added per page. The list used to stop dead at 140 with a
  *  "Mostrando 140 de 419" label and no way to reach the other 279. */
 const PAGE_SIZE = 80;
-/** Place rows above the routes in the mixed `Todo` view — a preview, not the set. */
+/** Place rows under the routes in the mixed `Todo` view — a preview, not the set. */
 const PLACE_PREVIEW = 6;
 /** Place rows when a single kind IS the scope: the rider asked for these. */
 const PLACE_LIMIT = 80;
@@ -296,8 +296,8 @@ export function createRutasView(): View {
         );
         return;
       }
-      const wrap = h('div', { class: 'near-list' });
-      for (const p of visible) wrap.append(pointRow(p));
+      const wrap = h('div', { class: 'route-list' });
+      for (const p of visible) wrap.append(placeCard(p));
       list.append(wrap);
       // Places page like the routes do — "Afina la búsqueda" was an instruction,
       // not a way to reach the rest of the list.
@@ -313,19 +313,23 @@ export function createRutasView(): View {
       return;
     }
 
-    // Mixed view: a preview of places above the routes, round-robin across kinds
-    // so one crowded kind (paraderos) cannot hide the others.
+    // Mixed view: the routes, then a preview of places under them, round-robin
+    // across kinds so one crowded kind (paraderos) cannot hide the others.
+    // Routes first: a query is first a search for routes, and set above them a
+    // tullave kiosk whose address said "100" topped a search for "100" and
+    // pushed down the routes that run along Calle 100 (same rule as the website).
     const preview = scope === 'all' && q && activeFilter !== 'fav' ? previewPointsAcrossKinds(points, PLACE_PREVIEW, 2) : [];
     const placeTotal = countPointMatches(points);
 
+    let placesBlock: HTMLElement | null = null;
     if (preview.length > 0) {
-      const wrap = h('div', { class: 'near-list search-places' }, [
+      const wrap = h('div', { class: 'route-list search-places' }, [
         h('div', { class: 'search-places-title' }, [
           document.createTextNode('Lugares'),
           h('span', { class: 'search-places-count', text: String(placeTotal) }),
         ]),
       ]);
-      for (const p of preview) wrap.append(pointRow(p));
+      for (const p of preview) wrap.append(placeCard(p));
       if (placeTotal > preview.length) {
         const more = h('button', { class: 'list-more', type: 'button', text: `Ver los ${placeTotal} lugares` });
         more.addEventListener('click', () => {
@@ -336,10 +340,11 @@ export function createRutasView(): View {
         });
         wrap.append(more);
       }
-      list.append(wrap);
+      placesBlock = wrap;
     }
 
     if (routes.length === 0) {
+      if (placesBlock) list.append(placesBlock);
       if (preview.length === 0) {
         // Name the narrowing in effect and offer to lift it — "prueba otro
         // código" was the same sentence whether the rider had a typo or a line
@@ -386,7 +391,7 @@ export function createRutasView(): View {
     }
 
     if (preview.length > 0) {
-      list.append(h('div', { class: 'search-places-title standalone' }, [
+      list.append(h('div', { class: 'search-places-title' }, [
         document.createTextNode('Rutas'),
         h('span', { class: 'search-places-count', text: String(routes.length) }),
       ]));
@@ -404,6 +409,7 @@ export function createRutasView(): View {
       });
       list.append(more);
     }
+    if (placesBlock) list.append(placesBlock);
     const routeCount = plural(routes.length, 'ruta', 'rutas');
     countLine.textContent =
       preview.length > 0 ? `${routeCount} · ${plural(placeTotal, 'lugar', 'lugares')}` : routeCount;

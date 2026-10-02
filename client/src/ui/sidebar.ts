@@ -27,6 +27,7 @@ import {
   emptyPointMatches,
   POINT_KINDS,
   POINT_KIND_LABELS,
+  POINT_KIND_GLYPHS,
   POINT_KIND_META,
   previewPointsAcrossKinds,
   rankPointsByKind,
@@ -1281,27 +1282,6 @@ function renderResults(routes: RouteListItem[], points: PointMatches): void {
 }
 
 /**
- * The glyph a place's badge carries, where a route's carries its código: a
- * place has no code a rider reads, but it has a kind, and the kind is what tells
- * a recarga from an estación at a glance. 24-unit stroke icons, set white on
- * the kind's own colour.
- */
-const PLACE_GLYPHS: Record<PointKind, string> = {
-  // A platform under a roof.
-  station: '<path d="M4 9l8-5 8 5"/><path d="M6 9v9M18 9v9M4 18h16"/>',
-  // A bus.
-  stop: '<rect x="5" y="4" width="14" height="13" rx="2"/><path d="M5 11h14M8 20v-3M16 20v-3"/>',
-  // The tullave card.
-  recharge: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h4"/>',
-  // A card with a face on it.
-  personalizacion: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="M6.5 16c.6-1.5 1.5-2 2.5-2s1.9.5 2.5 2M14 10h4M14 13h3"/>',
-  // A bicycle.
-  transmibici: '<circle cx="6.5" cy="15.5" r="3.5"/><circle cx="17.5" cy="15.5" r="3.5"/><path d="M6.5 15.5l4-7h4l3 7M10.5 8.5h-2"/>',
-  // A gondola on its cable.
-  cable: '<path d="M3 5l18 3M12 6.5V10"/><rect x="7" y="10" width="10" height="9" rx="2"/><path d="M7 14h10"/>',
-};
-
-/**
  * A place among the search results, set as a route row is: a badge, the name,
  * and a meta line of kind and detail. Drawn as the Cerca tab's card — a framed
  * box with a dot and a pill — it sat in the route list as a different kind of
@@ -1318,7 +1298,7 @@ function searchPointRowHtml(point: NearbyPoint): string {
             aria-label="${escapeHTML(`${point.name}, ${meta.label}, ${sub}`)}">
       <span class="route-item-badge place-badge ${meta.cls}" aria-hidden="true">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">${PLACE_GLYPHS[point.kind]}</svg>
+             stroke-linecap="round" stroke-linejoin="round">${POINT_KIND_GLYPHS[point.kind]}</svg>
       </span>
       <div class="route-item-info">
         <div class="route-item-name">${escapeHTML(point.name)}</div>

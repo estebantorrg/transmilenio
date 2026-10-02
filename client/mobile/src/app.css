@@ -229,8 +229,8 @@ input { font-family: inherit; }
 }
 .list-more:active { background: var(--surface-3); }
 
-/* Mixed results: place preview above the routes. */
-.search-places { margin-bottom: 14px; }
+/* Mixed results: the routes, then a preview of places under them. */
+.search-places { margin-top: 16px; }
 .search-places-title,
 .search-places-title.standalone {
   display: flex; align-items: center; gap: 8px;
@@ -262,6 +262,17 @@ input { font-family: inherit; }
 .route-badge-sm { min-width: 34px; height: 24px; padding: 0 7px; font-size: 12px; border-radius: 8px; }
 .route-badge-md { min-width: 46px; height: 42px; padding: 0 9px; font-size: 15px; }
 .route-badge-lg { min-width: 58px; height: 56px; padding: 0 10px; font-size: 20px; border-radius: 14px; }
+
+/* A place among the Buscar results is a route card whose badge carries the
+   kind's glyph on the kind's colour — the colours of its Cerca dot. */
+.place-badge { color: #fff; }
+.place-badge svg { width: 20px; height: 20px; }
+.place-badge.is-station { background: var(--station); }
+.place-badge.is-stop { background: var(--paradero); }
+.place-badge.is-recharge { background: #16a34a; }
+.place-badge.is-personalizacion { background: #9333ea; }
+.place-badge.is-transmibici { background: #0284c7; }
+.place-badge.is-cable { background: #ea580c; }
 
 /* ── Live chip ─────────────────────────────────────────── */
 .live-chip {
