@@ -153,6 +153,11 @@ export interface CatalogStation {
    *  rather than as columns. Opaque: only `shared/plano_svg.js` reads its
    *  shape, and a station without it falls back to the column drawing. */
   planoGeo?: unknown;
+  /** Each platform's own measured geometry, for a stop the catalog files as
+   *  one and that is two stations on two sheets (Ricaurte, Av. Jiménez), keyed
+   *  by platform código (`shared/station_platforms.js`). A platform page draws
+   *  its own; the merged stop draws neither. */
+  planoGeoPlataformas?: Record<string, unknown>;
   /** Operator notices not yet ended: a vagón or access closed, services that
    *  skip the stop. Whether one is in force right now is decided in the
    *  browser (`shared/avisos.js`), because this payload outlives a night. */

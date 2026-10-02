@@ -29,6 +29,7 @@ import {
 } from './plano_vagones.js';
 import { buildWagonPlan, stationCorridor } from './station_plan.js';
 import { stationAvisos } from './avisos.js';
+import { platformsOf } from '../../../shared/station_platforms.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 import { publicProxyAllowed } from './public_proxy_policy.js';
 import {
@@ -615,6 +616,14 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       // the same rule the layout above follows.
       // A portal's measured geometry, where its sheet has been read that way.
       const geoOut = planoGeo(station.codigo);
+      // And each platform's own, for a stop the catalog files as one and that is
+      // two stations on two sheets (Ricaurte, Av. Jiménez): a platform page
+      // draws its own sheet, never its parent's (`platformStation`).
+      const geoPlataformas = Object.fromEntries(
+        platformsOf(station.codigo)
+          .map((p: { codigo: string }) => [p.codigo, planoGeo(p.codigo)] as const)
+          .filter(([, geo]) => geo !== undefined)
+      );
       // Operator notices not yet ended. Which of them is in force is the
       // browser's call (`shared/avisos.js`): this payload outlives a night.
       const avisosOut = stationAvisos(station.codigo);
@@ -713,6 +722,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         ...(planoLayoutOut ? { planoLayout: planoLayoutOut } : {}),
         ...(detalleOut ? { planoDetalle: detalleOut } : {}),
         ...(geoOut ? { planoGeo: geoOut } : {}),
+        ...(Object.keys(geoPlataformas).length ? { planoGeoPlataformas: geoPlataformas } : {}),
         ...(avisosOut ? { avisos: avisosOut } : {}),
         wagons: cleanWagons,
       };

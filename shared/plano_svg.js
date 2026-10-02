@@ -1459,7 +1459,15 @@ export function buildPortalSvg(input) {
     apilar(geo.etiquetas ?? []).map(etiqueta).join('') +
     (geo.rotulos ?? []).map(rotulo).join('') +
     (geo.chips ?? []).map(chips).join('') +
-    (geo.carriles ?? []).map(regla).join('');
+    (geo.carriles ?? []).map(regla).join('') +
+    // Last of all, over the plates and the words: a sheet's own strike-through.
+    // Av. Jiménez - CL 13 crosses out its tunnel mouth's "A / Caracas" in red
+    // because the tunnel is closed; drawn under the plate, the cross was hidden
+    // by the very thing it crosses out.
+    (geo.tachones ?? [])
+      .map((t) => '<path class="pq-tachon" d="' + trazar(t.pts) + '" fill="none" stroke="' + (C[t.color] ?? t.color ?? KERB) +
+        '" stroke-width="' + (t.w ?? 2) + '" stroke-linecap="round"/>')
+      .join('');
 
   return (
     '<svg class="pq' + inicial + '" viewBox="' +

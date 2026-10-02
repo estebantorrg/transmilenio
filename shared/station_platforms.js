@@ -160,8 +160,16 @@ export function platformStation(platform, parentStation) {
     !row.wagones?.length ? true : row.wagones.some((w) => keep.has(String(w).trim().toUpperCase()))
   );
 
+  // Its OWN sheet's plan, or none: the parent's would be the whole interchange,
+  // and drawn on Ricaurte - NQS it showed the Calle 13 platform across the
+  // tunnel as if you were standing on both. A platform without a plan of its
+  // own falls back to the column drawing of its rows.
+  const { planoGeo: _todo, planoGeoPlataformas, ...resto } = parentStation;
+  const geo = planoGeoPlataformas?.[platform.codigo];
+
   return {
-    ...parentStation,
+    ...resto,
+    ...(geo ? { planoGeo: geo } : {}),
     codigo: platform.codigo,
     nombre: platform.nombre,
     corridor: { ...(parentStation.corridor ?? {}), nombre: platform.corridor },

@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 // a drawing can be produced here without a browser or a catalog.
 import { buildSheetPlano } from '../shared/plano.js';
 import { buildPortalSvg, PALETA } from '../shared/plano_svg.js';
+import { STATION_PLATFORMS, platformStation } from '../shared/station_platforms.js';
 
 /**
  * The station plan (`shared/plano.js`, spec §5.5.6).
@@ -35,6 +36,13 @@ const root = (...parts: string[]): string => join(HERE, '..', ...parts);
 
 const planos = JSON.parse(readFileSync(root('server/src/data/plano_vagones.json'), 'utf8'));
 const drawn: string[] = Object.keys(planos.detalle ?? {});
+// The platforms of a stop the catalog files as one (Ricaurte, Av. Jiménez) have
+// their own page and, where their sheet has been read as coordinates, their own
+// plan, keyed by the page código (`shared/station_platforms.js`). The pages
+// that draw a plan on the page: every stop's, and those platforms'.
+const geosTodos = JSON.parse(readFileSync(root('server/src/data/plano_geo.json'), 'utf8')) as Record<string, any>;
+const plataformas: string[] = STATION_PLATFORMS.map((p: { codigo: string }) => p.codigo).filter((c: string) => geosTodos[c]);
+const conPagina: string[] = [...drawn, ...plataformas];
 
 const appCss = readFileSync(root('client/style.css'), 'utf8');
 /** The prerender's inlined copy of the same rules, read as text so that pulling
@@ -336,7 +344,7 @@ test.describe('the plan, on the page', () => {
     const wrong: string[] = [];
     for (const width of [390, 1024, 1280]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const code of drawn) {
+      for (const code of conPagina) {
         await openStation(page, code);
         const medida = await page.evaluate(() => {
           const svg = document.querySelector('.popup-plano-portal svg.pq');
@@ -398,7 +406,7 @@ test.describe('the plan, on the page', () => {
       [1920, 960],
     ]) {
       await page.setViewportSize({ width, height });
-      for (const code of drawn) {
+      for (const code of conPagina) {
         await openStation(page, code);
         const medida = await page.evaluate(() => {
           const svg = document.querySelector('.popup-plano-portal svg.pq');
@@ -444,7 +452,7 @@ test.describe('the plan, on the page', () => {
     const wrong: string[] = [];
     for (const width of [390, 768, 1280]) {
       await page.setViewportSize({ width, height: 900 });
-      for (const code of drawn) {
+      for (const code of conPagina) {
         await openStation(page, code);
         const over = await page.evaluate(() => {
           const el = document.scrollingElement ?? document.documentElement;
@@ -459,7 +467,7 @@ test.describe('the plan, on the page', () => {
   test('every service on a plan links to its route', async ({ page }) => {
     await bootApp(page);
     const wrong: string[] = [];
-    for (const code of drawn) {
+    for (const code of conPagina) {
       await openStation(page, code);
       const bad = await page.evaluate(() => {
         const out: string[] = [];
@@ -495,9 +503,16 @@ test.describe('the plan, on the page', () => {
  * complete before the gate comes off, so the test has to be able to see it.
  */
 test.describe('a portal on its sheet', () => {
-  const geos = JSON.parse(readFileSync(root('server/src/data/plano_geo.json'), 'utf8')) as Record<string, any>;
-  // The file opens with a `_` note about how the measuring was done.
-  const portales = Object.keys(geos).filter((k) => /^TM\d+$/.test(k));
+  const geos = geosTodos;
+  // A platform's own plan reads its parent stop's data, as its page does.
+  for (const p of STATION_PLATFORMS as Array<{ codigo: string; parent: string }>) {
+    if (!geos[p.codigo]) continue;
+    planos.detalle[p.codigo] ??= planos.detalle[p.parent];
+    planos.layouts[p.codigo] ??= planos.layouts[p.parent];
+  }
+  // The file opens with a `_` note about how the measuring was done. A
+  // platform's plan is keyed by its page código (TM0069NQS).
+  const portales = Object.keys(geos).filter((k) => /^TM\d+[A-Z0-9]*$/.test(k));
   // An empty list here would make every test below pass without looking at
   // anything, which is the one way this file could lie.
   test('there are portals to check', () => {
@@ -925,6 +940,28 @@ test.describe('a portal on its sheet', () => {
     expect(wrong).toEqual([]);
     const caja = /\.station-plano \.popup-plano-portal \{([^}]*)\}/.exec(appCss)?.[1] ?? '';
     expect(caja).not.toMatch(/border|background|box-shadow/);
+  });
+
+  test("a platform's page draws its own sheet, never its parent stop's", () => {
+    // Ricaurte - NQS and Ricaurte - CL 13 are two stations on two sheets that
+    // the catalog files as one stop. Drawn as one plan and inherited by both
+    // platform pages, the NQS page showed the Calle 13 platform across the
+    // tunnel as if a rider were standing on both.
+    const wrong: string[] = [];
+    for (const p of STATION_PLATFORMS as Array<{ codigo: string; parent: string }>) {
+      const propio = geosTodos[p.codigo];
+      const padre = { codigo: p.parent, wagons: {}, planoGeo: { merged: true }, planoGeoPlataformas: propio ? { [p.codigo]: propio } : {} };
+      const pagina = platformStation(p, padre) as any;
+      if (pagina?.planoGeo?.merged) wrong.push(p.codigo + ' draws its parent stop\'s plan');
+      if (propio && pagina?.planoGeo !== propio) wrong.push(p.codigo + ' does not draw its own plan');
+      if (pagina && 'planoGeoPlataformas' in pagina) wrong.push(p.codigo + ' carries every platform\'s plan');
+    }
+    // And the four that have been read are each their own sheet.
+    for (const c of ['TM0069NQS', 'TM0069C13', 'TM0013CAR', 'TM0013C13']) {
+      if (!geosTodos[c]) wrong.push(c + ' has no plan of its own');
+    }
+    if (geosTodos.TM0069 || geosTodos.TM0013) wrong.push('a merged stop draws a plan of both platforms');
+    expect(wrong).toEqual([]);
   });
 
   test('a badge shows its código alone, with no strapline', () => {
