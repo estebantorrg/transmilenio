@@ -40,6 +40,7 @@ import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
+import { LEDGER_FILE, contentHash, dateLedger, liveLedger, shellHash } from './seo_lastmod.js';
 import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../shared/legal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1277,16 +1278,16 @@ ${cards}
 }
 
 // ─── Sitemaps ─────────────────────────────────────────────
-function sitemapUrlset(urls: string[], lastmod: string): string {
+function sitemapUrlset(urls: string[], lastmod: (url: string) => string): string {
   const entries = urls
-    .map((url) => `  <url>\n    <loc>${ORIGIN}${url}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </url>`)
+    .map((url) => `  <url>\n    <loc>${ORIGIN}${url}</loc>\n    <lastmod>${lastmod(url)}</lastmod>\n  </url>`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</urlset>\n`;
 }
 
-function sitemapIndex(names: string[], lastmod: string): string {
+function sitemapIndex(names: string[], lastmod: (name: string) => string): string {
   const entries = names
-    .map((name) => `  <sitemap>\n    <loc>${ORIGIN}/${name}</loc>\n    <lastmod>${lastmod}</lastmod>\n  </sitemap>`)
+    .map((name) => `  <sitemap>\n    <loc>${ORIGIN}/${name}</loc>\n    <lastmod>${lastmod(name)}</lastmod>\n  </sitemap>`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${entries}\n</sitemapindex>\n`;
 }
@@ -1302,8 +1303,15 @@ async function main(): Promise<void> {
   // step fails must not also ship a site with no privacy policy on it.
   const legalUrls: string[] = []; // the indexable ones, for the sitemap
   const legalPages: string[] = [];
+  // What each published page says, for its `lastmod` (`LEDGER_FILE`).
+  const hashes = new Map<string, string>();
+  const anota = (page: { url: string; title: string; description: string; jsonLd: object[]; body: string }): void => {
+    hashes.set(page.url, contentHash(page.title, page.description, page.jsonLd, page.body));
+  };
+  hashes.set('/', shellHash(shell));
   for (const doc of LEGAL_DOCS) {
     const page = renderLegal(doc);
+    anota(page);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
@@ -1385,6 +1393,7 @@ async function main(): Promise<void> {
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     routeUrls.push(page.url);
+    anota(page);
 
     const primary = variants[0];
     await writeFile(
@@ -1424,6 +1433,7 @@ async function main(): Promise<void> {
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
     // A noindex page listed in the sitemap sends Search Console two opposite signals.
     if (!('noindex' in page && page.noindex)) stationUrls.push(page.url);
+    anota(page);
 
     const { vagones, unassigned, feeders } = page.platform;
     // Same palette as the page and the app (stopTagColor), so a card and the
@@ -1465,20 +1475,32 @@ async function main(): Promise<void> {
   // Written into the build output, not `seo/` — that folder is hand-maintained
   // source (spec §5.5.4), and the client-dist mount is first in the static chain
   // so these still answer at the site root.
-  const lastmod = new Date().toISOString().slice(0, 10);
-  await writeFile(path.join(CLIENT_DIST, 'sitemap-rutas.xml'), sitemapUrlset(routeUrls, lastmod));
-  await writeFile(path.join(CLIENT_DIST, 'sitemap-estaciones.xml'), sitemapUrlset(stationUrls, lastmod));
-  await writeFile(path.join(CLIENT_DIST, 'sitemap-paginas.xml'), sitemapUrlset(['/', ...legalUrls], lastmod));
-  await writeFile(
-    path.join(CLIENT_DIST, 'sitemap.xml'),
-    sitemapIndex(['sitemap-paginas.xml', 'sitemap-rutas.xml', 'sitemap-estaciones.xml'], lastmod)
-  );
+  // A page keeps the day its content last changed (`LEDGER_FILE`); a new or
+  // changed one is dated today.
+  const today = new Date().toISOString().slice(0, 10);
+  const previo = await liveLedger(ORIGIN);
+  const ledger = dateLedger(hashes, previo, today);
+  const lastmod = (url: string): string => ledger[url]?.[1] ?? today;
+  const sets: Record<string, string[]> = {
+    'sitemap-paginas.xml': ['/', ...legalUrls],
+    'sitemap-rutas.xml': routeUrls,
+    'sitemap-estaciones.xml': stationUrls,
+  };
+  for (const [name, urls] of Object.entries(sets)) {
+    await writeFile(path.join(CLIENT_DIST, name), sitemapUrlset(urls, lastmod));
+  }
+  // A sitemap changed when the newest page in it did.
+  const newest = (name: string): string => sets[name].map(lastmod).sort().pop() ?? today;
+  await writeFile(path.join(CLIENT_DIST, 'sitemap.xml'), sitemapIndex(Object.keys(sets), newest));
+  await writeFile(path.join(CLIENT_DIST, LEDGER_FILE), JSON.stringify({ v: 1, pages: ledger }));
+  const cambiadas = Object.values(ledger).filter(([, date]) => date === today).length;
 
   console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
   console.log(`[seo] /estacion/*  — ${stationUrls.length} pages, plus ${stations.length - stationUrls.length} chooser (noindex)`);
   console.log(`[seo] legal       — ${legalPages.join(', ')}`);
   console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
   console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + legalUrls.length + 1} URLs)`);
+  console.log(`[seo] lastmod      — ${cambiadas} of ${Object.keys(ledger).length} pages dated ${today}${previo ? '' : ' (no ledger: all)'}`);
 }
 
 main().catch((error) => {
