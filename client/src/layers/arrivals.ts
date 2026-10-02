@@ -12,6 +12,20 @@ import { api } from '../services/api';
 import { isStationStopCode } from '../data/routeCatalog';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
+import { closedWindowNotice } from '../services/liveWindow';
+
+/**
+ * The empty board, outside the hours live tracking runs. "Sin buses en
+ * aproximación ahora" at 00:17 read as a fault at the station — the same
+ * moment the route page says "Fuera de servicio". Night routes that do run
+ * still show as arrivals; this is only what an empty board says.
+ */
+function closedBoardHtml(): string | null {
+  const closed = closedWindowNotice();
+  return closed
+    ? `<div class="arr-empty arr-closed"><strong>${escapeHTML(closed.short)}</strong> · ${escapeHTML(closed.detail)}</div>`
+    : null;
+}
 
 /** The `<div class="popup-arrivals">` slot to embed in a popup for `code`. */
 export function arrivalsSectionHtml(code: string): string {
@@ -57,7 +71,7 @@ export async function renderStopArrivals(code: string, allowedCodes?: Iterable<s
       (a) => !allow || allow.has(normalizeRouteCodeForMatch(a.codigo))
     );
     if (arrivals.length === 0) {
-      el.innerHTML = `<div class="arr-empty">Sin buses en aproximación ahora</div>`;
+      el.innerHTML = closedBoardHtml() ?? `<div class="arr-empty">Sin buses en aproximación ahora</div>`;
       return;
     }
 
@@ -83,6 +97,7 @@ export async function renderStopArrivals(code: string, allowedCodes?: Iterable<s
         .join('');
   } catch {
     const el = document.querySelector<HTMLElement>(sel);
-    if (el) el.innerHTML = `<div class="arr-empty">Llegadas no disponibles</div>`;
+    // At night the live feed is down by design: say so, not "unavailable".
+    if (el) el.innerHTML = closedBoardHtml() ?? `<div class="arr-empty">Llegadas no disponibles</div>`;
   }
 }

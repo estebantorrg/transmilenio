@@ -6,6 +6,7 @@ import type { RouteListItem } from '@shared/types/transmilenio';
 import { api, type LiveBusResult } from '@shared/services/api';
 import type { TrackingStatus } from '@shared/layers/buses';
 import { bogotaNow, describeServiceSpans, serviceStatus } from '@shared/services/schedule';
+import { closedWindowNotice } from '@shared/services/liveWindow';
 import { h, escapeHTML, haptic, toast } from '../lib/dom';
 import { needsDarkText } from '../lib/format';
 import { isFavorite, toggleFavorite, pushRecent } from '../lib/storage';
@@ -261,7 +262,7 @@ async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
     const res = await api.getArrivals(cenefa);
     const arrivals = res.arrivals ?? [];
     if (arrivals.length === 0) {
-      host.replaceChildren(h('div', { class: 'muted', text: 'Sin llegadas en este momento.' }));
+      host.replaceChildren(closedBoard() ?? h('div', { class: 'muted', text: 'Sin llegadas en este momento.' }));
       return;
     }
     host.replaceChildren(
@@ -277,8 +278,17 @@ async function loadArrivals(cenefa: string, host: HTMLElement): Promise<void> {
       })
     );
   } catch {
-    host.replaceChildren(h('div', { class: 'muted', text: 'Llegadas no disponibles.' }));
+    host.replaceChildren(closedBoard() ?? h('div', { class: 'muted', text: 'Llegadas no disponibles.' }));
   }
+}
+
+/** The empty board outside live-tracking hours, as the website says it: the
+ *  service is closed, not missing (night routes that run still show). */
+function closedBoard(): HTMLElement | null {
+  const closed = closedWindowNotice();
+  return closed
+    ? h('div', { class: 'muted' }, [h('strong', { text: closed.short }), document.createTextNode(` · ${closed.detail}`)])
+    : null;
 }
 
 /** Seed the planner from a place ("Desde aquí" / "Hasta aquí"). Shared by the

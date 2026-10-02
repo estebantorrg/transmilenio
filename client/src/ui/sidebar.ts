@@ -21,14 +21,12 @@ import {
   slugifyRoute,
 } from './routeDetail';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
-import { type NearbyPoint } from './cerca';
+import { placeRowHtml, type NearbyPoint } from './cerca';
 import {
   countPointMatches,
   emptyPointMatches,
   POINT_KINDS,
   POINT_KIND_LABELS,
-  POINT_KIND_GLYPHS,
-  POINT_KIND_META,
   previewPointsAcrossKinds,
   rankPointsByKind,
   type PointKind,
@@ -728,7 +726,7 @@ export function initSidebar(options: {
   searchInput.addEventListener('keydown', (e) => {
     if (e.key !== 'ArrowDown' && e.key !== 'Enter') return;
     const first = document.querySelector<HTMLElement>(
-      '#route-list .search-points .near-row, #route-list .route-item'
+      '#route-list .route-item'
     );
     if (!first) return;
     e.preventDefault();
@@ -1281,35 +1279,6 @@ function renderResults(routes: RouteListItem[], points: PointMatches): void {
   renderRouteList(routes, pointMatches, placeTotal, heading);
 }
 
-/**
- * A place among the search results, set as a route row is: a badge, the name,
- * and a meta line of kind and detail. Drawn as the Cerca tab's card — a framed
- * box with a dot and a pill — it sat in the route list as a different kind of
- * object from the clean rows around it. The Cerca tab keeps its own rows; they
- * carry a distance, which search results do not.
- */
-function searchPointRowHtml(point: NearbyPoint): string {
-  const meta = POINT_KIND_META[point.kind];
-  const sub = meta.carriesExtra
-    ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
-    : point.direccion || meta.fallback;
-  return `
-    <button class="route-item place-item" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}"
-            aria-label="${escapeHTML(`${point.name}, ${meta.label}, ${sub}`)}">
-      <span class="route-item-badge place-badge ${meta.cls}" aria-hidden="true">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">${POINT_KIND_GLYPHS[point.kind]}</svg>
-      </span>
-      <div class="route-item-info">
-        <div class="route-item-name">${escapeHTML(point.name)}</div>
-        <div class="route-item-meta">
-          <span class="route-item-type">${escapeHTML(meta.label)}</span>
-          <span class="route-item-endpoints">${escapeHTML(sub)}</span>
-        </div>
-      </div>
-    </button>`;
-}
-
 /** The list when a single place kind is the scope: every hit, no route chrome. */
 function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
   const container = document.getElementById('route-list')!;
@@ -1331,7 +1300,7 @@ function renderPointResults(kind: PointKind, matches: NearbyPoint[]): void {
 
   const visible = matches.slice(0, SEARCH_POINT_LIMIT * pointPages);
   container.innerHTML =
-    `<div class="search-points">${visible.map((p) => searchPointRowHtml(p)).join('')}</div>` +
+    `<div class="search-points">${visible.map((p) => placeRowHtml(p)).join('')}</div>` +
     overflowHtml(visible.length, matches.length, 'points');
 
   wirePointRows(container, visible);
@@ -1439,7 +1408,7 @@ function renderRouteList(
     ? `
       <div class="search-points">
         <div class="search-points-title">Lugares<span class="search-points-count">${placeTotal}</span></div>
-        ${pointMatches.map((p) => searchPointRowHtml(p)).join('')}
+        ${pointMatches.map((p) => placeRowHtml(p)).join('')}
       </div>`
     : '';
   const routesTitle = pointMatches.length && routes.length

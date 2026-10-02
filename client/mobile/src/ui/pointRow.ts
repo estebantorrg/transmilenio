@@ -26,45 +26,24 @@ export function pointSubtitle(point: StationRecord): string {
 }
 
 /**
- * A place row. `meters` is optional so the name search reuses the exact same row
- * without inventing a distance it has no fix to compute.
+ * A place row, wherever a place is listed: Cerca (ranked by distance) and the
+ * Buscar results (ranked by name). Set as a route card is — a badge carrying the
+ * kind's glyph on the kind's colour where a route's carries its código, the
+ * name, and a sub-line of kind and address — so a place does not read as a
+ * different kind of object from the routes around it. It used to be a card with
+ * a dot and a pill. `meters` puts the distance and the walk where the card's
+ * chevron sits; the name search, which has no fix, keeps the chevron.
  */
 export function pointRow(point: StationRecord, meters?: number): HTMLElement {
   const meta = POINT_KIND_META[point.kind];
-  const row = h('button', { class: 'near-row', type: 'button' });
-  const dot = h('span', { class: `near-dot ${meta.cls}` });
-  const nameRow = h('div', { class: 'near-name-row' }, [
-    h('span', { class: 'near-name', text: point.name }),
-    h('span', { class: `near-kind ${meta.cls}`, text: meta.label }),
-  ]);
-  const mid = h('div', { class: 'near-mid' }, [nameRow, h('div', { class: 'near-sub', text: pointSubtitle(point) })]);
-  row.append(dot, mid);
-  if (typeof meters === 'number' && Number.isFinite(meters)) {
-    row.append(
-      h('div', { class: 'near-right' }, [
-        h('div', { class: 'near-dist', text: formatDistance(meters) }),
-        h('div', { class: 'near-walk', text: `${walkMinutes(meters)} min` }),
-      ])
-    );
-  }
-  row.addEventListener('click', () => {
-    haptic('light');
-    openPointDetail(point);
-  });
-  return row;
-}
-
-/**
- * A place among the Buscar results, set as a route card is: a badge, the name,
- * and a sub-line of kind and address, with the card's chevron. Drawn as the
- * Cerca row — a dot and a pill — it sat among the route cards as a different
- * kind of object. The badge carries the kind's glyph on the kind's colour where
- * a route's carries its código. Cerca keeps `pointRow`: it carries a distance.
- */
-export function placeCard(point: StationRecord): HTMLElement {
-  const meta = POINT_KIND_META[point.kind];
   const card = h('button', { class: 'route-card place-card', type: 'button' });
-  card.setAttribute('aria-label', `${point.name}, ${meta.label}, ${pointSubtitle(point)}`);
+  const lejos = typeof meters === 'number' && Number.isFinite(meters);
+  card.setAttribute(
+    'aria-label',
+    [point.name, meta.label, pointSubtitle(point), lejos ? `a ${formatDistance(meters)}, ${walkMinutes(meters)} min a pie` : '']
+      .filter(Boolean)
+      .join(', ')
+  );
   card.append(
     h('span', {
       class: `route-badge route-badge-md place-badge ${meta.cls}`,
@@ -77,13 +56,23 @@ export function placeCard(point: StationRecord): HTMLElement {
         document.createTextNode(` ${pointSubtitle(point)}`),
       ]),
     ]),
-    h('span', { class: 'route-card-chev', html: '›' })
+    lejos
+      ? h('div', { class: 'place-far' }, [
+          h('div', { class: 'place-dist', text: formatDistance(meters) }),
+          h('div', { class: 'place-walk', text: `${walkMinutes(meters)} min` }),
+        ])
+      : h('span', { class: 'route-card-chev', html: '›' })
   );
   card.addEventListener('click', () => {
     haptic('light');
     openPointDetail(point);
   });
   return card;
+}
+
+/** A place in the Buscar results: the same row, with no distance to give. */
+export function placeCard(point: StationRecord): HTMLElement {
+  return pointRow(point);
 }
 
 /**

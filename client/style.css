@@ -1152,7 +1152,6 @@ body.sidebar-collapsed .sidebar-fab {
 .near-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
   padding: 6px 12px 16px;
 }
 /* Place hits while searching (Explore tab): under the routes in the mixed view,
@@ -1205,91 +1204,6 @@ body.sidebar-collapsed .sidebar-fab {
   text-transform: uppercase;
   color: var(--text-secondary);
   margin: 4px 2px 2px;
-}
-.near-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  padding: 10px 12px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-.near-row:hover {
-  background: var(--bg-hover);
-  border-color: var(--border-medium);
-}
-.near-dot {
-  flex: 0 0 auto;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.near-dot.is-station {
-  background: var(--tm-red-light);
-}
-.near-dot.is-stop {
-  background: #3b82f6;
-}
-.near-dot.is-recharge {
-  background: #22c55e;
-}
-.near-dot.is-personalizacion {
-  background: #a855f7;
-}
-.near-dot.is-transmibici {
-  background: #38bdf8;
-}
-.near-mid {
-  flex: 1;
-  min-width: 0;
-}
-.near-name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.near-name {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.near-kind {
-  flex: 0 0 auto;
-  padding: 2px 6px;
-  border-radius: 99px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-.near-kind.is-station {
-  color: var(--tm-red-light);
-  background: color-mix(in srgb, var(--tm-red-light) 16%, transparent);
-}
-.near-kind.is-stop {
-  color: #93c5fd;
-  background: color-mix(in srgb, #3b82f6 18%, transparent);
-}
-.near-kind.is-recharge {
-  color: #86efac;
-  background: color-mix(in srgb, #22c55e 18%, transparent);
-}
-.near-kind.is-personalizacion {
-  color: #d8b4fe;
-  background: color-mix(in srgb, #a855f7 18%, transparent);
-}
-.near-kind.is-transmibici {
-  color: #7dd3fc;
-  background: color-mix(in srgb, #38bdf8 18%, transparent);
 }
 
 /* ─── Stop-popup real-time arrivals (spec §5.8) ──────────── */
@@ -1347,26 +1261,22 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 700;
   color: var(--text-primary);
 }
-.near-sub {
-  margin-top: 2px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
-}
-.near-right {
+/* A place row's distance and walk, where the Cerca tab has a fix. */
+.place-far {
   flex: 0 0 auto;
-  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
 }
-.near-dist {
+.place-dist {
   font-size: var(--font-size-sm);
   font-weight: 700;
   color: var(--text-primary);
 }
-.near-walk {
-  font-size: var(--font-size-xs);
-  color: var(--text-secondary);
+.place-walk {
+  font-size: 10px;
+  color: var(--text-tertiary);
 }
 
 /* ─── Mobile sheet drag handle ────────────────────────── */

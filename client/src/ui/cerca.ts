@@ -9,7 +9,7 @@
 import { escapeHTML } from '../utils/html';
 import { NEARBY_RADIUS_METERS, formatDistance, haversineMeters, isWithinBogota, walkMinutes } from '../utils/geo';
 import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
-import { POINT_KIND_META, POINT_KINDS, type PointKind } from '../data/pointKinds';
+import { POINT_KIND_GLYPHS, POINT_KIND_META, POINT_KINDS, type PointKind } from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
 
 // The kind vocabulary itself lives in `data/pointKinds` — shared verbatim with
@@ -205,9 +205,9 @@ function render(): void {
     return;
   }
 
-  list.innerHTML = ranked.map(({ p, d }) => nearRowHtml(p, d)).join('');
+  list.innerHTML = ranked.map(({ p, d }) => placeRowHtml(p, d)).join('');
 
-  list.querySelectorAll<HTMLElement>('.near-row').forEach((row) => {
+  list.querySelectorAll<HTMLElement>('.place-item').forEach((row) => {
     row.addEventListener('click', () => {
       const point = points.find((p) => p.kind === row.dataset.kind && p.codigo === row.dataset.code);
       if (point) opts?.onSelect(point);
@@ -217,31 +217,44 @@ function render(): void {
 
 const KIND_META = POINT_KIND_META;
 
-/** Shared row renderer for a nearby/searchable point. `meters` is optional so
- *  the sidebar's station search (no user fix required) reuses the same row
- *  without a distance column (spec §1.1 R2 — no duplicated markup). */
-export function nearRowHtml(point: NearbyPoint, meters?: number): string {
+/**
+ * One row for a place, wherever a place is listed: the Cerca tab (ranked by
+ * distance) and the Explore search (ranked by name). Set as a route row is — a
+ * badge carrying the kind's glyph on the kind's colour where a route's carries
+ * its código, the name, and a meta line of kind and detail — so a place does
+ * not read as a different kind of object from the routes around it. It used to
+ * be a framed card with a dot and a pill. `meters` adds the distance and the
+ * walk on the right; the search, which has no fix, leaves it off.
+ */
+export function placeRowHtml(point: NearbyPoint, meters?: number): string {
   const meta = KIND_META[point.kind];
   const sub = meta.carriesExtra
     ? [point.direccion, point.hours].filter(Boolean).join(' · ') || meta.fallback
     : point.direccion || meta.fallback;
-  const right = typeof meters === 'number' && Number.isFinite(meters)
+  const lejos = typeof meters === 'number' && Number.isFinite(meters);
+  const right = lejos
     ? `
-      <div class="near-right">
-        <div class="near-dist">${escapeHTML(formatDistance(meters))}</div>
-        <div class="near-walk">${walkMinutes(meters)} min</div>
-      </div>`
+      <span class="place-far" aria-hidden="true">
+        <span class="place-dist">${escapeHTML(formatDistance(meters))}</span>
+        <span class="place-walk">${walkMinutes(meters)} min</span>
+      </span>`
     : '';
+  const label = [point.name, meta.label, sub, lejos ? `a ${formatDistance(meters)}, ${walkMinutes(meters)} min a pie` : '']
+    .filter(Boolean)
+    .join(', ');
   return `
-    <button class="near-row" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}">
-      <span class="near-dot ${meta.cls}"></span>
-      <div class="near-mid">
-        <div class="near-name-row">
-          <span class="near-name">${escapeHTML(point.name)}</span>
-          <span class="near-kind ${meta.cls}">${meta.label}</span>
+    <button class="route-item place-item" type="button" data-kind="${point.kind}" data-code="${escapeHTML(point.codigo)}"
+            aria-label="${escapeHTML(label)}">
+      <span class="route-item-badge place-badge ${meta.cls}" aria-hidden="true">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round">${POINT_KIND_GLYPHS[point.kind]}</svg>
+      </span>
+      <div class="route-item-info">
+        <div class="route-item-name">${escapeHTML(point.name)}</div>
+        <div class="route-item-meta">
+          <span class="route-item-type">${escapeHTML(meta.label)}</span>
+          <span class="route-item-endpoints">${escapeHTML(sub)}</span>
         </div>
-        <div class="near-sub">${escapeHTML(sub)}</div>
-      </div>
-      ${right}
+      </div>${right}
     </button>`;
 }

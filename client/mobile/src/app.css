@@ -273,6 +273,9 @@ input { font-family: inherit; }
 .place-badge.is-personalizacion { background: #9333ea; }
 .place-badge.is-transmibici { background: #0284c7; }
 .place-badge.is-cable { background: #ea580c; }
+.place-far { flex: none; text-align: right; }
+.place-dist { font-family: var(--font-head); font-weight: 650; font-size: 14px; }
+.place-walk { font-size: 11px; color: var(--muted-2); margin-top: 1px; }
 
 /* ── Live chip ─────────────────────────────────────────── */
 .live-chip {
@@ -449,25 +452,6 @@ input { font-family: inherit; }
 @keyframes nudge { 0%, 100% { transform: none; } 50% { transform: translateY(-3px); } }
 .cerca-status { text-align: center; color: var(--muted); font-size: 12.5px; min-height: 18px; margin-bottom: 12px; }
 .near-list { display: flex; flex-direction: column; gap: 8px; }
-.near-row { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 11px 13px; color: var(--text); text-align: left; }
-.near-row:active { background: var(--surface-2); }
-.near-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-.near-dot.is-station { background: var(--station); box-shadow: 0 0 0 3px rgba(251, 44, 23, 0.18); }
-.near-dot.is-stop { background: var(--paradero); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16); }
-.near-dot.is-recharge { background: #22c55e; box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.16); }
-.near-dot.is-personalizacion { background: #a855f7; box-shadow: 0 0 0 3px rgba(168, 85, 247, 0.16); }
-.near-dot.is-transmibici { background: #38bdf8; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.16); }
-.near-dot.is-cable { background: #f97316; box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.16); }
-.near-mid { flex: 1; min-width: 0; }
-.near-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.near-name { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.near-kind { flex: none; font-size: 9.5px; font-weight: 700; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
-.near-kind.is-station { color: var(--red-2); background: rgba(251, 44, 23, 0.14); }
-.near-kind.is-stop { color: var(--paradero); background: rgba(59, 130, 246, 0.14); }
-.near-kind.is-recharge { color: #86efac; background: rgba(34, 197, 94, 0.14); }
-.near-kind.is-personalizacion { color: #d8b4fe; background: rgba(168, 85, 247, 0.14); }
-.near-kind.is-transmibici { color: #7dd3fc; background: rgba(56, 189, 248, 0.14); }
-.near-kind.is-cable { color: #fdba74; background: rgba(249, 115, 22, 0.14); }
 
 /* Real-time arrivals (spec §5.8) */
 .arr-body { display: flex; flex-direction: column; gap: 4px; }
@@ -475,10 +459,6 @@ input { font-family: inherit; }
 .arr-badge { flex: none; min-width: 38px; text-align: center; padding: 2px 6px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; }
 .arr-dest { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); }
 .arr-time { flex: none; font-size: 13px; font-weight: 700; }
-.near-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
-.near-right { text-align: right; flex: none; }
-.near-dist { font-family: var(--font-head); font-weight: 650; font-size: 14px; }
-.near-walk { font-size: 11px; color: var(--muted-2); }
 
 /* ── Saldo / card ──────────────────────────────────────── */
 .card-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
