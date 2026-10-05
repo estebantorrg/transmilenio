@@ -495,6 +495,33 @@ export function traceDistanceBetween(index: TraceIndex, fromOrd: number, toOrd: 
   return distance > 0 ? distance : null;
 }
 
+/**
+ * Where an arbitrary point — a live bus — sits on the route's trace: metres
+ * along it, and how far off it the point is.
+ *
+ * The same line and the same measure the stops are held on (`stopAlong`), which
+ * is the point: a bus and the stop it is heading for are compared on one ruler,
+ * so "600 m before the stop" means 600 m of this route's own road (§5.6.6).
+ * The nearest segment wins; on a loop that revisits a street that is whichever
+ * pass the fix happens to sit closer to.
+ */
+export function projectOntoTrace(index: TraceIndex, point: LngLat): { along: number; error: number } | null {
+  const { line, cumulative } = index;
+  if (line.length < 2) return null;
+  let best = -1;
+  let bestRough = Infinity;
+  for (let i = 0; i + 1 < line.length; i++) {
+    const rough = roughSegmentDistance(point, line[i], line[i + 1]);
+    if (rough < bestRough) {
+      bestRough = rough;
+      best = i;
+    }
+  }
+  if (best < 0) return null;
+  const at = projectOnSegment(point, line, best, cumulative);
+  return { along: at.along, error: at.error };
+}
+
 /** Both ordinals exist and both stops were matched to the trace. */
 function traceCovers(index: TraceIndex, fromOrd: number, toOrd: number): boolean {
   if (fromOrd < 0 || toOrd < 0) return false;

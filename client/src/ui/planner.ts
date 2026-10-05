@@ -1,5 +1,6 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
+import { describeLiveBoarding, watchLiveBoarding } from '../services/liveBoarding';
 import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, setPlannerCalibration, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
 import {
   bogotaNow,
@@ -53,6 +54,10 @@ let lastSortBy: 'transfers' | 'time' | 'walk' = 'transfers';
 // async walking pass re-times the same trip instead of drifting to "now".
 let departMode: 'now' | 'custom' = 'now';
 let lastDepartAt: PlanTime | null = null;
+// Whether those itineraries leave NOW — the only trip whose first bus can be
+// read off the live feed (§5.6.6) — and the watch that keeps them on it.
+let lastDepartNow = false;
+let stopLiveBoarding: (() => void) | null = null;
 // Schedule filter (§5.6.2). Off by default: horarios always shape the itinerary
 // (clock times, waits, tags, the long-service ranking), but they only DELETE
 // connections when the rider explicitly asks for "solo en servicio".
@@ -184,6 +189,8 @@ function renderPlannerPrompt(message = 'Elige tu origen y destino para encontrar
 
 function invalidatePlannerResults(message?: string): void {
   plannerRequestSeq++;
+  stopLiveBoarding?.();
+  stopLiveBoarding = null;
   calculatedPlans = [];
   activePlanIndex = null;
   if (mapInstance) clearJourneyPath(mapInstance);
@@ -1467,6 +1474,9 @@ function calculateRoute(): void {
   const btnCalculate = document.getElementById('btn-calculate-route') as HTMLButtonElement;
   const resultsContainer = document.getElementById('planner-results')!;
   const requestId = ++plannerRequestSeq;
+  // The previous answer's buses are no longer anyone's business.
+  stopLiveBoarding?.();
+  stopLiveBoarding = null;
 
   if (!originCoord || !destCoord) {
     calculatedPlans = [];
@@ -1517,6 +1527,7 @@ function calculateRoute(): void {
   // rendered clock times and the async walking re-timing.
   const departAt = getDepartTime();
   lastDepartAt = departAt;
+  lastDepartNow = departMode === 'now';
   updateDepartHint();
 
   // Let the loading state paint (one frame), then run the synchronous search —
@@ -1770,7 +1781,19 @@ function renderNoResults(container: HTMLElement): void {
   });
 }
 
-function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
+/**
+ * Which bus the rider actually boards first, read off the live feed (§5.6.6).
+ * Empty whenever there is no reading, so a card without it is the plan exactly
+ * as it was before this existed.
+ */
+function renderPlanLiveRow(plan: JourneyPlan): string {
+  const firstRide = plan.steps.find((step) => step.type === 'ride');
+  const line = firstRide ? describeLiveBoarding(firstRide) : null;
+  if (!line) return '';
+  return `<div class="journey-live ${line.tone}"><span class="journey-live-dot" aria-hidden="true"></span><span class="journey-live-text">${escapeHTML(line.text)}</span><span class="journey-live-tag">en vivo</span></div>`;
+}
+
+function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMap = true): void {
   const container = document.getElementById('planner-results')!;
 
   if (plans.length === 0) {
@@ -1812,6 +1835,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
           </div>
           ${renderPlanClockRow(plan)}
           <div class="journey-badges">${badgesHtml}</div>
+          ${renderPlanLiveRow(plan)}
           <div class="journey-steps-list hidden" data-plan-index="${index}"></div>
         </div>
       `;
@@ -1856,7 +1880,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false): void {
     ? activePlanIndex
     : 0;
 
-  selectPlan(selectIndex, cards, isPlannerVisible());
+  selectPlan(selectIndex, cards, updateMap && isPlannerVisible());
 }
 
 function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
@@ -1870,17 +1894,46 @@ function getMapFitPadding(): { top: number; bottom: number; left: number; right:
   };
 }
 
+/**
+ * Keeps the itineraries on screen on the live wait at their first boarding
+ * (§5.6.6): which bus the rider really boards, re-ranked over everything the
+ * walking pass kept, refreshed while the planner is the panel in view. The
+ * watch and the arithmetic are shared with the app (`services/liveBoarding.ts`);
+ * this adds only what is the website's — the plan the rider selected stays
+ * selected, and the map is left alone unless that plan dropped off the list.
+ */
+function followLiveBoarding(pool: JourneyPlan[], requestId: number): void {
+  stopLiveBoarding?.();
+  stopLiveBoarding = watchLiveBoarding({
+    pool,
+    sortBy: lastSortBy,
+    isActive: () => requestId === plannerRequestSeq,
+    isPaused: () => !isPlannerVisible(),
+    onUpdate: (shown) => {
+      const selected = activePlanIndex !== null ? calculatedPlans[activePlanIndex] : null;
+      calculatedPlans = shown;
+      const kept = selected ? shown.indexOf(selected) : -1;
+      activePlanIndex = kept >= 0 ? kept : 0;
+      // A refresh that kept the selected plan redraws its card, not the map: a
+      // re-fit every 25 s would undo wherever the rider had panned to.
+      renderResults(shown, true, kept < 0);
+    },
+  });
+}
+
 async function resolveWalking(pool: JourneyPlan[], requestId: number): Promise<void> {
   // The pedestrian pass (OSRM fetch, total recompute, re-validate, re-rank, cut
   // to four) is shared with the mobile planner (spec §1.1 R2). Here we only add
   // the website's staleness guard + selection preservation + re-render.
   const selectedPlan = activePlanIndex !== null ? calculatedPlans[activePlanIndex] : null;
   try {
+    const walked: { pool?: JourneyPlan[] } = {};
     const resolved = await resolveWalkingLegs(
       pool,
       lastSortBy,
       lastDepartAt ?? undefined,
-      () => requestId === plannerRequestSeq
+      () => requestId === plannerRequestSeq,
+      walked
     );
     // A newer search has already replaced these itineraries — dropping the
     // result is the point of the guard; rendering it would show the old trip.
@@ -1889,6 +1942,7 @@ async function resolveWalking(pool: JourneyPlan[], requestId: number): Promise<v
     const keptIndex = selectedPlan ? resolved.indexOf(selectedPlan) : -1;
     activePlanIndex = keptIndex >= 0 ? keptIndex : 0;
     renderResults(resolved, true);
+    if (lastDepartNow) followLiveBoarding(walked.pool ?? resolved, requestId);
   } catch (error) {
     console.error('[Planner] Error resolving walking paths:', error);
   }

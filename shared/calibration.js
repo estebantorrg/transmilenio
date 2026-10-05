@@ -16,6 +16,19 @@ export const SPEED_CAP_M_PER_MIN = 570;
 /** Below this a stretch's median is a GPS artefact, not a bus (4 km/h). */
 export const SPEED_FLOOR_M_PER_MIN = 67;
 
+/**
+ * How fast a LIVE bus is taken to close on a stop, metres per minute, where no
+ * stretch of its route has been measured: the troncal fleet always (the
+ * measurement covers the zonal one only) and a zonal route off the programme.
+ * City averages including dwell — not the planner's cruise, which charges dwell
+ * per stop. Followed to the stops they reached, troncal buses made a median 400
+ * on a Sunday night and 340–375 on a weekday morning (§5.6.6); the arrivals
+ * board, the voice ETA and the planner's live wait all read these two, so the
+ * same bus is the same number of minutes away on every surface.
+ */
+export const LIVE_TRONCAL_M_PER_MIN = 400; // ~24 km/h
+export const LIVE_ZONAL_M_PER_MIN = 233; // ~14 km/h
+
 /** `H` hábil, `S` sábado, `F` domingo/festivo. */
 export const DAY_TYPES = ['H', 'S', 'F'];
 

@@ -5,16 +5,27 @@ import {
   dayOfWeek,
   closingAfter,
   createServiceClock,
+  isFestivo,
   serviceIntervals,
   serviceMinutesOnPlanDay,
   type PlanTime,
   type ServiceClock,
   type ServiceSpan,
 } from './schedule';
-import { buildTraceIndex, traceDistanceBetween, traceSliceBetween, type TraceIndex } from './trace';
+import { buildTraceIndex, projectOntoTrace, traceDistanceBetween, traceSliceBetween, type TraceIndex } from './trace';
+import { approachingEtas, busesOfVariant, chooseBoarding, readLiveBuses, type LiveBoarding } from './liveWait';
 import { haversineMeters } from '../utils/geo';
+import { getLiveNameCandidates } from '../data/routeCatalog';
 import type { RouteListItem } from '../types/transmilenio';
-import { clampSpeedMpm, dayTypeFor, hourFactor, SPEED_CAP_M_PER_MIN } from '../../../shared/calibration.js';
+import {
+  clampSpeedMpm,
+  dayTypeFor,
+  hourFactor,
+  LIVE_TRONCAL_M_PER_MIN,
+  LIVE_ZONAL_M_PER_MIN,
+  rideSpeedMpm,
+  SPEED_CAP_M_PER_MIN,
+} from '../../../shared/calibration.js';
 import type { CalibrationDayType, PreparedCalibration } from '../../../shared/calibration.js';
 import { getCalibration, onCalibrationChange, setPlannerCalibration } from './calibrationStore';
 
@@ -170,6 +181,18 @@ export interface JourneyStep {
   outsideService?: boolean;
   /** Ride steps: minutes of the plan day this route operates (ranking input). */
   serviceDayMinutes?: number;
+  // ── The boarding wait, and the live reading of it (§5.6.6).
+  /** Ride steps: the boarding stop's position in the route's own stop list — a
+   *  loop route visits one código twice, so the code alone cannot say where on
+   *  the trace the rider is standing. */
+  fromOrd?: number;
+  /** Ride steps: minutes of boarding wait currently inside `time`. */
+  boardWait?: number;
+  /** Ride steps: the wait the search itself charged (half the route's headway,
+   *  or the mode's constant), kept so a live reading can be withdrawn again. */
+  assumedWait?: number;
+  /** First ride step, on a trip leaving now: which live bus the rider boards. */
+  live?: LiveBoarding & { asOf: number };
 }
 
 export interface JourneyPlan {
@@ -1183,7 +1206,9 @@ function annotateRideBoarding(step: JourneyStep, cursor: number, schedule: Sched
   step.serviceDayMinutes = routeIdx === undefined ? undefined : serviceCoverage(schedule, routeIdx);
 
   // Unknown schedule (the gondola, or hours we could not parse) → always boardable.
-  const headwayWait = boardWait(schedule, routeIdx, type);
+  // The wait is the step's own where it carries one: a live reading replaces the
+  // assumption there (§5.6.6), and the clock on the card has to follow it.
+  const headwayWait = step.boardWait ?? boardWait(schedule, routeIdx, type);
   if (!intervals) {
     step.boardMinute = cursor + headwayWait;
     return 0;
@@ -1418,6 +1443,9 @@ function buildJourneySteps(
     } else {
       // New ride step (first boarding or a transfer)
       commitCurrent();
+      const assumedWait = schedule
+        ? boardWait(schedule, routeIndexById.get(leg.routeId), leg.type)
+        : BOARD_WAIT_MINUTES[leg.type];
       const rideStep: JourneyStep = {
         type: 'ride',
         fromName: fromStop.nombre,
@@ -1428,12 +1456,17 @@ function buildJourneySteps(
         routeId: leg.routeId,
         routeType: leg.type,
         distance: leg.distance,
-        time: leg.time + (schedule ? boardWait(schedule, routeIndexById.get(leg.routeId), leg.type) : BOARD_WAIT_MINUTES[leg.type]),
+        time: leg.time + assumedWait,
         stopCount: 1,
         stops: [], // Will populate if multiple stops are traversed
         stopPoints: [], // Same stops, with código + coordinate (guidance)
         fromCoord: fromStop.coordinate,
         toCoord: toStop.coordinate,
+        // Where on the route the rider boards and what the wait was assumed to
+        // be, so a live reading can replace exactly that figure (§5.6.6).
+        fromOrd: leg.fromOrd,
+        boardWait: assumedWait,
+        assumedWait,
       };
       // Waiting for the window to open is real trip time, exactly as the search
       // charged it, so it belongs inside the step duration.
@@ -2413,7 +2446,11 @@ export async function resolveWalkingLegs(
   /** Returns false once these itineraries have been superseded, so the pass can
    *  stop queueing pedestrian lookups instead of racing the search that replaced
    *  it for the same six connections. Legs already fetched are still applied. */
-  stillWanted?: () => boolean
+  stillWanted?: () => boolean,
+  /** Receives every itinerary that survived, ranked, BEFORE the display cut —
+   *  the pool the live pass re-ranks (§5.6.6). A bus one minute from a stop the
+   *  static ranking placed fifth is exactly the plan that pass exists to find. */
+  out?: { pool?: JourneyPlan[] }
 ): Promise<JourneyPlan[]> {
   const pending: Array<{ step: JourneyStep; from: [number, number]; to: [number, number] }> = [];
   for (const plan of plans) {
@@ -2476,6 +2513,171 @@ export async function resolveWalkingLegs(
   }
 
   sortJourneyPlans(plans, sortBy);
+  if (out) out.pool = plans.slice();
   plans.splice(PLAN_DISPLAY_LIMIT);
   return plans;
+}
+
+// ─── The live first boarding (§5.6.6) ───────────────────────────────────────
+// The search charges every boarding an ASSUMED wait. For a trip leaving now the
+// first of those waits is knowable: the route's buses are on the live feed, and
+// `liveWait.ts` turns their positions into "this is the one you board". The
+// search itself is untouched — its costs must stay static for the top plan to
+// be the proven optimum of its criterion — so this is a pass over its results,
+// the same shape as the walking pass above: replace an estimate with a
+// measurement, re-total, re-rank.
+//
+// First boarding only. A transfer twenty minutes away cannot be read off where
+// the buses are now, so every later boarding keeps the assumption.
+
+/** One live lookup the pass needs: a route direction some itinerary boards first. */
+export interface LiveBoardingTarget {
+  routeId: string;
+  routeCode: string;
+  routeType: 'troncal' | 'zonal';
+  /** Destination-first names for the lookup; a troncal one needs the exact name. */
+  nombre: string;
+  nombreCandidates: string[];
+}
+
+/** A plan's first ride, and the minutes from departure until the rider is at
+ *  its boarding stop (the walk before it). */
+function firstRide(plan: JourneyPlan): { step: JourneyStep; readyMin: number } | null {
+  let readyMin = 0;
+  for (const step of plan.steps) {
+    if (step.type === 'ride') return { step, readyMin };
+    readyMin += step.time;
+  }
+  return null;
+}
+
+/** The route and trace a live reading needs for this boarding, or null where
+ *  there is nothing to read it against (the cable, a stop off its own trace). */
+function liveBoardingContext(step: JourneyStep): { route: RouteListItem; trace: TraceIndex; fromOrd: number } | null {
+  if (step.routeType === 'cable' || !step.routeId) return null;
+  const fromOrd = step.fromOrd;
+  if (fromOrd === undefined || fromOrd < 0) return null;
+  const routeIdx = routeIndexById.get(step.routeId);
+  const route = routeIdx === undefined ? undefined : rawRoutesList[routeIdx];
+  const trace = traceIndexById.get(step.routeId);
+  if (!route || !trace || trace.stopOk[fromOrd] !== 1) return null;
+  return { route, trace, fromOrd };
+}
+
+/**
+ * The live lookups these itineraries need: one per route direction boarded
+ * first, however many itineraries share it. Typically four to six for a pool of
+ * eight, since alternatives mostly differ after the first bus.
+ */
+export function liveBoardingTargets(plans: JourneyPlan[]): LiveBoardingTarget[] {
+  const targets = new Map<string, LiveBoardingTarget>();
+  for (const plan of plans) {
+    const first = firstRide(plan);
+    if (!first || !first.step.routeId || targets.has(first.step.routeId)) continue;
+    const context = liveBoardingContext(first.step);
+    if (!context) continue;
+    const names = getLiveNameCandidates(context.route);
+    targets.set(first.step.routeId, {
+      routeId: first.step.routeId,
+      routeCode: context.route.code,
+      routeType: context.route.type,
+      nombre: names[0] ?? context.route.destination ?? '',
+      nombreCandidates: names,
+    });
+  }
+  return [...targets.values()];
+}
+
+/** After a bus the rider cannot reach has gone, with no other in sight, the wait
+ *  is a whole headway — not the half of one the search assumes for a rider
+ *  arriving blind. */
+const MISSED_BUS_WAIT_FACTOR = 2;
+
+/**
+ * Replaces the assumed wait at each itinerary's first boarding with the live
+ * one, re-totals, re-ranks, and returns the itineraries to show.
+ *
+ * `buses` maps a route variant id to that route's live vehicles as the feed
+ * returned them. A missing or `null` entry means "no reading" — the lookup
+ * failed, was too slow, or answered with low confidence — and that itinerary
+ * goes back to the assumption it was planned with, so a slow feed can only ever
+ * cost the rider the improvement, never the plan. So does an answer with no bus
+ * of that direction in sight of the stop, which the feed cannot tell apart from
+ * one that has not left the terminal yet.
+ *
+ * Safe to call again on the same pool as the buses move: each call starts from
+ * the assumption, not from the previous call's figure.
+ *
+ * Only meaningful for a trip that leaves NOW — the caller's check, since a plan
+ * for tomorrow morning has no buses to read. And "now" moves: `departAt` is the
+ * moment every clock time on the cards is counted from, so a caller refreshing
+ * an open plan passes the current moment, not the one the search ran at —
+ * otherwise a card left open five minutes says the bus is boarded in the past.
+ */
+export function applyLiveBoarding(
+  plans: JourneyPlan[],
+  buses: ReadonlyMap<string, unknown[] | null>,
+  options: { nowMs?: number; sortBy?: 'transfers' | 'time' | 'walk'; departAt?: PlanTime } = {}
+): JourneyPlan[] {
+  const nowMs = options.nowMs ?? Date.now();
+  const now = bogotaNow(new Date(nowMs));
+  const dayType = dayTypeFor(dayOfWeek(now.year, now.month, now.day), isFestivo(now.year, now.month, now.day));
+  const hour = Math.floor(now.minute / 60) % 24;
+  const schedule = options.departAt ? createScheduleContext(options.departAt, false) : null;
+
+  /** Puts the live wait — or, with no reading, the assumed one back — into a first ride. */
+  const liveWaitInto = (step: JourneyStep, readyMin: number, assumed: number): void => {
+    let boarding: LiveBoarding | null = null;
+    const raw = step.routeId ? buses.get(step.routeId) : undefined;
+    const context = raw ? liveBoardingContext(step) : null;
+    // A route still waiting for its window to open has no bus to board yet,
+    // whatever is parked on the feed.
+    if (raw && context && !step.serviceWait) {
+      const { route, trace, fromOrd } = context;
+      const fleet = busesOfVariant(readLiveBuses(raw, nowMs), [route.catalogNombre, route.destination, route.name]
+        .filter((name): name is string => Boolean(name)));
+      const speedMpm = route.type === 'troncal'
+        ? LIVE_TRONCAL_M_PER_MIN
+        : rideSpeedMpm(getCalibration(), (route.stops ?? []).map((stop) => String(stop.codigo)), dayType, hour, LIVE_ZONAL_M_PER_MIN);
+      boarding = chooseBoarding(
+        approachingEtas({
+          buses: fleet,
+          project: (point) => projectOntoTrace(trace, point),
+          stopAlong: trace.stopAlong[fromOrd],
+          speedMpm,
+        }),
+        readyMin
+      );
+    }
+
+    // "Nothing in sight" is not a reading of the wait (`liveWait.ts`): near a
+    // route's first stops the next bus is still parked, or filed under the
+    // direction it came in on. It changes nothing and is not shown.
+    if (boarding?.status === 'none') boarding = null;
+
+    const wait = boarding
+      ? boarding.waitMin ?? Math.min(HEADWAY_WAIT_MAX_MINUTES, assumed * MISSED_BUS_WAIT_FACTOR)
+      : assumed;
+    step.time += wait - (step.boardWait ?? assumed);
+    step.boardWait = wait;
+    if (boarding) step.live = { ...boarding, asOf: nowMs };
+    else delete step.live;
+  };
+
+  for (const plan of plans) {
+    const first = firstRide(plan);
+    const assumed = first?.step.assumedWait;
+    // Nothing to read for a walk-only plan, but its clock is still re-anchored
+    // below with everyone else's.
+    if (first && assumed !== undefined) liveWaitInto(first.step, first.readyMin, assumed);
+
+    if (schedule && plan.departMinute !== undefined) {
+      reannotatePlanSchedule(plan, schedule);
+    } else {
+      plan.totalTime = Math.round(plan.steps.reduce((sum, s) => sum + s.time, 0));
+    }
+  }
+
+  sortJourneyPlans(plans, options.sortBy);
+  return plans.slice(0, PLAN_DISPLAY_LIMIT);
 }

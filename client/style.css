@@ -4983,6 +4983,78 @@ body.sidebar-collapsed .sidebar-fab {
   background: rgba(255, 90, 110, 0.14);
 }
 
+/* The first bus, read off the live feed (§5.6.6): green when the rider makes
+   it, amber when the near one leaves without them, quiet when it is too far
+   out to promise. The pulse is the only thing on the card that says "now". */
+.journey-live {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text-primary);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.journey-live-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.journey-live-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.journey-live-tag {
+  flex: none;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.journey-live.catch {
+  border-color: rgba(52, 211, 153, 0.4);
+  background: rgba(52, 211, 153, 0.1);
+}
+
+.journey-live.catch .journey-live-dot {
+  background: #34D399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+  animation: journey-live-pulse 2s ease-in-out infinite;
+}
+
+.journey-live.missed {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.1);
+}
+
+.journey-live.missed .journey-live-dot {
+  background: var(--tm-yellow);
+}
+
+.journey-live.approx {
+  color: var(--text-secondary);
+}
+
+@keyframes journey-live-pulse {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey-live.catch .journey-live-dot { animation: none; }
+}
+
 .journey-step-clock {
   display: inline-block;
   margin-right: 6px;

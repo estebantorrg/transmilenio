@@ -22,7 +22,13 @@ import {
   fetchLiveBuses,
   type CatalogRouteDetail,
 } from './tm_api.js';
-import { dayTypeFor, prepareCalibration, rideSpeedMpm } from '../../../shared/calibration.js';
+import {
+  dayTypeFor,
+  LIVE_TRONCAL_M_PER_MIN,
+  LIVE_ZONAL_M_PER_MIN,
+  prepareCalibration,
+  rideSpeedMpm,
+} from '../../../shared/calibration.js';
 import type { PreparedCalibration } from '../../../shared/calibration.js';
 import { isFestivo } from '../../../shared/festivos.js';
 
@@ -55,8 +61,10 @@ export interface StopArrivalsResult {
 // the hour and day type (spec §5.6.5), read through `shared/calibration.js` —
 // the same module the website's planner and voice ETA read, so a board and a
 // plan cannot disagree about the same bus.
-const TRONCAL_SPEED_M_PER_MIN = 400; // ~24 km/h
-const ZONAL_SPEED_M_PER_MIN = 233; // ~14 km/h
+// Held with that reading, so the board, the voice ETA and the planner's live
+// wait (§5.6.6) cannot drift apart.
+const TRONCAL_SPEED_M_PER_MIN = LIVE_TRONCAL_M_PER_MIN;
+const ZONAL_SPEED_M_PER_MIN = LIVE_ZONAL_M_PER_MIN;
 // A bus farther than this from the route polyline is not really on this trace
 // (GPS drift / wrong-variant overlap) — don't let it fabricate an ETA.
 const ON_ROUTE_MAX_PERP_M = 160;

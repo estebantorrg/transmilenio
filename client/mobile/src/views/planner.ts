@@ -21,6 +21,7 @@ import {
   describeDeparture,
   planDayDelta,
 } from '@shared/services/departure';
+import { describeLiveBoarding, watchLiveBoarding } from '@shared/services/liveBoarding';
 import { isGuidedPlan, isGuiding, startGuidance, stopGuidance } from '../services/guidance';
 import { getRouteAccentColor, CABLE_COLOR } from '@shared/utils/routeColors';
 import { api } from '@shared/services/api';
@@ -605,6 +606,12 @@ export function createPlannerView(): PlannerView {
     calc.setAttribute('aria-disabled', String(!ready));
   }
 
+  // The live wait at the first boarding (§5.6.6): the watch following the
+  // itineraries on screen, and how to start it again for the same itineraries
+  // when the rider comes back to this tab.
+  let stopLive: (() => void) | null = null;
+  let relive: (() => void) | null = null;
+
   calc.addEventListener('click', () => {
     if (!origin || !destination) {
       // Name the field that is missing and put the cursor in it — "elige origen
@@ -648,6 +655,13 @@ export function createPlannerView(): PlannerView {
           },
         };
         const seq = ++searchSeq;
+        // The previous answer's buses are no longer anyone's business.
+        stopLive?.();
+        stopLive = null;
+        relive = null;
+        // Read once: the chips can change while the walking pass is in flight.
+        const rankBy = sortBy;
+        const leavingNow = departMode === 'now';
         // `pool` is the wider candidate set the shown ranking was cut from; the
         // pedestrian pass ranks it on real walking distances and can promote a
         // plan out of it (§5.6.4).
@@ -672,9 +686,28 @@ export function createPlannerView(): PlannerView {
         // Resolve every walk leg against the real pedestrian network, then
         // re-validate, re-rank and re-cut the pool — and re-render if this is
         // still the latest search (spec §1.1 R2 shared fn).
-        void resolveWalkingLegs(pool.candidates ?? plans, sortBy, departAt, () => seq === searchSeq)
+        const walked: { pool?: JourneyPlan[] } = {};
+        void resolveWalkingLegs(pool.candidates ?? plans, rankBy, departAt, () => seq === searchSeq, walked)
           .then((resolved) => {
-            if (seq === searchSeq) renderPlans(results, resolved, showOnMap, constraints);
+            if (seq !== searchSeq) return;
+            renderPlans(results, resolved, showOnMap, constraints);
+            // A trip leaving now can read its first bus off the live feed instead
+            // of assuming a wait for it (§5.6.6): which bus the rider really
+            // boards, re-ranked over everything the walking pass kept and kept
+            // current while these cards are on screen. A planned departure has
+            // no buses to read, and stays exactly as it is.
+            if (!leavingNow) return;
+            const livePool = walked.pool ?? resolved;
+            relive = () => {
+              stopLive?.();
+              stopLive = watchLiveBoarding({
+                pool: livePool,
+                sortBy: rankBy,
+                isActive: () => seq === searchSeq,
+                onUpdate: (shown) => renderPlans(results, shown, showOnMap, constraints),
+              });
+            };
+            relive();
           })
           .catch((err) => console.warn('[planner] walk resolution failed:', err));
       } catch (err) {
@@ -710,12 +743,22 @@ export function createPlannerView(): PlannerView {
       if (state.routes.length) ensureRouter();
       renderTrips();
       refreshDepartHint();
+      // Back on the plan: its buses have moved while the tab was away.
+      relive?.();
+    },
+    onHide: () => {
+      // Nobody is reading the cards, so nobody is asking the feed (§5.6.6).
+      stopLive?.();
+      stopLive = null;
     },
     seedEndpoint: (role, ep) => {
       const target = role === 'origin' ? originField : destField;
       target.set(ep);
       target.getInput().value = ep.name;
       // Seeding is an explicit new intent: the previous answer is stale.
+      stopLive?.();
+      stopLive = null;
+      relive = null;
       results.replaceChildren();
       resultsHead.classList.add('hidden');
       renderTrips();
@@ -894,6 +937,21 @@ function renderPlans(
     }
     legs.lastElementChild?.remove();
     card.append(legs);
+
+    // Which bus the rider actually boards first, read off the live feed
+    // (§5.6.6) — absent whenever there is no reading, so a card without it is
+    // the plan exactly as it was before this existed.
+    const firstRide = plan.steps.find((step) => step.type === 'ride');
+    const liveLine = firstRide ? describeLiveBoarding(firstRide) : null;
+    if (liveLine) {
+      card.append(
+        h('div', { class: `plan-live ${liveLine.tone}` }, [
+          h('span', { class: 'plan-live-dot', 'aria-hidden': 'true' }),
+          h('span', { class: 'plan-live-text', text: liveLine.text }),
+          h('span', { class: 'plan-live-tag', text: 'en vivo' }),
+        ])
+      );
+    }
 
     // Step detail list.
     const detail = h('div', { class: 'plan-detail' });

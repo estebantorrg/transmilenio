@@ -40,7 +40,7 @@ import {
   type ServiceSpan,
 } from './schedule';
 import type { VoiceIndexRoute, VoiceRouteGeo, VoiceStop } from '../types/voice';
-import { dayTypeFor, rideSpeedMpm } from '../../../shared/calibration.js';
+import { dayTypeFor, LIVE_TRONCAL_M_PER_MIN, LIVE_ZONAL_M_PER_MIN, rideSpeedMpm } from '../../../shared/calibration.js';
 import { getCalibration } from './calibrationStore';
 
 // ─── Tunables ─────────────────────────────────────────────
@@ -52,9 +52,10 @@ import { getCalibration } from './calibrationStore';
 // the hour and day type (spec §5.6.5) — the same reading the planner uses, out
 // of `shared/calibration.js`, so an ETA and a planned trip cannot disagree about
 // how fast the same bus is. Troncal keeps the constant: the measurement covers
-// the zonal fleet only.
-const TRONCAL_SPEED_M_PER_MIN = 400; // ~24 km/h
-const ZONAL_SPEED_M_PER_MIN = 233; // ~14 km/h
+// the zonal fleet only. The two constants live with that reading, so this, the
+// server's board and the planner's live wait (§5.6.6) hold one copy.
+const TRONCAL_SPEED_M_PER_MIN = LIVE_TRONCAL_M_PER_MIN;
+const ZONAL_SPEED_M_PER_MIN = LIVE_ZONAL_M_PER_MIN;
 const ON_ROUTE_MAX_PERP_M = 160;
 const PASSED_STOP_EPSILON_M = 40;
 

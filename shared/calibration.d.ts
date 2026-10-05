@@ -19,6 +19,9 @@ export interface PreparedCalibration {
 
 export const SPEED_CAP_M_PER_MIN: number;
 export const SPEED_FLOOR_M_PER_MIN: number;
+/** A live bus's closing speed where nothing was measured (§5.6.6). */
+export const LIVE_TRONCAL_M_PER_MIN: number;
+export const LIVE_ZONAL_M_PER_MIN: number;
 export const DAY_TYPES: CalibrationDayType[];
 
 export function prepareCalibration(data: PlannerCalibrationData | null | undefined): PreparedCalibration | null;
