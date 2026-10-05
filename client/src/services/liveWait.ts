@@ -17,9 +17,14 @@
  *  · the estimate is right to ~1 min for a bus 2–5 min away and ~1.7 min at
  *    5–10 min, unbiased; past 10 min the error reaches 3–5 min;
  *  · the error grows with how far out the bus is, so the margin a promise
- *    needs does too (`catchMargin`). Replayed through this code, a firm
- *    "alcanzas" was broken — the promised bus left before the rider could be
- *    there — under 1 % of the time on a troncal and about 2 % on a zonal;
+ *    needs does too (`catchMargin`). Replayed through this code — a third run
+ *    at the Monday 18:00 peak included — a firm "alcanzas" was broken, the
+ *    promised bus gone before the rider could be there, at most 0.8 % of the
+ *    time on a troncal and 2.2 % on a zonal;
+ *  · at peak the buses run LATE against these speeds (troncal ~300 m/min, not
+ *    400): the minutes shown lean 1–3 early. Slowing the speeds to fit the peak
+ *    was tried and broke promises off-peak (zonal 9–13 %), so they stay — an
+ *    estimate that errs towards "the bus comes later" never strands anyone;
  *  · "no bus on its way" is NOT something the feed can say: near a route's
  *    first stops the next bus is still parked, or still filed under the
  *    direction it arrived on, and one came within ten minutes 36–100 % of the
@@ -160,11 +165,11 @@ export function approachingEtas(input: ApproachInput): number[] {
 }
 
 export type LiveBoardingStatus =
-  /** The next bus is one the rider reaches in time. */
+  /** The rider boards the next bus in sight. */
   | 'catch'
-  /** A nearer bus leaves before the rider gets there; this is the one after. */
+  /** A nearer bus is predicted at the stop before the rider; this is the one after. */
   | 'next'
-  /** The only buses in sight leave before the rider gets there. */
+  /** Every bus in sight is predicted at the stop before the rider. */
   | 'missed'
   /** No bus of this direction is in sight of the stop. Says nothing about the
    *  wait (see the header): the caller keeps its own assumption. */
@@ -179,6 +184,10 @@ export interface LiveBoarding {
   /** Minutes waited AT the stop for the boarded bus; null = no live figure, the
    *  caller keeps its own assumption. */
   waitMin: number | null;
+  /** The rider is at the stop at least the margin before the boarded bus: a
+   *  boarding to count on. False is "vas justo" — the bus is predicted after
+   *  the rider arrives, but by less than the estimate is good for. */
+  firm: boolean;
   /** The boarded bus is past the firm horizon: a guide, not a promise. */
   approx: boolean;
 }
@@ -194,24 +203,32 @@ export function catchMargin(readyMin: number, etaMin: number): number {
  * Which bus the rider boards, given when they can be at the stop.
  *
  * `readyMin` is minutes from now until the rider reaches the stop (the walk
- * before the first ride). A bus counts as boardable when it is predicted there
- * at least its margin after that; the nearest one that is not is reported too,
- * because "it passes in one minute and you will not make it" is exactly what
- * the rider wants to know before running for it.
+ * before the first ride). The rider boards the first bus predicted there no
+ * earlier than they are — and that boarding is FIRM only when the bus is its
+ * margin later still (`catchMargin`); inside the margin it is "vas justo".
+ *
+ * Three answers and not two, because the recordings say so. A bus inside the
+ * margin was first treated as lost ("no alcanzas"): replayed, the rider would
+ * have made 73–94 % of those, at every hour measured. So it is boarded, and
+ * said to be tight. Only a bus predicted BEFORE the rider is there is passed
+ * over — and it is reported, because "it passes in one minute, before you get
+ * there" is exactly what a rider wants to know before running for it. (Even
+ * that is not certain: buses run late at peak, and 25–59 % of those were still
+ * at the stop when the rider would have arrived. Hence the wording.)
  */
 export function chooseBoarding(etas: number[], readyMin: number): LiveBoarding {
-  if (etas.length === 0) return { status: 'none', waitMin: null, approx: false };
-  const boardable = (eta: number): boolean => eta - catchMargin(readyMin, eta) >= readyMin;
-  const missed = etas.find((eta) => !boardable(eta));
-  const boarded = etas.find(boardable);
+  if (etas.length === 0) return { status: 'none', waitMin: null, firm: false, approx: false };
+  const gone = etas.find((eta) => eta < readyMin);
+  const boarded = etas.find((eta) => eta >= readyMin);
   if (boarded === undefined) {
-    return { status: 'missed', missedEtaMin: missed, waitMin: null, approx: true };
+    return { status: 'missed', missedEtaMin: gone, waitMin: null, firm: false, approx: true };
   }
   return {
-    status: missed === undefined ? 'catch' : 'next',
+    status: gone === undefined ? 'catch' : 'next',
     etaMin: boarded,
-    ...(missed === undefined ? {} : { missedEtaMin: missed }),
-    waitMin: Math.max(0, boarded - readyMin),
+    ...(gone === undefined ? {} : { missedEtaMin: gone }),
+    waitMin: boarded - readyMin,
+    firm: boarded - catchMargin(readyMin, boarded) >= readyMin,
     approx: boarded > LIVE_FIRM_HORIZON_MIN,
   };
 }

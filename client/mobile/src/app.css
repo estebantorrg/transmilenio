@@ -706,8 +706,8 @@ input { font-family: inherit; }
 .plan-live-tag { flex: none; font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted-2); }
 .plan-live.catch { border-color: rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.1); }
 .plan-live.catch .plan-live-dot { background: var(--green); box-shadow: 0 0 8px rgba(52, 211, 153, 0.6); animation: plan-live-pulse 2s ease-in-out infinite; }
-.plan-live.missed { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.1); }
-.plan-live.missed .plan-live-dot { background: var(--amber); }
+.plan-live.tight, .plan-live.missed { border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.1); }
+.plan-live.tight .plan-live-dot, .plan-live.missed .plan-live-dot { background: var(--amber); }
 .plan-live.approx { color: var(--muted); }
 @keyframes plan-live-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .plan-live.catch .plan-live-dot { animation: none; } }

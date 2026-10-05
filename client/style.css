@@ -5034,11 +5034,13 @@ body.sidebar-collapsed .sidebar-fab {
   animation: journey-live-pulse 2s ease-in-out infinite;
 }
 
+.journey-live.tight,
 .journey-live.missed {
   border-color: rgba(251, 191, 36, 0.35);
   background: rgba(251, 191, 36, 0.1);
 }
 
+.journey-live.tight .journey-live-dot,
 .journey-live.missed .journey-live-dot {
   background: var(--tm-yellow);
 }

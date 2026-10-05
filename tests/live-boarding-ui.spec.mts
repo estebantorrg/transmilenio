@@ -9,7 +9,8 @@ import { test, expect, type Page } from '@playwright/test';
  * The live feed is mocked — it is geofenced to Colombia and CI is not there —
  * with one bus standing exactly at the origin station. Whatever route an
  * itinerary boards first, that bus projects onto its trace at the boarding
- * stop: it is at the platform now, so the line reads "está pasando ahora".
+ * stop: it is pulling in as the rider stands there, so it is boarded and the
+ * line says so — tight, not promised ("vas justo").
  */
 
 const BOOT_TIMEOUT_MS = 90_000;
@@ -41,9 +42,12 @@ test.describe('the first bus, on the planner cards', () => {
     });
     await openTrip(page);
 
-    const line = page.locator('#planner-results .journey-live').first();
+    // The card that boards AT the origin station (another may walk to a
+    // paradero the mocked bus is nowhere near, and say something else or nothing).
+    const line = page.locator('#planner-results .journey-live.tight').first();
     await expect(line).toBeVisible({ timeout: 30_000 });
-    await expect(line.locator('.journey-live-text')).toContainText('está pasando ahora');
+    await expect(line.locator('.journey-live-text')).toContainText('vas justo');
+    await expect(line).toHaveClass(/\btight\b/);
     await expect(line.locator('.journey-live-tag')).toHaveText('en vivo');
     // It belongs to the first ride of its card, and names that route.
     const card = line.locator('xpath=ancestor::div[contains(@class,"journey-option-card")]');

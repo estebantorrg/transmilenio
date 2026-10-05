@@ -87,7 +87,7 @@ function shownSignature(shown: JourneyPlan[]): string {
         plan.transfers,
         ride?.routeId ?? '',
         ride?.fromCode ?? '',
-        live ? `${live.status}:${minute(live.etaMin)}:${minute(live.missedEtaMin)}:${live.approx ? 'a' : 'f'}` : 'x',
+        live ? `${live.status}:${minute(live.etaMin)}:${minute(live.missedEtaMin)}:${live.approx ? 'a' : live.firm ? 'f' : 't'}` : 'x',
       ].join('|');
     })
     .join('§');
@@ -183,10 +183,11 @@ export function watchLiveBoarding(watch: LiveBoardingWatch): () => void {
 }
 
 /** How a card says it. `tone` picks the colour: a boarding the rider can count
- *  on, one they are about to miss, or a bus too far out to promise. */
+ *  on, one that is tight, a bus that goes before they get there, or one too
+ *  far out to promise anything about. */
 export interface LiveBoardingLine {
   text: string;
-  tone: 'catch' | 'missed' | 'approx';
+  tone: 'catch' | 'tight' | 'missed' | 'approx';
 }
 
 /** "3 min", or "menos de 1 min" — a rounded 0 reads as "it is not coming". */
@@ -207,24 +208,30 @@ export function describeLiveBoarding(step: Pick<JourneyStep, 'routeCode' | 'live
   if (!live || live.status === 'none') return null;
   const code = step.routeCode ?? 'El bus';
 
-  // The bus the rider cannot reach: "it is at the stop now" when it is that
-  // close, since "no alcanzas" to someone standing beside it would be wrong.
+  // The bus predicted at the stop before the rider. "Antes de que llegues" and
+  // not "no alcanzas": it states the prediction, and at peak a quarter to a half
+  // of those buses were still there when the rider would have arrived.
   const gone =
     live.missedEtaMin === undefined
       ? ''
       : live.missedEtaMin < 1
       ? `${code} está pasando ahora`
-      : `${code} pasa en ${minutesText(live.missedEtaMin)} y no alcanzas`;
+      : `${code} pasa en ${minutesText(live.missedEtaMin)}, antes de que llegues`;
 
   if (live.status === 'missed') return { text: gone, tone: 'missed' };
   const eta = live.etaMin ?? 0;
+  // Past the firm horizon the minutes are a guide; inside it, whether the rider
+  // makes it comfortably or only just is the thing to say.
+  const minutes = `${live.approx ? 'unos ' : ''}${minutesText(eta)}`;
   if (live.status === 'next') {
     return {
-      text: `${gone} · el siguiente, en ${live.approx ? 'unos ' : ''}${minutesText(eta)}`,
+      text: `${gone} · el siguiente, en ${minutes}${live.approx || live.firm ? '' : ' (justo)'}`,
       tone: live.approx ? 'approx' : 'missed',
     };
   }
-  return live.approx
-    ? { text: `${code} pasa en unos ${minutesText(eta)}`, tone: 'approx' }
-    : { text: `${code} pasa en ${minutesText(eta)} · alcanzas`, tone: 'catch' };
+  const verdict = live.approx ? '' : live.firm ? ' · alcanzas' : ' · vas justo';
+  return {
+    text: `${code} pasa en ${minutes}${verdict}`,
+    tone: live.approx ? 'approx' : live.firm ? 'catch' : 'tight',
+  };
 }

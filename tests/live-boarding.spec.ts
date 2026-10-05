@@ -140,38 +140,47 @@ test.describe('which bus the rider boards', () => {
     expect(catchMargin(4, 8)).toBeCloseTo(3.2, 5);
   });
 
-  test('a bus the rider reaches in time is the one they board', () => {
-    expect(chooseBoarding([5], 2)).toEqual({ status: 'catch', etaMin: 5, waitMin: 3, approx: false });
+  test('a bus the rider reaches with margin to spare is a boarding to count on', () => {
+    expect(chooseBoarding([5], 2)).toEqual({ status: 'catch', etaMin: 5, waitMin: 3, firm: true, approx: false });
   });
 
-  test('a nearer bus that leaves first is named, and the next one boarded', () => {
-    // Four minutes from the stop: the bus in 3 is gone, the one in 5 too close
-    // to promise (margin 2), the one in 9 is the ride.
+  test('a bus inside the margin is still boarded, and said to be tight', () => {
+    // Four minutes from the stop, bus in five: replayed, a rider made 73–94 %
+    // of these. It used to be "no alcanzas".
+    expect(chooseBoarding([5], 4)).toEqual({ status: 'catch', etaMin: 5, waitMin: 1, firm: false, approx: false });
+    // At the stop already: a bus arriving this instant is boarded, not promised.
+    expect(chooseBoarding([0.2], 0)).toMatchObject({ status: 'catch', firm: false, waitMin: 0.2 });
+    expect(chooseBoarding([0.6], 0)).toMatchObject({ status: 'catch', firm: true });
+  });
+
+  test('a bus predicted before the rider is there is named, and the next one boarded', () => {
     expect(chooseBoarding([3, 5, 9], 4)).toEqual({
       status: 'next',
-      etaMin: 9,
+      etaMin: 5,
       missedEtaMin: 3,
-      waitMin: 5,
+      waitMin: 1,
+      firm: false,
       approx: false,
     });
+    expect(chooseBoarding([1, 9], 4)).toMatchObject({ status: 'next', etaMin: 9, missedEtaMin: 1, firm: true });
   });
 
-  test('only unreachable buses in sight gives no wait to charge', () => {
-    expect(chooseBoarding([1, 3], 4)).toEqual({ status: 'missed', missedEtaMin: 1, waitMin: null, approx: true });
+  test('only buses that go first gives no wait to charge', () => {
+    expect(chooseBoarding([1, 3], 4)).toEqual({ status: 'missed', missedEtaMin: 1, waitMin: null, firm: false, approx: true });
   });
 
   test('past ten minutes a bus is a guide, not a promise', () => {
     const far = chooseBoarding([14], 2);
     expect(far.status).toBe('catch');
     expect(far.approx).toBe(true);
-    // …so a rider six minutes from the stop is never promised one: it would
+    // …so a rider six minutes from the stop is never PROMISED one: it would
     // have to be ten minutes out for the margin to cover it.
-    expect(chooseBoarding([9.5], 6).status).toBe('missed');
+    expect(chooseBoarding([9.5], 6)).toMatchObject({ status: 'catch', firm: false, approx: false });
     expect(chooseBoarding([10.5], 6).approx).toBe(true);
   });
 
   test('nothing in sight is not a reading', () => {
-    expect(chooseBoarding([], 3)).toEqual({ status: 'none', waitMin: null, approx: false });
+    expect(chooseBoarding([], 3)).toEqual({ status: 'none', waitMin: null, firm: false, approx: false });
   });
 });
 
@@ -280,15 +289,30 @@ test.describe('the itineraries, with the live wait in them', () => {
     for (const p of plans) expect(rideOf(p).live).toBeUndefined();
   });
 
-  test('a bus that leaves before the rider could board costs a whole headway', () => {
-    const plans = pool();
-    const a1 = plans.find((p) => rideOf(p).routeId === 'a1')!;
+  test('a bus that goes before the rider is there costs a whole headway', () => {
+    // Starting ~300 m east of S2: a few minutes' walk to the platform.
+    const out: { candidates?: JourneyPlan[] } = {};
+    findRoutes({ ...search, origin: [at(2000)[0] + 0.0027, at(2000)[1]] }, out);
+    const plans = out.candidates!;
+    const a1 = plans.find((p) => rideOf(p).routeId === 'a1' && p.transfers === 0)!;
+    const ready = a1.steps.slice(0, a1.steps.indexOf(rideOf(a1))).reduce((sum, st) => sum + st.time, 0);
+    expect(ready).toBeGreaterThan(2);
     const assumed = rideOf(a1).assumedWait!;
     const rideOnly = rideOf(a1).time - assumed;
-    // 100 m from the stop, 15 s ago: it is at the platform now.
-    applyLiveBoarding(plans, new Map([['a1', [bus(1900, 'Portal Uno', '11:59:45 AM')]]]), { nowMs: NOW, departAt: FRIDAY_NOON });
+    // 400 m from the stop: there in a minute, well before the rider.
+    applyLiveBoarding(plans, new Map([['a1', [bus(1600, 'Portal Uno')]]]), { nowMs: NOW, departAt: FRIDAY_NOON });
     expect(rideOf(a1).live).toMatchObject({ status: 'missed', waitMin: null });
     expect(rideOf(a1).time).toBeCloseTo(rideOnly + assumed * 2, 5);
+  });
+
+  test('a bus pulling in as the rider stands at the stop is boarded with no wait', () => {
+    const plans = pool();
+    const a1 = plans.find((p) => rideOf(p).routeId === 'a1' && p.transfers === 0)!;
+    const rideOnly = rideOf(a1).time - rideOf(a1).assumedWait!;
+    // 100 m from the stop, 15 s ago: it is at the platform now.
+    applyLiveBoarding(plans, new Map([['a1', [bus(1900, 'Portal Uno', '11:59:45 AM')]]]), { nowMs: NOW, departAt: FRIDAY_NOON });
+    expect(rideOf(a1).live).toMatchObject({ status: 'catch', firm: false });
+    expect(rideOf(a1).time).toBeCloseTo(rideOnly, 5);
   });
 
   test('each refresh starts from the assumption, and a lost reading restores it', () => {
@@ -407,26 +431,38 @@ test.describe('an open plan, kept current', () => {
 });
 
 test.describe('what the card says', () => {
-  const line = (live: Record<string, unknown>) => describeLiveBoarding({ routeCode: 'B11', live: { asOf: 0, waitMin: 0, approx: false, ...live } as never });
+  const line = (live: Record<string, unknown>) =>
+    describeLiveBoarding({ routeCode: 'B11', live: { asOf: 0, waitMin: 0, firm: true, approx: false, ...live } as never });
 
   test('worded from the rider’s side: whether they make it', () => {
     expect(line({ status: 'catch', etaMin: 3.2 })).toEqual({ text: 'B11 pasa en 3 min · alcanzas', tone: 'catch' });
+    expect(line({ status: 'catch', etaMin: 0.6 })).toEqual({ text: 'B11 pasa en 1 min · alcanzas', tone: 'catch' });
     expect(line({ status: 'catch', etaMin: 0.4 })).toEqual({ text: 'B11 pasa en menos de 1 min · alcanzas', tone: 'catch' });
-    expect(line({ status: 'next', etaMin: 9, missedEtaMin: 1.4 })).toEqual({
-      text: 'B11 pasa en 1 min y no alcanzas · el siguiente, en 9 min',
-      tone: 'missed',
-    });
-    expect(line({ status: 'missed', missedEtaMin: 2, waitMin: null, approx: true })).toEqual({ text: 'B11 pasa en 2 min y no alcanzas', tone: 'missed' });
   });
 
-  test('a bus at the stop is passing, not "missed"', () => {
+  test('inside the margin it is tight, not lost', () => {
+    expect(line({ status: 'catch', etaMin: 5, firm: false })).toEqual({ text: 'B11 pasa en 5 min · vas justo', tone: 'tight' });
+  });
+
+  test('a bus that goes first is stated as a prediction, with the one after', () => {
+    expect(line({ status: 'next', etaMin: 9, missedEtaMin: 1.4 })).toEqual({
+      text: 'B11 pasa en 1 min, antes de que llegues · el siguiente, en 9 min',
+      tone: 'missed',
+    });
+    expect(line({ status: 'next', etaMin: 5, missedEtaMin: 2, firm: false })?.text).toBe(
+      'B11 pasa en 2 min, antes de que llegues · el siguiente, en 5 min (justo)'
+    );
+    expect(line({ status: 'missed', missedEtaMin: 2, waitMin: null, firm: false, approx: true })).toEqual({
+      text: 'B11 pasa en 2 min, antes de que llegues',
+      tone: 'missed',
+    });
     expect(line({ status: 'missed', missedEtaMin: 0.3, waitMin: null })?.text).toBe('B11 está pasando ahora');
   });
 
   test('a bus too far out to promise is said as a guide', () => {
     expect(line({ status: 'catch', etaMin: 14, approx: true })).toEqual({ text: 'B11 pasa en unos 14 min', tone: 'approx' });
     expect(line({ status: 'next', etaMin: 13, missedEtaMin: 3, approx: true })).toEqual({
-      text: 'B11 pasa en 3 min y no alcanzas · el siguiente, en unos 13 min',
+      text: 'B11 pasa en 3 min, antes de que llegues · el siguiente, en unos 13 min',
       tone: 'approx',
     });
   });
