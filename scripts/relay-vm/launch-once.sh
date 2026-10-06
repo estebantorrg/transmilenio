@@ -8,8 +8,9 @@
 # every 15 minutes until one launch succeeds. Oracle's own error says "try again
 # later"; the API is rate-limited, and a 429 is simply skipped.
 #
-# Exit codes: 0 = launched (or it already exists) · 10 = no capacity / throttled
-# (try again next round) · anything else = a real error that waiting won't fix.
+# Exit codes: 0 = launched (or it already exists) · 10 = no capacity (try again
+# shortly) · 11 = throttled (stop asking for this run) · anything else = a real
+# error that waiting won't fix.
 #
 # Needs: an OCI CLI config for a principal allowed to launch instances
 # (IAM policy `transmi-ci-launch-relay-vm`), SUBNET_ID, and the tenancy OCID.
@@ -63,8 +64,12 @@ if grep -q '"lifecycle-state"' <<<"$out"; then
 fi
 
 reason=$(grep -oE '"message": "[^"]{0,160}' <<<"$out" | head -1 | sed 's/"message": "//')
-if grep -qiE 'capacity|TooManyRequests|429|InternalError|timed out' <<<"$out"; then
-  summary "No VM this round (1 OCPU, ${MEM} GB): ${reason:-capacity/throttled}"
+if grep -qiE 'TooManyRequests|"status": 429' <<<"$out"; then
+  summary "Throttled by OCI (1 OCPU, ${MEM} GB): ${reason:-TooManyRequests}"
+  exit 11
+fi
+if grep -qiE 'capacity|InternalError|timed out' <<<"$out"; then
+  summary "No VM this round (1 OCPU, ${MEM} GB): ${reason:-no capacity}"
   exit 10
 fi
 summary "Launch failed with an error that waiting won't fix: ${reason:-$(tail -c 300 <<<"$out")}"
