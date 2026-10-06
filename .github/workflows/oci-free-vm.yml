@@ -2,9 +2,9 @@
 # (spec §5.2.2a). The region's only free shape (VM.Standard.A1.Flex) is usually
 # "Out of host capacity", and a freed host is taken again within minutes, so the
 # asking has to be frequent: GitHub schedules a run at most every 5 minutes, and
-# each run makes 3 attempts a minute apart — about one a minute, the pace the
-# common retry scripts use against the launch API's rate limit. A 429 ends the
-# run early. The workflow switches itself off the moment the VM exists.
+# each run makes 3 attempts about a minute apart — the pace the common retry
+# scripts use against the launch API's rate limit. A 429 ends the run early.
+# The workflow switches itself off the moment the VM exists.
 #
 # Uses the existing transmi-ci OCI user (secrets below) plus the IAM policy
 # `transmi-ci-launch-relay-vm` (manage instance-family, use volume-family, use
@@ -70,11 +70,16 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           ATTEMPTS: 3
-          SPACING_S: 60
+          # A launch call takes ~35 s (mostly CLI start-up); this pause on top
+          # puts attempts about a minute apart and the whole run under 5 minutes.
+          SPACING_S: 25
         run: |
           set +e
           code=10
+          export STATE_FILE="$RUNNER_TEMP/relay-vm.env"
           for i in $(seq 1 "$ATTEMPTS"); do
+            # After the first attempt: reuse its lookups (image, no existing VM).
+            if [ -f "$STATE_FILE" ]; then set -a; . "$STATE_FILE"; set +a; fi
             ROUND=$(( ${{ github.run_number }} * ATTEMPTS + i )) bash scripts/relay-vm/launch-once.sh
             code=$?
             # Anything but "no capacity" ends the run: launched or already

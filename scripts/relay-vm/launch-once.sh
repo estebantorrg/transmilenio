@@ -29,23 +29,31 @@ SSH_PUBLIC_KEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBLmk666G716DTUh2g3kYzISOxlp
 
 summary() { [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "$*" >> "$GITHUB_STEP_SUMMARY"; echo "$*"; }
 
-existing=$(oci compute instance list --compartment-id "$COMPARTMENT" --display-name "$NAME" \
-  --query "data[?\"lifecycle-state\"!='TERMINATED'].id | [0]" --raw-output 2>/dev/null)
-if [[ "$existing" == ocid1.instance* ]]; then
-  summary "Instance already exists: \`$existing\`"
-  exit 0
-fi
+# Each OCI CLI call costs ~30 s of interpreter start-up on a runner, so the two
+# lookups below run once per workflow run, not once per attempt: the first
+# attempt does them and leaves the answers in STATE_FILE, and later attempts
+# (SKIP_LOOKUPS=1) go straight to the launch — one call each.
+if [ "${SKIP_LOOKUPS:-0}" != 1 ]; then
+  existing=$(oci compute instance list --compartment-id "$COMPARTMENT" --display-name "$NAME" \
+    --query "data[?\"lifecycle-state\"!='TERMINATED'].id | [0]" --raw-output 2>/dev/null)
+  if [[ "$existing" == ocid1.instance* ]]; then
+    summary "Instance already exists: \`$existing\`"
+    exit 0
+  fi
 
-# The newest Ubuntu 24.04 Minimal image for Ampere, so a retired image never
-# turns into a "real error".
-IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" \
-  --operating-system "Canonical Ubuntu" --shape VM.Standard.A1.Flex \
-  --sort-by TIMECREATED --sort-order DESC \
-  --query "data[?contains(\"display-name\", '24.04-Minimal-aarch64')].id | [0]" --raw-output 2>/dev/null)
-if [[ "$IMAGE" != ocid1.image* ]]; then
-  summary "Could not find an Ubuntu 24.04 Minimal aarch64 image."
-  exit 3
+  # The newest Ubuntu 24.04 Minimal image for Ampere, so a retired image never
+  # turns into a "real error".
+  IMAGE=$(oci compute image list --compartment-id "$COMPARTMENT" \
+    --operating-system "Canonical Ubuntu" --shape VM.Standard.A1.Flex \
+    --sort-by TIMECREATED --sort-order DESC \
+    --query "data[?contains(\"display-name\", '24.04-Minimal-aarch64')].id | [0]" --raw-output 2>/dev/null)
+  if [[ "$IMAGE" != ocid1.image* ]]; then
+    summary "Could not find an Ubuntu 24.04 Minimal aarch64 image."
+    exit 3
+  fi
+  [ -n "${STATE_FILE:-}" ] && printf 'IMAGE=%s\nSKIP_LOOKUPS=1\n' "$IMAGE" > "$STATE_FILE"
 fi
+IMAGE="${IMAGE:?IMAGE is required when SKIP_LOOKUPS=1}"
 
 KEYFILE=$(mktemp)
 printf '%s\n' "$SSH_PUBLIC_KEY" > "$KEYFILE"
