@@ -4,13 +4,13 @@
 # Bogotá offers this tenancy a single Always Free compute shape —
 # VM.Standard.A1.Flex (Ampere); the AMD E2.1.Micro is not available in the
 # region — and it is usually "Out of host capacity". Capacity frees up at
-# random, so a scheduled workflow (.github/workflows/oci-free-vm.yml) calls this
-# every 15 minutes until one launch succeeds. Oracle's own error says "try again
-# later"; the API is rate-limited, and a 429 is simply skipped.
+# random, so a workflow (.github/workflows/oci-free-vm.yml) calls this about once
+# a minute until one launch succeeds. Oracle's own error says "try again later";
+# the API is rate-limited, and a 429 is answered by slowing down.
 #
 # Exit codes: 0 = launched (or it already exists) · 10 = no capacity (try again
-# shortly) · 11 = throttled (stop asking for this run) · anything else = a real
-# error that waiting won't fix.
+# shortly) · 11 = throttled (pause before asking again) · anything else = an
+# error that waiting won't fix, unless it was a blip.
 #
 # Needs: an OCI CLI config for a principal allowed to launch instances
 # (IAM policy `transmi-ci-launch-relay-vm`), SUBNET_ID, and the tenancy OCID.
@@ -81,8 +81,13 @@ if grep -qiE 'TooManyRequests|"status": 429' <<<"$out"; then
   exit 11
 fi
 if grep -qiE 'capacity|InternalError|timed out' <<<"$out"; then
-  summary "No VM this round (1 OCPU, ${MEM} GB): ${reason:-no capacity}"
+  # A plain "no capacity" is a clean no. A timeout or an internal error is not:
+  # the VM may have been created anyway, so the next attempt must look first
+  # instead of launching a second one.
+  grep -qi 'capacity' <<<"$out" || rm -f "${STATE_FILE:-}"
+  summary "No VM this round (1 OCPU, ${MEM} GB): ${reason:-no clear answer}"
   exit 10
 fi
+[ -n "${STATE_FILE:-}" ] && rm -f "$STATE_FILE"
 summary "Launch failed with an error that waiting won't fix: ${reason:-$(tail -c 300 <<<"$out")}"
 exit 1

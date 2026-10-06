@@ -1,10 +1,15 @@
 # Keeps asking OCI for the Always Free relay VM in Bogotá until it gets one
 # (spec §5.2.2a). The region's only free shape (VM.Standard.A1.Flex) is usually
 # "Out of host capacity", and a freed host is taken again within minutes, so the
-# asking has to be frequent: GitHub schedules a run at most every 5 minutes, and
-# each run makes 3 attempts about a minute apart — the pace the common retry
-# scripts use against the launch API's rate limit. A 429 ends the run early.
-# The workflow switches itself off the moment the VM exists.
+# asking has to be frequent: one attempt about a minute apart — the pace the
+# common retry scripts use against the launch API's rate limit.
+#
+# GitHub's scheduler cannot carry that: on this repo a `*/5` cron fired ONCE in
+# 13 hours (2026-10-06). So a run asks for ~25 minutes and then starts the next
+# run itself (workflow_dispatch, the one event the workflow's own token may
+# raise). The cron below only restarts the chain if it ever breaks; the
+# concurrency group keeps it a single chain. The workflow switches itself off
+# the moment the VM exists.
 #
 # Uses the existing transmi-ci OCI user (secrets below) plus the IAM policy
 # `transmi-ci-launch-relay-vm` (manage instance-family, use volume-family, use
@@ -18,12 +23,12 @@ name: OCI free relay VM
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '7,37 * * * *' # safety net only — see above
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: write # to disable this workflow once the VM exists
+  actions: write # to start the next run, and to disable the workflow once the VM exists
 
 concurrency:
   group: oci-free-vm
@@ -37,8 +42,8 @@ env:
 jobs:
   launch:
     runs-on: ubuntu-latest
-    # ~1 min of setup + 3 attempts a minute apart: done before the next run is due.
-    timeout-minutes: 8
+    # ~1 min of setup + RUN_MINUTES of asking, with room for a throttle pause.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -69,31 +74,50 @@ jobs:
         id: launch
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
-          ATTEMPTS: 3
+          RUN_MINUTES: 25
           # One launch call is one request (--no-retry) and takes seconds, so the
-          # pause sets the pace: attempts about a minute apart, the run under 5 min.
+          # pause sets the pace: attempts about a minute apart.
           SPACING_S: 55
+          # A 429 means "slower": sit out a few minutes, then carry on.
+          THROTTLE_PAUSE_S: 300
+          # A blip (network, a 5xx on a lookup) is retried; this many errors in a
+          # row is a real problem — the run fails and the chain stops for a human.
+          MAX_ERRORS: 5
         run: |
           set +e
-          code=10
           export STATE_FILE="$RUNNER_TEMP/relay-vm.env"
-          for i in $(seq 1 "$ATTEMPTS"); do
+          deadline=$(( $(date +%s) + RUN_MINUTES * 60 ))
+          code=10; errors=0; i=0
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            i=$(( i + 1 ))
             # After the first attempt: reuse its lookups (image, no existing VM).
-            if [ -f "$STATE_FILE" ]; then set -a; . "$STATE_FILE"; set +a; fi
-            ROUND=$(( ${{ github.run_number }} * ATTEMPTS + i )) bash scripts/relay-vm/launch-once.sh
+            # The script drops the file when an attempt ended unclear, to look again.
+            if [ -f "$STATE_FILE" ]; then set -a; . "$STATE_FILE"; set +a; else unset SKIP_LOOKUPS IMAGE; fi
+            ROUND=$i bash scripts/relay-vm/launch-once.sh
             code=$?
-            # Anything but "no capacity" ends the run: launched or already
-            # there (0), throttled (11), or a real error.
-            [ "$code" -ne 10 ] && break
-            [ "$i" -lt "$ATTEMPTS" ] && sleep "$SPACING_S"
+            [ "$code" -eq 0 ] && break # launched, or already there
+            pause=$SPACING_S
+            case "$code" in
+              10) errors=0 ;;
+              11) errors=0; pause=$THROTTLE_PAUSE_S ;;
+              *) errors=$(( errors + 1 )); [ "$errors" -ge "$MAX_ERRORS" ] && break ;;
+            esac
+            sleep "$pause"
           done
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          # No capacity / throttled is the expected outcome most rounds: not a failure.
-          if [ "$code" -eq 10 ] || [ "$code" -eq 11 ]; then exit 0; fi
-          exit "$code"
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          if [ "$errors" -ge "$MAX_ERRORS" ]; then exit "$code"; fi
+          # No capacity / throttled is the expected outcome: not a failure, ask on.
+          echo "again=1" >> "$GITHUB_OUTPUT"
 
       - name: Stop retrying once the VM exists
         if: steps.launch.outputs.code == '0'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow disable oci-free-vm.yml --repo "$GITHUB_REPOSITORY"
+
+      - name: Start the next run
+        if: steps.launch.outputs.again == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run oci-free-vm.yml --repo "$GITHUB_REPOSITORY" --ref "$GITHUB_REF_NAME"
