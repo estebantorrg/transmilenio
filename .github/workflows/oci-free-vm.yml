@@ -70,9 +70,9 @@ jobs:
         env:
           OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
           ATTEMPTS: 3
-          # A launch call takes ~35 s (mostly CLI start-up); this pause on top
-          # puts attempts about a minute apart and the whole run under 5 minutes.
-          SPACING_S: 25
+          # One launch call is one request (--no-retry) and takes seconds, so the
+          # pause sets the pace: attempts about a minute apart, the run under 5 min.
+          SPACING_S: 55
         run: |
           set +e
           code=10
