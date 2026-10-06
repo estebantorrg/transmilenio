@@ -1,0 +1,82 @@
+# Keeps asking OCI for the Always Free relay VM in Bogotá until it gets one
+# (spec §5.2.2a). The region's only free shape (VM.Standard.A1.Flex) is usually
+# "Out of host capacity" and frees up at random; this tries every 15 minutes,
+# politely, and switches itself off the moment the VM exists.
+#
+# Uses the existing transmi-ci OCI user (secrets below) plus the IAM policy
+# `transmi-ci-launch-relay-vm` (manage instance-family, use volume-family, use
+# virtual-network-family in tenancy).
+#
+#   OCI_PRIVATE_KEY_B64 — base64 of the PEM private key for the transmi-ci user
+#   OCI_USER_OCID       — OCID of the transmi-ci user
+#   OCI_FINGERPRINT     — API key fingerprint for that key
+#   OCI_TENANCY_OCID    — tenancy OCID (also the root compartment)
+name: OCI free relay VM
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # to disable this workflow once the VM exists
+
+concurrency:
+  group: oci-free-vm
+  cancel-in-progress: false
+
+env:
+  OCI_REGION: sa-bogota-1
+  SUBNET_ID: ocid1.subnet.oc1.sa-bogota-1.aaaaaaaafdv36uh5lum2kghnetbfyy7qqbxavvg6e5dbu3f22f3hlt3762ha # relay-public-subnet
+  SUPPRESS_LABEL_WARNING: "True"
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OCI CLI
+        run: pip install --quiet oci-cli
+
+      - name: Write OCI config
+        env:
+          OCI_PRIVATE_KEY_B64: ${{ secrets.OCI_PRIVATE_KEY_B64 }}
+          OCI_USER_OCID: ${{ secrets.OCI_USER_OCID }}
+          OCI_FINGERPRINT: ${{ secrets.OCI_FINGERPRINT }}
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+        run: |
+          mkdir -p ~/.oci
+          printf '%s' "$OCI_PRIVATE_KEY_B64" | base64 -d > ~/.oci/key.pem
+          chmod 600 ~/.oci/key.pem
+          cat > ~/.oci/config <<EOF
+          [DEFAULT]
+          user=$OCI_USER_OCID
+          fingerprint=$OCI_FINGERPRINT
+          tenancy=$OCI_TENANCY_OCID
+          region=$OCI_REGION
+          key_file=$HOME/.oci/key.pem
+          EOF
+          chmod 600 ~/.oci/config
+
+      - name: Try to launch the VM
+        id: launch
+        env:
+          OCI_TENANCY_OCID: ${{ secrets.OCI_TENANCY_OCID }}
+          ROUND: ${{ github.run_number }}
+        run: |
+          set +e
+          bash scripts/relay-vm/launch-once.sh
+          code=$?
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          # No capacity / throttled is the expected outcome most rounds: not a failure.
+          if [ "$code" -eq 10 ]; then exit 0; fi
+          exit "$code"
+
+      - name: Stop retrying once the VM exists
+        if: steps.launch.outputs.code == '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow disable oci-free-vm.yml --repo "$GITHUB_REPOSITORY"
