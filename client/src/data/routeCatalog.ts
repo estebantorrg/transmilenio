@@ -367,33 +367,9 @@ export function applyZonalStopEnrichment(routes: RouteListItem[], groupsByCode: 
   }
 }
 
-function addUniqueLiveName(candidates: string[], value: unknown): void {
-  const text = String(value || '').trim();
-  if (!text) return;
-
-  const parts = text.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
-  for (const part of parts.length > 1 ? [...parts].reverse() : parts) {
-    const clean = part.trim();
-    if (clean && !candidates.some((candidate) => candidate.toLowerCase() === clean.toLowerCase())) {
-      candidates.push(clean);
-    }
-  }
-
-  if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
-    candidates.push(text);
-  }
-}
-
-export function getLiveNameCandidates(route: RouteListItem): string[] {
-  const candidates: string[] = [];
-  addUniqueLiveName(candidates, route.destination);
-  addUniqueLiveName(candidates, route.catalogNombre);
-  addUniqueLiveName(candidates, route.name);
-  addUniqueLiveName(candidates, route.origin);
-  route.stops?.slice(0, 1).forEach((stop) => addUniqueLiveName(candidates, stop.nombre));
-  route.stops?.slice(-1).forEach((stop) => addUniqueLiveName(candidates, stop.nombre));
-  return candidates;
-}
+// The live lookup's name candidates live in their own dependency-free module so
+// the planner can use them without loading this one (`liveNames.ts`).
+export { getLiveNameCandidates } from './liveNames';
 
 /**
  * Builds the unified route list from the catalog, enriching it with ArcGIS

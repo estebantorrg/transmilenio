@@ -15,7 +15,10 @@ import {
 import { buildTraceIndex, projectOntoTrace, traceDistanceBetween, traceSliceBetween, type TraceIndex } from './trace';
 import { approachingEtas, busesOfVariant, chooseBoarding, readLiveBuses, type LiveBoarding } from './liveWait';
 import { haversineMeters } from '../utils/geo';
-import { getLiveNameCandidates } from '../data/routeCatalog';
+// Not from `routeCatalog.ts`: that one brings the colour tables, and the router
+// has to load on its own — in the Node specs it is loaded alongside ES-module
+// specs that hold those same files, and Playwright cannot load one twice.
+import { getLiveNameCandidates } from '../data/liveNames';
 import type { RouteListItem } from '../types/transmilenio';
 import {
   clampSpeedMpm,
