@@ -433,11 +433,21 @@
        whether the prerendered pages (spec §5.5.4) are reaching anyone. Deferred
        so it never competes with the map for the critical path. Website only: the
        APK shell (client/mobile/index.html) is offline-first and must not depend
-       on a third-party host. -->
-  <script
-    defer
-    src="https://static.cloudflareinsights.com/beacon.min.js"
-    data-cf-beacon='{"token": "efde7d251a0d410ba193408213bfcc04"}'
-  ></script>
+       on a third-party host.
+       Never from a development copy: a dev server, the test runner or a phone
+       on the LAN (localhost, loopback and private-network addresses) counted
+       as visits and were most of them, drowning out the real ones. Hence a
+       script that adds the tag instead of the tag itself. -->
+  <script>
+    (function () {
+      var host = location.hostname;
+      if (/^(localhost$|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1\]$)|\.localhost$/.test(host)) return;
+      var beacon = document.createElement('script');
+      beacon.defer = true;
+      beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+      beacon.setAttribute('data-cf-beacon', '{"token": "efde7d251a0d410ba193408213bfcc04"}');
+      document.body.appendChild(beacon);
+    })();
+  </script>
 </body>
 </html>
