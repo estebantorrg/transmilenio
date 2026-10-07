@@ -1,0 +1,35 @@
+# Cloudflare Worker that keeps asking OCI for the free relay VM (spec §5.2.2a).
+#
+#   npx wrangler deploy            (from this folder)
+#   npx wrangler tail              (watch the attempts live)
+#   npx wrangler kv key get state --binding STATE --remote   (latest outcome)
+#
+# Secrets (npx wrangler secret put <NAME>): OCI_PRIVATE_KEY (PKCS#8 PEM of an API
+# key of the transmi-ci user), OCI_USER_OCID, OCI_FINGERPRINT, OCI_TENANCY_OCID.
+# That user needs only the IAM policy `transmi-ci-launch-relay-vm`.
+name = "transmi-relay-vm"
+main = "src/index.mjs"
+compatibility_date = "2026-09-01"
+# Nothing to serve: no public URL at all.
+workers_dev = false
+preview_urls = false
+
+[triggers]
+crons = ["* * * * *"]
+
+[observability]
+enabled = true
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "753da2ac0ad043eca275587c18452bd3"
+
+[vars]
+OCI_REGION = "sa-bogota-1"
+AVAILABILITY_DOMAIN = "OMLP:SA-BOGOTA-1-AD-1"
+# relay-public-subnet
+SUBNET_ID = "ocid1.subnet.oc1.sa-bogota-1.aaaaaaaafdv36uh5lum2kghnetbfyy7qqbxavvg6e5dbu3f22f3hlt3762ha"
+# Canonical-Ubuntu-24.04-Minimal-aarch64-2026.09.18-0. If Oracle retires it the
+# launch answers 4xx (state.last shows it): `oci compute image list
+# --operating-system "Canonical Ubuntu" --shape VM.Standard.A1.Flex` has the new one.
+IMAGE_ID = "ocid1.image.oc1.sa-bogota-1.aaaaaaaau4civup7jbj3d4lbze36ld6kjlgtg6vfotydzvl4jzmgi7hc4lha"
