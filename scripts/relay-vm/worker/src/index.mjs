@@ -24,9 +24,11 @@ import { importKey, ociFetch } from './oci.mjs';
 const NAME = 'transmi-relay';
 // Public half only; the private key never leaves the maintainer's machine.
 const SSH_PUBLIC_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBLmk666G716DTUh2g3kYzISOxlpY5lJ+znSZYv07TQC transmi-relay';
-// Alternate sizes between attempts: a smaller machine sometimes fits where the
-// bigger one doesn't. Both are inside the Always Free 2 OCPU / 12 GB.
-const MEMORY_GB = [6, 2];
+// The smallest this shape allows, every time: a host with room for a bigger
+// machine has room for this one, so asking for more can only fail more often
+// (it used to alternate 6 and 2 GB — half the attempts were harder to place for
+// memory the relay doesn't need). Memory can be raised later on the same VM.
+const MEMORY_GB = 1;
 const THROTTLE_PAUSE_MS = 5 * 60_000;
 const ERROR_PAUSE_MS = 10 * 60_000;
 const HEARTBEAT_EVERY_MIN = 10;
@@ -68,7 +70,7 @@ export async function attempt(now, env, fetchImpl = fetch) {
     const existing = (await listed.json()).find((instance) => instance.lifecycleState !== 'TERMINATED');
     if (existing) return { kind: 'exists', instanceId: existing.id };
 
-    const memory = MEMORY_GB[new Date(now).getUTCMinutes() % MEMORY_GB.length];
+    const memory = MEMORY_GB;
     const launched = await ociFetch({
       ...call,
       method: 'POST',

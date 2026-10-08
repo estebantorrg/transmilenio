@@ -81,7 +81,7 @@ function signatureHolds(request: Sent): boolean {
 test.describe('relay VM worker', () => {
   test('a minute with no capacity: one look, one launch request, both signed', async () => {
     const w = world();
-    expect(await w.run()).toMatchObject({ kind: 'capacity', status: 500, memory: 2 });
+    expect(await w.run()).toMatchObject({ kind: 'capacity', status: 500, memory: 1 });
     expect(w.sent.map((request) => request.method)).toEqual(['GET', 'POST']);
 
     const [look, launch] = w.sent;
@@ -96,7 +96,7 @@ test.describe('relay VM worker', () => {
     expect(JSON.parse(launch.body!)).toMatchObject({
       displayName: 'transmi-relay',
       shape: 'VM.Standard.A1.Flex',
-      shapeConfig: { ocpus: 1, memoryInGBs: 2 },
+      shapeConfig: { ocpus: 1, memoryInGBs: 1 },
       sourceDetails: { sourceType: 'image', imageId: 'ocid1.image.oc1..i', bootVolumeSizeInGBs: 50 },
       createVnicDetails: { subnetId: 'ocid1.subnet.oc1..s', assignPublicIp: true },
     });
@@ -109,10 +109,10 @@ test.describe('relay VM worker', () => {
     expect(w.sent).toHaveLength(0);
   });
 
-  test('sizes alternate by the minute', async () => {
+  test('every minute asks for the same, smallest machine', async () => {
     const w = world();
-    expect(await w.run(NOW + 60_000)).toMatchObject({ memory: 6 });
-    expect(await w.run(NOW + 120_000)).toMatchObject({ memory: 2 });
+    expect(await w.run(NOW + 60_000)).toMatchObject({ memory: 1 });
+    expect(await w.run(NOW + 120_000)).toMatchObject({ memory: 1 });
   });
 
   test('"no capacity" again is written only on the heartbeat minute', async () => {
