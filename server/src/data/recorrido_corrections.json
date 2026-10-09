@@ -53,6 +53,61 @@
       "codigo": "C401",
       "added": "2026-10-08",
       "note": "Renumbered to FB401 (public B401, #5378 Est Mazurén) on 2026-05-19. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records the renumbering, and the official route finder confirms it: on 2026-10-08 it lists the new código and no longer lists the old one. The new código was issued under a NEW id, so the id-keyed rename purge in mergeCatalogs cannot see it and the old código was left in the catalog beside its replacement."
+    },
+    {
+      "codigo": "37",
+      "added": "2026-10-08",
+      "note": "Suspended on 2025-03-03. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión reemplaza ruta DB\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "A628",
+      "added": "2026-10-08",
+      "note": "Suspended on 2025-03-10. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "H628",
+      "added": "2026-10-08",
+      "note": "Suspended on 2025-03-10. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "A522",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-06-01. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión bajos indicadores\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "G522",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-06-01. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión bajos indicadores\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "L416",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-06-22. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"suspensión por modificaciones\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "F416",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-06-22. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"suspensión por modificaciones\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "L813",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-07-06. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "576",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-07-21. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"Suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "G527",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-07-21. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
+    },
+    {
+      "codigo": "K527",
+      "added": "2026-10-08",
+      "note": "Suspended on 2026-07-21. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records it as SUS, \"suspensión\", and the official route finder no longer lists the código (checked 2026-10-08). The catalog last saw it on 2026-08-19 and no sync has run since to expire it, so the site was still showing a suspended route as running. Answered by the maintainer on 2026-10-08."
     }
   ],
   "retiredVariants": [

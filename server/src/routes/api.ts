@@ -340,6 +340,12 @@ router.get('/planner-calibration', dataFileEndpoint<object>(
 router.get('/ruteros-tradicionales', dataFileEndpoint<object>(
   'ruteros_tradicionales.json', 'ruteros tradicionales', (ruteros) => ruteros
 ));
+// First and last scheduled departure of each urban zonal route from its own
+// cabecera, per day type — TRANSMILENIO's schedule, built by
+// scripts/calibration/cabeceras.mjs. ~40 KB, fetched once by the route page.
+router.get('/horarios-cabecera', dataFileEndpoint<object>(
+  'horarios_cabecera.json', 'horarios por cabecera', (horarios) => horarios
+));
 
 // ─── Cable Endpoints ──────────────────────────────────────
 

@@ -29,6 +29,8 @@ import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import { api } from '../services/api';
+import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
+import type { ServiceSpan } from '../services/schedule';
 import {
   formatSchedule,
   parseRoutePathname,
@@ -134,6 +136,56 @@ function ruteroBlock(route: RouteListItem): string {
   `;
 }
 
+let cabecerasPromise: Promise<HorariosCabeceraData | null> | null = null;
+let cabeceras: HorariosCabeceraData | null = null;
+
+/** TRANSMILENIO's schedule by cabecera, fetched once per session (same retry rule as the ruteros). */
+function loadCabeceras(): Promise<HorariosCabeceraData | null> {
+  cabecerasPromise ??= api
+    .getHorariosCabecera()
+    .then((res) => (cabeceras = res.success && res.rutas ? { fuente: res.fuente, rutas: res.rutas, circulares: res.circulares } : null))
+    .catch(() => null)
+    .then((loaded) => {
+      if (!loaded) window.setTimeout(() => (cabecerasPromise = null), 60_000);
+      return loaded;
+    });
+  return cabecerasPromise;
+}
+
+/**
+ * First and last bus from this sentido's own cabecera, under the catalog's
+ * table — and only when it says something that table does not. The catalog has
+ * one window per código, and for a route with a cabecera at each end it is often
+ * the other end's (C149 reads 4:00 a.m.; its first bus leaves at 5:38). Where
+ * the two agree the block would repeat the table above it, so it stays out.
+ */
+function cabeceraBlock(route: RouteListItem, bajoElGeneral: boolean): { html: string; spans?: ServiceSpan[] } {
+  const entry = cabeceraDe(cabeceras, route);
+  if (!entry) {
+    // The other side of a loop: no cabecera of its own, so no hours to add —
+    // but the days the loop does not run hold for it too.
+    const sin = diasSinServicio(circularSinServicio(cabeceras, route, route.serviceSpans));
+    return { html: sin ? `<p class="page-note route-no-opera">No opera ${escapeHTML(sin)}.</p>` : '' };
+  }
+  const { rows, aporta, spans, noOpera } = cabeceraHorario(entry, route.serviceSpans);
+  if (!aporta || rows.length === 0) {
+    // Same hours as the table above, so no second table — but the days it does
+    // not run are still said in words, not left to a missing row.
+    const sin = diasSinServicio(noOpera);
+    return { html: sin ? `<p class="page-note route-no-opera">No opera ${escapeHTML(sin)}.</p>` : '' };
+  }
+  const nombre = tidy(route.stops?.[0]?.nombre ?? '') || entry.n;
+  const html = `
+    <div class="route-cabecera">
+      <h3 class="route-cabecera-title">Primer y último bus desde <strong>${escapeHTML(nombre)}</strong></h3>
+      <table class="schedule-table"><tbody>${rows
+        .map((row) => `<tr><td class="schedule-day">${escapeHTML(row.days)}</td><td class="schedule-time">${escapeHTML(row.hours)}</td></tr>`)
+        .join('')}</tbody></table>
+      <p class="page-note">Salidas programadas por TRANSMILENIO desde la primera parada de este sentido.${bajoElGeneral ? ' El horario de arriba es el general de la ruta: cuando hay una cabecera en cada extremo, el primer bus de una sale más tarde que el de la otra.' : ''}</p>
+    </div>`;
+  return { html, spans };
+}
+
 let ruterosPromise: Promise<RuterosTradicionales | null> | null = null;
 let ruteros: RuterosTradicionales | null = null;
 
@@ -204,6 +256,11 @@ function tripHtml(route: RouteListItem): string {
 
 function render(route: RouteListItem): string {
   const scheduleHtml = formatSchedule(route);
+  const { html: cabecera, spans: cabeceraSpans } = cabeceraBlock(route, Boolean(scheduleHtml));
+  // The "en servicio" chip reads this sentido's own hours when the page has
+  // them: a chip saying "último servicio 9:00 p.m." over a table whose last bus
+  // leaves at 10:36 would be the page contradicting itself.
+  const statusRoute = cabeceraSpans ? { ...route, serviceSpans: cabeceraSpans } : route;
   const rutero = hasRutero(route) ? ruteroBlock(route) : '';
   const stopCount = route.stops?.length ?? 0;
 
@@ -215,6 +272,8 @@ function render(route: RouteListItem): string {
     // The código riders knew before TRANSMILENIO renumbered the route
     // (shared/renumeraciones.js): the answer to "is this the old 39?".
     { label: 'Antes', value: codigosAnteriores(route.code).join(', ') || null },
+    // From TRANSMILENIO's schedule: the bus leaves one cabecera and comes back to it.
+    { label: 'Recorrido', value: esCircular(cabeceras, route) ? 'Circular' : null },
   ]);
 
   return `
@@ -250,11 +309,12 @@ function render(route: RouteListItem): string {
         ${renderLiveCard()}
       </section>
 
-      ${scheduleHtml ? `
+      ${scheduleHtml || cabecera ? `
       <section class="page-section" aria-labelledby="horario-h">
         <h2 class="page-section-title" id="horario-h">Horario</h2>
-        ${renderServiceStatus(route)}
+        ${renderServiceStatus(statusRoute)}
         ${scheduleHtml}
+        ${cabecera}
       </section>` : ''}
 
       <section class="page-section page-section-stops" aria-labelledby="paradas-h">
@@ -316,6 +376,17 @@ function wire(el: HTMLElement, route: RouteListItem): void {
     codigosActuales(named).some((codigo) => codigo.toUpperCase() === route.code.toUpperCase())
   ) {
     history.replaceState(history.state, '', routePagePath(route.code));
+  }
+
+  // The schedule by cabecera touches two places (the ficha's Recorrido cell and
+  // the Horario section), so its arrival re-renders the page in place — the same
+  // way an enriched route does (`adoptRoutePage`), keeping the scroll position.
+  if (!cabeceras) {
+    void loadCabeceras().then((loaded) => {
+      if (loaded && openRoute === route && isRoutePageOpen() && (cabeceraDe(loaded, route) || esCircular(loaded, route))) {
+        refreshOverlayPage(descriptor(route));
+      }
+    });
   }
 
   if (!ruteros) {

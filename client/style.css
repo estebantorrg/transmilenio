@@ -5812,6 +5812,27 @@ body.native-app .route-detail-close:active {
   margin: 0;
 }
 
+/* First and last bus from this sentido's own cabecera, under the route's
+   general schedule (services/cabecera.ts). A sub-block of Horario, set off by
+   the accent the way a quoted figure is, not a second section. */
+.route-cabecera {
+  margin-top: 16px;
+  padding-left: 14px;
+  border-left: 2px solid var(--page-accent, var(--tm-red));
+}
+
+.route-cabecera-title {
+  margin: 0 0 6px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.route-cabecera-title strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
 /* ── Ficha técnica ────────────────────────────────────────────────────────
    The facts you read *across*: one strip, hairline-divided, tabular figures.
    The dividers are the container's own background showing through a 1px gap, so
