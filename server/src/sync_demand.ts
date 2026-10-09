@@ -119,6 +119,10 @@ async function fetchStationRefs(): Promise<Map<string, StationRef>> {
       lon,
     });
   }
+  // ArcGIS answers a failed query with HTTP 200 and an `error` body, which
+  // parses to no features at all. Every station is dropped by the join below
+  // without one, so stop here rather than download fifteen days for nothing.
+  if (refs.size === 0) throw new Error('troncal stations returned no usable features');
   return refs;
 }
 
@@ -183,6 +187,10 @@ export async function syncStationDemand(): Promise<number> {
       rank: 0, // assigned after the sort below
     });
   }
+  // Never write an empty harvest (spec §1, §5.5.1): the file would carry a new
+  // `window`, so the daily workflow would read it as fresh data and commit it,
+  // and the Demanda layer would go blank in production with nothing failing.
+  if (stations.length === 0) throw new Error('no Salidas station code matched a troncal station — refusing to write');
   stations.sort((a, b) => b.total - a.total);
   stations.forEach((s, i) => { s.rank = i + 1; });
 

@@ -54,7 +54,6 @@ export interface CardBalanceRead {
       path: string;
       method: 'POST';
       requestBody: { numero_tarjeta: string; consultar: 'true' | 'false' };
-      requestHeaders: Record<string, string>;
       count: number;
     };
     card: {
@@ -320,7 +319,6 @@ export async function fetchCardBalance(
         path: CARD_API_PATH,
         method: 'POST',
         requestBody: { numero_tarjeta: maskedCardNumber, consultar },
-        requestHeaders: Object.fromEntries(Object.entries(CARD_HEADERS_BASE).map(([key, value]) => [key, String(value)])),
         count: movements.length,
       },
       card: {

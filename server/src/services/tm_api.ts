@@ -17,6 +17,7 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
 import { forgetLiveName, recallLiveName, rememberLiveName } from './live_name_memo.js';
+import { createSharedWindow } from './flow_control.js';
 import {
   layoutServices,
   planoDetalle,
@@ -853,6 +854,18 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
 
 export function getStationByCode(code: string): CatalogStation | null {
   return (masterCatalog.stations && masterCatalog.stations[code]) ?? null;
+}
+
+/**
+ * Whether `code` is a route this catalog files. A live request names its route
+ * in free text and the server forwards it, so this is the check that keeps a
+ * made-up código from becoming upstream traffic (spec §3.4). With no catalog
+ * loaded there is nothing to check against, and nothing is refused.
+ */
+export function isCatalogRouteCode(code: string): boolean {
+  const codes = Object.keys(masterCatalog.routes || {});
+  const wanted = code.trim().toUpperCase();
+  return codes.length === 0 || codes.some((known) => known.toUpperCase() === wanted);
 }
 
 export function isCatalogStale(): boolean {
@@ -2220,11 +2233,36 @@ async function runLiveTiers(
   return null;
 }
 
-export async function fetchLiveBuses(
+// The live host refreshes a route's positions about every 47 s (measured,
+// `tests/live-footprint.spec.ts`), so riders watching the same route are asking
+// the same question: they share one cascade while it runs and its answer for
+// this long after. Under the 15 s poll (spec §3.4), so a rider alone on a route
+// still gets a new answer on every poll.
+const LIVE_SHARED_WINDOW_MS = 10_000;
+const LIVE_SHARED_MAX = 400; // bounded like the name memo
+const sharedLiveBuses = createSharedWindow<LiveBusesResult>(LIVE_SHARED_WINDOW_MS, LIVE_SHARED_MAX);
+
+/**
+ * Live buses for a route, through the tier cascade. Upstream load follows the
+ * number of routes being watched, not the number of people watching them: the
+ * name candidates are part of the identity (the direction is in the name, spec
+ * §5.2.4), and `/api/buses` and the stop-arrivals fan-out both come through here.
+ */
+export function fetchLiveBuses(
   ruta: string,
   nombre: string,
   routeType: 'troncal' | 'zonal' = 'troncal',
   nombreCandidates: string[] = []
+): Promise<LiveBusesResult> {
+  const key = [routeType, ruta, nombre, ...nombreCandidates].join('|').toLowerCase();
+  return sharedLiveBuses(key, () => runLiveCascade(ruta, nombre, routeType, nombreCandidates));
+}
+
+async function runLiveCascade(
+  ruta: string,
+  nombre: string,
+  routeType: 'troncal' | 'zonal',
+  nombreCandidates: string[]
 ): Promise<LiveBusesResult> {
   const contexts = routeType === 'zonal'
     ? [createLiveRequestContext(ruta, nombre, routeType)]

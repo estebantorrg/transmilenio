@@ -60,6 +60,11 @@ export async function syncTransmibici(): Promise<number> {
       lon,
     });
   }
+  // Never write an empty harvest (spec §1, §5.5.1): ArcGIS answers a failed
+  // query with HTTP 200 and an `error` body, which parses to no features, and an
+  // empty file reads downstream as "there is no bike parking" rather than as the
+  // failure it is.
+  if (points.length === 0) throw new Error('transmibici yielded 0 usable points — refusing to write');
   points.sort((x, y) => x.nombre.localeCompare(y.nombre));
 
   await writeFile(OUT, JSON.stringify(points), 'utf8');

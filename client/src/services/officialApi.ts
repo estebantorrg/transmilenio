@@ -287,7 +287,6 @@ async function readCardBalance(numeroTarjeta: string, consultar: 'true' | 'false
           path: '/lectura_tarjeta',
           method: 'POST',
           requestBody: { numero_tarjeta: masked, consultar: cons },
-          requestHeaders: { ...LIVE_JSON_HEADERS },
           count: movements.length,
         },
         card: {

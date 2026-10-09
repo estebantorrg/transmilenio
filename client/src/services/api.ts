@@ -658,7 +658,6 @@ export interface CardBalanceRead {
       path: string;
       method: 'POST';
       requestBody: { numero_tarjeta: string; consultar: 'true' | 'false' };
-      requestHeaders: Record<string, string>;
       count: number;
     };
     card: {

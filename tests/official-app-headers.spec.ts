@@ -73,6 +73,14 @@ test.describe('official app identity', () => {
     expect(offenders).toEqual([]);
   });
 
+  test('the id goes upstream and never back to a caller', () => {
+    // `/api/card/read` used to answer with the headers it had sent, so any
+    // card-shaped number bought a stranger this deployment's uuid — the handle
+    // a block is filed against (spec §5.5.1a).
+    const card = fs.readFileSync(path.join(ROOT, 'server/src/services/card_balance.ts'), 'utf8');
+    expect(card).not.toContain('requestHeaders');
+  });
+
   test('the operator can pin the id with TM_APP_UUID', async () => {
     // Fresh process: the module resolves its id at load, so this is the only
     // way to observe the env override.

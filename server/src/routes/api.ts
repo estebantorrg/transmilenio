@@ -9,7 +9,8 @@ import zlib from 'zlib';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { anyPublicProxyAllowed, publicProxyAllowed } from '../services/public_proxy_policy.js';
+import { anyPublicProxyAllowed } from '../services/public_proxy_policy.js';
+import { clientKey, createRateLimiter } from '../services/flow_control.js';
 
 const router = Router();
 
@@ -74,6 +75,34 @@ function normalizeLiveNameCandidates(value: unknown): string[] {
     if (candidates.length >= LIVE_NAME_CANDIDATE_LIMIT) break;
   }
   return candidates;
+}
+
+// ─── Per-client budgets (spec §3.4) ───────────────────────
+// Each of these endpoints turns one request into calls to someone else's host,
+// so each has a budget per client per minute. They are sized for a network full
+// of riders behind one address (carrier NAT, a campus), not for one person: a
+// script is what they stop. `req.ip` is the real client — see `trust proxy` in
+// index.ts.
+const RATE_WINDOW_MS = 60_000;
+const RATE_BUDGETS = {
+  buses: 90,
+  arrivals: 60,
+  'stop-arrivals': 60,
+  card: 10,
+  geocode: 120,
+  'walking-route': 240,
+} as const;
+const rateLimiter = createRateLimiter(RATE_WINDOW_MS);
+
+function rateLimit(name: keyof typeof RATE_BUDGETS): RequestHandler {
+  return (req, res, next) => {
+    if (rateLimiter.allow(`${name}|${clientKey(req.ip ?? '')}`, RATE_BUDGETS[name])) {
+      next();
+      return;
+    }
+    res.setHeader('Retry-After', String(rateLimiter.retryAfterSeconds()));
+    res.status(429).json({ success: false, error: 'Too many requests' });
+  };
 }
 
 async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promise<any> {
@@ -245,17 +274,6 @@ router.get('/troncal/station/:code', async (req: Request, res: Response) => {
   }
 });
 
-// Sync trigger
-router.post('/troncal/sync', async (_req: Request, res: Response) => {
-  if (tmApi.isSyncInProgress()) {
-    res.json({ success: true, message: 'Sync already in progress' });
-    return;
-  }
-  // Run in background
-  tmApi.syncMasterCatalog().catch((err) => console.error('[Sync Error]', err));
-  res.json({ success: true, message: 'Sync started in background' });
-});
-
 // ─── Zonal Endpoints ──────────────────────────────────────
 
 router.get('/zonal/routes', featureEndpoint('zonal-routes', queries.zonalRoutes, 'zonal routes', 600));
@@ -352,7 +370,7 @@ router.get('/horarios-cabecera', dataFileEndpoint<object>(
 router.get('/cable/stations', featureEndpoint('cable-stations', queries.cableStations, 'cable stations', 600));
 router.get('/cable/trazado', featureEndpoint('cable-traces', queries.cableTraces, 'cable traces', 600));
 
-router.post('/buses', async (req: Request, res: Response) => {
+router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) => {
   const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
   const nombre = normalizeRequestText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
   const nombreCandidates = normalizeLiveNameCandidates(req.body?.nombreCandidates);
@@ -360,6 +378,12 @@ router.post('/buses', async (req: Request, res: Response) => {
 
   if (!ruta) {
     res.status(400).json({ success: false, error: 'ruta is required' });
+    return;
+  }
+  // The route is free text the server would forward as written, so only a
+  // código the catalog files is asked upstream (spec §3.4).
+  if (!tmApi.isCatalogRouteCode(ruta)) {
+    res.status(404).json({ success: false, error: `Route ${ruta} not found in catalog` });
     return;
   }
 
@@ -420,7 +444,7 @@ router.post('/buses', async (req: Request, res: Response) => {
 // ─── Arrivals (llegadas at a paradero) ────────────────────
 // Real-time bus arrivals/ETAs at a stop (spec §5.8). Rides the same CO live
 // transport as /buses; like it, never hard-fails — empty list on any outage.
-router.post('/arrivals', async (req: Request, res: Response) => {
+router.post('/arrivals', rateLimit('arrivals'), async (req: Request, res: Response) => {
   const paradero = normalizeRequestText(
     req.body?.paradero ?? req.body?.cenefa ?? req.body?.codigo,
     LIVE_ROUTE_CODE_MAX_LENGTH
@@ -443,7 +467,7 @@ router.post('/arrivals', async (req: Request, res: Response) => {
 // CODE) have a live bus approaching, and in how long. Computed from live bus
 // positions projected onto each route's official trace (spec §5.8, §5.6).
 // Never hard-fails — empty list on any outage.
-router.post('/stop-arrivals', async (req: Request, res: Response) => {
+router.post('/stop-arrivals', rateLimit('stop-arrivals'), async (req: Request, res: Response) => {
   const code = normalizeRequestText(
     req.body?.code ?? req.body?.codigo ?? req.body?.cenefa ?? req.body?.paradero,
     LIVE_ROUTE_CODE_MAX_LENGTH
@@ -465,7 +489,7 @@ router.post('/stop-arrivals', async (req: Request, res: Response) => {
 // Reproduces the official app's `POST /lectura_tarjeta` (spec §5.5.1a). The card
 // number is never logged in full and never cached.
 
-router.post('/card/read', async (req: Request, res: Response) => {
+router.post('/card/read', rateLimit('card'), async (req: Request, res: Response) => {
   const rawCardNumber = req.body?.numero_tarjeta ?? req.body?.numeroTarjeta ?? req.body?.cardNumber;
   const consultar = req.body?.consultar ?? 'false';
   const masked = rawCardNumber ? maskCardNumber(String(rawCardNumber)) : '(missing)';
@@ -581,7 +605,7 @@ router.get('/geoip', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/geocode', async (req: Request, res: Response) => {
+router.get('/geocode', rateLimit('geocode'), async (req: Request, res: Response) => {
   const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   if (!query) {
     res.status(400).json({ success: false, error: 'Query parameter "q" is required' });
@@ -603,7 +627,7 @@ router.get('/geocode', async (req: Request, res: Response) => {
 
 // ─── Walking Route Geometry ───────────────────────────────
 
-router.get('/walking-route', async (req: Request, res: Response) => {
+router.get('/walking-route', rateLimit('walking-route'), async (req: Request, res: Response) => {
   const from = parseLngLatQuery(req.query.from);
   const to = parseLngLatQuery(req.query.to);
 
@@ -710,37 +734,12 @@ router.get('/walking-route', async (req: Request, res: Response) => {
 
 // ─── Health Check ─────────────────────────────────────────
 
-router.get('/debug-buses', async (req: Request, res: Response) => {
-  const diagnostics: any = {};
-  try {
-    diagnostics.success = true;
-    diagnostics.config = {
-      relayConfigured: Boolean(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL),
-      publicProxyEnabled: publicProxyAllowed('live'),
-      publicProxyCardEnabled: publicProxyAllowed('card'),
-      renderRuntime: Boolean(process.env.RENDER)
-    };
-
-    console.log('[/debug-buses] Attempting live fetch...');
-    try {
-      const live = await tmApi.fetchLiveBuses('1', 'Universidades', 'troncal');
-      diagnostics.live = { success: true, count: live.buses.length, source: live.source };
-    } catch (err: any) {
-      diagnostics.live = { success: false, error: err?.message || String(err), code: err?.code };
-    }
-
-    res.setHeader('Cache-Control', 'no-store');
-    res.json(diagnostics);
-  } catch (err: any) {
-    res.status(500).json({ success: false, error: 'Debug buses failed', diagnostics });
-  }
-});
-
 router.get('/health', async (_req: Request, res: Response) => {
   const body: Record<string, any> = {
     status: 'ok',
     cacheEntries: cache.size,
     liveCacheEntries: liveBusCache.size,
+    rateLimitKeys: rateLimiter.size(),
     catalogStations: Object.keys(tmApi.getCatalog().stations || {}).length,
     catalogStale: tmApi.isCatalogStale(),
     liveTrackingVersion: tmApi.LIVE_TRACKING_VERSION,

@@ -38,9 +38,23 @@ const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
   res.status(500).json({ success: false, error: 'Internal server error' });
 };
 
-// Behind Render's proxy — trust X-Forwarded-* so req.ip is the real client IP
-// (used by /api/geoip for approximate location).
-app.set('trust proxy', true);
+// `req.ip` is what the per-client budgets count against (spec §3.4), so it has
+// to be the real client and not whatever a caller typed into X-Forwarded-For.
+// Trusting every hop (`true`) reads the LEFTMOST entry, which is the one the
+// caller controls. Trusting only our own front — the host's private network and
+// Cloudflare's edge, which is what onrender.com sits behind — reads the first
+// address from the right that neither of them owns: the client, however many
+// hops stand in between. The ranges are Cloudflare's published list
+// (cloudflare.com/ips); one missing from it would count that edge as a client.
+const CLOUDFLARE_RANGES = [
+  '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+  '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+  '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+  '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+  '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+  '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+];
+app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal', ...CLOUDFLARE_RANGES]);
 
 const configuredOrigins = process.env.CLIENT_ORIGINS
   ?.split(',')
@@ -107,14 +121,12 @@ app.get('/api', (_req, res) => {
     version: '2.0.0',
     endpoints: [
       'GET /api/health',
-      'GET /api/debug-buses',
       'GET /api/troncal/routes',
       'GET /api/troncal/stations',
       'GET /api/troncal/corridors',
       'GET /api/troncal/master-catalog',
       'GET /api/troncal/route/:code',
       'GET /api/troncal/station/:code',
-      'POST /api/troncal/sync',
       'GET /api/zonal/routes',
       'GET /api/zonal/stops',
       'GET /api/zonal/stop-routes',
