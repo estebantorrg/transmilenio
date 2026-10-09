@@ -33,6 +33,26 @@
       "codigo": "G48",
       "added": "2026-09-01",
       "note": "Re-lettered to the Soacha corridor on 2026-09-01. TRANSMILENIO moved the services running past Portal Sur from G to S and issued them under NEW ids (G43 #389 -> S43 #5665, G41 #776 -> S41 #5591, and so on), so the id-keyed rename purge in mergeCatalogs cannot see it and retention held both codigos at once: San Mateo listed G43 and S43 side by side, every Soacha service twice. Same shape as F61/Z61. The codigo is gone from searchRutaByTipo entirely as of the 2026-09-01 sweep."
+    },
+    {
+      "codigo": "742A",
+      "added": "2026-10-08",
+      "note": "Renumbered to HK646 (public K646, #5401 Puente Aéreo) on 2026-05-25. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records the renumbering, and the official route finder confirms it: on 2026-10-08 it lists the new código and no longer lists the old one. The new código was issued under a NEW id, so the id-keyed rename purge in mergeCatalogs cannot see it and the old código was left in the catalog beside its replacement."
+    },
+    {
+      "codigo": "39",
+      "added": "2026-10-08",
+      "note": "Renumbered to FH439 (public H439, #5410 Diana T. Cultivos) on 2026-06-22. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records the renumbering, and the official route finder confirms it: on 2026-10-08 it lists the new código and no longer lists the old one. The new código was issued under a NEW id, so the id-keyed rename purge in mergeCatalogs cannot see it and the old código was left in the catalog beside its replacement."
+    },
+    {
+      "codigo": "953",
+      "added": "2026-10-08",
+      "note": "Renumbered to FH453 (public H453, #5404 Fiscala Alta) on 2026-06-22. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records the renumbering, and the official route finder confirms it: on 2026-10-08 it lists the new código and no longer lists the old one. The new código was issued under a NEW id, so the id-keyed rename purge in mergeCatalogs cannot see it and the old código was left in the catalog beside its replacement."
+    },
+    {
+      "codigo": "C401",
+      "added": "2026-10-08",
+      "note": "Renumbered to FB401 (public B401, #5378 Est Mazurén) on 2026-05-19. TRANSMILENIO's own change log, delivered in answer to radicado 2026-ER-53567 (\"Cambios KE Zonal\", October 2026), records the renumbering, and the official route finder confirms it: on 2026-10-08 it lists the new código and no longer lists the old one. The new código was issued under a NEW id, so the id-keyed rename purge in mergeCatalogs cannot see it and the old código was left in the catalog beside its replacement."
     }
   ],
   "retiredVariants": [

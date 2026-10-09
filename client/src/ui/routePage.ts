@@ -26,6 +26,7 @@ import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
+import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import { api } from '../services/api';
 import {
@@ -211,6 +212,9 @@ function render(route: RouteListItem): string {
     { label: 'Longitud', value: route.length ? `${route.length.toFixed(1)} km` : null },
     { label: 'Servicio', value: routeTypeLabel(route) },
     { label: 'Operador', value: route.operator ? tidy(route.operator) : null },
+    // The código riders knew before TRANSMILENIO renumbered the route
+    // (shared/renumeraciones.js): the answer to "is this the old 39?".
+    { label: 'Antes', value: codigosAnteriores(route.code).join(', ') || null },
   ]);
 
   return `
@@ -300,6 +304,19 @@ function wire(el: HTMLElement, route: RouteListItem): void {
   // search result — and `refreshRoutePage` has to know which route is on screen
   // whichever way it got there.
   openRoute = route;
+
+  // Reached through a código TRANSMILENIO has since retired (`/ruta/39/` for
+  // what is now F439): the address bar takes the route's own código, so the
+  // link a reader copies or shares is the current one, and `adoptRoutePage`
+  // — which matches on the path — still recognises the page.
+  const named = parseRoutePathname();
+  if (
+    named &&
+    location.pathname !== routePagePath(route.code) &&
+    codigosActuales(named).some((codigo) => codigo.toUpperCase() === route.code.toUpperCase())
+  ) {
+    history.replaceState(history.state, '', routePagePath(route.code));
+  }
 
   if (!ruteros) {
     void loadRuteros().then(() => {

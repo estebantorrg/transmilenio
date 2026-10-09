@@ -33,6 +33,7 @@ import {
   type PointMatches as SharedPointMatches,
 } from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
+import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
  *  honest API outcomes. Mirrors `TrackingStatus` in `layers/buses.ts`. */
@@ -163,7 +164,14 @@ let deepLinkApplied = false;
 /** Every variant filed under one c\u00f3digo \u2014 usually the two directions. */
 export function routesWithCode(code: string): RouteListItem[] {
   const normalized = code.toUpperCase();
-  return allRoutes.filter((r) => r.code.toUpperCase() === normalized);
+  const matches = allRoutes.filter((r) => r.code.toUpperCase() === normalized);
+  if (matches.length > 0) return matches;
+  // A código TRANSMILENIO retired by renumbering (`39` → H439/F439) answers
+  // with the route under its new one, so an old link, bookmark or share still
+  // opens it (shared/renumeraciones.js). Only when nothing carries the código
+  // itself: a live código is never redirected.
+  const ahora = new Set(codigosActuales(normalized));
+  return ahora.size > 0 ? allRoutes.filter((r) => ahora.has(r.code.toUpperCase())) : [];
 }
 
 /** Build the hash for a route, disambiguating by destination when needed. */
@@ -1096,18 +1104,34 @@ const searchHaystacks = new WeakMap<RouteListItem, string>();
 function routeSearchHaystack(route: RouteListItem): string {
   let hay = searchHaystacks.get(route);
   if (hay === undefined) {
-    hay = normalizeSearchText(`${route.code} ${route.name} ${route.origin} ${route.destination}`);
+    // The código it replaced is searchable too: a rider who knew the route as
+    // `39` types `39` (shared/renumeraciones.js).
+    hay = normalizeSearchText(`${route.code} ${codigosAnteriores(route.code).join(' ')} ${route.name} ${route.origin} ${route.destination}`);
     searchHaystacks.set(route, hay);
   }
   return hay;
 }
 
-/** Rank matches so code hits surface first: exact code, code prefix, then text. */
+/** Rank matches so code hits surface first: exact code, the code it replaced, code prefix, then text. */
 function searchRank(route: RouteListItem, q: string): number {
   const code = normalizeSearchText(route.code);
   if (code === q) return 0;
-  if (code.startsWith(q)) return 1;
-  return 2;
+  if (previousCodesMatching(route, q, true).length > 0) return 1;
+  if (code.startsWith(q)) return 2;
+  return 3;
+}
+
+/**
+ * The retired código(s) of this route the query names — what makes a result
+ * read "antes 39" instead of appearing for no visible reason. `exact` is the
+ * ranking test; the row shows any that contain the query.
+ */
+function previousCodesMatching(route: RouteListItem, q: string, exact = false): string[] {
+  if (!q) return [];
+  return codigosAnteriores(route.code).filter((antes) => {
+    const a = normalizeSearchText(antes);
+    return exact ? a === q : a.includes(q);
+  });
 }
 
 /** Rows of one kind shown in the mixed `Todo` view — a preview, not the set. */
@@ -1448,7 +1472,9 @@ function renderRouteList(
 
       const isFav = favorites.has(route.id);
 
-      const ariaLabel = `${route.code}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}`;
+      const antes = previousCodesMatching(route, searchQuery ? normalizeSearchText(searchQuery) : '');
+      const antesText = antes.length ? `antes ${antes.join(', ')}` : '';
+      const ariaLabel = `${route.code}${antesText ? ` (${antesText})` : ''}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}`;
 
       return `
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
@@ -1461,6 +1487,7 @@ function renderRouteList(
           <div class="route-item-info">
             <div class="route-item-name">${escapeHTML(route.name)}</div>
             <div class="route-item-meta">
+              ${antesText ? `<span class="route-item-antes">${escapeHTML(antesText)}</span>` : ''}
               <span class="route-item-type">${escapeHTML(routeTypeLabel(route))}</span>
               <span class="route-item-endpoints">${escapeHTML(endpointText)}</span>
             </div>

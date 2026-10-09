@@ -253,6 +253,7 @@ input { font-family: inherit; }
 .route-card-name { font-weight: 600; font-size: 14.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .route-card-sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .route-chip { background: var(--surface-3); padding: 1px 7px; border-radius: 6px; font-size: 10.5px; color: var(--muted); margin-right: 4px; }
+.route-chip-antes { background: rgba(75, 141, 255, 0.14); color: var(--blue); font-weight: 600; }
 .route-card-chev { color: var(--muted-2); font-size: 22px; line-height: 1; }
 
 .route-badge {

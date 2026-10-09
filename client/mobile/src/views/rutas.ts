@@ -23,6 +23,7 @@ import { getFavorites } from '../lib/storage';
 import { openRouteSheet } from '../ui/detailSheets';
 import { placeCard } from '../ui/pointRow';
 import { ICONS, routeCard } from '../ui/components';
+import { codigosAnteriores } from '../../../../shared/renumeraciones.js';
 import type { View } from './types';
 
 type Filter = 'all' | 'troncal' | 'zonal' | 'alimentador' | 'facil' | 'fav';
@@ -175,15 +176,18 @@ export function createRutasView(): View {
       }
       if (!matchesFilter(r, activeFilter, favorites)) return false;
       if (!q) return true;
-      return normalizePointText(`${r.code} ${r.name} ${r.origin} ${r.destination}`).includes(q);
+      // The código it replaced is searchable too (shared/renumeraciones.js).
+      return normalizePointText(`${r.code} ${codigosAnteriores(r.code).join(' ')} ${r.name} ${r.origin} ${r.destination}`).includes(q);
     });
     // Under a search, exact/prefix code hits outrank text matches (e.g. "7"
     // surfaces ruta 7 before 7-1 and before names containing a 7).
     const rank = (r: RouteListItem): number => {
       const code = normalizePointText(r.code);
       if (code === q) return 0;
-      if (code.startsWith(q)) return 1;
-      return 2;
+      // A route searched by the código it used to carry ("39" → H439).
+      if (codigosAnteriores(r.code).some((antes) => normalizePointText(antes) === q)) return 1;
+      if (code.startsWith(q)) return 2;
+      return 3;
     };
     matched.sort((a, b) => {
       if (q) {
@@ -397,7 +401,10 @@ export function createRutasView(): View {
       ]));
     }
     const visible = routes.slice(0, shownRoutes);
-    for (const route of visible) list.append(routeCard(route, openRouteSheet));
+    for (const route of visible) {
+      const antes = q ? codigosAnteriores(route.code).filter((a) => normalizePointText(a).includes(normalizePointText(q))) : [];
+      list.append(routeCard(route, openRouteSheet, antes));
+    }
     if (routes.length > visible.length) {
       const more = h('button', { class: 'list-more', type: 'button', text: `Ver más (${routes.length - visible.length} restantes)` });
       more.addEventListener('click', () => {

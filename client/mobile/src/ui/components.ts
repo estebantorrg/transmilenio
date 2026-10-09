@@ -52,7 +52,11 @@ export function liveChip(status: TrackingStatus | 'loading', result?: LiveBusRes
 }
 
 /** Compact route row used in lists (Rutas, Home favorites, station sheet). */
-export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => void): HTMLElement {
+/**
+ * `antes`: the retired código(s) a search just matched this route by, shown as
+ * "antes 39" so the result does not appear for no visible reason.
+ */
+export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => void, antes: string[] = []): HTMLElement {
   const card = h('button', { class: 'route-card', type: 'button' });
   card.append(routeBadge(route, 'md'));
   const meta = h('div', { class: 'route-card-meta' });
@@ -60,7 +64,7 @@ export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => voi
     h('div', { class: 'route-card-name', text: route.name }),
     h('div', {
       class: 'route-card-sub',
-      html: `<span class="route-chip">${escapeHTML(routeTypeLabel(route))}</span> ${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`,
+      html: `${antes.length ? `<span class="route-chip route-chip-antes">antes ${escapeHTML(antes.join(', '))}</span> ` : ''}<span class="route-chip">${escapeHTML(routeTypeLabel(route))}</span> ${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`,
     })
   );
   card.append(meta);

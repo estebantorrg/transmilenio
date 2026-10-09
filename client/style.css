@@ -914,6 +914,16 @@ body.sidebar-collapsed .sidebar-fab {
   flex-shrink: 0;
 }
 
+/* "antes 39": why a renumbered route answers a search for its old código. */
+.route-item-antes {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
 .route-item-endpoints {
   white-space: nowrap;
   overflow: hidden;
