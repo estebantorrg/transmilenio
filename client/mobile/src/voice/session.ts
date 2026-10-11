@@ -153,7 +153,7 @@ export interface VoiceSessionResult extends VoiceAnswer {
 
 /** Outcomes where the microphone, not the rider, is what failed. Exported because
  *  the overlay offers a way past them, not only a sentence about them. */
-export const MIC_FAILURES = new Set<ListenOutcome>(['sin-permiso', 'sin-reconocedor', 'sin-red', 'sin-idioma']);
+export const MIC_FAILURES = new Set<ListenOutcome>(['sin-permiso', 'sin-reconocedor', 'sin-red', 'sin-idioma', 'error']);
 
 function routeType(route: VoiceIndexRoute): 'troncal' | 'zonal' {
   return route.tipo === 'z' ? 'zonal' : 'troncal';
@@ -169,6 +169,8 @@ interface SpokenRequest {
   heard: string;
   predicted: boolean;
   outcome: ListenOutcome;
+  /** What the recognizer reported when the outcome is a failure. */
+  cause: string;
   intent: VoiceIntent;
   stopHint: string;
   dirHint: string;
@@ -222,6 +224,7 @@ async function resolveSpokenCode(
 
   const base = {
     heard,
+    cause: result.cause ?? '',
     intent: request.intent,
     stopHint: request.stopHint,
     dirHint: request.dirHint,
@@ -431,6 +434,7 @@ export async function runVoiceSession(options: VoiceSessionOptions = {}): Promis
   let heard = '';
   let predicted = false;
   let listen: ListenOutcome = given ? 'ok' : 'silencio';
+  let listenCause = '';
   let intent: VoiceIntent = 'eta';
   // A stop the caller already established (the previous answer's anchor, handed
   // back with a chip tap) is the starting point, and anything the rider says now
@@ -459,6 +463,7 @@ export async function runVoiceSession(options: VoiceSessionOptions = {}): Promis
     heard = resolved.heard;
     predicted = resolved.predicted;
     listen = resolved.outcome;
+    listenCause = resolved.cause;
     intent = resolved.intent;
     stopHint = resolved.stopHint || stopHint;
     dirHint = resolved.dirHint;
@@ -477,7 +482,7 @@ export async function runVoiceSession(options: VoiceSessionOptions = {}): Promis
     // The examples matter *most* here: they are tappable, and tapping one runs the
     // same pipeline as speech — so a rider whose microphone will never open still
     // has the whole feature, by hand (spec §4.2, §1.1 R5).
-    return finish(composeListenFailure(listen as ListenFailure), null, heard, listen, {
+    return finish(composeListenFailure(listen as ListenFailure, listenCause), null, heard, listen, {
       suggestions: habit,
       showExamples: true,
     });

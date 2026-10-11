@@ -207,9 +207,16 @@ export function readNumber(tokens: string[], i: number): NumberRun | null {
 
 // ─── Spoken output ────────────────────────────────────────
 
-/** "4:30 de la mañana" / "10:00 de la noche" / "mediodía". Digits are kept —
- *  es-CO TTS reads "4:30" correctly; it is the a.m./p.m. abbreviation that does
- *  not survive being spoken, so the period is a phrase. */
+/**
+ * "4 y 30 de la mañana" / "10 de la noche" / "mediodía".
+ *
+ * Never "4:30": a synthesiser recognises `H:MM` as a time of day and reads it
+ * its own way, period included — "4:20 de la madrugada" was spoken on a phone
+ * as "cuatro y veinte de la mañana de la madrugada". Written as the words a
+ * person says, there is no time left for it to reinterpret, and the period is
+ * ours alone. (The a.m./p.m. abbreviation does not survive being spoken
+ * either, which is why the period was a phrase to begin with.)
+ */
 export function speakClock(minute: number): string {
   const normalized = ((Math.round(minute) % MINUTES_PER_DAY) + MINUTES_PER_DAY) % MINUTES_PER_DAY;
   if (normalized === 0) return 'medianoche';
@@ -220,7 +227,7 @@ export function speakClock(minute: number): string {
   const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
   const period =
     hour24 < 5 ? 'de la madrugada' : hour24 < 12 ? 'de la mañana' : hour24 < 19 ? 'de la tarde' : 'de la noche';
-  return `${hour12}:${String(mins).padStart(2, '0')} ${period}`;
+  return `${mins === 0 ? hour12 : `${hour12} y ${mins}`} ${period}`;
 }
 
 /** "240 metros" / "3,2 kilómetros" — the spoken twin of `formatDistance`. */

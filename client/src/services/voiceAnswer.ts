@@ -5,7 +5,7 @@
  * speaker and once for the screen. They are not the same string and must never
  * be substituted for each other — es-CO TTS reads a bare `F` as English, so it
  * has to be told "efe 19", while a rider looking at their phone must see the
- * código they know, `F19`. Same for the clock ("4:30 de la mañana" spoken,
+ * código they know, `F19`. Same for the clock ("4 y 30 de la mañana" spoken,
  * "4:30 a.m." written) and for the catalog's dashed place names. Composing once
  * and reusing the result is exactly the bug this shape exists to prevent.
  *
@@ -97,7 +97,7 @@ function walkPhrase(dir: RouteEtaDirection): string | null {
   return dir.walkMinutes === null ? null : `estás a ${speakMinutes(dir.walkMinutes)} caminando`;
 }
 
-/** "a las 4:30 de la mañana", with the day named when it is not today. */
+/** "a las 4 y 30 de la mañana", with the day named when it is not today. */
 function opensPhrase(minute: number, p: Phrasing): string {
   const tomorrow = minute >= MINUTES_PER_DAY;
   return `${tomorrow ? 'mañana ' : ''}a las ${p.clock(minute)}`;
@@ -463,7 +463,7 @@ export function composeSuggestions(heard: string, codes: string[]): VoiceAnswer 
   };
 }
 
-/** "de 4:30 de la mañana a 10:00 de la noche", or the several turns of a route
+/** "de 4 y 30 de la mañana a 10 de la noche", or the several turns of a route
  *  that runs in peaks only. */
 function windowsPhrase(windows: Array<[number, number]>, p: Phrasing): string {
   const spans = windows.slice(0, 3).map(([start, end]) => `de ${p.clock(start)} a ${p.clock(end)}`);
@@ -529,7 +529,7 @@ export function composeSchedule(code: string, day: RouteServiceDay): VoiceAnswer
 }
 
 /** Why the microphone produced nothing, when the reason was not silence. */
-export type ListenFailure = 'sin-permiso' | 'sin-reconocedor' | 'sin-red' | 'sin-idioma';
+export type ListenFailure = 'sin-permiso' | 'sin-reconocedor' | 'sin-red' | 'sin-idioma' | 'error';
 
 /**
  * What to say when the mic itself was the problem.
@@ -537,8 +537,11 @@ export type ListenFailure = 'sin-permiso' | 'sin-reconocedor' | 'sin-red' | 'sin
  * "No te escuché" blames the rider for a question they were never able to ask,
  * and leaves them repeating themselves into a microphone that was never open.
  * Each of these names what failed and the one action that fixes it (spec §4.2).
+ * `cause` is what the recognizer itself reported, when it reported anything: it
+ * goes on the detail line of `error`, the one failure with no name of its own,
+ * so a phone it keeps happening on can be told apart from one bad moment.
  */
-export function composeListenFailure(reason: ListenFailure): VoiceAnswer {
+export function composeListenFailure(reason: ListenFailure, cause = ''): VoiceAnswer {
   const lines: Record<ListenFailure, { sentence: string; headline: string; detail: string }> = {
     'sin-permiso': {
       sentence: 'Necesito permiso para usar el micrófono. Actívalo y vuelve a preguntar.',
@@ -560,6 +563,11 @@ export function composeListenFailure(reason: ListenFailure): VoiceAnswer {
         'Este teléfono no tiene reconocimiento de voz en español. Instálalo desde los ajustes de Google y vuelve a preguntar.',
       headline: 'Sin español',
       detail: 'Falta el paquete de voz en español',
+    },
+    error: {
+      sentence: 'El reconocimiento de voz del teléfono falló. Toca un ejemplo, o pregunta otra vez.',
+      headline: 'Falló el reconocimiento de voz',
+      detail: cause.trim() || 'El servicio de voz del teléfono no respondió',
     },
   };
   const line = lines[reason];

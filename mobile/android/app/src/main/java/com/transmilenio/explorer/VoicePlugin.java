@@ -12,11 +12,13 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.util.Log;
 import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.JSArray;
@@ -80,6 +82,8 @@ import java.util.concurrent.ConcurrentHashMap;
 )
 public class VoicePlugin extends Plugin {
 
+    private static final String TAG = "TMVoice";
+
     static final String MIC = "microphone";
     static final String LOCATION = "location";
 
@@ -121,6 +125,30 @@ public class VoicePlugin extends Plugin {
      * nada" over someone who was audibly speaking.
      */
     private static final long SPEAKING_TIMEOUT_MS = 20_000L;
+    /**
+     * A recognition that ends this soon after the mic was asked to open, with no
+     * speech begun, was ended by the recognizer and not by the rider.
+     *
+     * Nobody finishes a question in the first second, and nobody is silent for
+     * long enough to time out in it either (the recognizer is asked for at least
+     * {@link #MIN_INPUT_MS}). Yet a recognizer that cannot run — no model for the
+     * language, a service still tearing down the previous session — routinely
+     * says so with `ERROR_NO_MATCH` or `ERROR_SPEECH_TIMEOUT`, the two codes that
+     * mean "the rider said nothing I understood". Read at face value they became
+     * "no te escuché", the moment the button was pressed, to someone who had not
+     * been given a microphone to speak into. So an instant ending is treated as
+     * what it is: the next way of listening is tried, and if every one of them
+     * fails the rider is told the recognizer failed — never that they were quiet.
+     */
+    private static final long INSTANT_FAILURE_MS = 1_200L;
+    /**
+     * Pause before a recognition is re-opened after a failure. Restarted in the
+     * same tick, the service is still releasing the session that just died and
+     * answers the new one with `ERROR_RECOGNIZER_BUSY` or `ERROR_CLIENT`.
+     */
+    private static final long RESTART_DELAY_MS = 300L;
+    /** How many times a failure that may pass by itself is retried unchanged. */
+    private static final int TRANSIENT_RETRIES = 1;
     /** How long a transcript captured during boot is still the answer to the
      *  question the rider is asking now. */
     private static final long BUFFER_MAX_AGE_MS = 60_000L;
@@ -512,10 +540,10 @@ public class VoicePlugin extends Plugin {
     }
 
     private void startListening(boolean preferOffline, int generation) {
-        startListening(preferOffline, LANGUAGES[0], generation);
+        startListening(preferOffline, LANGUAGES[0], generation, TRANSIENT_RETRIES);
     }
 
-    private void startListening(boolean preferOffline, String language, int generation) {
+    private void startListening(boolean preferOffline, String language, int generation, int retriesLeft) {
         // A newer listen (or a cancel) arrived between the post and here: that one
         // owns the microphone now, and opening a second recognizer would leave two
         // of them fighting over one mic.
@@ -527,7 +555,7 @@ public class VoicePlugin extends Plugin {
         releaseRecognizer();
 
         recognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
-        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline, language, generation));
+        recognizer.setRecognitionListener(new VoiceRecognitionListener(preferOffline, language, generation, retriesLeft));
 
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
@@ -572,6 +600,24 @@ public class VoicePlugin extends Plugin {
         // failure. Reading it as "this phone has no Spanish" sent riders to install
         // a language pack they already had, over what was usually one bad request.
         return error == SpeechRecognizer.ERROR_SERVER;
+    }
+
+    /** Failures that say nothing about the rider or the phone and may pass by
+     *  themselves: the service was busy, dropped the connection, or was asked
+     *  too often. */
+    private static boolean isTransient(int error) {
+        return error == SpeechRecognizer.ERROR_CLIENT
+            || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+            || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
+            || error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS;
+    }
+
+    /** Failures that are already the whole answer however fast they arrive:
+     *  trying another way of listening cannot grant a permission or a network. */
+    private static boolean isDefinitive(int error) {
+        return error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+            || error == SpeechRecognizer.ERROR_NETWORK
+            || error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT;
     }
 
     /**
@@ -811,11 +857,16 @@ public class VoicePlugin extends Plugin {
          *  down the ladder instead of ending the question (see LANGUAGES). */
         private final String language;
         private final int generation;
+        /** Unchanged retries left for a transient failure (see isTransient). */
+        private final int retriesLeft;
+        /** When this attempt asked for the mic — what makes a failure "instant". */
+        private final long startedAt = SystemClock.elapsedRealtime();
 
-        VoiceRecognitionListener(boolean preferredOffline, String language, int generation) {
+        VoiceRecognitionListener(boolean preferredOffline, String language, int generation, int retriesLeft) {
             this.preferredOffline = preferredOffline;
             this.language = language;
             this.generation = generation;
+            this.retriesLeft = retriesLeft;
         }
 
         private boolean stale() {
@@ -854,33 +905,72 @@ public class VoicePlugin extends Plugin {
         @Override
         public void onError(int error) {
             if (stale()) return;
+            fail(error);
+        }
+
+        /** Re-open the mic another way, after the pause the service needs. */
+        private void restart(boolean offline, String lang, int retries) {
+            int retry = nextGeneration();
+            // Released now rather than inside the delayed start, so the pause is
+            // spent with the dead session already gone (RESTART_DELAY_MS).
+            releaseRecognizer();
+            main.postDelayed(() -> startListening(offline, lang, retry, retries), RESTART_DELAY_MS);
+        }
+
+        /**
+         * This attempt ended without a transcript. Decide whose ending it was.
+         *
+         * In order: an offline attempt that could not run goes to the network;
+         * a failure that may pass is retried unchanged; a language this phone
+         * lacks — or one that keeps failing instantly — steps down the ladder
+         * (see LANGUAGES). Only an ending that took long enough to be the
+         * rider's is reported as silence or as words not understood.
+         */
+        private void fail(int error) {
+            boolean spoke;
+            synchronized (recognitionLock) {
+                // Words on screen count as speech even from a recognizer that
+                // never announces the beginning of it.
+                spoke = speechStarted || (lastPartial != null && !lastPartial.trim().isEmpty());
+            }
+            long elapsed = SystemClock.elapsedRealtime() - startedAt;
+            // The recognizer's ending, not the rider's (see INSTANT_FAILURE_MS).
+            boolean instant = !spoke && elapsed < INSTANT_FAILURE_MS && !isDefinitive(error);
+            Log.w(TAG, "recognizer error " + error + " (" + language + (preferredOffline ? ", offline" : ", online")
+                + ") after " + elapsed + " ms" + (instant ? " — instant" : ""));
+
             // A phone with no Spanish language pack fails instantly and offline.
-            // Retry once over the network before telling the rider we cannot
-            // hear them — most devices can, they just have nothing downloaded.
-            if (preferredOffline && isRetryableOffline(error)) {
-                int retry = nextGeneration();
-                main.post(() -> startListening(false, language, retry));
+            // Go to the network before telling the rider we cannot hear them —
+            // most devices can, they just have nothing downloaded.
+            if (preferredOffline && (instant || isRetryableOffline(error))) {
+                restart(false, language, TRANSIENT_RETRIES);
+                return;
+            }
+            if (retriesLeft > 0 && !isLanguageUnavailable(error) && (instant || isTransient(error))) {
+                restart(false, language, retriesLeft - 1);
                 return;
             }
             // The phone may simply not have *this* Spanish. Colombian first, then
             // Latin-American, then Spain, then plain `es` — a device with any of
             // them can hear the question, and giving up at es-CO told riders their
             // phone has no Spanish when it has four other flavours of it.
-            if (isLanguageUnavailable(error)) {
+            if (isLanguageUnavailable(error) || instant) {
                 String next = nextLanguage(language);
                 if (next != null) {
-                    int retry = nextGeneration();
-                    main.post(() -> startListening(false, next, retry));
+                    restart(false, next, 0);
                     return;
                 }
             }
-            // NO_MATCH / SPEECH_TIMEOUT after the rider has already been speaking:
-            // the partial on their screen is the answer, not "no te entendí".
-            if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+            boolean noTranscript = error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT;
+            // NO_MATCH / SPEECH_TIMEOUT after a real listening window: the partial
+            // on the rider's screen is the answer, not "no te entendí".
+            if (noTranscript && !instant) {
                 deliverOrFallBackToPartial(errorCodeFor(error), describeError(error));
                 return;
             }
-            deliver(null, errorCodeFor(error), describeError(error));
+            // Every way of listening has been tried. The same two codes arriving
+            // instantly are the recognizer failing, and are reported as that.
+            deliver(null, noTranscript ? ERR_FAILED : errorCodeFor(error), describeError(error) + " (código " + error + ")");
         }
 
         @Override
@@ -910,7 +1000,7 @@ public class VoicePlugin extends Plugin {
             if (stale()) return;
             List<String> heard = results(results);
             if (heard.isEmpty()) {
-                deliverOrFallBackToPartial(ERR_NO_MATCH, describeError(SpeechRecognizer.ERROR_NO_MATCH));
+                fail(SpeechRecognizer.ERROR_NO_MATCH);
             } else {
                 deliver(heard, null, null);
             }

@@ -175,6 +175,9 @@ export interface ListenResult {
    */
   alternatives: string[];
   outcome: ListenOutcome;
+  /** What the recognizer reported for a failure, as the plugin worded it
+   *  ("El reconocedor está ocupado (código 8)"). Empty when it said nothing. */
+  cause?: string;
 }
 
 /** Plugin reject codes → outcomes. Keep in step with `VoicePlugin.java`. */
@@ -237,7 +240,8 @@ export function listenOnce(): Promise<ListenResult> {
       },
       (error: unknown) => {
         const code = (error as { code?: string })?.code ?? '';
-        return { text: '', alternatives: [], outcome: NATIVE_OUTCOMES[code] ?? 'error' };
+        const cause = String((error as { message?: string })?.message ?? '');
+        return { text: '', alternatives: [], outcome: NATIVE_OUTCOMES[code] ?? 'error', cause };
       }
     );
   }
