@@ -53,48 +53,70 @@ jobs:
         working-directory: mobile
         run: npm run sync
 
-      # A fresh runner generates a new debug keystore on every run, so each release
-      # was signed with a key no other release shared — and Android refuses to
-      # install an update signed differently from the app it replaces, so every
-      # update meant uninstalling first (and losing saved cards and favorites).
-      # One key, kept as a secret, restored to where the debug build looks for it.
-      # A release without it fails here rather than ship one more throwaway key.
+      # One key signs every release (app/build.gradle). Android installs an update
+      # only over an app signed with the same key, so without it each release
+      # meant uninstalling the last one and losing saved cards and favorites — and
+      # the app could not update itself at all. The keystore is a secret, written
+      # to a file only for this job and handed to Gradle by path.
+      #
+      # It is passed explicitly, not left where Gradle "normally looks": the first
+      # version of this step restored a keystore to ~/.android and trusted the
+      # build to pick it up. It did not — the runner's Gradle reads its debug
+      # keystore from somewhere else — and two releases shipped with throwaway
+      # keys while this step reported success. Hence the check after the build.
       - name: Restore the signing key
         env:
           ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          TM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          if [ -z "$ANDROID_KEYSTORE_B64" ]; then
-            if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-              echo "::error::Secret ANDROID_KEYSTORE_B64 is not set (base64 of a debug.keystore). A release signed with this runner's throwaway key cannot be installed over the previous one."
-              exit 1
-            fi
-            echo "::warning::Secret ANDROID_KEYSTORE_B64 is not set; this artifact is signed with a throwaway key."
-            exit 0
+          if [ -z "$ANDROID_KEYSTORE_B64" ] || [ -z "$TM_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Secrets ANDROID_KEYSTORE_B64 (base64 of the release keystore) and ANDROID_KEYSTORE_PASSWORD must both be set. A build signed with any other key cannot be installed over the previous release."
+            exit 1
           fi
-          mkdir -p "$HOME/.android"
-          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$HOME/.android/debug.keystore"
+          echo "$ANDROID_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
       # The tag names the build: v1.26.2 -> versionName 1.26.2, versionCode 1026002
       # (app/build.gradle). A manual run on a branch keeps the gradle defaults.
       - name: Version from the tag
         id: version
         run: |
-          if [[ "$GITHUB_REF_NAME" =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          if [[ "$GITHUB_REF_NAME" =~ ^v([0-9]+).([0-9]+).([0-9]+)$ ]]; then
             code=$(( BASH_REMATCH[1] * 1000000 + BASH_REMATCH[2] * 1000 + BASH_REMATCH[3] ))
             echo "args=-PappVersionName=${GITHUB_REF_NAME#v} -PappVersionCode=$code" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build debug APK
+      # A release build, not a debug one: a debuggable app lets anyone holding the
+      # phone and a cable read its data, and a debug certificate is one more reason
+      # for Play Protect to distrust the install.
+      - name: Build release APK
         working-directory: mobile/android
+        env:
+          TM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon --stacktrace ${{ steps.version.outputs.args }}
+          ./gradlew assembleRelease --no-daemon --stacktrace -PreleaseKeystore="$RUNNER_TEMP/release.jks" ${{ steps.version.outputs.args }}
+
+      # The APK's certificate must be the keystore's. This is the step that would
+      # have caught the throwaway keys: "the key was restored" proves nothing
+      # about what the build signed with.
+      - name: Verify the APK is signed with that key
+        env:
+          TM_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          apk=mobile/android/app/build/outputs/apk/release/app-release.apk
+          want=$(keytool -list -v -keystore "$RUNNER_TEMP/release.jks" -storepass "$TM_KEYSTORE_PASSWORD" -alias transmigo             | sed -n 's/^[[:space:]]*SHA256: //p' | tr -d ':' | tr 'A-F' 'a-f')
+          got=$("$ANDROID_HOME/build-tools/34.0.0/apksigner" verify --print-certs "$apk"             | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+          echo "keystore: $want"
+          echo "apk:      $got"
+          if [ -z "$want" ] || [ "$want" != "$got" ]; then
+            echo "::error::The APK is not signed with the release keystore. Publishing it would strand every installed copy."
+            exit 1
+          fi
 
       - name: Stage APK
         run: |
           mkdir -p dist
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk \
-             "dist/transmilenio-explorer-${GITHUB_REF_NAME}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk              "dist/transmilenio-explorer-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4

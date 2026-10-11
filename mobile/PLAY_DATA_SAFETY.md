@@ -26,7 +26,9 @@ the Gradle build; every host is HTTPS (TRANSMILENIO's app host and
 
 **Update check — remove it from a Play build.** At launch the app asks
 `api.github.com` for the project's latest release and, if it is newer, offers
-its APK (`client/mobile/src/services/appUpdate.ts`). The request carries no user
+its APK, which the app downloads from `github.com` and hands to the system
+installer itself (`client/mobile/src/services/appUpdate.ts`, `UpdatePlugin.java`;
+permission `REQUEST_INSTALL_PACKAGES`). Neither request carries user
 data (GitHub sees an IP address and a user agent; policy §2.3), so it adds no
 data type below. But an app installed from Google Play may not update itself, or
 send the user to an update, from anywhere other than Play: the notice is for the

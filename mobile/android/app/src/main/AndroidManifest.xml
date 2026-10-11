@@ -64,6 +64,13 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The app installs its own update (UpdatePlugin, spec §5.2.1b). The first
+         lets it hand a downloaded release to the system installer, once the
+         rider has allowed this app as an install source; the second lets the
+         system skip its confirmation when an app is replacing itself. Android
+         still refuses any APK not signed with this app's own key. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <!-- Webview geolocation ("mi ubicación" on the map) — Capacitor forwards the
          page's geolocation prompt to these Android runtime permissions. The voice
          flow reads the same permission, but only ever the LAST KNOWN fix (spec

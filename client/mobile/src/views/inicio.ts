@@ -10,7 +10,7 @@ import { app } from '../appContext';
 import { WEB_ORIGIN, openRouteSheet } from '../ui/detailSheets';
 import { legalLinksHtml } from '../../../../shared/legal.js';
 import { ICONS, routeBadge } from '../ui/components';
-import { dismissUpdate, findUpdate } from '../services/appUpdate';
+import { canInstallInApp, dismissUpdate, findUpdate, installUpdate } from '../services/appUpdate';
 import type { View } from './types';
 
 export function createInicioView(): View {
@@ -72,16 +72,40 @@ export function createInicioView(): View {
       dismissUpdate(release.version);
       updateCard.classList.add('hidden');
     });
+    const note = h('span', { text: 'Se instala sobre esta: conservas tus tarjetas y favoritos.' });
+    // The way out when the app cannot install it itself: an off-app link, which
+    // Capacitor hands to the browser, which downloads the APK.
+    const link = h('a', { class: 'update-go', href: release.url, target: '_blank', rel: 'noopener', text: 'Descargar' });
+    const install = h('button', { class: 'update-go', type: 'button', text: 'Actualizar' });
+    install.addEventListener('click', () => {
+      install.disabled = true;
+      later.disabled = true;
+      install.textContent = 'Descargando…';
+      void installUpdate(release, (state) => {
+        install.textContent = state === 'instalando' ? 'Instalando…' : `Descargando… ${state} %`;
+      }).then((outcome) => {
+        later.disabled = false;
+        if (outcome === 'instalada') {
+          install.textContent = 'Actualizada';
+          note.textContent = 'Cierra la app y ábrela de nuevo para usar la nueva versión.';
+          return;
+        }
+        if (outcome === 'fallo') {
+          // Not a dead end: the same release, the long way round.
+          note.textContent = 'No se pudo actualizar desde la app. Descárgala con el navegador.';
+          install.replaceWith(link);
+          return;
+        }
+        install.disabled = false;
+        install.textContent = 'Actualizar';
+        if (outcome === 'sin-permiso') {
+          note.textContent = 'Android necesita que permitas a TransMi Go instalar la actualización.';
+        }
+      });
+    });
     updateCard.append(
-      h('div', { class: 'update-text' }, [
-        h('strong', { text: `Versión ${release.version} disponible` }),
-        h('span', { text: 'Se instala sobre esta: conservas tus tarjetas y favoritos.' }),
-      ]),
-      h('div', { class: 'update-actions' }, [
-        // An off-app link: Capacitor hands it to the browser, which downloads the APK.
-        h('a', { class: 'update-go', href: release.url, target: '_blank', rel: 'noopener', text: 'Descargar' }),
-        later,
-      ])
+      h('div', { class: 'update-text' }, [h('strong', { text: `Versión ${release.version} disponible` }), note]),
+      h('div', { class: 'update-actions' }, [canInstallInApp() ? install : link, later])
     );
     updateCard.classList.remove('hidden');
   });

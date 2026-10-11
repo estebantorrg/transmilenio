@@ -211,6 +211,14 @@ public class VoicePlugin extends Plugin {
      */
     private int recognitionGeneration = 0;
     /**
+     * This phone has no offline model for the language, so asking for one first
+     * only costs every question a failed attempt and a microphone that opens,
+     * closes and opens again (measured on a Pixel 6 with no es pack: 100 ms to
+     * fail, 300 ms to re-open). Learned from the first failure and kept until
+     * the app restarts, which is also when a newly installed pack is noticed.
+     */
+    private volatile boolean offlineUnavailable = false;
+    /**
      * The newest partial transcript of the recognition in flight.
      *
      * Kept because a partial is not a draft to be thrown away — it is what the
@@ -334,7 +342,7 @@ public class VoicePlugin extends Plugin {
         // ends any recognition nobody claimed, and BUFFER_MAX_AGE_MS ages out
         // what it captured.
         int generation = nextGeneration();
-        main.post(() -> startListening(true, generation));
+        main.post(() -> startListening(!offlineUnavailable, generation));
     }
 
     /**
@@ -489,7 +497,7 @@ public class VoicePlugin extends Plugin {
             // against the generation this call is already registered under and
             // answer for it (see recognitionGeneration).
             int generation = nextGeneration();
-            main.post(() -> startListening(true, generation));
+            main.post(() -> startListening(!offlineUnavailable, generation));
             return;
         }
         // Taking over a recognition that is ALREADY open: every state event it
@@ -942,6 +950,7 @@ public class VoicePlugin extends Plugin {
             // A phone with no Spanish language pack fails instantly and offline.
             // Go to the network before telling the rider we cannot hear them —
             // most devices can, they just have nothing downloaded.
+            if (preferredOffline && isLanguageUnavailable(error)) offlineUnavailable = true;
             if (preferredOffline && (instant || isRetryableOffline(error))) {
                 restart(false, language, TRANSIENT_RETRIES);
                 return;
@@ -965,7 +974,13 @@ public class VoicePlugin extends Plugin {
             // NO_MATCH / SPEECH_TIMEOUT after a real listening window: the partial
             // on the rider's screen is the answer, not "no te entendí".
             if (noTranscript && !instant) {
-                deliverOrFallBackToPartial(errorCodeFor(error), describeError(error));
+                // "No match" with nothing said is silence: Google's recognizer
+                // files its own NO_SPEECH_DETECTED under ERROR_NO_MATCH, and "no
+                // te entendí" to someone who has not spoken is the wrong sentence.
+                deliverOrFallBackToPartial(
+                    spoke ? errorCodeFor(error) : ERR_NO_SPEECH,
+                    spoke ? describeError(error) : describeError(SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+                );
                 return;
             }
             // Every way of listening has been tried. The same two codes arriving

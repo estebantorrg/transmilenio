@@ -27,7 +27,8 @@
  *   install id         client/src/services/installId.ts (sent by the APK only)
  *   voice              mobile/…/VoicePlugin.java (platform recognizer, offline preferred)
  *   analytics / map    client/index.html (Cloudflare beacon), client/src/map.ts (CARTO)
- *   app update check   client/mobile/src/services/appUpdate.ts (GET api.github.com, APK only)
+ *   app update         client/mobile/src/services/appUpdate.ts (GET api.github.com) and
+ *                      mobile/…/UpdatePlugin.java (downloads the release from github.com), APK only
  *   app backups        mobile/…/AndroidManifest.xml (`allowBackup="false"`)
  *
  * The text is Spanish (Colombia) and addresses the reader as "tú", as the app
@@ -114,7 +115,7 @@ ${dato('2.3 Dirección IP y datos técnicos de la conexión', [
   ['Qué', 'Tu dirección IP, el tipo de navegador y de sistema operativo, la dirección de la página o del recurso que pides, y la fecha y hora. Los recibe cualquier servidor web al que te conectas.'],
   ['Para qué', 'Entregarte el sitio, mantenerlo seguro y funcionando (detectar errores y abusos) y medir su uso de forma agregada.'],
   ['Autorización', 'Por conducta inequívoca: al usar el servicio después de haber sido informado en este aviso. Sin estos datos no es técnicamente posible entregarte las páginas.'],
-  ['Quién los recibe', 'Render Services, Inc. aloja nuestro servidor y guarda sus registros de acceso. Cloudflare, Inc. mide las visitas al sitio web con Cloudflare Web Analytics, que no usa cookies ni un identificador que te siga entre visitas o entre sitios. CARTO sirve las imágenes del mapa: tu navegador las descarga de sus servidores, que reciben tu dirección IP y la zona del mapa que estás viendo. La app para Android, cada vez que la abres, le pregunta a GitHub, Inc. cuál es su versión más reciente, para avisarte si hay una nueva: GitHub recibe tu dirección IP y el tipo de dispositivo, y nada que te identifique.'],
+  ['Quién los recibe', 'Render Services, Inc. aloja nuestro servidor y guarda sus registros de acceso. Cloudflare, Inc. mide las visitas al sitio web con Cloudflare Web Analytics, que no usa cookies ni un identificador que te siga entre visitas o entre sitios. CARTO sirve las imágenes del mapa: tu navegador las descarga de sus servidores, que reciben tu dirección IP y la zona del mapa que estás viendo. La app para Android, cada vez que la abres, le pregunta a GitHub, Inc. cuál es su versión más reciente, para avisarte si hay una nueva, y si decides actualizar descarga de GitHub esa versión: GitHub recibe tu dirección IP y el tipo de dispositivo, y nada que te identifique.'],
   ['Cuánto tiempo', 'Render conserva los registros del servidor por un máximo de 30 días y luego los elimina; no los exportamos ni los copiamos. Cloudflare Web Analytics nos muestra solo cifras agregadas.'],
 ])}
 ${dato('2.4 Búsquedas de direcciones y lugares', [
@@ -160,7 +161,7 @@ ${destinatario('Komoot GmbH (Photon)', 'Alemania', 'Busca direcciones. Recibe el
 ${destinatario('OpenStreetMap Foundation (Nominatim)', 'Reino Unido', 'Busca direcciones para el sitio web. Recibe el texto de la búsqueda desde nuestro servidor.')}
 ${destinatario('Esri (ArcGIS)', 'Estados Unidos', 'Busca direcciones para el sitio web. Recibe el texto de la búsqueda desde nuestro servidor.')}
 ${destinatario('GeoJS', 'Fuera de Colombia', 'Estima una ubicación aproximada. Recibe tu dirección IP, solo cuando no compartes tu ubicación y el sitio web la necesita.')}
-${destinatario('GitHub, Inc.', 'Estados Unidos', 'Publica las versiones de la app para Android. Recibe tu dirección IP y el tipo de dispositivo cuando la app, al abrirse, comprueba si hay una versión más reciente.')}
+${destinatario('GitHub, Inc.', 'Estados Unidos', 'Publica las versiones de la app para Android. Recibe tu dirección IP y el tipo de dispositivo cuando la app, al abrirse, comprueba si hay una versión más reciente, y cuando la descargas para actualizar.')}
 ${destinatario('Servidores proxy públicos', 'Colombia', 'Transportan tráfico cifrado entre nuestro servidor y TRANSMILENIO S.A. No pueden leer tus datos (sección 4).')}
 </ul>
 <p>Render y Cloudflare tratan los datos por nuestra cuenta, según los términos de protección de datos de sus servicios. Los demás los reciben como terceros independientes y los tratan según sus propias políticas.</p>

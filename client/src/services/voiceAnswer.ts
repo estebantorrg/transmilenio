@@ -433,7 +433,10 @@ export function composeUnknownRoute(heard: string): VoiceAnswer {
   return {
     spoken: sentence,
     written: sentence,
-    headline: 'No entendí la ruta',
+    // Two different things happened, and the headline said the first for both:
+    // "No entendí la ruta" over "No te escuché" tells a rider who said nothing
+    // that they were misheard.
+    headline: trimmed ? 'No entendí la ruta' : 'No te escuché',
     detail: trimmed ? `Escuché "${trimmed}"` : '',
   };
 }

@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         // launch, and it has to run before the WebView finishes booting for the
         // rider's speech and the page load to overlap (spec §5.9).
         registerPlugin(VoicePlugin.class);
+        registerPlugin(UpdatePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

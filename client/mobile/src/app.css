@@ -327,6 +327,7 @@ input { font-family: inherit; }
 .update-go { background: var(--green); color: #06281c; border: 1px solid transparent; }
 .update-later { background: transparent; color: var(--muted); border: 1px solid var(--border-2); }
 .update-go:active, .update-later:active { transform: scale(0.97); }
+.update-go:disabled, .update-later:disabled { opacity: 0.6; transform: none; }
 
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
 .quick-action {

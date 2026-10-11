@@ -19,10 +19,30 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // The one key every published build is signed with. Android installs an update
+    // only over an app signed with the same key, so this — not a debug keystore
+    // that each machine and each CI runner generates for itself — is what makes
+    // one release installable over the last, and what lets the app update itself
+    // (UpdatePlugin). The file and its passwords never live in the repository:
+    // the path arrives as a Gradle property, the passwords as environment.
+    def releaseKeystore = project.findProperty('releaseKeystore')
+    signingConfigs {
+        release {
+            if (releaseKeystore) {
+                storeFile file(releaseKeystore)
+                storePassword System.getenv('TM_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('TM_KEY_ALIAS') ?: 'transmigo'
+                keyPassword System.getenv('TM_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // Without the property the release build stays unsigned, which cannot
+            // be installed at all — never silently signed with some other key.
+            if (releaseKeystore) signingConfig signingConfigs.release
         }
     }
 }

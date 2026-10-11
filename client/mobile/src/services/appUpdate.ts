@@ -72,6 +72,67 @@ export function releaseFromPayload(payload: any): AppRelease | null {
   return apk ? { version: version.join('.'), url: apk.browser_download_url } : null;
 }
 
+/** How an in-app install ended, as far as this process lived to see. */
+export type InstallOutcome = 'instalada' | 'cancelada' | 'sin-permiso' | 'fallo';
+
+/** `UpdatePlugin` reject codes → outcomes. Keep in step with `UpdatePlugin.java`. */
+const INSTALL_OUTCOMES: Record<string, InstallOutcome> = {
+  CANCELLED: 'cancelada',
+  NOT_ALLOWED: 'sin-permiso',
+};
+
+interface UpdatePluginApi {
+  install(options: { url: string }): Promise<void>;
+  addListener(event: string, handler: (data: any) => void): Promise<{ remove: () => void }> | { remove: () => void };
+}
+
+function updatePlugin(): UpdatePluginApi | null {
+  const cap = (window as any).Capacitor;
+  const plugin = cap?.isNativePlatform?.() ? cap.Plugins?.AppUpdate : null;
+  return plugin && typeof plugin.install === 'function' ? (plugin as UpdatePluginApi) : null;
+}
+
+/** Whether this build can install the release itself, or only link to it. */
+export function canInstallInApp(): boolean {
+  return updatePlugin() !== null;
+}
+
+/**
+ * Download the release and hand it to the system installer, from inside the app
+ * (`UpdatePlugin`). `onProgress` gets the download percentage, then `'instalando'`
+ * once the system has the file.
+ *
+ * Never rejects. For an app replacing itself the usual ending is no ending at
+ * all — Android stops the process to install over it — so `instalada` is only
+ * seen when the system did not have to.
+ */
+export async function installUpdate(
+  release: AppRelease,
+  onProgress: (state: number | 'instalando') => void
+): Promise<InstallOutcome> {
+  const plugin = updatePlugin();
+  if (!plugin) return 'fallo';
+  // `addListener` hands back a handle on some bridge versions and a promise of
+  // one on others (measured on a Pixel 6: a bare handle), so both are awaited.
+  const listeners = [
+    Promise.resolve(
+      plugin.addListener('updateProgress', (data: { percent?: number }) => {
+        if (typeof data?.percent === 'number' && data.percent >= 0) onProgress(data.percent);
+      })
+    ),
+    Promise.resolve(plugin.addListener('updateInstalling', () => onProgress('instalando'))),
+  ];
+  try {
+    await plugin.install({ url: release.url });
+    return 'instalada';
+  } catch (error) {
+    console.warn('[update] in-app install did not complete:', error);
+    return INSTALL_OUTCOMES[(error as { code?: string })?.code ?? ''] ?? 'fallo';
+  } finally {
+    for (const listener of listeners) void listener.then((handle) => handle.remove());
+  }
+}
+
 /** The rider said "not now" to this version; a later one is offered again. */
 export function dismissUpdate(version: string): void {
   saveJSON(DISMISSED_KEY, version);
