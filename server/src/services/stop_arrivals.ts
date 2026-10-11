@@ -407,17 +407,30 @@ function cacheResult(key: string, catalogAt: number, result: StopArrivalsResult)
  * hits, whatever ETAs are ready are returned (a PARTIAL result) rather than
  * failing the popup — the rest resolve on the next open via the result cache.
  */
-export async function computeStopArrivals(stopCode: string): Promise<StopArrivalsResult> {
+export function computeStopArrivals(stopCode: string): Promise<StopArrivalsResult> {
   const code = String(stopCode || '').trim();
-  if (!code) return { arrivals: [], routesServing: 0 };
+  if (!code) return Promise.resolve({ arrivals: [], routesServing: 0 });
 
   const cacheKey = code.toUpperCase();
   const catalogAt = getCatalogLoadedAt();
   const cached = resultCache.get(cacheKey);
   if (cached && cached.catalogAt === catalogAt && Date.now() - cached.at < RESULT_CACHE_TTL_MS) {
-    return cached.result;
+    return Promise.resolve(cached.result);
   }
 
+  // The result is only cached once the whole fan-out has finished, so two riders
+  // opening the same popup a second apart used to run it twice. They share it.
+  let pending = fanOutsInFlight.get(cacheKey);
+  if (!pending) {
+    pending = fanOut(code, cacheKey, catalogAt).finally(() => fanOutsInFlight.delete(cacheKey));
+    fanOutsInFlight.set(cacheKey, pending);
+  }
+  return pending;
+}
+
+const fanOutsInFlight = new Map<string, Promise<StopArrivalsResult>>();
+
+async function fanOut(code: string, cacheKey: string, catalogAt: number): Promise<StopArrivalsResult> {
   const serving = findServingVariants(code);
   const fanned = serving.slice(0, MAX_FANOUT_ROUTES);
   if (fanned.length === 0) {

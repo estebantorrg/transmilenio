@@ -3,6 +3,7 @@ import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
 import { publicProxyAllowed } from './public_proxy_policy.js';
+import { CO_PROXY_TIMEOUT_MS, viaColombianProxy } from './proxy_race.js';
 
 const CARD_API_HOST = LIVE_API_HOST;
 const CARD_API_PATH = '/lectura_tarjeta';
@@ -12,9 +13,10 @@ const CARD_REQUEST_TIMEOUT_MS = 9_000;
 // a non-Colombian egress is rejected 401/451. When opted in, the card read falls
 // back to the same public CO proxy pool live tracking uses (spec §5.2.5). The
 // pool is already verified against this exact host, so a CO exit passes both.
-const CO_PROXY_READY_TIMEOUT_MS = 18_000; // spec §5.5.2 pool readiness wait
-const CO_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS) || 14_000;
-const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH) || 5;
+// The browser gives the whole read 15 s (`readCardBalance`, client api.ts); past
+// that nobody is waiting, and each further wave is the card number crossing more
+// proxies for an answer that is thrown away.
+const CO_PROXY_BUDGET_MS = 14_000;
 
 // Card reads have their own switch, defaulting to the live one (public_proxy_policy.ts).
 function allowPublicColombianProxyFallback(): boolean {
@@ -180,37 +182,19 @@ function requestCardRows(
 }
 
 /**
- * Races the best N verified CO proxies and takes the fastest valid response,
- * aborting the rest — the same egress and pool live tracking uses (spec §5.2.5).
+ * The card read through the public CO proxy pool — the same race live tracking
+ * runs (`proxy_race.ts`, spec §5.2.5): the proven proxy alone first, so a card
+ * number normally crosses one proxy and not five.
  */
 async function fetchCardRowsViaColombianProxy(postData: string): Promise<Record<string, unknown>[]> {
-  const { ProxyManager, SimpleProxyAgent } = await import('./proxy_manager.js');
-  const ready = await ProxyManager.waitForReady(CO_PROXY_READY_TIMEOUT_MS);
-  if (ready === 0) throw new CardBalanceError('No Colombian proxy available for card read', 503);
-
-  const proxies = ProxyManager.getProxies(CO_PROXY_RACE_WIDTH);
-  if (proxies.length === 0) throw new CardBalanceError('No Colombian proxy available for card read', 503);
-
-  const controller = new AbortController();
-  const attempts = proxies.map(async (proxy) => {
-    const started = Date.now();
-    try {
-      const rows = await requestCardRows(postData, CO_PROXY_TIMEOUT_MS, new SimpleProxyAgent(proxy.ip, proxy.port), controller.signal);
-      ProxyManager.reportSuccess(proxy.ip, proxy.port, Date.now() - started);
-      return rows;
-    } catch (error) {
-      // Aborted losers are not genuine failures; don't penalise them.
-      if (!controller.signal.aborted) ProxyManager.reportFailure(proxy.ip, proxy.port);
-      throw error;
-    }
-  });
-
   try {
-    const rows = await Promise.any(attempts);
-    controller.abort(); // cancel the slower in-flight proxies
-    return rows;
-  } catch {
-    throw new CardBalanceError(`All ${proxies.length} CO proxies failed for card read`, 503);
+    return await viaColombianProxy(
+      'card read',
+      (agent, signal) => requestCardRows(postData, CO_PROXY_TIMEOUT_MS, agent, signal),
+      AbortSignal.timeout(CO_PROXY_BUDGET_MS)
+    );
+  } catch (error: any) {
+    throw new CardBalanceError(`${error?.message || error} (card read)`, 503);
   }
 }
 

@@ -11,6 +11,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { anyPublicProxyAllowed } from '../services/public_proxy_policy.js';
 import { clientKey, createRateLimiter } from '../services/flow_control.js';
+import {
+  LIVE_DESTINATION_MAX_LENGTH,
+  LIVE_NAME_CANDIDATE_LIMIT,
+  LIVE_ROUTE_CODE_MAX_LENGTH,
+  normalizeLiveText,
+} from '../services/live_payload.js';
 
 const router = Router();
 
@@ -53,21 +59,13 @@ function rememberLiveBuses(key: string, buses: any[]): void {
   }
   if (oldestKey !== null) liveBusCache.delete(oldestKey);
 }
-const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
-const LIVE_DESTINATION_MAX_LENGTH = 160;
-const LIVE_NAME_CANDIDATE_LIMIT = 12;
-
-function normalizeRequestText(value: unknown, maxLength: number): string {
-  if (typeof value !== 'string' && typeof value !== 'number') return '';
-  return String(value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
-}
 
 function normalizeLiveNameCandidates(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
   const candidates: string[] = [];
   for (const item of value) {
-    const name = normalizeRequestText(item, LIVE_DESTINATION_MAX_LENGTH);
+    const name = normalizeLiveText(item, LIVE_DESTINATION_MAX_LENGTH);
     const key = name.toLowerCase();
     if (!name || seen.has(key)) continue;
     seen.add(key);
@@ -237,7 +235,8 @@ router.get('/troncal/route/:code', async (req: Request, res: Response) => {
   try {
     const { code } = req.params;
     const catalog = tmApi.getCatalog();
-    const routeVariants = catalog.routes[code];
+    // Own keys only: `constructor` is a property of every object, and it is not a route.
+    const routeVariants = Object.hasOwn(catalog.routes, code) ? catalog.routes[code] : undefined;
     if (routeVariants && routeVariants.length > 0) {
       const enrichedVariants = routeVariants.map(variant => {
         if (!variant.stops) return variant;
@@ -371,8 +370,8 @@ router.get('/cable/stations', featureEndpoint('cable-stations', queries.cableSta
 router.get('/cable/trazado', featureEndpoint('cable-traces', queries.cableTraces, 'cable traces', 600));
 
 router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) => {
-  const ruta = normalizeRequestText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
-  const nombre = normalizeRequestText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
+  const ruta = normalizeLiveText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
+  const nombre = normalizeLiveText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
   const nombreCandidates = normalizeLiveNameCandidates(req.body?.nombreCandidates);
   const routeType: 'troncal' | 'zonal' = req.body?.type === 'zonal' ? 'zonal' : 'troncal';
 
@@ -445,7 +444,7 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
 // Real-time bus arrivals/ETAs at a stop (spec §5.8). Rides the same CO live
 // transport as /buses; like it, never hard-fails — empty list on any outage.
 router.post('/arrivals', rateLimit('arrivals'), async (req: Request, res: Response) => {
-  const paradero = normalizeRequestText(
+  const paradero = normalizeLiveText(
     req.body?.paradero ?? req.body?.cenefa ?? req.body?.codigo,
     LIVE_ROUTE_CODE_MAX_LENGTH
   );
@@ -468,7 +467,7 @@ router.post('/arrivals', rateLimit('arrivals'), async (req: Request, res: Respon
 // positions projected onto each route's official trace (spec §5.8, §5.6).
 // Never hard-fails — empty list on any outage.
 router.post('/stop-arrivals', rateLimit('stop-arrivals'), async (req: Request, res: Response) => {
-  const code = normalizeRequestText(
+  const code = normalizeLiveText(
     req.body?.code ?? req.body?.codigo ?? req.body?.cenefa ?? req.body?.paradero,
     LIVE_ROUTE_CODE_MAX_LENGTH
   );

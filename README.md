@@ -23,13 +23,13 @@ This project is built with a modern tech stack (Vite + Node.js) and features a r
 ### Frontend (Client)
 - **Framework**: [Vite](https://vitejs.dev/) + TypeScript
 - **Styling**: Vanilla CSS (Premium custom design system)
-- **Mapping Engine**: Mapbox GL JS / MapLibre (depending on configuration)
+- **Mapping Engine**: MapLibre GL JS (+ three.js for the 3D bus layer)
 - **State Management**: Reactive UI with TypeScript services
 
 ### Backend (Server)
 - **Runtime**: [Node.js](https://nodejs.org/) + Express + TypeScript
 - **Data Layers**: Custom scraping services for `api.buscador-rutas.transmilenio.gov.co`.
-- **Caching**: Local JSON-based master catalog with automatic stale-check and background sync.
+- **Caching**: Committed JSON master catalog (Git LFS), served read-only. It is refreshed offline with `npm --prefix server run sync` and deployed; the server does not sync on its own (opt in with `TM_ENABLE_AUTO_SYNC=1` only on a host with ≥1 GB of headroom).
 
 ### Live Tracking From Colombia
 

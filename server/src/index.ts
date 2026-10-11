@@ -152,8 +152,17 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ status: 'error', message: 'API endpoint not found' });
 });
 
-// For any other route, serve the React app (Client-side routing fallback)
+// For any other route, serve the app shell (client-side routing fallback) —
+// but only for a page. A path with an extension is a file, and a file the
+// static mounts above did not find does not exist: answering it with the shell
+// and a 200 handed HTML to a tab asking for the previous deploy's
+// `/assets/*.js`, and the service worker cached that HTML under the script's
+// URL (`cacheFirst` keeps any `ok` response).
 app.get('*', (req, res) => {
+  if (path.extname(req.path)) {
+    res.sendStatus(404);
+    return;
+  }
   res.sendFile(path.resolve(clientDist, 'index.html'));
 });
 

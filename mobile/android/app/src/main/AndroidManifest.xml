@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- allowBackup off: the app remembers up to five tu llave numbers on the
+         device (`tmgo.cards.v1`), and a card number is all it takes to read that
+         card's ledger. They stay on the phone instead of riding along in a
+         cloud or adb backup (spec §3.3). -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"

@@ -18,6 +18,7 @@
 import { expect, test } from '@playwright/test';
 import { isProvenProxy, PROVEN_PROXY_MAX_AGE_MS, shouldRefreshPool } from '../server/src/services/proxy_health';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../server/src/services/live_name_memo';
+import { raceProxies, type ProxyPool } from '../server/src/services/proxy_race';
 import * as clientMemo from '../client/src/services/liveNameMemo';
 
 const MINUTE = 60_000;
@@ -94,5 +95,60 @@ test.describe('remembered destination name (cut 1)', () => {
 
     clientMemo.forgetLiveName('B12');
     expect(clientMemo.recallLiveName('B12')).toBeNull();
+  });
+});
+
+test.describe('one request through the pool (cut 2, every caller)', () => {
+  // Live buses, arrivals, the card read and the tullave sync share this race
+  // (`proxy_race.ts`); each used to carry its own, and only one of the four
+  // tried the proven proxy alone or went past a first dead wave.
+  const proxy = (n: number) => ({ ip: `190.0.0.${n}`, port: 8080 });
+  const pool = (proven: number | null, ranked: number[]) => {
+    const log = { ok: [] as string[], failed: [] as string[] };
+    const fake: ProxyPool = {
+      waitForReady: async () => ranked.length,
+      getProvenProxy: () => (proven === null ? null : proxy(proven)),
+      getProxies: (n, exclude) =>
+        ranked.map(proxy).filter((p) => !exclude?.has(`${p.ip}:${p.port}`)).slice(0, n),
+      reportSuccess: (ip) => { log.ok.push(ip); },
+      reportFailure: (ip) => { log.failed.push(ip); },
+    };
+    return { fake, log };
+  };
+
+  test('a proxy that has been answering carries the request alone', async () => {
+    const { fake, log } = pool(3, [1, 2, 3, 4, 5, 6]);
+    const asked: string[] = [];
+    const answer = await raceProxies(fake, async (p) => { asked.push(p.ip); return 'buses'; }, 'test');
+    expect(answer).toBe('buses');
+    expect(asked).toEqual(['190.0.0.3']);
+    expect(log.ok).toEqual(['190.0.0.3']);
+  });
+
+  test('when it fails, the next wave races the ones not tried yet', async () => {
+    const { fake, log } = pool(3, [1, 2, 3, 4, 5, 6]);
+    const asked: string[] = [];
+    const answer = await raceProxies(fake, async (p) => {
+      asked.push(p.ip);
+      if (p.ip !== '190.0.0.5') throw new Error('reset');
+      return 'buses';
+    }, 'test');
+    expect(answer).toBe('buses');
+    // Alone first, then the five best of the rest — never the same proxy twice.
+    expect(asked).toEqual(['190.0.0.3', '190.0.0.1', '190.0.0.2', '190.0.0.4', '190.0.0.5', '190.0.0.6']);
+    expect(log.ok).toEqual(['190.0.0.5']);
+    expect(log.failed).toContain('190.0.0.3');
+  });
+
+  test('a dead pool stops after its waves and says so', async () => {
+    const { fake } = pool(null, Array.from({ length: 40 }, (_, i) => i + 1));
+    let attempts = 0;
+    await expect(
+      raceProxies(fake, async () => { attempts++; throw new Error('timeout'); }, 'test')
+    ).rejects.toThrow('All CO proxies failed across 15 tried');
+    expect(attempts).toBe(15); // three waves of five, bounded
+
+    const empty = pool(null, []);
+    await expect(raceProxies(empty.fake, async () => 'x', 'test')).rejects.toThrow('No Colombian proxy available');
   });
 });

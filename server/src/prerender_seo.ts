@@ -274,7 +274,9 @@ function renderPage(
   // Replace the shell's site-wide WebApplication block with this page's graph.
   html = html.replace(
     /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
-    `<script type="application/ld+json">${JSON.stringify(page.jsonLd)}</script>`
+    // `<` escaped: the names in this graph are upstream text, and `</script>` in
+    // one of them would end the block and put what follows it into the page.
+    `<script type="application/ld+json">${JSON.stringify(page.jsonLd).replace(/</g, '\\u003c')}</script>`
   );
 
   // The prerendered body is the page until the bundle boots; `hideLoading()`

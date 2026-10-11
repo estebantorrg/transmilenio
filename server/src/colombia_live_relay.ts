@@ -5,6 +5,14 @@ import https from 'https';
 import crypto from 'crypto';
 import { collectBody, decodeBody } from './services/upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './services/official_app_headers.js';
+import { clientKey, createRateLimiter, createSharedWindow } from './services/flow_control.js';
+import {
+  LIVE_DESTINATION_MAX_LENGTH,
+  LIVE_NAME_CANDIDATE_LIMIT,
+  LIVE_ROUTE_CODE_MAX_LENGTH,
+  normalizeLiveBusesPayload,
+  normalizeLiveText,
+} from './services/live_payload.js';
 
 const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 const PORT = Number(process.env.COLOMBIA_RELAY_PORT || process.env.PORT || 8787);
@@ -13,9 +21,19 @@ const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
 const EGRESS_CACHE_MS = 30_000;
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
 const JSON_BODY_LIMIT = '64kb';
-const LIVE_ROUTE_CODE_MAX_LENGTH = 32;
-const LIVE_DESTINATION_MAX_LENGTH = 160;
-const LIVE_NAME_CANDIDATE_LIMIT = 12;
+// What a route código looks like (`B12`, `661`, `3-5`): the relay has no catalog
+// to check a `ruta` against, so its shape is the check. The longest filed is 5.
+const ROUTE_CODE_RE = /^[A-Z0-9][A-Z0-9-]{0,7}$/i;
+
+// The same two bounds the main server keeps (spec §3.4, `flow_control.ts`):
+// callers asking about one route share one answer, and a browser-direct client
+// has a budget. The main server is not budgeted — it holds the secret, it is
+// one address for every rider, and it bounds itself.
+const SHARED_WINDOW_MS = 10_000;
+const SHARED_MAX = 400;
+const BUDGET_PER_MINUTE = 90;
+const sharedBuses = createSharedWindow<any[]>(SHARED_WINDOW_MS, SHARED_MAX);
+const rateLimiter = createRateLimiter(60_000);
 
 const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
   if (error?.type === 'entity.too.large') {
@@ -83,20 +101,9 @@ function secretsMatch(candidate: string): boolean {
   return crypto.timingSafeEqual(a, b);
 }
 
-function isAuthorized(req: Request): boolean {
-  // Browser requests from an allow-listed origin are trusted at the app layer:
-  // CORS already blocks other browser origins, and the relay returns only public,
-  // CO-gated bus positions. (Origin is not a hard boundary for non-browser
-  // clients, but there is nothing private to protect here.)
-  if (isAllowedOrigin(req.headers.origin as string | undefined)) return true;
-
-  // An unconfigured relay used to answer EVERY caller — a public deployment with
-  // no `TRANSMILENIO_COLOMBIA_RELAY_SECRET` and no `RELAY_CLIENT_ORIGINS` was an
-  // open proxy onto the live host from a Colombian IP. Refuse instead, the way
-  // any relay must (spec §5.2.2a); local dev still passes on its localhost
-  // origin above.
+/** The main server, or anything else holding `TRANSMILENIO_COLOMBIA_RELAY_SECRET`. */
+function hasRelaySecret(req: Request): boolean {
   if (!RELAY_SECRET) return false;
-
   const auth = String(req.headers.authorization || '');
   const bearer = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   const headerRaw = req.headers['x-relay-secret'];
@@ -180,11 +187,6 @@ function makeLiveContext(
   };
 }
 
-function normalizeLiveText(value: unknown, maxLength: number): string {
-  if (typeof value !== 'string' && typeof value !== 'number') return '';
-  return String(value).replace(/[\r\n\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLength);
-}
-
 /**
  * Troncal matches by destination name; the catalog often holds several candidate
  * strings for one route. Build one context per distinct candidate so the handler
@@ -209,41 +211,6 @@ function createLiveRequestContexts(body: any): LiveRequestContext[] {
   }
   const list = names.length ? names : [''];
   return list.map((name) => makeLiveContext(routeCode, name, 'troncal'));
-}
-
-function isLiveBusLike(value: unknown): boolean {
-  if (!value || typeof value !== 'object') return false;
-  const bus = value as { latitude?: unknown; longitude?: unknown; lat?: unknown; lng?: unknown; lon?: unknown };
-  return Number.isFinite(Number(bus.latitude ?? bus.lat)) &&
-    Number.isFinite(Number(bus.longitude ?? bus.lng ?? bus.lon));
-}
-
-function normalizeLiveBusesPayload(payload: any): any[] {
-  if (Array.isArray(payload)) return payload;
-  if (!payload || typeof payload !== 'object') return [];
-
-  const candidates = [
-    payload.data,
-    payload.buses,
-    payload.result,
-    payload.results,
-    payload.vehiculos,
-    payload.vehicles,
-  ];
-
-  for (const candidate of candidates) {
-    if (Array.isArray(candidate)) return candidate;
-  }
-
-  for (const candidate of candidates) {
-    if (candidate && typeof candidate === 'object') {
-      const buses = Object.values(candidate).filter(isLiveBusLike);
-      if (buses.length > 0) return buses;
-    }
-  }
-
-  const buses = Object.values(payload).filter(isLiveBusLike);
-  return buses.length > 0 ? buses : [];
 }
 
 async function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined): Promise<any[]> {
@@ -369,11 +336,18 @@ function raceCandidates(contexts: LiveRequestContext[]): Promise<any[]> {
 }
 
 const app = express();
+// `req.ip` is what the budget counts against. The relay is reached either
+// directly or through a tunnel on this same machine (Tailscale Funnel,
+// cloudflared), and both tunnels put the caller in X-Forwarded-For — Tailscale
+// overwrites the header with the source address it saw. Trusting loopback and
+// nothing else reads that address through a tunnel, and the socket itself
+// when there is none, so a caller cannot name its own.
+app.set('trust proxy', 'loopback');
 app.use(
   cors({
     origin(origin, cb) {
       // No Origin = non-browser caller (curl/server-to-server); allow at the CORS
-      // layer and let isAuthorized() gate it. Browser origins must be allow-listed.
+      // layer and let the handler gate it (it needs the secret). Browser origins must be allow-listed.
       cb(null, !origin || isAllowedOrigin(origin));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -399,14 +373,25 @@ app.get('/health', async (_req: Request, res: Response) => {
 
 app.post('/buses', async (req: Request, res: Response) => {
   try {
-    if (!isAuthorized(req)) {
+    // An allow-listed `Origin` admits a browser, and that is all it does: it is
+    // a header, and anything that is not a browser can send whichever one it
+    // likes. So it is not treated as proof of who is calling — a caller
+    // admitted by it is a stranger with a budget (spec §5.2.2), and an
+    // unconfigured relay still answers only localhost (`isAllowedOrigin`).
+    const trusted = hasRelaySecret(req);
+    if (!trusted && !isAllowedOrigin(req.headers.origin as string | undefined)) {
       res.status(401).json({ success: false, error: 'Unauthorized relay request' });
+      return;
+    }
+    if (!trusted && !rateLimiter.allow(clientKey(req.ip ?? ''), BUDGET_PER_MINUTE)) {
+      res.setHeader('Retry-After', String(rateLimiter.retryAfterSeconds()));
+      res.status(429).json({ success: false, error: 'Too many requests' });
       return;
     }
 
     const contexts = createLiveRequestContexts(req.body);
-    if (!contexts[0]?.routeCode) {
-      res.status(400).json({ success: false, error: 'ruta is required' });
+    if (!ROUTE_CODE_RE.test(contexts[0]?.routeCode ?? '')) {
+      res.status(400).json({ success: false, error: 'ruta must be a route code' });
       return;
     }
 
@@ -420,7 +405,8 @@ app.post('/buses', async (req: Request, res: Response) => {
     // result from a candidate that *answered* is a valid "no buses right now",
     // so it still requires every candidate to settle; an error is only surfaced
     // if none answered at all.
-    const buses = await raceCandidates(contexts);
+    const key = contexts.map((c) => `${c.routeType}|${c.routeCode}|${c.destinationName}`).join('||').toLowerCase();
+    const buses = await sharedBuses(key, () => raceCandidates(contexts));
 
     res.json({
       success: true,

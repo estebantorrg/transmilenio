@@ -26,6 +26,7 @@ import { dirname, join } from 'node:path';
 import { collectBody, decodeBody } from './services/upstream_body.js';
 import { relayForward, isColombiaRelayConfigured } from './services/co_relay.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './services/official_app_headers.js';
+import { viaColombianProxy } from './services/proxy_race.js';
 
 const LIVE_HOST = LIVE_API_HOST;
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), 'data');
@@ -40,8 +41,6 @@ const RELAY_TIMEOUT_MS = 20_000;
 // A free proxy carrying a ~1 MB POI payload is far slower than a live-bus fix,
 // so this is deliberately looser than the 14 s live budget (spec §5.5.2).
 const PROXY_TIMEOUT_MS = 30_000;
-const PROXY_READY_TIMEOUT_MS = 18_000;
-const PROXY_RACE_WIDTH = 6;
 
 export type TuLlaveDatasetId = 'recarga' | 'personalizacion';
 
@@ -178,42 +177,15 @@ function requestPoints(
   });
 }
 
-/** Races the best N verified CO proxies, taking the fastest valid response. */
-async function fetchViaPublicProxy(path: string): Promise<unknown> {
-  const { ProxyManager, SimpleProxyAgent } = await import('./services/proxy_manager.js');
-  const ready = await ProxyManager.waitForReady(PROXY_READY_TIMEOUT_MS);
-  if (ready === 0) throw new Error('no verified Colombian proxy available');
-
-  const proxies = ProxyManager.getProxies(PROXY_RACE_WIDTH);
-  if (proxies.length === 0) throw new Error('no verified Colombian proxy available');
-
-  const controller = new AbortController();
-  const attempts = proxies.map(async (proxy) => {
-    const started = Date.now();
-    try {
-      const payload = await requestPoints(
-        path,
-        PROXY_TIMEOUT_MS,
-        new SimpleProxyAgent(proxy.ip, proxy.port),
-        controller.signal
-      );
-      if (!Array.isArray(payload)) throw new Error('proxy returned a non-array payload');
-      ProxyManager.reportSuccess(proxy.ip, proxy.port, Date.now() - started);
-      return payload;
-    } catch (error) {
-      // Aborted losers are not genuine failures; don't penalise them.
-      if (!controller.signal.aborted) ProxyManager.reportFailure(proxy.ip, proxy.port);
-      throw error;
-    }
-  });
-
-  try {
-    const payload = await Promise.any(attempts);
-    controller.abort(); // cancel the slower in-flight proxies
+/** One catalogue through the public CO proxy pool (`proxy_race.ts`, spec §5.2.5). */
+function fetchViaPublicProxy(path: string): Promise<unknown> {
+  return viaColombianProxy(`tullave ${path}`, async (agent, signal) => {
+    const payload = await requestPoints(path, PROXY_TIMEOUT_MS, agent, signal);
+    // Inside the attempt, so a proxy that answers with something else is a
+    // failed proxy and the race moves on.
+    if (!Array.isArray(payload)) throw new Error('proxy returned a non-array payload');
     return payload;
-  } catch {
-    throw new Error(`all ${proxies.length} CO proxies failed`);
-  }
+  });
 }
 
 /**
