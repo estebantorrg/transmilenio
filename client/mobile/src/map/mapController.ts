@@ -52,6 +52,9 @@ export interface MapLayerVisibility {
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
+/** The focused place's pin: amber, apart from the red, blue and orange of the
+ *  estación, paradero and cable layers it can sit on top of. */
+const FOCUS_COLOR = '#fbbf24';
 
 export interface RouteLiveHandler {
   (count: number, status: TrackingStatus, asOf?: number): void;
@@ -70,6 +73,8 @@ export class MapController {
   private journeyActive = false;
   private pendingUser: [number, number] | null = null;
   private pendingFly: { coordinate: [number, number]; zoom: number } | null = null;
+  /** The place "Ver en el mapa" last pointed at; its pin reopens its sheet. */
+  private focused: StationRecord | null = null;
   // Map-filter state (user intent). Global layers hide while a route is active.
   private stationsOn: boolean;
   private paraderosOn: boolean;
@@ -78,6 +83,7 @@ export class MapController {
   onSelectStation: (rec: StationRecord) => void = () => {};
   onSelectDemand: (rec: DemandRecord) => void = () => {};
   onSelectCable: (rec: StationRecord) => void = () => {};
+  onSelectFocus: (rec: StationRecord) => void = () => {};
 
   constructor(container: HTMLElement, layers?: Partial<MapLayerVisibility>) {
     this.stationsOn = layers?.stations ?? true;
@@ -311,6 +317,40 @@ export class MapController {
       paint: { 'circle-radius': 6, 'circle-color': '#3b82f6', 'circle-stroke-color': '#fff', 'circle-stroke-width': 2.5 },
     });
 
+    // The place "Ver en el mapa" points at gets a pin of its own. A recarga,
+    // personalización or bici point is on no other layer, and an estación's or a
+    // paradero's layer may be switched off — so the camera used to fly to a spot
+    // with nothing on it and the rider could not tell where the place was.
+    map.addSource('tm-focus', { type: 'geojson', data: EMPTY_FC });
+    map.addLayer({
+      id: 'tm-focus-halo',
+      type: 'circle',
+      source: 'tm-focus',
+      paint: { 'circle-radius': 22, 'circle-color': FOCUS_COLOR, 'circle-opacity': 0.22 },
+    });
+    map.addLayer({
+      id: 'tm-focus-dot',
+      type: 'circle',
+      source: 'tm-focus',
+      paint: { 'circle-radius': 8, 'circle-color': FOCUS_COLOR, 'circle-stroke-color': '#fff', 'circle-stroke-width': 3 },
+    });
+    map.addLayer({
+      id: 'tm-focus-label',
+      type: 'symbol',
+      source: 'tm-focus',
+      layout: {
+        'text-field': ['get', 'name'],
+        'text-size': 13,
+        'text-offset': [0, 1.4],
+        'text-anchor': 'top',
+        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-max-width': 10,
+        // The one label the rider asked for: it is not dropped for a neighbour's.
+        'text-allow-overlap': true,
+      },
+      paint: { 'text-color': '#f4f6fb', 'text-halo-color': '#05070c', 'text-halo-width': 1.8 },
+    });
+
     // Tap picking. Per-layer `click` handlers require the tap to land exactly on
     // the feature — a fingertip covers far more than these 3–9 px circles, so
     // taps routinely "did nothing". Instead hit-test a finger-sized box around
@@ -318,7 +358,7 @@ export class MapController {
     // queryRenderedFeatures only returns features from visible layers, so hidden
     // filters / route mode need no special-casing.
     const TAP_PAD_PX = 14;
-    const TAP_LAYERS = ['tm-stations-layer', 'tm-paraderos-layer', 'tm-cable-stations-layer', 'tm-demand-layer'];
+    const TAP_LAYERS = ['tm-focus-dot', 'tm-stations-layer', 'tm-paraderos-layer', 'tm-cable-stations-layer', 'tm-demand-layer'];
     map.on('click', (e) => {
       const feats = map.queryRenderedFeatures(
         [
@@ -334,7 +374,9 @@ export class MapController {
       const f = feats[0];
       const p = f.properties as any;
       const coordinate = (f.geometry as GeoJSON.Point).coordinates as [number, number];
-      if (f.layer.id === 'tm-demand-layer') {
+      if (f.layer.id === 'tm-focus-dot') {
+        if (this.focused) this.onSelectFocus(this.focused);
+      } else if (f.layer.id === 'tm-demand-layer') {
         this.onSelectDemand({
           name: p.name,
           coordinate,
@@ -387,6 +429,7 @@ export class MapController {
       this.flyTo(this.pendingFly.coordinate, this.pendingFly.zoom);
       this.pendingFly = null;
     }
+    if (this.focused) this.setFocus(this.focused);
     if (this.pendingRoute) {
       const { route, onLive } = this.pendingRoute;
       this.pendingRoute = null;
@@ -535,6 +578,7 @@ export class MapController {
 
   /** Draw a route + its stops and start live 3D-bus tracking. */
   async showRoute(route: RouteListItem, onLive?: RouteLiveHandler): Promise<void> {
+    this.setFocus(null);
     if (!this.ready) {
       this.pendingRoute = { route, onLive };
       return;
@@ -622,6 +666,7 @@ export class MapController {
    * but never see, on a client whose whole point is a map.
    */
   async showJourney(plan: JourneyPlan): Promise<void> {
+    this.setFocus(null);
     if (!this.ready) {
       this.pendingJourney = plan;
       return;
@@ -649,6 +694,23 @@ export class MapController {
     this.journeyActive = false;
     if (journeyModule) (await journeyModule).clearJourneyPath(this.map);
     return true;
+  }
+
+  /**
+   * Marks a place with a named pin and flies to it. `null` takes the pin away —
+   * a route or an itinerary is a different answer, and the pin of the last
+   * place looked at does not belong on it.
+   */
+  setFocus(rec: StationRecord | null): void {
+    this.focused = rec;
+    if (!this.ready) return; // drawn from `focused` once the style has loaded
+    (this.map.getSource('tm-focus') as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: 'FeatureCollection',
+      features: rec
+        ? [{ type: 'Feature', geometry: { type: 'Point', coordinates: rec.coordinate }, properties: { name: rec.name } }]
+        : [],
+    });
+    if (rec) this.flyTo(rec.coordinate, 16);
   }
 
   flyTo(coordinate: [number, number], zoom = 15.5): void {

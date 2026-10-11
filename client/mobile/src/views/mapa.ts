@@ -10,6 +10,7 @@ import { locationFailureMessage } from '@shared/utils/locationError';
 import { bus, state, type StationRecord } from '../state';
 import { MapController, MAP_STYLE_URL, preloadMapAssets } from '../map/mapController';
 import { openRouteSheet, openStationSheet } from '../ui/detailSheets';
+import { openPointDetail } from '../ui/pointRow';
 import { getMapLayerPrefs, setMapLayerPref, type MapLayerKey } from '../lib/storage';
 import { ICONS, liveChip, routeBadge } from '../ui/components';
 import type { View } from './types';
@@ -50,6 +51,8 @@ export function createMapaView(): MapaView {
     if (!controller) {
       controller = new MapController(canvas, layerPrefs);
       controller.onSelectStation = (rec) => openStationSheet(rec);
+      // The pin "Ver en el mapa" left: tapping it brings its sheet back.
+      controller.onSelectFocus = (rec) => openPointDetail(rec);
       // Demand circles aren't stations — a compact toast fits the app's
       // sheet/toast interaction model (no map popups on mobile).
       controller.onSelectDemand = (d) => {
@@ -250,7 +253,7 @@ export function createMapaView(): MapaView {
   }
 
   function focusPoint(rec: StationRecord): void {
-    ensureController().flyTo(rec.coordinate, 16);
+    ensureController().setFocus(rec);
   }
 
   function setUser(coord: [number, number]): void {
