@@ -318,6 +318,16 @@ input { font-family: inherit; }
 .status-dot.err { background: var(--red-2); }
 .status-text { color: var(--muted); }
 
+/* Update notice (spec §5.2.1b): a newer release exists and the rider has not dismissed it. */
+.update-card { background: rgba(52, 211, 153, 0.1); border: 1px solid rgba(52, 211, 153, 0.32); border-radius: var(--radius-sm); padding: 12px 14px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 10px; }
+.update-text { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); }
+.update-text strong { font-size: 14px; color: var(--text); }
+.update-actions { display: flex; gap: 8px; }
+.update-go, .update-later { flex: 1; min-height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 12px; font-family: var(--font-body); font-size: 14px; font-weight: 650; text-decoration: none; }
+.update-go { background: var(--green); color: #06281c; border: 1px solid transparent; }
+.update-later { background: transparent; color: var(--muted); border: 1px solid var(--border-2); }
+.update-go:active, .update-later:active { transform: scale(0.97); }
+
 .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 22px; }
 .quick-action {
   display: flex; flex-direction: column; gap: 10px; align-items: flex-start;

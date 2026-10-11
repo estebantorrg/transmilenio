@@ -22,7 +22,15 @@ Checked in the build, October 2026: permissions `INTERNET`,
 from phonegap-nfc), no background location; no analytics, crash or ads SDK in
 the Gradle build; every host is HTTPS (TRANSMILENIO's app host and
 `gis.transmilenio.gov.co`, `routing.openstreetmap.de`, `photon.komoot.io`,
-`basemaps.cartocdn.com`); the catalog ships inside the APK.
+`basemaps.cartocdn.com`, `api.github.com`); the catalog ships inside the APK.
+
+**Update check — remove it from a Play build.** At launch the app asks
+`api.github.com` for the project's latest release and, if it is newer, offers
+its APK (`client/mobile/src/services/appUpdate.ts`). The request carries no user
+data (GitHub sees an IP address and a user agent; policy §2.3), so it adds no
+data type below. But an app installed from Google Play may not update itself, or
+send the user to an update, from anywhere other than Play: the notice is for the
+sideloaded APK and has to be switched off in any build submitted to Play.
 
 ## Overview
 

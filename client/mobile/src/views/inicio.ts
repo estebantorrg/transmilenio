@@ -10,6 +10,7 @@ import { app } from '../appContext';
 import { WEB_ORIGIN, openRouteSheet } from '../ui/detailSheets';
 import { legalLinksHtml } from '../../../../shared/legal.js';
 import { ICONS, routeBadge } from '../ui/components';
+import { dismissUpdate, findUpdate } from '../services/appUpdate';
 import type { View } from './types';
 
 export function createInicioView(): View {
@@ -59,6 +60,31 @@ export function createInicioView(): View {
     );
   }
   renderStatus();
+
+  // ── Update notice (spec §5.2.1b) ──
+  // The APK is installed by hand, so nothing else tells a rider a newer release
+  // exists. Empty and hidden unless there is one they have not dismissed.
+  const updateCard = h('div', { class: 'update-card hidden', role: 'status' });
+  void findUpdate().then((release) => {
+    if (!release) return;
+    const later = h('button', { class: 'update-later', type: 'button', text: 'Ahora no' });
+    later.addEventListener('click', () => {
+      dismissUpdate(release.version);
+      updateCard.classList.add('hidden');
+    });
+    updateCard.append(
+      h('div', { class: 'update-text' }, [
+        h('strong', { text: `Versión ${release.version} disponible` }),
+        h('span', { text: 'Se instala sobre esta: conservas tus tarjetas y favoritos.' }),
+      ]),
+      h('div', { class: 'update-actions' }, [
+        // An off-app link: Capacitor hands it to the browser, which downloads the APK.
+        h('a', { class: 'update-go', href: release.url, target: '_blank', rel: 'noopener', text: 'Descargar' }),
+        later,
+      ])
+    );
+    updateCard.classList.remove('hidden');
+  });
 
   // ── Quick actions ──
   const actions = h('div', { class: 'quick-grid' });
@@ -179,7 +205,7 @@ export function createInicioView(): View {
   // website, so they open in the browser (Capacitor hands off-app URLs to it).
   const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
 
-  el.append(hero, statusCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
+  el.append(hero, statusCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {

@@ -58,6 +58,7 @@ test.describe('what the policy says', () => {
       'Nominatim',
       'Esri',
       'GeoJS',
+      'GitHub, Inc.',
       'proxy públicos',
     ]) {
       expect(texto, quien).toContain(quien);
