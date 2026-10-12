@@ -46,7 +46,7 @@ function esc(value) {
 /** The data controller (Ley 1581 de 2012, art. 3 e): a natural person, not a company. */
 export const RESPONSABLE = {
   nombre: 'E. T. G.',
-  correo: 'estebantorrg.dev@proton.me',
+  correo: 'esteban.t.dev@proton.me',
   ciudad: 'Bogotá D.C., Colombia',
 };
 

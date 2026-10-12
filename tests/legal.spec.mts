@@ -24,7 +24,7 @@ test.describe('what the policy says', () => {
     expect(RESPONSABLE.nombre).toBe('E. T. G.');
     expect(texto).toContain('E. T. G.');
     expect(texto).toContain('persona natural');
-    expect(texto).toContain('estebantorrg.dev@proton.me');
+    expect(texto).toContain('esteban.t.dev@proton.me');
     expect(texto).toContain('Bogotá');
   });
 
