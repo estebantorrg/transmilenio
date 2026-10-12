@@ -2,7 +2,7 @@
  * The route the rider probably means (spec §5.9).
  *
  * This is what collapses the interaction to a single utterance. "Hey Google, abre
- * TransMi Go" opens the app with the mic hot; if the rider then says nothing, the
+ * MiTrasto" opens the app with the mic hot; if the rider then says nothing, the
  * answer they wanted is usually the route they ask about at this hour anyway, and
  * guessing it costs nothing — they can still speak over it.
  *

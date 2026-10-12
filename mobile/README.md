@@ -1,4 +1,4 @@
-# TransMilenio Explorer — Android app
+# MiTrasto — Android app
 
 Native Android shell (Capacitor 6) around the same web client the website ships. One codebase, two targets: the site serves `client/` from the server; this app bundles the identical build inside an APK.
 

@@ -62,7 +62,7 @@ export function renderLlmsTxt(input: LlmsInput): string {
   const stations = [...input.stations].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 
   return [
-    '# TransMilenio Explorer',
+    '# MiTrasto',
     '',
     '> Aplicación web independiente y no oficial sobre el sistema TransMilenio de Bogotá: cada ruta troncal, alimentadora y padrón con sus paradas y horarios, cada estación con un plano de en qué vagón se toma cada servicio, llegadas en vivo y un planeador de viajes. No está afiliada a TRANSMILENIO S.A.',
     '',

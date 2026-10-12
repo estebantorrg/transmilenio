@@ -1,5 +1,5 @@
 /**
- * TransMi Go — native mobile app entry.
+ * MiTrasto — native mobile app entry.
  *
  * A ground-up app UI (bottom-tab shell, bottom sheets, live dashboard) that
  * shares ONLY the website's data/service layer (`@shared`), never its look.

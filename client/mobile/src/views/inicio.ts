@@ -22,7 +22,7 @@ export function createInicioView(): View {
     h('div', { class: 'hero-row' }, [
       h('div', {}, [
         h('div', { class: 'hero-greeting', text: greeting() }),
-        h('div', { class: 'hero-brand', html: 'TransMi <b>Go</b>' }),
+        h('div', { class: 'hero-brand', html: 'Mi<b>Trasto</b>' }),
       ]),
       h('div', { class: 'hero-clock-wrap' }, [h('span', { class: 'hero-clock-icon', html: ICONS.clock }), clock]),
     ]),
@@ -99,7 +99,7 @@ export function createInicioView(): View {
         install.disabled = false;
         install.textContent = 'Actualizar';
         if (outcome === 'sin-permiso') {
-          note.textContent = 'Android necesita que permitas a TransMi Go instalar la actualización.';
+          note.textContent = 'Android necesita que permitas a MiTrasto instalar la actualización.';
         }
       });
     });

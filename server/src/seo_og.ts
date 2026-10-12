@@ -214,7 +214,7 @@ function arrowSvg(x: number, y: number, w: number, color: string): string {
 }
 
 const header = () => `${markSvg(64, 56, 44)}
-  <text x="124" y="87" font-family="Inter" font-size="24" fill="${DIM}">TransMilenio Explorer</text>`;
+  <text x="124" y="87" font-family="Inter" font-size="24" fill="${DIM}">MiTrasto</text>`;
 
 const footer = () =>
   `<text x="64" y="${HEIGHT - 44}" font-family="Inter" font-size="22" fill="#6B7280">mitrasto.app</text>`;

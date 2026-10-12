@@ -1,6 +1,6 @@
 name: Android APK
 
-# Builds the TransMilenio Explorer Android app (mobile/) and publishes the APK.
+# Builds the MiTrasto Android app (mobile/) and publishes the APK.
 # - Push a tag like v1.0.0  -> builds + attaches the APK to a GitHub Release.
 # - Manual run (workflow_dispatch) -> builds + uploads the APK as a run artifact.
 on:

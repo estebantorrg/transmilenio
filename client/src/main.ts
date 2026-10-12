@@ -1,5 +1,5 @@
 /**
- * TransMilenio Explorer — Main Entry Point
+ * MiTrasto — Main Entry Point
  *
  * Bootstraps the map, loads data from the backend proxy,
  * and wires up the sidebar UI.
@@ -613,7 +613,7 @@ async function getIpLocation(): Promise<{ longitude: number; latitude: number; a
 // ─── Main ─────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log('🚌 TransMilenio Explorer starting...');
+  console.log('🚌 MiTrasto starting...');
   clearLegacyExactLocation();
 
   // Inside the Android shell (mobile/), mark the DOM so the stylesheet can
@@ -1323,7 +1323,7 @@ async function main(): Promise<void> {
   }
 
   // 4. Done with initial render!
-  console.log('🎉 TransMilenio Explorer initial render ready!');
+  console.log('🎉 MiTrasto initial render ready!');
   updateProgress(100, '¡Listo!');
   setTimeout(() => {
     hideLoading();
@@ -1395,7 +1395,7 @@ async function main(): Promise<void> {
       console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
 
       if (applyZonalStops(zonalStopsRes.features, zonalStopRoutesRes.features)) {
-        console.log('🎉 TransMilenio Explorer background load & enrichment complete!');
+        console.log('🎉 MiTrasto background load & enrichment complete!');
       } else {
         degradedLayers.add('stops');
         console.warn('⚠️ Zonal paraderos unavailable — scheduling recovery');

@@ -265,11 +265,11 @@ export function mastheadHtml(): string {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
           <span>Ver en el mapa</span>
         </button>
-        <a class="page-brand" href="/" aria-label="Inicio — TransMilenio Explorer">
+        <a class="page-brand" href="/" aria-label="Inicio — MiTrasto">
           <img class="page-logo" src="/icon-192.png" alt="" width="34" height="34" />
           <span class="page-brand-text">
-            <span class="page-brand-title">TransMilenio</span>
-            <span class="page-brand-sub">Explorer</span>
+            <span class="page-brand-title">MiTrasto</span>
+            <span class="page-brand-sub">Rutas de Bogotá</span>
           </span>
         </a>
         <button class="page-share" type="button" aria-label="Copiar enlace a esta página" title="Copiar enlace a esta página">

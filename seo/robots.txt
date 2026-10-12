@@ -1,4 +1,4 @@
-# TransMilenio Explorer — https://mitrasto.app
+# MiTrasto — https://mitrasto.app
 # Independent, non-official project. Not affiliated with TransMilenio S.A.
 
 User-agent: *

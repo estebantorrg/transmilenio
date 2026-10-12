@@ -29,7 +29,7 @@
             <!-- Voice entry point (spec §5.9). Every hands-free surface aims here:
                  the launcher long-press shortcuts below, and anything the rider
                  wires up themselves (a Google Home automation, a home-screen
-                 shortcut). "Hey Google, abre TransMi Go" arrives as a plain MAIN
+                 shortcut). "Hey Google, abre MiTrasto" arrives as a plain MAIN
                  launch instead, which the app answers the same way.
 
                  Deliberately NOT `BROWSABLE`: that category exists so a link in a

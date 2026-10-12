@@ -1,7 +1,7 @@
-# TransMilenio Explorer 🚌
+# MiTrasto 🚌
 
 ## Overview
-**TransMilenio Explorer** is a high-performance, premium web application designed to visualize and explore the TransMilenio and SITP transit network in Bogotá, Colombia. It provides a real-time-like experience for checking routes, station layouts, and wagon distributions using an interactive map interface.
+**MiTrasto** is a high-performance, premium web application designed to visualize and explore the TransMilenio and SITP transit network in Bogotá, Colombia. It provides a real-time-like experience for checking routes, station layouts, and wagon distributions using an interactive map interface.
 
 This project is built with a modern tech stack (Vite + Node.js) and features a robust proxy system to interface with transit data while maintaining high performance and data integrity.
 

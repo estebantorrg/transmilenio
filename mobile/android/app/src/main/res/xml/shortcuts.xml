@@ -2,7 +2,7 @@
 <!--
   Launcher long-press shortcuts (spec §5.9).
 
-  The hands-free path is "Hey Google, abre TransMi Go" plus the hot mic the app
+  The hands-free path is "Hey Google, abre MiTrasto" plus the hot mic the app
   opens with. This is the same feature for a rider who would rather not talk: one
   press-and-hold on the icon, one tap, same answer. Both land on the same deep
   link, so there is a single entry point to maintain.

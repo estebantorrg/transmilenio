@@ -347,7 +347,7 @@ public class VoicePlugin extends Plugin {
 
     /**
      * Whether this launch was a voice one, and any código the caller already
-     * knew (a launcher shortcut names its route; a bare "abre TransMi Go" does
+     * knew (a launcher shortcut names its route; a bare "abre MiTrasto" does
      * not). Reading it clears it, so a later resume is not treated as a fresh
      * voice launch.
      */

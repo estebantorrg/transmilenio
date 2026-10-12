@@ -29,7 +29,7 @@ test.describe('llms.txt', () => {
   const lines = txt.split('\n');
 
   test('opens with a title and a one-paragraph summary', () => {
-    expect(lines[0]).toBe('# TransMilenio Explorer');
+    expect(lines[0]).toBe('# MiTrasto');
     expect(lines[2]).toMatch(/^> .*no oficial.*No está afiliada a TRANSMILENIO S\.A\.$/);
   });
 

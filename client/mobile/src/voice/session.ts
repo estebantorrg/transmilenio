@@ -243,7 +243,7 @@ async function resolveSpokenCode(
 
   // Said nothing (or nothing we could place): fall back to the route this rider
   // asks about at this hour. Silence is the common case — the whole point of the
-  // hot mic is that "abre TransMi Go" alone can be enough.
+  // hot mic is that "abre MiTrasto" alone can be enough.
   const predicted = predictRoute();
   return { ...base, code: predicted, predicted: predicted !== null, outcome: result.outcome };
 }
