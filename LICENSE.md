@@ -57,5 +57,5 @@ repository except the material listed in `NOTICE.md`.
   system the project describes.
 * **No warranty.** The information can be wrong, outdated or incomplete. Use of
   the hosted service is governed by its terms of use
-  (`https://transmilenio.onrender.com/terminos/`) and its privacy policy
-  (`https://transmilenio.onrender.com/privacidad/`).
+  (`https://mitrasto.app/terminos/`) and its privacy policy
+  (`https://mitrasto.app/privacidad/`).

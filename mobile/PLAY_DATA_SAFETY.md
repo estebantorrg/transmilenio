@@ -4,7 +4,7 @@ Answers for **Play Console → App content → Data safety** for the Android app
 (`mobile/`, UI in `client/mobile/`). They describe the **APK only**: the website
 has its own flows (our server, Cloudflare Analytics, GeoJS) that do not apply
 here. Every answer below matches the privacy policy, `shared/legal.js`
-(<https://transmilenio.onrender.com/privacidad/>); a change to an APK data flow
+(<https://mitrasto.app/privacidad/>); a change to an APK data flow
 changes the policy and this file in the same commit.
 
 Play's definitions, which the answers follow:
@@ -110,7 +110,7 @@ sideloaded APK and has to be switched off in any build submitted to Play.
 
 ## Notes for the rest of App content
 
-- **Privacy policy URL:** `https://transmilenio.onrender.com/privacidad/` (public,
+- **Privacy policy URL:** `https://mitrasto.app/privacidad/` (public,
   not geofenced, HTML). It is `noindex` for search engines; Play only needs it
   publicly reachable, not indexed.
 - **Ads:** No ads.

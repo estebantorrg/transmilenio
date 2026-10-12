@@ -53,7 +53,7 @@ a free, stable `https://<machine>.<tailnet>.ts.net` URL with no domain to buy.
 
 ```bash
 # 1. Run the relay, allow-listing your web app's origin so it serves CORS.
-RELAY_CLIENT_ORIGINS=https://transmilenio.onrender.com npm --prefix server run relay:co
+RELAY_CLIENT_ORIGINS=https://mitrasto.app npm --prefix server run relay:co
 # (defaults to port 8787)
 
 # 2. Expose it over HTTPS with a stable free URL.

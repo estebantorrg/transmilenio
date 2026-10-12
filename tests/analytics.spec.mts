@@ -32,7 +32,7 @@ test.describe('analytics stay off development copies', () => {
   });
 
   test('loads on the published site and on any other public host', () => {
-    for (const host of ['transmilenio.onrender.com', 'example.com', 'localhost.example.com', '172.15.0.1', '172.32.0.1', '11.0.0.1', '8.8.8.8']) {
+    for (const host of ['mitrasto.app', 'transmilenio.onrender.com', 'example.com', 'localhost.example.com', '172.15.0.1', '172.32.0.1', '11.0.0.1', '8.8.8.8']) {
       expect(skipped(host), host).toBe(false);
     }
   });

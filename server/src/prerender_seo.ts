@@ -48,7 +48,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
 
 /** Canonical origin. Changing the domain means changing `seo/README.md`'s checklist too. */
-const ORIGIN = 'https://transmilenio.onrender.com';
+const ORIGIN = 'https://mitrasto.app';
 
 
 // ─── Types (the light catalog is untyped JSON by the time it reaches us) ───

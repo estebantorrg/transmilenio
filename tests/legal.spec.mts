@@ -186,9 +186,9 @@ test.describe('links to the legal pages', () => {
   test('one link per legal page, on the site or with an origin for the APK', () => {
     const site = legalLinksHtml();
     for (const doc of LEGAL_DOCS) expect(site).toContain(`href="${doc.path}"`);
-    const apk = legalLinksHtml('https://transmilenio.onrender.com');
-    expect(apk).toContain('href="https://transmilenio.onrender.com/privacidad/"');
-    expect(apk).toContain('href="https://transmilenio.onrender.com/terminos/"');
+    const apk = legalLinksHtml('https://mitrasto.app');
+    expect(apk).toContain('href="https://mitrasto.app/privacidad/"');
+    expect(apk).toContain('href="https://mitrasto.app/terminos/"');
   });
 
   test('sit at the foot of the sidebar and open the pages', async ({ page }) => {

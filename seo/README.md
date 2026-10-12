@@ -40,10 +40,14 @@ the built server (`npm run build && npm start`) or production.
 
 ## Canonical origin
 
-`https://transmilenio.onrender.com` — hardcoded in `robots.txt` here, in the
+`https://mitrasto.app` — hardcoded in `robots.txt` here, in the
 `ORIGIN` constant of `server/src/prerender_seo.ts`, in the `canonical`/`og:url`
 tags in `client/index.html`, and in `RELAY_CLIENT_ORIGINS` (README). Changing the
 domain means changing all of them.
+
+Until 2026-10 it was `https://transmilenio.onrender.com`. Pages there answer
+`301` to this origin (`server/src/retired_host.ts`); `/api` and files, this
+folder's included, still answer in place.
 
 ## Checklist when the domain changes
 
@@ -51,4 +55,8 @@ domain means changing all of them.
    canonical, `og:url`, JSON-LD `url` and sitemap `<loc>` across all 352 pages.
 2. `robots.txt` → `Sitemap:` line + header comment.
 3. `client/index.html` → `canonical`, `og:url`, `og:image`, JSON-LD `url`.
-4. Re-verify the property in Search Console and resubmit the sitemap.
+4. `server/src/seo_og.ts` → the host printed in each share card's footer.
+5. `client/mobile/src/ui/detailSheets.ts` → `WEB_ORIGIN` (ships with the next APK tag).
+6. `server/src/retired_host.ts` → `CANONICAL_HOST`, and add the host being left
+   to `RETIRED_HOSTS`.
+7. Re-verify the property in Search Console and resubmit the sitemap.

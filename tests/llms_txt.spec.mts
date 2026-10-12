@@ -7,7 +7,7 @@ import { renderLlmsTxt } from '../server/src/llms_txt.ts';
  * are, so it names every published page and nothing else.
  */
 
-const O = 'https://transmilenio.onrender.com';
+const O = 'https://mitrasto.app';
 
 test.describe('llms.txt', () => {
   const txt = renderLlmsTxt({

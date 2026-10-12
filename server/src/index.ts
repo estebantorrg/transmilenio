@@ -3,6 +3,7 @@ import cors from 'cors';
 import compression from 'compression';
 import apiRoutes, { prewarmArcgisLayers } from './routes/api.js';
 import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
+import { retiredHostRedirect } from './retired_host.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -78,6 +79,14 @@ app.use(jsonErrorHandler);
 
 // Mount API routes
 app.use('/api', apiRoutes);
+
+// The site moved to mitrasto.app; a page asked for on the old host follows it.
+// Ahead of the static mounts, which would otherwise answer "/" with the shell.
+app.use((req, res, next) => {
+  const target = retiredHostRedirect(req.method, req.hostname, req.originalUrl);
+  if (target) res.redirect(301, target);
+  else next();
+});
 
 // Serve the statically built frontend
 import path from 'path';
