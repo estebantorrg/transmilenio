@@ -22,12 +22,28 @@ self.addEventListener('activate', (event) => {
   })());
 });
 
+// How many /assets/* files the cache keeps. A build is about five of them and
+// every deploy fingerprints a new set; nothing ever removed the old ones, so a
+// rider who opens the site daily kept every bundle they had ever loaded.
+// shortcut: a count, not a build manifest — the oldest inserts go first, which
+// are the previous builds; raise it if one build ever ships more files than this.
+const MAX_ASSETS = 40;
+const isBuildAsset = (req) => new URL(req.url).pathname.startsWith('/assets/');
+
+async function trimAssets(cache) {
+  const assets = (await cache.keys()).filter(isBuildAsset);
+  await Promise.all(assets.slice(0, Math.max(0, assets.length - MAX_ASSETS)).map((req) => cache.delete(req)));
+}
+
 async function cacheFirst(req) {
   const cache = await caches.open(CACHE);
   const hit = await cache.match(req);
   if (hit) return hit;
   const res = await fetch(req);
-  if (res.ok) cache.put(req, res.clone());
+  if (res.ok) {
+    const stored = cache.put(req, res.clone());
+    if (isBuildAsset(req)) stored.then(() => trimAssets(cache)).catch(() => {});
+  }
   return res;
 }
 
