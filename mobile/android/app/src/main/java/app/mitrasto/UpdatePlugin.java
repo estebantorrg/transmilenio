@@ -1,4 +1,4 @@
-package com.transmilenio.explorer;
+package app.mitrasto;
 
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
@@ -52,7 +52,7 @@ public class UpdatePlugin extends Plugin {
 
     /** The only place an update may come from: this repository's own release assets. */
     private static final String DOWNLOAD_PREFIX = "https://github.com/estebantorrg/transmilenio/releases/download/";
-    private static final String ACTION_INSTALL_STATUS = "com.transmilenio.explorer.INSTALL_STATUS";
+    private static final String ACTION_INSTALL_STATUS = "app.mitrasto.INSTALL_STATUS";
     private static final int CONNECT_TIMEOUT_MS = 15_000;
     private static final int READ_TIMEOUT_MS = 30_000;
     /** A release APK is about 13 MB; anything past this is not one. */

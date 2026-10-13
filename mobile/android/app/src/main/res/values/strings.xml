@@ -5,8 +5,8 @@
          has to be the short one the app already calls itself everywhere else. -->
     <string name="app_name">MiTrasto</string>
     <string name="title_activity_main">MiTrasto</string>
-    <string name="package_name">com.transmilenio.explorer</string>
-    <string name="custom_url_scheme">com.transmilenio.explorer</string>
+    <string name="package_name">app.mitrasto</string>
+    <string name="custom_url_scheme">app.mitrasto</string>
     <string name="shortcut_voice_short">¿Cuánto falta?</string>
     <string name="shortcut_voice_long">Preguntar por una ruta</string>
 </resources>

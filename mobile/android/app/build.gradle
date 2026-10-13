@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "com.transmilenio.explorer"
+    namespace "app.mitrasto"
     compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.transmilenio.explorer"
+        applicationId "app.mitrasto"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // The release tag names the build (`android-apk.yml` passes both): with a
