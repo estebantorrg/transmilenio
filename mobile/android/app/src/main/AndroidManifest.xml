@@ -41,7 +41,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="transmigo" android:host="voice" />
+                <data android:scheme="mitrasto" android:host="voice" />
             </intent-filter>
 
             <meta-data

@@ -116,12 +116,12 @@ jobs:
       - name: Stage APK
         run: |
           mkdir -p dist
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk              "dist/transmilenio-explorer-${GITHUB_REF_NAME}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk              "dist/mitrasto-${GITHUB_REF_NAME}.apk"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: transmilenio-explorer-apk
+          name: mitrasto-apk
           path: dist/*.apk
 
       - name: Publish to Release

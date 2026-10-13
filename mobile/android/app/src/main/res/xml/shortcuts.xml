@@ -16,7 +16,7 @@
         android:shortcutLongLabel="@string/shortcut_voice_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:data="transmigo://voice"
+            android:data="mitrasto://voice"
             android:targetPackage="app.mitrasto"
             android:targetClass="app.mitrasto.MainActivity" />
     </shortcut>

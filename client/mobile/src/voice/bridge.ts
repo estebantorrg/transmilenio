@@ -14,7 +14,7 @@
  */
 
 export interface VoiceLaunch {
-  /** The app was opened through `transmigo://voice`. */
+  /** The app was opened through `mitrasto://voice`. */
   voice: boolean;
   /** A código the caller already knew (a launcher shortcut can name one). */
   code: string | null;

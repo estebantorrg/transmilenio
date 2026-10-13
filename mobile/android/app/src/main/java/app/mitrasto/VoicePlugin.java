@@ -88,7 +88,7 @@ public class VoicePlugin extends Plugin {
     static final String LOCATION = "location";
 
     /** Deep link the launcher shortcut and the voice entry point both use. */
-    private static final String VOICE_SCHEME = "transmigo";
+    private static final String VOICE_SCHEME = "mitrasto";
     private static final String VOICE_HOST = "voice";
 
     // ─── Recognition tuning ───────────────────────────────

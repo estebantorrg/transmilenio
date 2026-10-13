@@ -374,7 +374,7 @@ input { font-family: inherit; }
 
 /* ── Bottom sheets ─────────────────────────────────────── */
 /* Above the boot splash (z-index 100), because one sheet legitimately opens
-   during boot: a `transmigo://voice` launch answers off the 367 KB voice index
+   during boot: a `mitrasto://voice` launch answers off the 367 KB voice index
    while `loadCore` is still parsing the 13.6 MB catalog (spec §5.9). Underneath
    it, the overlay listened, answered and spoke from behind the splash — the
    rider saw "Encendiendo motores…" and never knew the mic was open. */
