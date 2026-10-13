@@ -4,6 +4,7 @@ import { collectBody, decodeBody } from './upstream_body.js';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
 import { publicProxyAllowed } from './public_proxy_policy.js';
 import { CO_PROXY_TIMEOUT_MS, viaColombianProxy } from './proxy_race.js';
+import { isCardNumber, isLedgerRow, ledgerMovement, maskCardNumber } from '../../../shared/card_ledger.js';
 
 const CARD_API_HOST = LIVE_API_HOST;
 const CARD_API_PATH = '/lectura_tarjeta';
@@ -85,19 +86,10 @@ export function normalizeConsultar(value: unknown): 'true' | 'false' {
 
 export function normalizeCardNumber(value: unknown): string {
   const cardNumber = String(value ?? '').trim();
-  if (!/^\d{8,20}$/.test(cardNumber)) {
+  if (!isCardNumber(cardNumber)) {
     throw new CardBalanceError('numero_tarjeta must be 8 to 20 digits', 400);
   }
   return cardNumber;
-}
-
-export function maskCardNumber(cardNumber: string): string {
-  if (cardNumber.length <= 6) return cardNumber;
-  return `${cardNumber.slice(0, 4)}...${cardNumber.slice(-4)}`;
-}
-
-function isRow(item: unknown): item is Record<string, unknown> {
-  return item != null && typeof item === 'object' && !Array.isArray(item);
 }
 
 /**
@@ -147,7 +139,7 @@ function requestCardRows(
           try {
             const body = await decodeBody(raw, res.headers['content-encoding']);
             const payload = JSON.parse(body.toString('utf-8'));
-            resolve(Array.isArray(payload) ? payload.filter(isRow) : []);
+            resolve(Array.isArray(payload) ? payload.filter(isLedgerRow) : []);
           } catch (error: any) {
             reject(new CardBalanceError(`Card API JSON parse error: ${error?.message || error}`, 502));
           }
@@ -215,7 +207,7 @@ async function fetchCardRowsViaRelay(
     const clientStatus = upstreamStatus === 401 || upstreamStatus === 451 ? 503 : 502;
     throw new CardBalanceError(`Card API status ${upstreamStatus} (via CO relay)`, clientStatus, upstreamStatus);
   }
-  return Array.isArray(payload) ? payload.filter(isRow) : [];
+  return Array.isArray(payload) ? payload.filter(isLedgerRow) : [];
 }
 
 /**
@@ -250,17 +242,6 @@ async function fetchCardRowsViaColombianEgress(
   );
 }
 
-function normalizeServerMovement(item: Record<string, unknown>, fallbackCardNumber: string): CardBalanceMovement {
-  const upstreamCardNumber = String(item.numero_tarjeta ?? '').trim();
-  return {
-    source: 'server',
-    numeroTarjeta: /^\d{8,20}$/.test(upstreamCardNumber) ? maskCardNumber(upstreamCardNumber) : fallbackCardNumber,
-    type: String(item.tipo ?? ''),
-    finalBalance: item.saldo_tarjeta == null ? undefined : String(item.saldo_tarjeta),
-    occurredAt: item.ultima_transaccion == null ? undefined : String(item.ultima_transaccion),
-  };
-}
-
 export async function fetchCardBalance(
   numeroTarjetaInput: unknown,
   consultarInput: unknown = 'false'
@@ -286,7 +267,7 @@ export async function fetchCardBalance(
   }
 
   const maskedCardNumber = maskCardNumber(numeroTarjeta);
-  const movements = rows.map((item) => normalizeServerMovement(item, maskedCardNumber));
+  const movements: CardBalanceMovement[] = rows.map((item) => ledgerMovement(item, maskedCardNumber));
   const latest = movements[0];
 
   return {

@@ -20,7 +20,7 @@
  */
 
 import { haversineMeters, walkMinutes } from '../utils/geo';
-import { toFiniteNumber } from '../utils/liveBus';
+import { toFiniteNumber } from '../../../shared/live_payload.js';
 import { nameTokens } from './voiceSpanish';
 import {
   closingAfter,

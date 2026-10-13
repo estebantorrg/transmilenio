@@ -6,25 +6,30 @@
  */
 
 import https from 'https';
-import http from 'http';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
-import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
+import { isColombiaRelayConfigured, relayAgentFor, relayBaseUrl, relayForward, relaySecret } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { LIVE_API_HOST, LIVE_HOST_HEADERS, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
-import { forgetLiveName, recallLiveName, rememberLiveName } from './live_name_memo.js';
+import { OFFICIAL_APP_HEADERS } from './official_app_headers.js';
+import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
+import { normalizeArrivalsPayload } from '../../../shared/live_payload.js';
 import { createSharedWindow } from './flow_control.js';
+import { LIVE_ROUTE_CODE_MAX_LENGTH, normalizeLiveText } from './live_payload.js';
 import {
-  LIVE_DESTINATION_MAX_LENGTH,
-  LIVE_NAME_CANDIDATE_LIMIT,
-  LIVE_ROUTE_CODE_MAX_LENGTH,
-  normalizeLiveBusesPayload,
-  normalizeLiveText,
-} from './live_payload.js';
+  LIVE_API_ORIGIN,
+  buildLiveApiHeaders,
+  buildLiveNameCandidates,
+  createLiveRequestContext,
+  parseLivePayload,
+  raceLiveCandidates,
+  requestLiveBuses,
+  requestLiveJson,
+  type LiveRequestContext,
+} from './live_request.js';
 import { CO_PROXY_TIMEOUT_MS, viaColombianProxy } from './proxy_race.js';
 import {
   ROUTE_RETENTION_DAYS,
@@ -385,7 +390,8 @@ function isCoordinatePair(value: unknown): value is number[] {
     Number.isFinite(Number(value[1]));
 }
 
-function traceToPaths(trace: RouteTrace | undefined): number[][][] {
+/** Normalize a LineString / MultiLineString trace to an array of [lng,lat] paths. */
+export function traceToPaths(trace: RouteTrace | undefined): number[][][] {
   if (!Array.isArray(trace) || trace.length === 0) return [];
 
   const first = trace[0];
@@ -779,7 +785,6 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
         success: true,
         data: light,
         count,
-        stale: isCatalogStale(),
       });
       const gzip = await gzipAsync(body);
       const etag = lightCatalogEtag(gzip);
@@ -813,9 +818,25 @@ export function getStationByCode(code: string): CatalogStation | null {
  * loaded there is nothing to check against, and nothing is refused.
  */
 export function isCatalogRouteCode(code: string): boolean {
-  const codes = Object.keys(masterCatalog.routes || {});
-  const wanted = code.trim().toUpperCase();
-  return codes.length === 0 || codes.some((known) => known.toUpperCase() === wanted);
+  return routeCodeIndex().size === 0 || routeCodeIndex().has(code.trim().toUpperCase());
+}
+
+/** The variants the catalog files under `code` (any letter case), or none. */
+export function catalogRouteVariants(code: string): CatalogRouteDetail[] {
+  const key = routeCodeIndex().get(code.trim().toUpperCase());
+  return key === undefined ? [] : masterCatalog.routes[key];
+}
+
+// UPPER-CASED código → the catalog's own key, built once per catalog: every live
+// request asks, and walking ~800 keys each time is work on a 0.1-CPU instance.
+let routeCodes: { of: MasterCatalog; byUpper: Map<string, string> } | null = null;
+
+function routeCodeIndex(): Map<string, string> {
+  if (routeCodes?.of !== masterCatalog) {
+    const keys = Object.keys(masterCatalog.routes || {});
+    routeCodes = { of: masterCatalog, byUpper: new Map(keys.map((key) => [key.toUpperCase(), key])) };
+  }
+  return routeCodes.byUpper;
 }
 
 export function isCatalogStale(): boolean {
@@ -1164,7 +1185,6 @@ export function isSyncInProgress(): boolean {
   return syncInProgress;
 }
 
-const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 export const LIVE_TRACKING_VERSION = 'colombia-relay-v1';
 const LIVE_REQUEST_TIMEOUT_MS = 9_000;
 const COLOMBIA_RELAY_TIMEOUT_MS = 12_000;
@@ -1174,10 +1194,6 @@ const COLOMBIA_RELAY_TIMEOUT_MS = 12_000;
 // (~200-400 ms/poll) and, together with the warm-up below, means the first poll
 // of a tracking session reuses an already-open connection.
 const liveKeepAliveAgent = new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 });
-const relayKeepAliveAgents = {
-  https: new https.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
-  http: new http.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
-};
 
 // A non-CO egress is rejected by the geofence for EVERY route, so once the live
 // host has answered 401/451 the direct tier is known-dead: trying it anyway adds
@@ -1204,184 +1220,13 @@ function clearDirectTierGeofence(): void {
   directGeofencedUntil = 0;
 }
 
-interface LiveRequestContext {
-  routeCode: string;
-  destinationName: string;
-  routeType: 'troncal' | 'zonal';
-  isZonal: boolean;
-  targetPath: string;
-  postData: string;
-  candidateName: string;
-}
-
-function createLiveRequestContext(
-  ruta: string,
-  nombre: string,
-  routeType: 'troncal' | 'zonal' = 'troncal',
-  candidateName = nombre
-): LiveRequestContext {
-  const routeCode = normalizeLiveText(ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
-  const destinationName = normalizeLiveText(candidateName || nombre, LIVE_DESTINATION_MAX_LENGTH);
-  const isZonal = routeType === 'zonal';
-
-  return {
-    routeCode,
-    destinationName,
-    routeType,
-    isZonal,
-    targetPath: isZonal
-      ? `/location/ruta?ruta=${encodeURIComponent(routeCode)}`
-      : '/buses',
-    postData: isZonal ? '' : JSON.stringify({ ruta: routeCode, Nombre: destinationName }),
-    candidateName: destinationName,
-  };
-}
-
-function addUniqueLiveName(candidates: string[], value: unknown): void {
-  const text = normalizeLiveText(value, LIVE_DESTINATION_MAX_LENGTH);
-  if (!text) return;
-
-  const parts = text.split(/\s+[-–—]\s+/).map((part) => part.trim()).filter(Boolean);
-  for (const part of parts.length > 1 ? [...parts].reverse() : parts) {
-    const clean = part.trim();
-    if (clean && !candidates.some((candidate) => candidate.toLowerCase() === clean.toLowerCase())) {
-      candidates.push(clean);
-    }
-  }
-
-  if (!candidates.some((candidate) => candidate.toLowerCase() === text.toLowerCase())) {
-    candidates.push(text);
-  }
-}
-
-function buildLiveNameCandidates(nombre: string, nombreCandidates: string[] = []): string[] {
-  const candidates: string[] = [];
-  for (const candidate of nombreCandidates) addUniqueLiveName(candidates, candidate);
-  addUniqueLiveName(candidates, nombre);
-  return (candidates.length > 0 ? candidates : [normalizeLiveText(nombre, LIVE_DESTINATION_MAX_LENGTH)])
-    .slice(0, LIVE_NAME_CANDIDATE_LIMIT);
-}
-
-function getConfiguredColombiaRelayUrl(): string {
-  return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL || '').trim();
-}
-
-function getColombiaRelaySecret(): string {
-  return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
-}
-
 // Live buses and arrivals may use the public CO proxy pool (spec §5.2.5).
 function allowPublicColombianProxyFallback(): boolean {
   return publicProxyAllowed('live');
 }
 
-/** Shared decode + JSON + upstream-error handling for any live-host endpoint.
- *  The `normalize` step is what differs (buses vs arrivals). */
-async function parseLivePayload(
-  raw: Buffer,
-  encoding: string | string[] | undefined,
-  source: string,
-  normalize: (payload: any) => any[]
-): Promise<any[]> {
-  const body = await decodeBody(raw, encoding).catch(() => raw);
-  const text = body.toString('utf-8');
-
-  let payload: any;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    throw new Error(`${source}: Live JSON parse error (${text.slice(0, 120)})`);
-  }
-
-  if (payload?.success === false) {
-    throw new Error(`${source}: ${payload.error || 'Proxy returned success=false'}`);
-  }
-
-  const problemStatus = Number(payload?.status);
-  if (Number.isFinite(problemStatus) && problemStatus >= 400) {
-    throw new Error(`${source}: Status: ${problemStatus} ${payload.title || payload.detail || ''}`.trim());
-  }
-
-  return normalize(payload);
-}
-
-function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
-  return parseLivePayload(raw, encoding, source, normalizeLiveBusesPayload);
-}
-
 function parseArrivalsResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
   return parseLivePayload(raw, encoding, source, normalizeArrivalsPayload);
-}
-
-function requestLiveJson(
-  url: URL,
-  headers: Record<string, string | number>,
-  postData: string,
-  timeoutMs: number,
-  agent?: https.Agent,
-  signal?: AbortSignal,
-  parse: (raw: Buffer, encoding: string | string[] | undefined, source: string) => Promise<any[]> = parseLiveResponse
-): Promise<any[]> {
-  const requestLib = url.protocol === 'http:' ? http : https;
-  const source = `${url.protocol}//${url.hostname}${url.pathname}`;
-
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error(`${source}: aborted`));
-      return;
-    }
-
-    const req = requestLib.request({
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'http:' ? 80 : 443),
-      path: `${url.pathname}${url.search}`,
-      method: 'POST',
-      headers,
-      agent,
-      timeout: timeoutMs,
-    }, (res) => {
-      // Bounded read + `error` listener live in one place (upstream_body.ts):
-      // the transport may be an untrusted free proxy (spec §5.2.5).
-      collectBody(res, source).then(
-        async (raw) => {
-          cleanup();
-          if (res.statusCode !== 200) {
-            reject(new Error(`${source}: Status: ${res.statusCode}`));
-            return;
-          }
-          try {
-            resolve(await parse(raw, res.headers['content-encoding'], source));
-          } catch (error) {
-            reject(error);
-          }
-        },
-        (error) => {
-          cleanup();
-          reject(error);
-        }
-      );
-    });
-
-    // Let a parallel race cancel the losers as soon as a winner resolves.
-    const onAbort = () => {
-      req.destroy(new Error(`${source}: aborted`));
-    };
-    signal?.addEventListener('abort', onAbort, { once: true });
-    const cleanup = () => signal?.removeEventListener('abort', onAbort);
-
-    req.on('error', (err) => {
-      cleanup();
-      reject(err);
-    });
-    req.on('timeout', () => {
-      cleanup();
-      req.destroy();
-      reject(new Error(`${source}: Request timed out`));
-    });
-
-    if (postData) req.write(postData);
-    req.end();
-  });
 }
 
 function buildColombiaRelayRequestUrl(baseUrl: string): URL {
@@ -1404,7 +1249,7 @@ function buildColombiaRelayBody(context: LiveRequestContext): string {
 }
 
 async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
-  const relayUrl = getConfiguredColombiaRelayUrl();
+  const relayUrl = relayBaseUrl();
   if (!relayUrl) {
     throw new Error(
       'No Colombia relay configured. Set TRANSMILENIO_COLOMBIA_RELAY_URL to a relay running from a Colombian network.'
@@ -1418,41 +1263,18 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signa
     'Content-Type': 'application/json; charset=UTF-8',
     'Content-Length': Buffer.byteLength(postData),
   };
-  const secret = getColombiaRelaySecret();
+  const secret = relaySecret();
   if (secret) headers.Authorization = `Bearer ${secret}`;
 
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=CO relay ${url.origin}`);
-  const agent = url.protocol === 'http:' ? relayKeepAliveAgents.http : relayKeepAliveAgents.https;
-  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, agent as https.Agent, signal);
-}
-
-/**
- * The header set for a live-host request (spec §5.2.3 / §5.5.1a). ONE
- * definition: the direct tier, the proxy tier and the arrivals request all send
- * the same thing, and three hand-maintained copies of an upstream contract is
- * exactly how one of them drifts (spec §1.1 R2). The app identity itself lives
- * in `official_app_headers.ts`. `Content-Type` is omitted for a bodyless request
- * (zonal `/location/ruta`).
- */
-function buildLiveApiHeaders(postData: string): Record<string, string | number> {
-  const headers: Record<string, string | number> = {
-    'Accept-Encoding': 'identity',
-    ...LIVE_HOST_HEADERS,
-    'Connection': 'Keep-Alive',
-    'Host': LIVE_API_HOST,
-    'Content-Length': Buffer.byteLength(postData),
-  };
-  if (postData) headers['Content-Type'] = 'application/json; charset=UTF-8';
-  return headers;
+  return requestLiveJson(url, headers, postData, COLOMBIA_RELAY_TIMEOUT_MS, relayAgentFor(url), signal);
 }
 
 /** One live request through the public CO proxy pool (`proxy_race.ts`, spec §5.2.5). */
 function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
-  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  const headers = buildLiveApiHeaders(context.postData);
   return viaColombianProxy(
     `buses type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName}`,
-    (agent, proxySignal) => requestLiveJson(url, headers, context.postData, CO_PROXY_TIMEOUT_MS, agent, proxySignal),
+    (agent, proxySignal) => requestLiveBuses(context, CO_PROXY_TIMEOUT_MS, agent, proxySignal),
     signal
   );
 }
@@ -1464,13 +1286,9 @@ function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: A
  * fails fast and falls through to the relay below.
  */
 async function fetchLiveBusesDirect(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
-  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  const postData = context.postData;
-  const headers = buildLiveApiHeaders(postData);
-
   console.log(`[TM API] fetchLiveBuses: type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName} via=DIRECT`);
   try {
-    const buses = await requestLiveJson(url, headers, postData, LIVE_REQUEST_TIMEOUT_MS, liveKeepAliveAgent, signal);
+    const buses = await requestLiveBuses(context, LIVE_REQUEST_TIMEOUT_MS, liveKeepAliveAgent, signal);
     clearDirectTierGeofence(); // this egress reaches the host after all
     return buses;
   } catch (error) {
@@ -1479,8 +1297,8 @@ async function fetchLiveBusesDirect(context: LiveRequestContext, signal?: AbortS
   }
 }
 
-/** A non-Colombian egress is rejected by the geofence — no candidate will fare
- *  better, so abort the remaining attempts for this strategy. */
+/** A non-Colombian egress is rejected by the geofence — an egress-wide verdict,
+ *  which is what the memo above remembers. */
 function isGeofenceRejection(error: any): boolean {
   return /Status: (401|451)/.test(String(error?.message || ''));
 }
@@ -1490,85 +1308,21 @@ function isGeofenceRejection(error: any): boolean {
  *  browser gives up, leaving room for the stale-cache fallback. */
 const LIVE_OVERALL_TIMEOUT_MS = 14_500;
 
-/**
- * Runs one transport strategy across every name candidate **in parallel**,
- * returning the first non-empty payload (or a valid empty one) or `null` if
- * all candidates failed.
- *
- * The old sequential loop burned the full per-request timeout for *each*
- * candidate when the upstream was dead, easily exceeding 60 s total and
- * triggering the client-side abort.  Parallelising means wall-clock time
- * equals one request, not N×one request.
- */
-async function runLiveStrategy(
+/** One transport strategy across every name candidate (`raceLiveCandidates`,
+ *  `live_request.ts`); a candidate's failure lands in `errors`. */
+function runLiveStrategy(
   label: string,
   fetcher: (context: LiveRequestContext, signal?: AbortSignal) => Promise<any[]>,
   contexts: LiveRequestContext[],
   errors: string[],
-  shouldAbort?: (error: any) => boolean,
   signal?: AbortSignal,
   onHit?: (context: LiveRequestContext) => void
 ): Promise<any[] | null> {
-  if (contexts.length === 0) return null;
-
-  // Fast-path: single candidate (zonal or single-name troncal).
-  if (contexts.length === 1) {
-    try {
-      const buses = await fetcher(contexts[0], signal);
-      if (buses.length > 0) onHit?.(contexts[0]);
-      return buses;
-    } catch (error: any) {
-      errors.push(`[${label} ${contexts[0].candidateName}] ${error.message}`);
-      return null;
-    }
-  }
-
-  // Multi-candidate: fire all in parallel and resolve the MOMENT one returns
-  // buses — waiting for every candidate to settle would pin the response to the
-  // slowest one (the live host answers anywhere between 0.3 s and its 9 s
-  // timeout), which lands squarely on the first fix of a tracking session.
-  // A valid empty result and the error paths still need every candidate, since
-  // only a non-empty hit proves the name matched (spec §5.2.4).
-  const controller = new AbortController();
-  const onParentAbort = () => controller.abort();
-  signal?.addEventListener('abort', onParentAbort, { once: true });
-
-  let pending = contexts.length;
-  let emptyResult: any[] | null = null;
-  let geofenced = false;
-
-  try {
-    return await new Promise<any[] | null>((resolve) => {
-      const settle = (value: any[] | null) => {
-        controller.abort(); // cancel the stragglers
-        resolve(value);
-      };
-
-      for (const ctx of contexts) {
-        fetcher(ctx, controller.signal).then(
-          (buses) => {
-            if (buses.length > 0) {
-              console.log(`[TM API] ${label} candidate "${ctx.candidateName}" succeeded with ${buses.length} buses`);
-              onHit?.(ctx);
-              settle(buses);
-              return;
-            }
-            emptyResult = buses;
-            if (--pending === 0) settle(emptyResult);
-          },
-          (error: any) => {
-            errors.push(`[${label} ${ctx.candidateName}] ${error?.message ?? error}`);
-            if (shouldAbort?.(error)) geofenced = true;
-            // A geofenced rejection means no candidate on this transport will
-            // ever work, so a fully-failed strategy reports nothing at all.
-            if (--pending === 0) settle(geofenced && emptyResult === null ? null : emptyResult);
-          }
-        );
-      }
-    });
-  } finally {
-    signal?.removeEventListener('abort', onParentAbort);
-  }
+  return raceLiveCandidates(contexts, fetcher, {
+    signal,
+    onHit,
+    onError: (context, error) => errors.push(`[${label} ${context.candidateName}] ${error?.message ?? error}`),
+  });
 }
 
 /** Which transport actually answered a live-bus request. Lets the route layer
@@ -1594,17 +1348,17 @@ async function runLiveTiers(
   // while the geofence memo is hot — the rejection is egress-wide, so paying
   // the round-trip again would only delay the relay.
   if (!isDirectTierGeofenced()) {
-    const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, isGeofenceRejection, signal, onHit);
+    const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, signal, onHit);
     if (direct) return { buses: direct, source: 'direct' };
   }
 
   // 2. Colombia relay (for non-Colombian hosts with a relay configured).
-  const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, undefined, signal, onHit);
+  const relay = await runLiveStrategy('co-relay', fetchLiveBusesViaColombiaRelay, contexts, errors, signal, onHit);
   if (relay) return { buses: relay, source: 'co-relay' };
 
   // 3. Public Colombian proxy (opt-in best-effort fallback).
   if (allowPublicColombianProxyFallback()) {
-    const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, undefined, signal, onHit);
+    const proxy = await runLiveStrategy('public-co-proxy', fetchLiveBusesViaColombianProxy, contexts, errors, signal, onHit);
     if (proxy) return { buses: proxy, source: 'public-co-proxy' };
   }
 
@@ -1625,6 +1379,9 @@ const sharedLiveBuses = createSharedWindow<LiveBusesResult>(LIVE_SHARED_WINDOW_M
  * number of routes being watched, not the number of people watching them: the
  * name candidates are part of the identity (the direction is in the name, spec
  * §5.2.4), and `/api/buses` and the stop-arrivals fan-out both come through here.
+ * A zonal request carries the route code and nothing else, so its names are
+ * not part of who shares the answer — a tracker and a stop board asking about
+ * one route used to make two identical upstream calls.
  */
 export function fetchLiveBuses(
   ruta: string,
@@ -1632,7 +1389,8 @@ export function fetchLiveBuses(
   routeType: 'troncal' | 'zonal' = 'troncal',
   nombreCandidates: string[] = []
 ): Promise<LiveBusesResult> {
-  const key = [routeType, ruta, nombre, ...nombreCandidates].join('|').toLowerCase();
+  const identity = routeType === 'zonal' ? [routeType, ruta] : [routeType, ruta, nombre, ...nombreCandidates];
+  const key = identity.join('|').toLowerCase();
   return sharedLiveBuses(key, () => runLiveCascade(ruta, nombre, routeType, nombreCandidates));
 }
 
@@ -1654,7 +1412,8 @@ async function runLiveCascade(
   }
 
   const routeCode = primaryContext.routeCode;
-  const remember = (context: LiveRequestContext) => rememberLiveName(routeType, routeCode, context.candidateName);
+  const memoKey = `${routeType}:${routeCode}`;
+  const remember = (context: LiveRequestContext) => rememberLiveName(memoKey, context.candidateName);
 
   // Overall budget: abort everything if the cascade exceeds the wall-clock cap.
   const overallController = new AbortController();
@@ -1666,7 +1425,7 @@ async function runLiveCascade(
     // of them can match, so a tracking session used to re-ask the live host the
     // same 11 dead questions every 15 s — pure load on an upstream that has
     // already blocklisted one id over volume (spec §5.2.3, §5.2.5).
-    const memo = recallLiveName(routeType, routeCode);
+    const memo = recallLiveName(memoKey);
     const memoContext = memo ? contexts.find((ctx) => ctx.candidateName === memo.name) : undefined;
     if (memoContext && contexts.length > 1) {
       const hit = await runLiveTiers([memoContext], errors, overallController.signal, remember);
@@ -1675,7 +1434,7 @@ async function runLiveCascade(
       // is fresh (no buses right now); once it is stale the name itself is the
       // suspect, so fall through and re-ask every candidate.
       if (hit && memo!.fresh) return hit;
-      forgetLiveName(routeType, routeCode);
+      forgetLiveName(memoKey);
     }
 
     const result = await runLiveTiers(contexts, errors, overallController.signal, remember);
@@ -1705,7 +1464,7 @@ let warmupTimer: NodeJS.Timeout | null = null;
 async function warmLivePath(): Promise<void> {
   const context = createLiveRequestContext(WARMUP_ROUTE.ruta, WARMUP_ROUTE.nombre, 'troncal');
   try {
-    if (getConfiguredColombiaRelayUrl()) await fetchLiveBusesViaColombiaRelay(context);
+    if (isColombiaRelayConfigured()) await fetchLiveBusesViaColombiaRelay(context);
     else if (!isDirectTierGeofenced()) await fetchLiveBusesDirect(context);
   } catch (error) {
     // A failed warm-up is not a user-facing failure — the next real request
@@ -1725,29 +1484,6 @@ export function startLiveWarmup(): void {
 
 // ─── Arrivals (llegadas at a paradero, spec §5.8) ─────────
 const ARRIVALS_TIMEOUT_MS = 9_000;
-
-/** Normalize the `/paradero/buses` response to a stable arrivals array. */
-function normalizeArrivalsPayload(payload: any): any[] {
-  const list = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data) ? payload.data
-    : Array.isArray(payload?.buses) ? payload.buses
-    : Array.isArray(payload?.llegadas) ? payload.llegadas
-    : Array.isArray(payload?.vehiculos) ? payload.vehiculos
-    : [];
-  return list
-    .filter((it: any) => it && typeof it === 'object')
-    .map((it: any) => ({
-      codigo: String(it.ruta_extraida ?? it.codigo ?? '').trim(),
-      idRuta: String(it.ruta_sae ?? it.idRuta ?? '').trim(),
-      destino: String(it.destino_limpio ?? it.destino ?? it.nombre ?? '').trim(),
-      color: String(it.color_ruta ?? it.color ?? '').trim(),
-      paradero: String(it.labelparadero ?? it.paradero ?? '').trim(),
-      tiempo: String(it.labeltiempo ?? it.tiempo ?? it.time ?? '').trim(),
-      distancia: String(it.distancia ?? '').trim(),
-    }))
-    .filter((it: any) => it.codigo || it.destino);
-}
 
 export interface ArrivalsResult {
   arrivals: any[];

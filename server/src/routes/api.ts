@@ -1,11 +1,13 @@
 import { Router, Request, Response, RequestHandler } from 'express';
 import { queries } from '../services/arcgis.js';
 import * as tmApi from '../services/tm_api.js';
-import { CardBalanceError, fetchCardBalance, maskCardNumber } from '../services/card_balance.js';
+import { CardBalanceError, fetchCardBalance } from '../services/card_balance.js';
+import { maskCardNumber } from '../../../shared/card_ledger.js';
 import { computeStopArrivals } from '../services/stop_arrivals.js';
 import { geocodeAddress } from '../services/geocode.js';
 import { isWithinBogota } from '../services/bogota.js';
 import zlib from 'zlib';
+import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -17,15 +19,27 @@ import {
   LIVE_ROUTE_CODE_MAX_LENGTH,
   normalizeLiveText,
 } from '../services/live_payload.js';
+import { keepKnownLiveNames } from '../services/live_request.js';
 
 const router = Router();
+const gzipAsync = promisify(zlib.gzip);
 
 /**
  * Simple in-memory cache with TTL.
  * Route/station data rarely changes — cache for 10 minutes.
+ *
+ * What is kept is the response itself, serialized and gzipped once, not the
+ * features. Every page load asks for these layers — the paraderos alone are
+ * 4 MB of JSON — and stringifying and compressing them again per request cost
+ * 1–3 s of a 0.1-CPU instance each time, measured on the cached path (spec
+ * §5.1.3). The master catalog is served the same way (`getCatalogLightGzip`).
  */
-const cache = new Map<string, { data: any; timestamp: number }>();
-const inFlightCache = new Map<string, Promise<any>>();
+interface LayerBody {
+  gzip: Buffer;
+  count: number;
+}
+const cache = new Map<string, { data: LayerBody; timestamp: number }>();
+const inFlightCache = new Map<string, Promise<LayerBody>>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 // While upstream is down we keep serving the last good payload. Re-attempting on
 // every single request would put the full ArcGIS retry budget in front of each
@@ -87,6 +101,7 @@ const RATE_BUDGETS = {
   arrivals: 60,
   'stop-arrivals': 60,
   card: 10,
+  geoip: 60,
   geocode: 120,
   'walking-route': 240,
 } as const;
@@ -103,7 +118,7 @@ function rateLimit(name: keyof typeof RATE_BUDGETS): RequestHandler {
   };
 }
 
-async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promise<any> {
+async function getCachedOrFetch(key: string, fetcher: () => Promise<any[]>): Promise<LayerBody> {
   const cached = cache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
     console.log(`[Cache] HIT: ${key}`);
@@ -118,7 +133,9 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
 
   console.log(`[Cache] MISS: ${key} — fetching from ArcGIS...`);
   const request = fetcher()
-    .then((data) => {
+    .then(async (features) => {
+      const body = JSON.stringify({ success: true, count: features.length, features });
+      const data = { gzip: await gzipAsync(body), count: features.length };
       cache.set(key, { data, timestamp: Date.now() });
       return data;
     })
@@ -149,17 +166,31 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any>): Promi
 // single flaky ArcGIS response used to leave a default-on layer (troncal
 // trazado, station pins) empty for the whole session.
 
+/** Sends a precomputed gzip JSON body verbatim — no per-request stringify or
+ *  re-compression. Every real browser accepts gzip; the identity fallback is
+ *  only for the odd client that opts out via `Accept-Encoding`. */
+function sendGzipJson(req: Request, res: Response, gzip: Buffer): void {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Vary', 'Accept-Encoding');
+  if (req.acceptsEncodings('gzip')) {
+    res.setHeader('Content-Encoding', 'gzip');
+    res.end(gzip);
+  } else {
+    res.end(zlib.gunzipSync(gzip));
+  }
+}
+
 function featureEndpoint(
   key: string,
   fetcher: () => Promise<any[]>,
   label: string,
   maxAgeSeconds: number
 ): RequestHandler {
-  return async (_req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     try {
-      const features = await getCachedOrFetch(key, fetcher);
+      const { gzip } = await getCachedOrFetch(key, fetcher);
       res.setHeader('Cache-Control', `public, max-age=${maxAgeSeconds}`);
-      res.json({ success: true, count: features.length, features });
+      sendGzipJson(req, res, gzip);
     } catch (error) {
       console.error(`Error fetching ${label}:`, error);
       res.setHeader('Retry-After', String(UPSTREAM_RETRY_AFTER_S));
@@ -186,7 +217,7 @@ export function prewarmArcgisLayers(): void {
   ];
   for (const [key, fetcher] of warm) {
     getCachedOrFetch(key, fetcher)
-      .then((features: any[]) => console.log(`[Prewarm] ${key}: ${features.length} features cached`))
+      .then(({ count }) => console.log(`[Prewarm] ${key}: ${count} features cached`))
       .catch((error) => console.warn(`[Prewarm] ${key} failed (will load on demand):`, error?.message || error));
   }
 }
@@ -213,18 +244,9 @@ router.get('/troncal/master-catalog', async (req: Request, res: Response) => {
       return;
     }
 
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
-
-    // Stream the precomputed gzip body verbatim — no per-request stringify or
-    // re-compression (spec §1.1 R2; the old path was the main OOM source under
-    // concurrency). Every real browser accepts gzip; the identity fallback is
-    // only for the odd client that opts out via `Accept-Encoding`.
-    if (req.acceptsEncodings('gzip')) {
-      res.setHeader('Content-Encoding', 'gzip');
-      res.end(gzip);
-    } else {
-      res.end(zlib.gunzipSync(gzip));
-    }
+    // The precomputed gzip body, verbatim (spec §1.1 R2; the old per-request
+    // stringify was the main OOM source under concurrency).
+    sendGzipJson(req, res, gzip);
   } catch (error) {
     console.error('Error fetching master catalog:', error);
     res.status(500).json({ success: false, error: 'Failed to load master catalog' });
@@ -371,8 +393,6 @@ router.get('/cable/trazado', featureEndpoint('cable-traces', queries.cableTraces
 
 router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) => {
   const ruta = normalizeLiveText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
-  const nombre = normalizeLiveText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
-  const nombreCandidates = normalizeLiveNameCandidates(req.body?.nombreCandidates);
   const routeType: 'troncal' | 'zonal' = req.body?.type === 'zonal' ? 'zonal' : 'troncal';
 
   if (!ruta) {
@@ -386,7 +406,23 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
     return;
   }
 
-  const cacheKey = `${routeType}:${ruta}`;
+  // …and only under a name the catalog files it by: the names are free text
+  // too, and they decide who shares an answer (`keepKnownLiveNames`). A zonal
+  // request carries no name at all. With no catalog loaded there is nothing to
+  // check against, and the names go as sent.
+  const sent = [
+    ...normalizeLiveNameCandidates(req.body?.nombreCandidates),
+    normalizeLiveText(req.body?.Nombre ?? req.body?.nombre, LIVE_DESTINATION_MAX_LENGTH),
+  ].filter(Boolean);
+  const variants = tmApi.catalogRouteVariants(ruta);
+  const nombreCandidates = routeType === 'zonal' ? [] : variants.length ? keepKnownLiveNames(sent, variants) : sent;
+  const nombre = nombreCandidates[0] ?? '';
+
+  // Last-known positions are kept per direction. One código runs both ways on
+  // 68 troncal services (1–8, the feeders), and a key without the destination
+  // handed one direction's buses to a rider watching the other — which the
+  // client's heading filter, finding no match, then drew in full.
+  const cacheKey = `${routeType}:${ruta}:${nombre}`.toLowerCase();
   const freshCache = (): { buses: any[]; at: number } | null => {
     const cached = liveBusCache.get(cacheKey);
     return cached && Date.now() - cached.at < LIVE_BUS_CACHE_TTL ? cached : null;
@@ -491,10 +527,12 @@ router.post('/stop-arrivals', rateLimit('stop-arrivals'), async (req: Request, r
 router.post('/card/read', rateLimit('card'), async (req: Request, res: Response) => {
   const rawCardNumber = req.body?.numero_tarjeta ?? req.body?.numeroTarjeta ?? req.body?.cardNumber;
   const consultar = req.body?.consultar ?? 'false';
-  const masked = rawCardNumber ? maskCardNumber(String(rawCardNumber)) : '(missing)';
+  // Digits only, and nothing else of the body: this line is written before
+  // anything has been validated, so whatever else was sent stays out of the log.
+  const masked = maskCardNumber(String(rawCardNumber ?? '').replace(/\D/g, '')) || '(missing)';
 
   try {
-    console.log(`[/card/read] Request: numero_tarjeta="${masked}" consultar="${consultar}"`);
+    console.log(`[/card/read] Request: numero_tarjeta="${masked}"`);
     const data = await fetchCardBalance(rawCardNumber, consultar);
     res.setHeader('Cache-Control', 'no-store');
     res.json({ success: true, data });
@@ -542,30 +580,14 @@ function isWithinWalkingBounds([lng, lat]: LngLat): boolean {
   return isWithinBogota(lng, lat);
 }
 
-function getClientIp(req: Request): string | null {
-  const xForwardedFor = req.headers['x-forwarded-for'];
-  if (xForwardedFor) {
-    const ips = (Array.isArray(xForwardedFor) ? xForwardedFor : String(xForwardedFor).split(','))
-      .map((ip) => ip.trim())
-      .filter(Boolean);
-    for (const ip of ips) {
-      if (!PRIVATE_IP_RE.test(ip)) return ip;
-    }
-  }
-
-  const xRealIp = req.headers['x-real-ip'];
-  if (xRealIp && typeof xRealIp === 'string') {
-    const ip = xRealIp.trim();
-    if (!PRIVATE_IP_RE.test(ip)) return ip;
-  }
-
-  const ip = (req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '').trim();
-  if (!ip || PRIVATE_IP_RE.test(ip)) return null;
-  return ip;
-}
-
-router.get('/geoip', async (req: Request, res: Response) => {
-  const ip = getClientIp(req);
+router.get('/geoip', rateLimit('geoip'), async (req: Request, res: Response) => {
+  // `req.ip` and nothing else: it is the real client (`trust proxy`, index.ts).
+  // This used to read the forwarding headers itself, leftmost entry first — the
+  // one the caller types — which made the endpoint a lookup of any address for
+  // anyone, with no budget. A private address is this box's own network (local
+  // dev), so geojs is asked about the server's address instead.
+  const address = (req.ip || '').replace(/^::ffff:/, '').trim();
+  const ip = address && !PRIVATE_IP_RE.test(address) ? address : null;
   console.log(`[/geoip] Request received; clientIpPresent=${Boolean(ip)}`);
   const url = ip
     ? `https://get.geojs.io/v1/ip/geo/${encodeURIComponent(ip)}.json`

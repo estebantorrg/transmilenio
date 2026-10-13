@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip, type CatalogRouteDetail } from './services/tm_api.js';
 import { isTroncalStationCode } from './services/station_registry.js';
+import { variantLiveNames } from './services/live_request.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -103,24 +104,6 @@ function voiceRouteType(variant: CatalogRouteDetail): 't' | 'z' {
   return zonal ? 'z' : 't';
 }
 
-/** Destination-first live-query names (spec §5.2.4). Baked in because the voice
- *  path never builds the full route list — that would mean parsing the 13.6 MB
- *  catalog it is designed to avoid. Same order as `getLiveNameCandidates`. */
-function liveNameCandidates(variant: CatalogRouteDetail): string[] {
-  const out: string[] = [];
-  const push = (value: unknown) => {
-    const text = String(value || '').trim();
-    if (text && !out.some((c) => c.toLowerCase() === text.toLowerCase())) out.push(text);
-  };
-  const stops = variant.stops || [];
-  push(variant.destination);
-  push(variant.nombre);
-  push(variant.origin);
-  if (stops.length) push(stops[stops.length - 1].nombre);
-  if (stops.length) push(stops[0].nombre);
-  return out;
-}
-
 function assertShardName(code: string): string {
   if (!/^[A-Za-z0-9_-]+$/.test(code)) {
     throw new Error(`Route code "${code}" is not filename-safe — voice shard naming needs a mapping table.`);
@@ -157,7 +140,10 @@ async function writeVoiceAssets(routes: Record<string, CatalogRouteDetail[]>): P
         origin: variant.origin || '',
         destination: variant.destination || variant.nombre || '',
         horarios: variant.horarios,
-        live: liveNameCandidates(variant),
+        // Destination-first live-query names (spec §5.2.4), baked in because the
+        // voice path never builds the full route list — that would mean parsing
+        // the 13.6 MB catalog it is designed to avoid.
+        live: variantLiveNames(variant),
       };
 
       const dirStops = (variant.stops || [])

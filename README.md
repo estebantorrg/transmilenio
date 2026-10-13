@@ -96,7 +96,9 @@ TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1
 
 The server scrapes several free proxy sources, **verifies each against the live
 API** (only Colombian exits return data — the geofence is the filter), keeps a
-warm scored pool, and **races the fastest few** proxies per request. A
+scored pool while someone is tracking a bus, and **races the fastest few** proxies
+per request. Verification costs one live-host request per candidate, so nothing
+is probed with nobody watching, nor outside the live host's 05:00–23:00 window. A
 **last-known-position cache** serves the most recent fix (tagged "datos de HH:MM")
 whenever every proxy is momentarily down, so the map never blanks. Pool health is
 visible at `GET /api/health` → `proxyPool`.

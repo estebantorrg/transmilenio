@@ -10,7 +10,7 @@
 import maplibregl from 'maplibre-gl';
 import { api, type LiveStatus } from '../services/api';
 import { escapeHTML, safeColor } from '../utils/html';
-import { findBusPayloadArray, toFiniteNumber } from '../utils/liveBus';
+import { findBusPayloadArray, toFiniteNumber } from '../../../shared/live_payload.js';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
 // One distance formatter for the whole app: this module had its own copy, so a
 // bus popup and a Cerca row could word the same distance differently (§1.1 R2).

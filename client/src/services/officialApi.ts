@@ -25,15 +25,13 @@ import type { ApiResponse } from '../types/transmilenio';
 import { BOGOTA_BOUNDS, isWithinBogota } from '../utils/geo';
 import { LIVE_HOST, APPID, nativeHttpRequest } from './nativeLive';
 import { installUuid } from './installId';
+import { normalizeArrivalsPayload } from '../../../shared/live_payload.js';
+import { isCardNumber, isLedgerRow, ledgerMovement, maskCardNumber } from '../../../shared/card_ledger.js';
 import type {
-  ArrivalItem,
   ArrivalsResponse,
-  CardBalanceMovement,
   CardBalanceRead,
   CardBalanceResponse,
   WalkingRouteResponse,
-  StopArrival,
-  StopArrivalsResponse,
 } from './api';
 
 // ─── ArcGIS FeatureServer (mirrors server/src/services/arcgis.ts) ──────────
@@ -134,33 +132,6 @@ const LIVE_JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json; charset=UTF-8',
 };
 
-function isRow(item: unknown): item is Record<string, unknown> {
-  return item != null && typeof item === 'object' && !Array.isArray(item);
-}
-
-/** Normalize `/paradero/buses` → stable arrivals (mirrors tm_api normalizeArrivalsPayload). */
-function normalizeArrivalsPayload(payload: any): ArrivalItem[] {
-  const list: any[] = Array.isArray(payload)
-    ? payload
-    : Array.isArray(payload?.data) ? payload.data
-    : Array.isArray(payload?.buses) ? payload.buses
-    : Array.isArray(payload?.llegadas) ? payload.llegadas
-    : Array.isArray(payload?.vehiculos) ? payload.vehiculos
-    : [];
-  return list
-    .filter((it) => it && typeof it === 'object')
-    .map((it) => ({
-      codigo: String(it.ruta_extraida ?? it.codigo ?? '').trim(),
-      idRuta: String(it.ruta_sae ?? it.idRuta ?? '').trim(),
-      destino: String(it.destino_limpio ?? it.destino ?? it.nombre ?? '').trim(),
-      color: String(it.color_ruta ?? it.color ?? '').trim(),
-      paradero: String(it.labelparadero ?? it.paradero ?? '').trim(),
-      tiempo: String(it.labeltiempo ?? it.tiempo ?? it.time ?? '').trim(),
-      distancia: String(it.distancia ?? '').trim(),
-    }))
-    .filter((it) => it.codigo || it.destino);
-}
-
 /** Real-time arrivals at a paradero. Never hard-fails — empty list on any outage
  *  (mirrors the server `/api/arrivals` contract, spec §5.8). */
 async function getArrivals(paradero: string): Promise<ArrivalsResponse> {
@@ -183,58 +154,9 @@ async function getArrivals(paradero: string): Promise<ArrivalsResponse> {
   }
 }
 
-/** Parse minutes out of a live ETA label ("5 min", "Llegando", "300 m"). */
-function parseEtaMinutes(tiempo: string, distancia: string): { etaMinutes: number; distanceMeters: number } {
-  const minMatch = /(\d+)\s*min/i.exec(tiempo);
-  const mMatch = /(\d+)\s*m\b/i.exec(distancia || tiempo);
-  const distanceMeters = mMatch ? Number(mMatch[1]) : 0;
-  const etaMinutes = minMatch ? Number(minMatch[1]) : (/lleg/i.test(tiempo) ? 0 : 0);
-  return { etaMinutes, distanceMeters };
-}
-
-/**
- * Native stop-arrivals. Without a server to run the full trace-projection
- * fan-out, the app relies on the official `/paradero/buses` imminent-arrivals
- * feed and adapts its ETA labels into the shared StopArrival shape. Estación
- * (TM…) codes aren't served by that endpoint, so they return empty on-device.
- */
-async function getStopArrivals(code: string): Promise<StopArrivalsResponse> {
-  const base = await getArrivals(code);
-  const arrivals: StopArrival[] = (base.arrivals ?? []).map((it) => {
-    const { etaMinutes, distanceMeters } = parseEtaMinutes(it.tiempo, it.distancia);
-    return {
-      codigo: it.codigo,
-      destino: it.destino,
-      color: it.color,
-      type: 'zonal' as const,
-      etaMinutes,
-      distanceMeters,
-      busCount: 1,
-    };
-  });
-  return { success: true, count: arrivals.length, routesServing: arrivals.length, arrivals };
-}
-
 // ─── Card ledger (`/lectura_tarjeta`, spec §5.5.1a) ────────────────────────
-function maskCardNumber(cardNumber: string): string {
-  if (cardNumber.length <= 6) return cardNumber;
-  return `${cardNumber.slice(0, 4)}...${cardNumber.slice(-4)}`;
-}
-
 function normalizeConsultar(value: 'true' | 'false'): 'true' | 'false' {
   return value === 'true' ? 'true' : 'false';
-}
-
-/** Mirrors card_balance.ts normalizeServerMovement — the server ledger row shape. */
-function normalizeServerMovement(item: Record<string, unknown>, fallbackCardNumber: string): CardBalanceMovement {
-  const upstreamCardNumber = String(item.numero_tarjeta ?? '').trim();
-  return {
-    source: 'server',
-    numeroTarjeta: /^\d{8,20}$/.test(upstreamCardNumber) ? maskCardNumber(upstreamCardNumber) : fallbackCardNumber,
-    type: String(item.tipo ?? ''),
-    finalBalance: item.saldo_tarjeta == null ? undefined : String(item.saldo_tarjeta),
-    occurredAt: item.ultima_transaccion == null ? undefined : String(item.ultima_transaccion),
-  };
 }
 
 /**
@@ -244,7 +166,7 @@ function normalizeServerMovement(item: Record<string, unknown>, fallbackCardNumb
  */
 async function readCardBalance(numeroTarjeta: string, consultar: 'true' | 'false' = 'false'): Promise<CardBalanceResponse> {
   const card = String(numeroTarjeta ?? '').trim();
-  if (!/^\d{8,20}$/.test(card)) {
+  if (!isCardNumber(card)) {
     return { success: false, error: 'numero_tarjeta must be 8 to 20 digits' };
   }
   const cons = normalizeConsultar(consultar);
@@ -268,9 +190,9 @@ async function readCardBalance(numeroTarjeta: string, consultar: 'true' | 'false
     }
 
     const payload = parseJson(res.data);
-    const rows = Array.isArray(payload) ? payload.filter(isRow) : [];
+    const rows = Array.isArray(payload) ? payload.filter(isLedgerRow) : [];
     const masked = maskCardNumber(card);
-    const movements = rows.map((row) => normalizeServerMovement(row, masked));
+    const movements = rows.map((row) => ledgerMovement(row, masked));
     const latest = movements[0];
 
     const data: CardBalanceRead = {
@@ -445,7 +367,6 @@ export const officialApi = {
   getCableStations: () => arcgisResponse(ARCGIS_LAYERS.cableStations),
   getCableTrazado: () => arcgisResponse(ARCGIS_LAYERS.cableTraces),
   getArrivals,
-  getStopArrivals,
   readCardBalance,
   getWalkingRoute,
   geocode,

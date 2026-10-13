@@ -12,9 +12,9 @@
  * the caller falls through to the existing tiers (see `services/api.ts`).
  */
 
-import { findBusPayloadArray } from '../utils/liveBus';
+import { findBusPayloadArray } from '../../../shared/live_payload.js';
 import { installUuid } from './installId';
-import { forgetLiveName, recallLiveName, rememberLiveName } from './liveNameMemo';
+import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
 
 export const LIVE_HOST = 'https://tmsa-transmiapp-shvpc.uc.r.appspot.com';
 export const APPID = '9a2c3b48f0c24ae9bfba38e94f27c3ea';

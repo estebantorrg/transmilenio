@@ -232,5 +232,4 @@ export interface MasterCatalogResponse {
   success: boolean;
   data: MasterCatalog;
   count: number;
-  stale: boolean;
 }

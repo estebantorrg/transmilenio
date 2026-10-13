@@ -7,8 +7,9 @@
  *
  *   1. the name that matched is remembered, so poll 2 asks once, not 12 times
  *   2. a proxy that has been answering gets the request alone, no wave
- *   3. verification stops at target, and the scheduled re-scrape only runs
- *      when the pool is actually short
+ *   3. verification stops at target, and a re-scrape only runs when the pool
+ *      is short, someone is using it and the live host is open — the 90-second
+ *      top-up that ignored the last two is gone (2026-10-13)
  *
  * A fourth idea — gating verification on the proxy's exit country from
  * Cloudflare's trace endpoint — was measured, found to discard the only
@@ -16,21 +17,56 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { isProvenProxy, PROVEN_PROXY_MAX_AGE_MS, shouldRefreshPool } from '../server/src/services/proxy_health';
-import { forgetLiveName, recallLiveName, rememberLiveName } from '../server/src/services/live_name_memo';
+import {
+  canRefreshPool,
+  isProvenProxy,
+  POOL_IDLE_MS,
+  PROVEN_PROXY_MAX_AGE_MS,
+  REFRESH_COOLDOWN_MS,
+  shouldRefreshPool,
+} from '../server/src/services/proxy_health';
+import { forgetLiveName, recallLiveName, rememberLiveName } from '../shared/live_name_memo.js';
 import { raceProxies, type ProxyPool } from '../server/src/services/proxy_race';
-import * as clientMemo from '../client/src/services/liveNameMemo';
 
 const MINUTE = 60_000;
 
 test.describe('pool re-scrape (cut 3)', () => {
+  // Bogotá is UTC−5, so a Bogotá clock time is that many hours later in UTC.
+  const bogota = (hour: number, minute = 0) => Date.UTC(2026, 9, 13, hour + 5, minute);
+  const noon = bogota(12);
+
   test('only runs when the pool is short of target', () => {
     // The unconditional 10-minute tick re-probed a healthy pool — one
     // live-host request per candidate — for nothing.
-    expect(shouldRefreshPool(0, 12)).toBe(true);
-    expect(shouldRefreshPool(11, 12)).toBe(true);
-    expect(shouldRefreshPool(12, 12)).toBe(false);
-    expect(shouldRefreshPool(30, 12)).toBe(false);
+    expect(shouldRefreshPool(0, 12, noon, noon)).toBe(true);
+    expect(shouldRefreshPool(11, 12, noon, noon)).toBe(true);
+    expect(shouldRefreshPool(12, 12, noon, noon)).toBe(false);
+    expect(shouldRefreshPool(30, 12, noon, noon)).toBe(false);
+  });
+
+  test('and only while someone is being served from it', () => {
+    // A free pool usually sits BELOW target, so "short" alone kept a pass in
+    // flight around the clock on an instance nobody was tracking a bus from.
+    expect(shouldRefreshPool(4, 12, noon - POOL_IDLE_MS + MINUTE, noon)).toBe(true);
+    expect(shouldRefreshPool(4, 12, noon - POOL_IDLE_MS, noon)).toBe(false);
+    expect(shouldRefreshPool(0, 12, 0, noon)).toBe(false); // never asked for a proxy
+  });
+
+  test('a pass never starts while the live host is shut', () => {
+    // 23:00–05:00 it answers 400 to everyone: no proxy can pass, so a pass can
+    // only spend its 500 requests.
+    expect(canRefreshPool(0, noon)).toBe(true);
+    expect(canRefreshPool(0, bogota(5))).toBe(true);
+    expect(canRefreshPool(0, bogota(22, 59))).toBe(true);
+    expect(canRefreshPool(0, bogota(4, 59))).toBe(false);
+    expect(canRefreshPool(0, bogota(23))).toBe(false);
+    expect(canRefreshPool(0, bogota(2))).toBe(false);
+  });
+
+  test('nor right behind the one that just ended', () => {
+    // With the pool empty every live request asks for a pass.
+    expect(canRefreshPool(noon - REFRESH_COOLDOWN_MS + 1, noon)).toBe(false);
+    expect(canRefreshPool(noon - REFRESH_COOLDOWN_MS, noon)).toBe(true);
   });
 });
 
@@ -50,51 +86,49 @@ test.describe('proven proxy (cut 2)', () => {
 });
 
 test.describe('remembered destination name (cut 1)', () => {
-  test('server: the matching name comes back, and only until it goes stale', () => {
-    forgetLiveName('troncal', 'H15');
-    expect(recallLiveName('troncal', 'H15')).toBeNull();
+  // One memo (`shared/live_name_memo.js`) for the server cascade, which keys it
+  // `<type>:<código>`, and the app's native lookup, which keys it by código.
+  test('the matching name comes back, and only until it goes stale', () => {
+    forgetLiveName('troncal:H15');
+    expect(recallLiveName('troncal:H15')).toBeNull();
 
-    rememberLiveName('troncal', 'H15', 'Portal Tunal');
-    expect(recallLiveName('troncal', 'h15')).toEqual({ name: 'Portal Tunal', fresh: true });
+    rememberLiveName('troncal:H15', 'Portal Tunal');
+    expect(recallLiveName('troncal:h15')).toEqual({ name: 'Portal Tunal', fresh: true });
     // Stale keeps the name but stops trusting an empty answer from it, which is
     // what sends the next poll back through the full candidate set.
-    expect(recallLiveName('troncal', 'H15', Date.now() + 11 * MINUTE)).toEqual({ name: 'Portal Tunal', fresh: false });
+    expect(recallLiveName('troncal:H15', Date.now() + 11 * MINUTE)).toEqual({ name: 'Portal Tunal', fresh: false });
 
-    forgetLiveName('troncal', 'H15');
-    expect(recallLiveName('troncal', 'H15')).toBeNull();
+    forgetLiveName('troncal:H15');
+    expect(recallLiveName('troncal:H15')).toBeNull();
   });
 
-  test('server: troncal and zonal are separate, and an empty name is ignored', () => {
-    rememberLiveName('troncal', 'A', 'Name A');
-    rememberLiveName('zonal', 'A', 'Name Z');
-    expect(recallLiveName('troncal', 'A')?.name).toBe('Name A');
-    expect(recallLiveName('zonal', 'A')?.name).toBe('Name Z');
+  test('troncal and zonal are separate, and an empty name is ignored', () => {
+    rememberLiveName('troncal:A', 'Name A');
+    rememberLiveName('zonal:A', 'Name Z');
+    expect(recallLiveName('troncal:A')?.name).toBe('Name A');
+    expect(recallLiveName('zonal:A')?.name).toBe('Name Z');
 
-    rememberLiveName('troncal', 'A', '');
-    expect(recallLiveName('troncal', 'A')?.name).toBe('Name A');
-    forgetLiveName('troncal', 'A');
-    forgetLiveName('zonal', 'A');
+    rememberLiveName('troncal:A', '');
+    expect(recallLiveName('troncal:A')?.name).toBe('Name A');
+    forgetLiveName('troncal:A');
+    forgetLiveName('zonal:A');
   });
 
-  test('server: the memo is bounded — a TTL alone never frees an unread entry', () => {
+  test('the memo is bounded — a TTL alone never frees an unread entry', () => {
     // 400 is the cap; the oldest insert must be the one that goes.
-    rememberLiveName('troncal', 'FIRST', 'oldest');
-    for (let i = 0; i < 400; i++) rememberLiveName('troncal', `FILL${i}`, `name${i}`);
-    expect(recallLiveName('troncal', 'FIRST')).toBeNull();
-    expect(recallLiveName('troncal', 'FILL399')?.name).toBe('name399');
-    for (let i = 0; i < 400; i++) forgetLiveName('troncal', `FILL${i}`);
+    rememberLiveName('troncal:FIRST', 'oldest');
+    for (let i = 0; i < 400; i++) rememberLiveName(`troncal:FILL${i}`, `name${i}`);
+    expect(recallLiveName('troncal:FIRST')).toBeNull();
+    expect(recallLiveName('troncal:FILL399')?.name).toBe('name399');
+    for (let i = 0; i < 400; i++) forgetLiveName(`troncal:FILL${i}`);
   });
 
-  test('client: the app-side memo behaves the same', () => {
-    clientMemo.forgetLiveName('B12');
-    expect(clientMemo.recallLiveName('B12')).toBeNull();
-
-    clientMemo.rememberLiveName('b12', 'Portal Norte');
-    expect(clientMemo.recallLiveName('B12')).toEqual({ name: 'Portal Norte', fresh: true });
-    expect(clientMemo.recallLiveName('B12', Date.now() + 11 * MINUTE)?.fresh).toBe(false);
-
-    clientMemo.forgetLiveName('B12');
-    expect(clientMemo.recallLiveName('B12')).toBeNull();
+  test('the app keys it by the código alone', () => {
+    forgetLiveName('B12');
+    rememberLiveName('b12', 'Portal Norte');
+    expect(recallLiveName('B12')).toEqual({ name: 'Portal Norte', fresh: true });
+    expect(recallLiveName('troncal:B12')).toBeNull();
+    forgetLiveName('B12');
   });
 });
 

@@ -130,11 +130,20 @@ test.describe('the API surface', () => {
       ["post('/arrivals'", 'arrivals'],
       ["post('/stop-arrivals'", 'stop-arrivals'],
       ["post('/card/read'", 'card'],
+      ["get('/geoip'", 'geoip'],
       ["get('/geocode'", 'geocode'],
       ["get('/walking-route'", 'walking-route'],
     ];
     for (const [route, budget] of forwarding) {
       expect(ROUTES, route).toContain(`router.${route}, rateLimit('${budget}'),`);
     }
+  });
+
+  test('who a request counts against is never read from a header the caller types', () => {
+    // `/api/geoip` used to take the leftmost X-Forwarded-For entry as the client:
+    // a lookup of any address, for anyone. `req.ip` under `trust proxy` is the
+    // one answer (index.ts), and the budgets above count against the same thing.
+    expect(ROUTES.toLowerCase()).not.toContain('x-forwarded-for');
+    expect(ROUTES.toLowerCase()).not.toContain('x-real-ip');
   });
 });

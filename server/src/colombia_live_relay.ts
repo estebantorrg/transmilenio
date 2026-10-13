@@ -1,20 +1,25 @@
 import express, { type ErrorRequestHandler, type Request, type Response } from 'express';
 import cors from 'cors';
-import http from 'http';
 import https from 'https';
 import crypto from 'crypto';
-import { collectBody, decodeBody } from './services/upstream_body.js';
-import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './services/official_app_headers.js';
+import { collectBody } from './services/upstream_body.js';
+import { LIVE_API_HOST } from './services/official_app_headers.js';
 import { clientKey, createRateLimiter, createSharedWindow } from './services/flow_control.js';
 import {
   LIVE_DESTINATION_MAX_LENGTH,
   LIVE_NAME_CANDIDATE_LIMIT,
   LIVE_ROUTE_CODE_MAX_LENGTH,
-  normalizeLiveBusesPayload,
   normalizeLiveText,
 } from './services/live_payload.js';
+import {
+  buildLiveApiHeaders,
+  createLiveRequestContext,
+  isForwardAllowed,
+  raceLiveCandidates,
+  requestLiveBuses,
+  type LiveRequestContext,
+} from './services/live_request.js';
 
-const LIVE_API_ORIGIN = `https://${LIVE_API_HOST}`;
 const PORT = Number(process.env.COLOMBIA_RELAY_PORT || process.env.PORT || 8787);
 const RELAY_SECRET = String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
 const TRACE_URL = 'https://www.cloudflare.com/cdn-cgi/trace';
@@ -74,15 +79,6 @@ function isAllowedOrigin(origin: string | undefined): boolean {
   // pass would let ANY caller skip the secret on a public relay. Honour it only
   // while the relay is unconfigured, i.e. a local dev instance.
   return !isConfigured() && DEV_ORIGIN_RE.test(origin);
-}
-
-interface LiveRequestContext {
-  routeCode: string;
-  destinationName: string;
-  routeType: 'troncal' | 'zonal';
-  isZonal: boolean;
-  targetPath: string;
-  postData: string;
 }
 
 interface EgressCheck {
@@ -167,26 +163,6 @@ async function assertColombianEgress(): Promise<EgressCheck> {
   return egress;
 }
 
-function makeLiveContext(
-  routeCode: string,
-  destinationName: string,
-  routeType: 'troncal' | 'zonal'
-): LiveRequestContext {
-  const cleanRouteCode = normalizeLiveText(routeCode, LIVE_ROUTE_CODE_MAX_LENGTH);
-  const cleanDestinationName = normalizeLiveText(destinationName, LIVE_DESTINATION_MAX_LENGTH);
-  const isZonal = routeType === 'zonal';
-  return {
-    routeCode: cleanRouteCode,
-    destinationName: cleanDestinationName,
-    routeType,
-    isZonal,
-    targetPath: isZonal
-      ? `/location/ruta?ruta=${encodeURIComponent(cleanRouteCode)}`
-      : '/buses',
-    postData: isZonal ? '' : JSON.stringify({ ruta: cleanRouteCode, Nombre: cleanDestinationName }),
-  };
-}
-
 /**
  * Troncal matches by destination name; the catalog often holds several candidate
  * strings for one route. Build one context per distinct candidate so the handler
@@ -198,7 +174,7 @@ function createLiveRequestContexts(body: any): LiveRequestContext[] {
   const routeCode = normalizeLiveText(body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
 
   if (routeType === 'zonal') {
-    return [makeLiveContext(routeCode, '', 'zonal')];
+    return [createLiveRequestContext(routeCode, '', 'zonal')];
   }
 
   const primary = normalizeLiveText(body?.Nombre ?? body?.nombre, LIVE_DESTINATION_MAX_LENGTH);
@@ -210,128 +186,61 @@ function createLiveRequestContexts(body: any): LiveRequestContext[] {
     if (names.length >= LIVE_NAME_CANDIDATE_LIMIT) break;
   }
   const list = names.length ? names : [''];
-  return list.map((name) => makeLiveContext(routeCode, name, 'troncal'));
+  return list.map((name) => createLiveRequestContext(routeCode, name, 'troncal'));
 }
 
-async function parseLiveResponse(raw: Buffer, encoding: string | string[] | undefined): Promise<any[]> {
-  const body = await decodeBody(raw, encoding).catch(() => raw);
-  const text = body.toString('utf-8');
-  const payload = JSON.parse(text);
-
-  if (payload?.success === false) {
-    throw new Error(payload.error || 'Live API returned success=false');
-  }
-
-  const problemStatus = Number(payload?.status);
-  if (Number.isFinite(problemStatus) && problemStatus >= 400) {
-    throw new Error(`Status: ${problemStatus} ${payload.title || payload.detail || ''}`.trim());
-  }
-
-  return normalizeLiveBusesPayload(payload);
-}
-
-function requestTransmiLiveJson(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
-  const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  const postData = context.postData;
-  const headers: Record<string, string | number> = {
-    'Accept-Encoding': 'identity',
-    ...LIVE_HOST_HEADERS,
-    'Connection': 'Keep-Alive',
-    'Host': LIVE_API_HOST,
-    'Content-Length': Buffer.byteLength(postData),
-  };
-
-  if (postData) {
-    headers['Content-Type'] = 'application/json; charset=UTF-8';
-  }
-
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new Error('Live API request aborted'));
-      return;
-    }
-    const requestLib = url.protocol === 'http:' ? http : https;
-    const req = requestLib.request({
-      hostname: url.hostname,
-      port: url.port || (url.protocol === 'http:' ? 80 : 443),
-      path: `${url.pathname}${url.search}`,
-      method: 'POST',
-      headers,
-      timeout: LIVE_REQUEST_TIMEOUT_MS,
-    }, (res) => {
-      collectBody(res, 'Live API').then(
-        async (raw) => {
-          cleanup();
-          if (res.statusCode !== 200) {
-            reject(new Error(`Live API status: ${res.statusCode}`));
-            return;
-          }
-          try {
-            resolve(await parseLiveResponse(raw, res.headers['content-encoding']));
-          } catch (error) {
-            reject(error);
-          }
-        },
-        (error) => { cleanup(); reject(error); }
-      );
-    });
-
-    // Let the candidate race cancel the losers the moment one returns buses.
-    const onAbort = () => req.destroy(new Error('Live API request aborted'));
-    signal?.addEventListener('abort', onAbort, { once: true });
-    const cleanup = () => signal?.removeEventListener('abort', onAbort);
-
-    req.on('error', (err) => { cleanup(); reject(err); });
-    req.on('timeout', () => {
-      cleanup();
-      req.destroy();
-      reject(new Error('Live API request timed out'));
-    });
-
-    if (postData) req.write(postData);
-    req.end();
-  });
+/** Every candidate at once (`raceLiveCandidates`, spec §5.2.4); rejects only when
+ *  no candidate answered at all. */
+async function raceBuses(contexts: LiveRequestContext[]): Promise<any[]> {
+  let lastError: unknown = new Error('Live API did not answer');
+  const buses = await raceLiveCandidates(
+    contexts,
+    (context, signal) => requestLiveBuses(context, LIVE_REQUEST_TIMEOUT_MS, undefined, signal),
+    { onError: (_context, error) => { lastError = error; } }
+  );
+  if (buses === null) throw lastError;
+  return buses;
 }
 
 /**
- * Fires every candidate at once, resolving with the first NON-EMPTY payload and
- * aborting the stragglers. A valid empty result needs all candidates to settle
- * (only a non-empty hit proves the name matched, spec §5.2.4); rejects only when
- * no candidate answered at all.
+ * One allowlisted request to the live host, answered as `{ upstreamStatus,
+ * payload }` whatever the status: the caller decides what a non-200 means
+ * (`services/co_relay.ts`), so an upstream refusal is never dressed up as a
+ * relay failure, nor the other way round (spec §5.2.2a).
  */
-function raceCandidates(contexts: LiveRequestContext[]): Promise<any[]> {
-  if (contexts.length === 1) return requestTransmiLiveJson(contexts[0]);
-
-  const controller = new AbortController();
-  return new Promise<any[]>((resolve, reject) => {
-    let pending = contexts.length;
-    let answeredEmpty: any[] | null = null;
-    let lastError: unknown = null;
-
-    const settle = (fn: () => void) => {
-      controller.abort();
-      fn();
-    };
-
-    for (const context of contexts) {
-      requestTransmiLiveJson(context, controller.signal).then(
-        (result) => {
-          if (result.length > 0) {
-            settle(() => resolve(result));
-            return;
+function forwardToLiveHost(
+  path: string,
+  method: 'GET' | 'POST',
+  body: unknown
+): Promise<{ upstreamStatus: number; payload: unknown }> {
+  const postData = method === 'POST' ? JSON.stringify(body ?? {}) : '';
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: LIVE_API_HOST,
+      path,
+      method,
+      headers: buildLiveApiHeaders(postData),
+      timeout: LIVE_REQUEST_TIMEOUT_MS,
+    }, (res) => {
+      collectBody(res, 'Live API').then(
+        (raw) => {
+          const text = raw.toString('utf-8');
+          let payload: unknown = text;
+          try {
+            payload = JSON.parse(text);
+          } catch {
+            /* not JSON: forwarded as text */
           }
-          answeredEmpty = result;
-          if (--pending === 0) settle(() => resolve(answeredEmpty ?? []));
+          resolve({ upstreamStatus: res.statusCode ?? 0, payload });
         },
-        (error) => {
-          lastError = error;
-          if (--pending === 0) {
-            if (answeredEmpty !== null) settle(() => resolve(answeredEmpty!));
-            else settle(() => reject(lastError));
-          }
-        }
+        reject
       );
-    }
+    });
+
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('Live API request timed out')));
+    if (postData) req.write(postData);
+    req.end();
   });
 }
 
@@ -406,7 +315,7 @@ app.post('/buses', async (req: Request, res: Response) => {
     // so it still requires every candidate to settle; an error is only surfaced
     // if none answered at all.
     const key = contexts.map((c) => `${c.routeType}|${c.routeCode}|${c.destinationName}`).join('||').toLowerCase();
-    const buses = await sharedBuses(key, () => raceCandidates(contexts));
+    const buses = await sharedBuses(key, () => raceBuses(contexts));
 
     res.json({
       success: true,
@@ -417,6 +326,31 @@ app.post('/buses', async (req: Request, res: Response) => {
   } catch (error: any) {
     const status = error.statusCode || 503;
     res.status(status).json({
+      success: false,
+      error: error.message || 'Colombia relay failed',
+    });
+  }
+});
+
+// The generic forwarder the main server's card read, arrivals board and tullave
+// sync speak (`services/co_relay.ts` → `relayForward`). The secret and nothing
+// else: a browser has no business here, and a card number travels in the body.
+app.post('/forward', async (req: Request, res: Response) => {
+  try {
+    if (!hasRelaySecret(req)) {
+      res.status(401).json({ success: false, error: 'Unauthorized relay request' });
+      return;
+    }
+    const { path, method, body } = req.body ?? {};
+    if (!isForwardAllowed(path, method)) {
+      res.status(403).json({ success: false, error: 'Path is not forwarded' });
+      return;
+    }
+
+    await assertColombianEgress();
+    res.json(await forwardToLiveHost(path, method, body));
+  } catch (error: any) {
+    res.status(error.statusCode || 503).json({
       success: false,
       error: error.message || 'Colombia relay failed',
     });

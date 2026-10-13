@@ -10,7 +10,7 @@ import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import type { HorariosCabeceraData } from './cabecera';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
-import { findBusPayloadArray } from '../utils/liveBus';
+import { findBusPayloadArray } from '../../../shared/live_payload.js';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
  *  - live        buses are present.
@@ -505,15 +505,15 @@ export const api = {
 
   /** Global per-route ETA for any stop (paradero or estación), computed from
    *  live bus positions projected onto each serving route's trace (spec §5.8).
-   *  Works for both TM…-coded estaciones and zonal cenefas. Never hard-fails. */
+   *  Works for both TM…-coded estaciones and zonal cenefas. Never hard-fails.
+   *  Website-only, hence no native branch: the fan-out is the server's, and the
+   *  app shows the official imminent-arrivals feed instead (`getArrivals`). */
   getStopArrivals: (code: string) =>
-    isNativeLiveAvailable()
-      ? officialApi.getStopArrivals(code)
-      : fetchJson<StopArrivalsResponse>('/stop-arrivals', 16_000, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code }),
-        }, 0),
+    fetchJson<StopArrivalsResponse>('/stop-arrivals', 16_000, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }, 0),
 };
 
 export interface StopArrival {

@@ -20,8 +20,10 @@ import {
   getCatalog,
   getCatalogLoadedAt,
   fetchLiveBuses,
+  traceToPaths,
   type CatalogRouteDetail,
 } from './tm_api.js';
+import { variantLiveNames } from './live_request.js';
 import {
   dayTypeFor,
   LIVE_TRONCAL_M_PER_MIN,
@@ -31,8 +33,6 @@ import {
 } from '../../../shared/calibration.js';
 import type { PreparedCalibration } from '../../../shared/calibration.js';
 import { isFestivo } from '../../../shared/festivos.js';
-
-type RouteTrace = number[][] | number[][][];
 
 export interface StopArrival {
   codigo: string;
@@ -105,24 +105,6 @@ const EARTH_R = 6_371_000;
 
 // ─── Geometry helpers ─────────────────────────────────────
 
-function isCoordPair(value: unknown): value is number[] {
-  return Array.isArray(value) &&
-    value.length >= 2 &&
-    Number.isFinite(Number(value[0])) &&
-    Number.isFinite(Number(value[1]));
-}
-
-/** Normalize a LineString / MultiLineString trace to an array of [lng,lat] paths. */
-function traceToPaths(trace: RouteTrace | undefined): number[][][] {
-  if (!Array.isArray(trace) || trace.length === 0) return [];
-  const first = trace[0];
-  if (isCoordPair(first)) return [trace as number[][]];
-  if (Array.isArray(first) && isCoordPair(first[0])) {
-    return (trace as number[][][]).filter((p) => Array.isArray(p) && p.length > 1);
-  }
-  return [];
-}
-
 interface Projection {
   /** Distance from the query point to its nearest point on the polyline (m). */
   perp: number;
@@ -189,22 +171,6 @@ function parseCoordenada(coordenada: string | undefined): [number, number] | nul
 function routeIsZonal(variant: CatalogRouteDetail): boolean {
   const service = `${variant.sistema || ''} ${variant.tipoServicio || ''}`.toUpperCase();
   return service.includes('ZONAL') || service.includes('TRANSMIZONAL') || service.includes('ALIMENTADOR');
-}
-
-/** Destination-first name candidates for the troncal live lookup (spec §5.2.4). */
-function liveNameCandidates(variant: CatalogRouteDetail): string[] {
-  const out: string[] = [];
-  const push = (v: unknown) => {
-    const t = String(v || '').trim();
-    if (t && !out.some((c) => c.toLowerCase() === t.toLowerCase())) out.push(t);
-  };
-  const stops = variant.stops || [];
-  push(variant.destination);
-  push(variant.nombre);
-  push(variant.origin);
-  if (stops.length) push(stops[stops.length - 1].nombre);
-  if (stops.length) push(stops[0].nombre);
-  return out;
 }
 
 interface ServingVariant {
@@ -276,7 +242,7 @@ function findServingVariants(stopCode: string): ServingVariant[] {
         destino,
         color: variant.color || '',
         type: routeIsZonal(variant) ? 'zonal' : 'troncal',
-        candidates: liveNameCandidates(variant),
+        candidates: variantLiveNames(variant),
         paths,
         stopAlong: proj.along,
         stopCodes: (variant.stops || []).map((s) => String(s.codigo || '').trim()).filter(Boolean),

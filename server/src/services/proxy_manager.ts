@@ -3,7 +3,7 @@ import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
 import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
-import { isProvenProxy, shouldRefreshPool } from './proxy_health.js';
+import { canRefreshPool, isProvenProxy, shouldRefreshPool } from './proxy_health.js';
 
 // Cap on how long the proxy CONNECT tunnel may take to establish before we
 // give up. Without this, an unresponsive proxy leaves the tunnel hanging
@@ -16,9 +16,8 @@ const TEST_TIMEOUT_MS = 12_000;
 const TEST_BATCH = 50;
 
 // Pool maintenance.
-const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // full re-scrape cadence
-const TOP_UP_INTERVAL_MS = 90 * 1000; // keep-warm check
-const TARGET_POOL_SIZE = 12; // re-scrape eagerly below this
+const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // re-scrape cadence, while the pool is short and in use
+const TARGET_POOL_SIZE = 12; // a pool this big is left alone
 /**
  * Bound on work per refresh. Verification costs one live-host request per
  * candidate, so this is also the bound on what a refresh asks upstream — kept
@@ -135,35 +134,38 @@ class ProxyManagerClass {
   private pool = new Map<string, ProxyStat>();
   private isTesting = false;
   private refreshPromise: Promise<void> | null = null;
+  /** When a request last asked the pool for a proxy, and when a pass last ended. */
+  private lastUsedAt = 0;
+  private lastRefreshAt = 0;
 
   constructor() {
-    this.refreshPromise = this.refresh().catch((err) => console.error('[ProxyManager] Init error:', err));
-    // `unref` so these timers never hold the process open (a CLI script that
+    // Nothing is probed until a request needs a proxy (`waitForReady`): this
+    // module is also loaded by `/api/health`, and a pass at import spent up to
+    // 500 live-host requests on an instance nobody was tracking a bus from.
+    //
+    // `unref` so the timer never holds the process open (a CLI script that
     // imports this module must still be able to exit) — same as the live warm-up.
-    // The scheduled re-scrape only runs when the pool actually needs proxies.
-    // It used to run unconditionally every 10 minutes and re-probe the whole
-    // candidate list — one live-host request each — which was the project's
-    // single largest source of upstream traffic, larger than the riders using
-    // it (§5.2.3). A healthy pool is left alone; eviction and the top-up timer
-    // below are what notice when it stops being healthy.
+    // The scheduled re-scrape only runs when the pool needs proxies AND someone
+    // is using it (`shouldRefreshPool`): verification costs one live-host
+    // request per candidate, which made the unconditional version of this tick
+    // the project's single largest source of upstream traffic, larger than the
+    // riders using it (§5.2.3).
     setInterval(() => {
-      if (shouldRefreshPool(this.pool.size, TARGET_POOL_SIZE)) this.refreshInBackground('scheduled');
+      if (shouldRefreshPool(this.pool.size, TARGET_POOL_SIZE, this.lastUsedAt)) void this.refresh();
     }, REFRESH_INTERVAL_MS).unref();
-    setInterval(() => {
-      // Keep-warm: re-scrape eagerly whenever the verified pool runs low.
-      if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('top-up');
-    }, TOP_UP_INTERVAL_MS).unref();
   }
 
   public getVerifiedCount(): number {
     return this.pool.size;
   }
 
-  public getStats(): { verifiedCount: number; refreshing: boolean; top: Array<{ proxy: string; latencyMs: number; success: number; failure: number }> } {
+  /** Pool health for `/api/health`. Records only — a public endpoint is no place
+   *  to list the addresses of other people's proxies. */
+  public getStats(): { verifiedCount: number; refreshing: boolean; top: Array<{ latencyMs: number; success: number; failure: number }> } {
     const top = [...this.pool.values()]
       .sort((a, b) => this.score(b) - this.score(a))
       .slice(0, 5)
-      .map((p) => ({ proxy: keyOf(p.ip, p.port), latencyMs: p.latencyMs, success: p.success, failure: p.failure }));
+      .map((p) => ({ latencyMs: p.latencyMs, success: p.success, failure: p.failure }));
     return { verifiedCount: this.pool.size, refreshing: this.isTesting, top };
   }
 
@@ -227,16 +229,10 @@ class ProxyManagerClass {
     if ((p.success === 0 && p.failure >= 3) || p.failure - p.success >= 4) {
       this.pool.delete(k);
     }
-    if (this.pool.size < TARGET_POOL_SIZE) this.refreshInBackground('failure-top-up');
-  }
-
-  private refreshInBackground(reason: string): void {
-    this.refresh().catch((error) => {
-      console.error(`[ProxyManager] Background refresh failed (${reason}):`, error);
-    });
   }
 
   public async waitForReady(timeoutMs = 12_000): Promise<number> {
+    this.lastUsedAt = Date.now();
     if (this.pool.size > 0) return this.pool.size;
 
     const refresh = this.isTesting ? this.refreshPromise : this.refresh();
@@ -251,6 +247,7 @@ class ProxyManagerClass {
 
   public refresh(): Promise<void> {
     if (this.isTesting) return this.refreshPromise ?? Promise.resolve();
+    if (!canRefreshPool(this.lastRefreshAt)) return Promise.resolve();
     this.isTesting = true;
 
     this.refreshPromise = (async () => {
@@ -275,7 +272,7 @@ class ProxyManagerClass {
 
           // Enough is enough: a pool at target does not need the rest of the
           // list probed, and every skipped candidate is an upstream request not
-          // made (§5.2.3). The top-up timer re-scrapes whenever it runs low.
+          // made (§5.2.3). The scheduled tick re-scrapes when it runs low.
           if (this.pool.size >= TARGET_POOL_SIZE) {
             console.log(`[ProxyManager] Pool at target (${this.pool.size}); stopping after ${tested}/${candidates.length} candidates.`);
             break;
@@ -286,6 +283,7 @@ class ProxyManagerClass {
         console.error('[ProxyManager] Refresh failed:', err.message);
       } finally {
         this.isTesting = false;
+        this.lastRefreshAt = Date.now();
       }
     })();
 

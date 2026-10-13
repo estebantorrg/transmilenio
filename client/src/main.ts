@@ -849,7 +849,7 @@ async function main(): Promise<void> {
     console.log(`✅ Stations: ${stations.length}`);
     console.log(`✅ Cable stations: ${cableStations.length}`);
     console.log(`✅ Cable traces: ${cableTraces.length}`);
-    console.log(`✅ Master catalog: ${catalogRes.count} stations${catalogRes.stale ? ' (stale — sync in progress)' : ''}`);
+    console.log(`✅ Master catalog: ${catalogRes.count} stations`);
 
     // Set catalog for station popups (route service types + station kinds are
     // already indexed above, before the station fallback reads them).

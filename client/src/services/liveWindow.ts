@@ -13,10 +13,11 @@
  */
 
 import { bogotaNow, formatClockMinute, type PlanTime } from './schedule';
+// First/last minute of the day the live feed is known to answer. Shared with
+// the server, whose proxy pool has nothing to verify while the host is shut.
+import { LIVE_WINDOW_END_MINUTE, LIVE_WINDOW_START_MINUTE } from '../../../shared/live_window.js';
 
-/** First/last minute of the day the live feed is known to answer. */
-export const LIVE_WINDOW_START_MINUTE = 5 * 60; // 05:00
-export const LIVE_WINDOW_END_MINUTE = 23 * 60; // 23:00
+export { LIVE_WINDOW_END_MINUTE, LIVE_WINDOW_START_MINUTE };
 
 export function isLiveWindowOpen(now: PlanTime = bogotaNow()): boolean {
   return now.minute >= LIVE_WINDOW_START_MINUTE && now.minute < LIVE_WINDOW_END_MINUTE;

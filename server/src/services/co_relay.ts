@@ -4,9 +4,9 @@
  * allowlisted forwarder shape (§5.2.2a): that reaches the CO-IP-geofenced
  * TransMi live host from a reliable Colombian IP, ahead of the flaky free public
  * proxy pool, for every geofenced endpoint (live buses, arrivals, card balance).
- * The serverless backend this was written against is gone and its code removed;
- * with nothing configured, `isColombiaRelayConfigured()` is false and the tier is
- * skipped entirely.
+ * The standalone relay (`colombia_live_relay.ts`) serves that shape at
+ * `/forward`; with nothing configured, `isColombiaRelayConfigured()` is false
+ * and the tier is skipped entirely.
  *
  * Configure with `TRANSMILENIO_COLOMBIA_RELAY_URL` (the gateway deployment base,
  * e.g. https://<gw>.apigateway.<region>.oci.customer-oci.com/relay) and
@@ -28,11 +28,16 @@ const keepAliveAgents = {
   http: new http.Agent({ keepAlive: true, keepAliveMsecs: 15_000, maxSockets: 12 }),
 };
 
-function relayBaseUrl(): string {
+/** The keep-alive agent for a relay URL — the live-bus tier (`tm_api.ts`) shares it. */
+export function relayAgentFor(url: URL): http.Agent {
+  return url.protocol === 'http:' ? keepAliveAgents.http : keepAliveAgents.https;
+}
+
+export function relayBaseUrl(): string {
   return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_URL || '').trim();
 }
 
-function relaySecret(): string {
+export function relaySecret(): string {
   return String(process.env.TRANSMILENIO_COLOMBIA_RELAY_SECRET || '').trim();
 }
 
@@ -96,7 +101,7 @@ export function relayForward(
       path: `${url.pathname}${url.search}`,
       method: 'POST',
       headers,
-      agent: url.protocol === 'http:' ? keepAliveAgents.http : keepAliveAgents.https,
+      agent: relayAgentFor(url),
       timeout: timeoutMs,
     }, (res) => {
       collectBody(res, source).then(
