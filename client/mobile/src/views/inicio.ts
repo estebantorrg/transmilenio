@@ -22,7 +22,7 @@ export function createInicioView(): View {
     h('div', { class: 'hero-row' }, [
       h('div', {}, [
         h('div', { class: 'hero-greeting', text: greeting() }),
-        h('div', { class: 'hero-brand', html: 'Mi<b>Trasto</b>' }),
+        h('div', { class: 'hero-brand', html: '<img src="/wordmark.svg" alt="MiTrasto" width="145" height="28">' }),
       ]),
       h('div', { class: 'hero-clock-wrap' }, [h('span', { class: 'hero-clock-icon', html: ICONS.clock }), clock]),
     ]),

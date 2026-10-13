@@ -268,7 +268,7 @@ export function mastheadHtml(): string {
         <a class="page-brand" href="/" aria-label="Inicio — MiTrasto">
           <img class="page-logo" src="/icon-192.png" alt="" width="34" height="34" />
           <span class="page-brand-text">
-            <span class="page-brand-title">MiTrasto</span>
+            <span class="page-brand-title"><img class="wordmark" src="/wordmark.svg" alt="" width="72" height="14" /></span>
             <span class="page-brand-sub">Rutas de Bogotá</span>
           </span>
         </a>

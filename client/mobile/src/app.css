@@ -103,7 +103,7 @@ input { font-family: inherit; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .boot-name { font-family: var(--font-head); font-size: 26px; font-weight: 700; letter-spacing: -0.5px; }
-.boot-name b { color: var(--red-2); }
+.boot-name img { display: block; }
 .boot-status { color: var(--muted); font-size: 13px; min-height: 18px; }
 .boot-track { width: 190px; height: 4px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
 .boot-fill { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--red), var(--amber)); transition: width 0.35s ease; }
@@ -305,7 +305,7 @@ input { font-family: inherit; }
 .hero-row { display: flex; align-items: flex-start; justify-content: space-between; }
 .hero-greeting { color: var(--muted); font-size: 14px; }
 .hero-brand { font-family: var(--font-head); font-size: 30px; font-weight: 700; letter-spacing: -0.8px; margin-top: 2px; }
-.hero-brand b { color: var(--red-2); }
+.hero-brand img { display: block; margin-top: 4px; }
 .hero-clock-wrap { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); padding: 7px 11px; border-radius: 12px; }
 .hero-clock-icon svg { width: 15px; height: 15px; color: var(--amber); display: block; }
 .hero-clock { font-family: var(--font-head); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }

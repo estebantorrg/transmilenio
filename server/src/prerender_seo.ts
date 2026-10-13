@@ -30,7 +30,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
-import { prepareFont, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
+import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
@@ -1375,6 +1375,7 @@ async function main(): Promise<void> {
   // The site's Inter is a woff2 and the build image may carry no system font at
   // all — see `seo_og.ts` for why this has to happen before any card renders.
   await prepareFont(path.resolve(__dirname, '..', '..', 'client', 'public', 'fonts', 'inter-latin-var.woff2'));
+  await prepareWordmark(path.resolve(__dirname, '..', '..', 'client', 'public', 'wordmark.svg'));
 
   // The card backdrop is the troncal spine, not a basemap (see `seo_og.ts`).
   // Only `TRONCAL` services — including the 100+ alimentadores would draw a

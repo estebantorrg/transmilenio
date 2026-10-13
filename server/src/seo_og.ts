@@ -213,8 +213,13 @@ function arrowSvg(x: number, y: number, w: number, color: string): string {
   </g>`;
 }
 
-const header = () => `${markSvg(64, 56, 44)}
-  <text x="124" y="87" font-family="Inter" font-size="24" fill="${DIM}">MiTrasto</text>`;
+/** The mark and, beside it, the name — as the same outlines the pages show. */
+const header = () => {
+  if (!wordmark) throw new Error('prepareWordmark() must run before rendering cards.');
+  const height = 26;
+  return `${markSvg(64, 56, 44)}
+  <path transform="translate(124 ${56 + (44 - height) / 2}) scale(${height / wordmark.h})" fill="${DIM}" d="${wordmark.d}"/>`;
+};
 
 const footer = () =>
   `<text x="64" y="${HEIGHT - 44}" font-family="Inter" font-size="22" fill="#6B7280">mitrasto.app</text>`;
@@ -424,6 +429,18 @@ export async function prepareFont(publicFontPath: string): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'tm-og-'));
   fontFile = path.join(dir, 'inter.ttf');
   await writeFile(fontFile, ttf);
+}
+
+let wordmark: { h: number; d: string } | null = null;
+
+/** Reads the name's outlines from the file the pages show (`/wordmark.svg`),
+ *  so a card and the page it previews never carry two different logos. */
+export async function prepareWordmark(publicSvgPath: string): Promise<void> {
+  const svg = await readFile(publicSvgPath, 'utf8');
+  const height = /viewBox="0 0 [\d.]+ ([\d.]+)"/.exec(svg);
+  const d = / d="([^"]+)"/.exec(svg);
+  if (!height || !d) throw new Error(`${publicSvgPath} has no viewBox or path to draw.`);
+  wordmark = { h: Number(height[1]), d: d[1] };
 }
 
 function rasterize(svg: string): Buffer {

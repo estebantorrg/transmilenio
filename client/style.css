@@ -158,6 +158,19 @@ body {
   margin-bottom: 24px;
 }
 
+/* The name as outlines (`/wordmark.svg`), so the logo never waits on a font.
+   A block, or the inline image leaves a descender's gap under it. */
+.wordmark {
+  display: block;
+  margin-inline: auto;
+}
+
+.brand-title .wordmark,
+.page-brand-title .wordmark {
+  margin-inline: 0;
+  margin-bottom: 3px;
+}
+
 .loading-bar {
   width: 100%;
   height: 4px;
