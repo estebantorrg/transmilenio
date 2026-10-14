@@ -5,6 +5,7 @@ import apiRoutes, { prewarmArcgisLayers } from './routes/api.js';
 import { getCatalog, loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
 import { retiredHostRedirect } from './retired_host.js';
 import { isKnownPage } from './known_page.js';
+import { startNovedadesPoller } from './services/novedades.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -151,6 +152,7 @@ app.get('/api', (_req, res) => {
       'POST /api/stop-arrivals',
       'POST /api/card/read',
       'GET /api/geoip',
+      'GET /api/novedades',
       'GET /api/geocode',
       'GET /api/walking-route',
     ],
@@ -192,6 +194,9 @@ async function start(): Promise<void> {
     // Keep the Colombian egress (serverless Function) and its sockets hot so the
     // first live poll of a tracking session isn't a cold start (spec §5.2.2b).
     startLiveWarmup();
+
+    // TransMilenio's #TMAhora posts on X, read every three minutes (§5.5.9).
+    startNovedadesPoller();
 
     // Cache the two default-on ArcGIS layers before the first visitor asks for
     // them, so a cold instance doesn't serve them out of a five-query burst

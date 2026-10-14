@@ -5,6 +5,7 @@ import { CardBalanceError, fetchCardBalance } from '../services/card_balance.js'
 import { maskCardNumber } from '../../../shared/card_ledger.js';
 import { computeStopArrivals } from '../services/stop_arrivals.js';
 import { geocodeAddress } from '../services/geocode.js';
+import { getNovedades } from '../services/novedades.js';
 import { isWithinBogota } from '../services/bogota.js';
 import zlib from 'zlib';
 import { promisify } from 'node:util';
@@ -579,6 +580,13 @@ function parseLngLatQuery(value: unknown): LngLat | null {
 function isWithinWalkingBounds([lng, lat]: LngLat): boolean {
   return isWithinBogota(lng, lat);
 }
+
+// Read from memory only — the poller (`services/novedades.ts`) is what talks to
+// X, on its own clock, so no request here reaches anyone else's host.
+router.get('/novedades', (_req: Request, res: Response) => {
+  res.setHeader('Cache-Control', 'public, max-age=60');
+  res.json({ success: true, ...getNovedades() });
+});
 
 router.get('/geoip', rateLimit('geoip'), async (req: Request, res: Response) => {
   // `req.ip` and nothing else: it is the real client (`trust proxy`, index.ts).

@@ -638,6 +638,16 @@ Every extensionless path used to answer **200 with the app shell**, and the app 
 * **The status** (`server/src/known_page.ts`, used by the shell fallback in `index.ts`). The shell still goes out — the app draws the page — but with **404** unless the path is a page. "No file" cannot be the test: only troncal pages are prerendered, and a zonal `/ruta/<código>/` exists only in the bundle. So the catalog answers, and it errs towards 200: a 404 on a page that works gets it de-indexed, a 200 on one that does not is only the soft 404 it was. A fragment never reaches the server, so for `#/r/…` the page above is the only 404 there is.
 * Covered by `tests/known_page.spec.mts` (which paths are pages) and `tests/not-found.spec.ts` (the page itself).
 
+#### 5.5.9 Novedades operacionales (`#TMAhora`, `GET /api/novedades`)
+
+TransMilenio announces what is happening on the network right now — protests, closures, detours, with the riders affected — as `#TMAhora` posts on X and on its WhatsApp channel. Neither has a free official way in: WhatsApp channels have no read API at all, and X's API is paid per post read.
+
+* **Source: the X profile page, logged out** (`services/novedades.ts`, started from `index.ts`). `x.com/TransMilenio` embeds the account's **five newest posts** in its server-rendered data, fresh to the minute (checked 2026-10-14: the newest was posted one minute before the read). TransMilenio posts a few an hour, so a read every **three minutes** misses only a burst of more than five. Each post yields its id, exact time and text — a post over 280 characters from its "note", since `full_text` stops at the cut. Only `#TMAhora` posts are kept, never a retweet, for **24 hours**.
+  * The page is the contract, so its shape is pinned in `tests/novedades.spec.mts`, and a read that finds **no** `#TMAhora` post is recorded as a failure (`status.lastError`) — a changed page or a login wall must not look like a quiet city.
+  * Ruled out: the embed endpoint (`syndication.twitter.com/.../timeline-profile`) answered `429` on the first request; Nitter answered `410` and XCancel is suspended; a logged-in session would read more but breaks X's terms more plainly and risks the account. X's terms forbid scraping without consent; at one page every three minutes the realistic cost is a block, and `status` is how we would see it. The paid API (about USD 0.005 per post read) and TransMilenio's GTFS-RT service alerts (promised for December 2026 in TransMilenio's 8-Oct reply to our petición) are the ways out.
+* **`GET /api/novedades`** answers from memory (`{ items, status }`, `Cache-Control: max-age=60`); no request to it reaches X.
+* Not yet shown anywhere in the app: the feed UI waits on knowing the read works from the production host, not only from a Bogotá connection.
+
 ---
 
 ### 5.6 Data Models & Journey Planner
