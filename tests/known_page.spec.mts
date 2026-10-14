@@ -20,6 +20,7 @@ test.describe('which addresses are pages', () => {
     expect(known('/')).toBe(true);
     expect(known('/privacidad/')).toBe(true);
     expect(known('/terminos')).toBe(true);
+    expect(known('/novedades/')).toBe(true);
   });
 
   test('a route the catalog has, however its código is cased', () => {

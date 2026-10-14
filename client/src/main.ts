@@ -32,6 +32,7 @@ import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshR
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { initLegalPages } from './ui/legalPage';
 import { openNotFoundPage } from './ui/notFoundPage';
+import { initNovedades } from './ui/novedadesPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
@@ -310,6 +311,10 @@ initRoutePage({
 // The legal pages need no catalog, so a visitor landing on `/privacidad/` gets
 // the page now rather than when the network data arrives (spec §5.5.7).
 initLegalPages();
+
+// TransMilenio's #TMAhora posts: a banner under the tabs and `/novedades/`
+// (spec §5.5.9). Before the 404 check below, which asks whether a page opened.
+initNovedades();
 
 // An address of no shape this site has is a 404 at once (spec §5.5.8). One of a
 // known shape that names nothing — `/ruta/zz9/`, `#/r/zz9` — has to wait for

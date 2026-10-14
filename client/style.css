@@ -6277,6 +6277,72 @@ body.native-app .route-detail-close:active {
 
 .station-avisos { margin-top: 18px; }
 
+/* Novedades (`ui/novedadesPage.ts`, spec §5.5.9): TransMilenio's #TMAhora
+   posts, in the notice's own yellow card. The banner is a link to the page. */
+.novedades-banner {
+  display: block;
+  margin: 10px 12px 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.novedades-banner[hidden] { display: none; }
+
+.novedades-banner:hover,
+.novedades-banner:focus-visible {
+  background: rgba(251, 191, 36, 0.14);
+}
+
+.novedades-banner .aviso-titulo {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.novedades-title {
+  margin: 18px 0 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.novedades-intro,
+.novedades-nota {
+  margin: 10px 0 0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+.novedades-intro a { color: var(--tm-yellow); }
+
+.novedades-lista {
+  display: grid;
+  gap: 12px;
+  margin: 20px 0 32px;
+  padding: 0;
+  list-style: none;
+}
+
+/* As TransMilenio wrote it: its blank lines and emoji are the layout. */
+.novedades-texto {
+  margin: 6px 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+.novedades-enlace {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--tm-yellow);
+}
+
 .popup-avisos { margin-top: 10px; }
 .popup-avisos .aviso { padding: 8px 10px; }
 .popup-avisos .aviso-titulo { font-size: var(--font-size-base); }

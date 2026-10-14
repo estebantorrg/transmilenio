@@ -485,6 +485,10 @@ export const api = {
    *  constants if it fails. */
   getPlannerCalibration: () => fetchJson<PlannerCalibrationResponse>('/planner-calibration', 15_000, undefined, 1),
 
+  /** TransMilenio's #TMAhora posts of the last day (spec §5.5.9). No retries:
+   *  the next three-minute pass is the retry. */
+  getNovedades: () => fetchJson<NovedadesResponse>('/novedades', 15_000, undefined, 0),
+
   /** The printed ruteros of the zonal routes (`shared/tabla_rutero.js`). */
   getRuterosTradicionales: () => fetchJson<RuterosTradicionalesResponse>('/ruteros-tradicionales', 15_000, undefined, 1),
 
@@ -686,4 +690,19 @@ export interface RuterosTradicionalesResponse extends RuterosTradicionales {
 /** `/api/planner-calibration` (spec §5.6.5). */
 export interface PlannerCalibrationResponse extends PlannerCalibrationData {
   success: boolean;
+}
+
+/** `GET /api/novedades` — mirrors `server/src/services/novedades.ts`. */
+export interface Novedad {
+  id: string;
+  /** Posted at (epoch ms). */
+  at: number;
+  text: string;
+  url: string;
+}
+
+export interface NovedadesResponse {
+  success: boolean;
+  items: Novedad[];
+  status: { lastAttemptAt: number | null; lastOkAt: number | null; lastError: string | null };
 }
