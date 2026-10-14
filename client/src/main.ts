@@ -168,6 +168,10 @@ function optionalFeatures<T>(
 
 const RECOVERY_DELAYS_MS = [4_000, 12_000, 30_000, 60_000];
 
+// How long the optional ArcGIS layers may hold the loading screen once the
+// catalog is in. A cold server answers the slowest of them in about 5 s.
+const BOOT_LAYER_BUDGET_MS = 10_000;
+
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -623,16 +627,10 @@ async function main(): Promise<void> {
     document.body.classList.add('native-app');
   }
 
-  // 0. Wake up the backend immediately (Render free tier sleeps after inactivity)
-  //    Fire-and-forget: we don't need the result, just need the server to start booting.
-  const wakeUpPromise = fetch(
-    `${(import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/$/, '')}/health`
-  ).catch((error) => {
-    console.warn('[Startup] Backend wake-up ping failed:', error);
-  });
-
   // The master catalog is asked for **before** the map is waited on, and its
-  // promise is reused by the parallel fetch below.
+  // promise is reused by the parallel fetch below. It is also what wakes a cold
+  // backend: boot used to send a `/health` ping for that and then wait on it,
+  // with no time limit, before asking for anything else.
   //
   // Boot used to await the map style, then start every request. For a visitor
   // arriving on `/ruta/…` or `/estacion/…` from a search result that ordering is
@@ -759,9 +757,6 @@ async function main(): Promise<void> {
     await initMapImages(map);
   }
 
-  // Wait for wake-up ping to complete before firing heavy requests
-  await wakeUpPromise;
-
   // 2. Fetch data from backend
   updateProgress(15, 'Conectando con el servidor...');
 
@@ -794,6 +789,22 @@ async function main(): Promise<void> {
       updateProgress(currentProgress, msg);
     };
 
+    // The five ArcGIS layers are optional — each has a catalog substitute or a
+    // recovery pass below — yet each was given its whole 60 s and a retry here,
+    // so one slow upstream query held the loading screen for two minutes and
+    // the app then opened without that layer anyway. They hold it only while
+    // the (required) catalog is still coming, and for BOOT_LAYER_BUDGET_MS at
+    // least. A late request is not cancelled: the server finishes and caches
+    // what the recovery pass asks for a few seconds later.
+    const layerDeadline = Promise.all([sleep(BOOT_LAYER_BUDGET_MS), catalogPromise.catch(() => undefined)]);
+    const inBudget = <T>(layer: Promise<T>): Promise<T> =>
+      Promise.race([
+        layer,
+        layerDeadline.then((): never => {
+          throw new Error('sin respuesta durante el arranque');
+        }),
+      ]);
+
     const [
       troncalRoutesResult,
       corridorsResult,
@@ -802,11 +813,11 @@ async function main(): Promise<void> {
       cableTracesResult,
       catalogResult,
     ] = await Promise.allSettled([
-      api.getTroncalRoutes().then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
-      api.getTroncalCorridors().then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
-      api.getTroncalStations().then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
-      api.getCableStations().then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
-      api.getCableTrazado().then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
+      inBudget(api.getTroncalRoutes()).then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
+      inBudget(api.getTroncalCorridors()).then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
+      inBudget(api.getTroncalStations()).then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
+      inBudget(api.getCableStations()).then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
+      inBudget(api.getCableTrazado()).then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
       catalogPromise.then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
