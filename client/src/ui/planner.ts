@@ -27,7 +27,7 @@ import {
   describeDeparture,
   planDayDelta,
 } from '../services/departure';
-import { drawJourneyPath, clearJourneyPath, assignSegmentColors } from '../layers/journeyLayer';
+import { drawJourneyPath, clearJourneyPath, drawJourneyEndpoints, assignSegmentColors } from '../layers/journeyLayer';
 import { initChipRowScroll } from './chipRow';
 import { escapeHTML, safeColor } from '../utils/html';
 import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
@@ -61,7 +61,7 @@ let stopLiveBoarding: (() => void) | null = null;
 // Schedule filter (§5.6.2). Off by default: horarios always shape the itinerary
 // (clock times, waits, tags, the long-service ranking), but they only DELETE
 // connections when the rider explicitly asks for "solo en servicio".
-let enforceSchedules = false;
+let enforceSchedules = true;
 let plannerRequestSeq = 0;
 let originAutocompleteSeq = 0;
 let destAutocompleteSeq = 0;
@@ -187,13 +187,21 @@ function renderPlannerPrompt(message = 'Elige tu origen y destino para encontrar
   `;
 }
 
+/** Takes the itinerary off the map and leaves the chosen origin/destination
+ *  pinned — they are the rider's selection, not part of an answer. */
+function clearJourney(): void {
+  if (!mapInstance) return;
+  clearJourneyPath(mapInstance);
+  drawJourneyEndpoints(mapInstance, originCoord, destCoord);
+}
+
 function invalidatePlannerResults(message?: string): void {
   plannerRequestSeq++;
   stopLiveBoarding?.();
   stopLiveBoarding = null;
   calculatedPlans = [];
   activePlanIndex = null;
-  if (mapInstance) clearJourneyPath(mapInstance);
+  clearJourney();
   renderPlannerPrompt(message);
 }
 
@@ -219,6 +227,9 @@ function setEndpointSelection(
   }
 
   invalidatePlannerResults();
+  // A pin nobody can see is no pin: one chosen from the list or from GPS may be
+  // anywhere in the city (a point clicked on the map is already in view).
+  if (mapInstance && !mapInstance.getBounds().contains(coord)) mapInstance.easeTo({ center: coord });
   syncPlannerHash();
 }
 
@@ -677,11 +688,13 @@ function initDepartControls(): void {
 }
 
 // ─── Schedule filter (§5.6.2) ─────────────────────────────
-// Off (default) plans with the horarios as information: clock times, opening
-// waits, out-of-service tags, and a ranking that prefers services running most
-// of the day. The "Solo rutas en servicio" toggle — folded into the Salida
-// block, since it filters BY the departure moment — turns them into a hard
-// filter for riders leaving right now who do not want to read a timetable.
+// Off plans with the horarios as information: clock times, opening waits,
+// out-of-service tags, and a ranking that prefers services running most of the
+// day. The "Solo rutas en servicio" toggle — folded into the Salida block,
+// since it filters BY the departure moment — turns them into a hard filter for
+// riders leaving right now who do not want to read a timetable. On by default:
+// a route that is not running was the first answer too often, and a search
+// that finds nothing in service still falls back to what exists (`findRoutes`).
 
 function setScheduleMode(enforce: boolean): void {
   enforceSchedules = enforce;
@@ -741,8 +754,8 @@ function serializePlannerState(): string | null {
     const { date, time } = getDepartInputs();
     if (date?.value && time?.value) sp.set('t', `${date.value}T${time.value}`);
   }
-  // Only the non-default (filtering) mode travels in the link.
-  if (enforceSchedules) sp.set('s', '1');
+  // Only the non-default (unfiltered) mode travels in the link.
+  if (!enforceSchedules) sp.set('s', '0');
   return sp.toString();
 }
 
@@ -791,7 +804,7 @@ function restorePlannerFromHash(): void {
   const departParam = sp.get('t');
   const departPlan = departParam ? planTimeFromInputs(departParam.slice(0, 10), departParam.slice(11, 16)) : null;
   setDepartMode(departPlan ? 'custom' : 'now', departPlan ?? undefined);
-  setScheduleMode(sp.get('s') === '1');
+  setScheduleMode(sp.get('s') !== '0');
 
   const origin = parseLatLng(sp.get('o'));
   const dest = parseLatLng(sp.get('d'));
@@ -971,6 +984,8 @@ function initTabs(): void {
     if (activeTab === 'tab-planner') {
       if (activePlanIndex !== null && calculatedPlans[activePlanIndex]) {
         drawJourneyPath(mapInstance, calculatedPlans[activePlanIndex]);
+      } else {
+        drawJourneyEndpoints(mapInstance, originCoord, destCoord);
       }
     } else {
       clearJourneyPath(mapInstance);
@@ -1481,7 +1496,7 @@ function calculateRoute(): void {
   if (!originCoord || !destCoord) {
     calculatedPlans = [];
     activePlanIndex = null;
-    clearJourneyPath(mapInstance);
+    clearJourney();
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
         ${getEmptyStateIllustration('incomplete')}
@@ -1497,7 +1512,7 @@ function calculateRoute(): void {
   if (distance < 50) {
     calculatedPlans = [];
     activePlanIndex = null;
-    clearJourneyPath(mapInstance);
+    clearJourney();
     resultsContainer.innerHTML = `
       <div class="planner-empty-state">
         ${getEmptyStateIllustration('close')}
@@ -1798,7 +1813,7 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
 
   if (plans.length === 0) {
     renderNoResults(container);
-    clearJourneyPath(mapInstance);
+    clearJourney();
     activePlanIndex = null;
     return;
   }

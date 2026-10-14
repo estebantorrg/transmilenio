@@ -3974,34 +3974,38 @@ body.sidebar-collapsed .sidebar-fab {
   letter-spacing: 0.08em;
 }
 
+/* Same chip as "Solo rutas en servicio" (.sched-strict-toggle): neutral at
+   rest, the red accent while it is the thing in progress. */
 .map-pick-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   min-height: 24px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(125, 211, 252, 0.22);
-  color: var(--tm-blue-light);
+  background: #131416;
+  border: 1px solid #202226;
+  color: var(--text-secondary);
+  font-family: var(--font-family);
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1;
   cursor: pointer;
-  padding: 4px 7px;
-  border-radius: 4px;
+  padding: 4px 10px;
+  border-radius: 99px;
   white-space: nowrap;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .map-pick-btn:hover {
-  background: rgba(59, 130, 246, 0.12);
-  border-color: rgba(125, 211, 252, 0.36);
+  background: var(--bg-hover);
+  border-color: var(--border-medium);
+  color: var(--text-primary);
 }
 
 .map-pick-btn.active {
-  background: var(--tm-blue);
-  border-color: var(--tm-blue-light);
-  color: #04111C;
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  color: var(--tm-red-light);
   animation: pulse 1.5s infinite alternate ease-in-out;
 }
 
@@ -4026,10 +4030,10 @@ body.sidebar-collapsed .sidebar-fab {
 .map-pick-hint {
   margin-top: -2px;
   padding: 7px 9px;
-  border: 1px solid rgba(125, 211, 252, 0.32);
+  border: 1px solid var(--border-accent);
   border-radius: var(--radius-sm);
-  background: rgba(56, 189, 248, 0.1);
-  color: var(--tm-blue-light);
+  background: var(--bg-active);
+  color: var(--tm-red-light);
   font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: 1.35;

@@ -237,8 +237,7 @@
             <label for="plan-origin-input">Desde</label>
             <button id="btn-origin-map" class="map-pick-btn" type="button" title="Elegir origen haciendo clic en el mapa" aria-label="Elegir origen en el mapa" aria-pressed="false">
               <svg class="map-pick-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/>
-                <circle cx="12" cy="10" r="2.5"/>
+                <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
               </svg>
               <span class="map-pick-label">Elegir en mapa</span>
             </button>
@@ -247,8 +246,8 @@
             <span class="input-prefix-icon origin-icon"></span>
             <input type="text" id="plan-origin-input" class="search-input" placeholder="Estación, dirección o mapa…" autocomplete="off" />
             <button id="plan-origin-clear" class="search-clear hidden" type="button" aria-label="Limpiar origen">✕</button>
-            <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            <button id="btn-origin-gps" class="gps-btn" type="button" title="Usar mi ubicación actual" aria-label="Usar mi ubicación actual">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
             </button>
           </div>
           <div id="origin-autocomplete" class="autocomplete-dropdown hidden"></div>
@@ -265,8 +264,7 @@
             <label for="plan-destination-input">Hacia</label>
             <button id="btn-destination-map" class="map-pick-btn" type="button" title="Elegir destino haciendo clic en el mapa" aria-label="Elegir destino en el mapa" aria-pressed="false">
               <svg class="map-pick-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/>
-                <circle cx="12" cy="10" r="2.5"/>
+                <path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
               </svg>
               <span class="map-pick-label">Elegir en mapa</span>
             </button>
@@ -275,8 +273,8 @@
             <span class="input-prefix-icon destination-icon"></span>
             <input type="text" id="plan-destination-input" class="search-input" placeholder="Estación, dirección o mapa…" autocomplete="off" />
             <button id="plan-destination-clear" class="search-clear hidden" type="button" aria-label="Limpiar destino">✕</button>
-            <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+            <button id="btn-destination-gps" class="gps-btn" type="button" title="Usar mi ubicación actual" aria-label="Usar mi ubicación actual">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
             </button>
           </div>
           <div id="destination-autocomplete" class="autocomplete-dropdown hidden"></div>
@@ -312,7 +310,7 @@
           <input type="date" id="plan-depart-date" class="depart-input depart-date hidden" aria-label="Otra fecha de salida" />
         </div>
         <div id="depart-hint" class="depart-hint" role="status" aria-live="polite"></div>
-        <button id="sched-strict-toggle" class="sched-strict-toggle" type="button" aria-pressed="false" title="Oculta las conexiones que no estén operando a la hora de salida">
+        <button id="sched-strict-toggle" class="sched-strict-toggle active" type="button" aria-pressed="true" title="Oculta las conexiones que no estén operando a la hora de salida">
           <span class="sched-strict-dot" aria-hidden="true"></span>
           Solo rutas en servicio
         </button>

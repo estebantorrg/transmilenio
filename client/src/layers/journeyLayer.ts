@@ -547,6 +547,38 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
 }
 
 /**
+ * The chosen origin and destination on their own, before any itinerary exists.
+ * They used to appear only with a plan, so a point picked on the map left no
+ * sign of where it had landed. Call after `clearJourneyPath`.
+ */
+export function drawJourneyEndpoints(
+  map: maplibregl.Map,
+  origin: [number, number] | null,
+  destination: [number, number] | null
+): void {
+  addJourneyLayer(map); // created on first use, as `drawJourneyPath` does
+  const source = map.getSource('journey-stops') as maplibregl.GeoJSONSource | undefined;
+  if (!source) return;
+  const pin = (coordinates: [number, number], kind: string, label: string, color: string): GeoJSON.Feature => ({
+    type: 'Feature',
+    properties: { kind, label, color },
+    geometry: { type: 'Point', coordinates },
+  });
+  source.setData({
+    type: 'FeatureCollection',
+    features: [
+      ...(origin ? [pin(origin, 'start', 'Origen', '#10B981')] : []),
+      ...(destination ? [pin(destination, 'end', 'Destino', '#EF4444')] : []),
+    ],
+  });
+  for (const id of JOURNEY_LAYERS) {
+    if (!id.startsWith('journey-stops') || !map.getLayer(id)) continue;
+    map.setLayoutProperty(id, 'visibility', 'visible');
+    map.moveLayer(id);
+  }
+}
+
+/**
  * Clears the journey path from the map and restores background layers opacity.
  */
 export function clearJourneyPath(map: maplibregl.Map): void {
