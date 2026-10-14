@@ -11,7 +11,30 @@ import { WEB_ORIGIN, openRouteSheet } from '../ui/detailSheets';
 import { legalLinksHtml } from '../../../../shared/legal.js';
 import { ICONS, routeBadge } from '../ui/components';
 import { canInstallInApp, dismissUpdate, findUpdate, installUpdate } from '../services/appUpdate';
+import { refreshNovedades, type Novedad } from '../services/novedades';
+import { openSheet } from '../ui/sheet';
+import { BANNER_MAX_AGE_MS, ago, clock, headline, postText } from '../../../../shared/novedades.js';
 import type { View } from './types';
+
+const NOVEDADES_REFRESH_MS = 3 * 60_000;
+
+/** The day's #TMAhora posts as TransMilenio wrote them, each with its link (spec §5.5.9). */
+function openNovedadesSheet(items: Novedad[]): void {
+  const sheet = openSheet({ title: 'Novedades de la operación', full: true, accent: 'var(--amber)' });
+  sheet.body.append(
+    h('p', {
+      class: 'novedades-intro',
+      text: 'Lo que TransMilenio publica como #TMAhora en X, de las últimas 24 horas, tal como lo publica.',
+    }),
+    ...items.map((post) =>
+      h('article', { class: 'novedades-item' }, [
+        h('div', { class: 'novedades-eyebrow', text: `${ago(post.at)} · ${clock(post.at)}` }),
+        h('p', { class: 'novedades-text', text: postText(post.text) }),
+        h('a', { class: 'novedades-link', href: post.url, target: '_blank', rel: 'noopener', text: 'Ver en X ↗' }),
+      ])
+    )
+  );
+}
 
 export function createInicioView(): View {
   const el = h('section', { class: 'screen screen-inicio' });
@@ -60,6 +83,37 @@ export function createInicioView(): View {
     );
   }
   renderStatus();
+
+  // ── Novedades (spec §5.5.9) ──
+  // Only while the newest post is recent: an old detour shown as current is
+  // worse than none. The whole day's posts stay a tap away in the sheet.
+  const novedadesCard = h('button', { class: 'novedades-card hidden', type: 'button' });
+  let novedades: Novedad[] = [];
+  function renderNovedades(): void {
+    const newest = novedades[0];
+    const show = newest !== undefined && Date.now() - newest.at <= BANNER_MAX_AGE_MS;
+    novedadesCard.classList.toggle('hidden', !show);
+    if (!newest || !show) return;
+    novedadesCard.replaceChildren(
+      h('span', { class: 'novedades-eyebrow', text: `TransMilenio · #TMAhora · ${ago(newest.at)}` }),
+      h('span', { class: 'novedades-headline', text: headline(newest.text) }),
+      h('span', {
+        class: 'novedades-more',
+        text: novedades.length === 1 ? 'Ver la novedad ›' : `Ver las ${novedades.length} novedades de hoy ›`,
+      })
+    );
+  }
+  novedadesCard.addEventListener('click', () => {
+    haptic('light');
+    openNovedadesSheet(novedades);
+  });
+  const loadNovedades = (): void => {
+    void refreshNovedades().then((items) => {
+      novedades = items;
+      renderNovedades();
+    });
+  };
+  loadNovedades();
 
   // ── Update notice (spec §5.2.1b) ──
   // The APK is installed by hand, so nothing else tells a rider a newer release
@@ -229,7 +283,7 @@ export function createInicioView(): View {
   // website, so they open in the browser (Capacitor hands off-app URLs to it).
   const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
 
-  el.append(hero, statusCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
+  el.append(hero, statusCard, novedadesCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {
@@ -242,6 +296,7 @@ export function createInicioView(): View {
   bus.on('favorites:changed', renderFavorites);
 
   let clockTimer: number | undefined;
+  let novedadesTimer: number | undefined;
   return {
     el,
     onShow: () => {
@@ -249,7 +304,12 @@ export function createInicioView(): View {
       renderFavorites();
       renderRecents();
       clockTimer = window.setInterval(() => (clock.textContent = formatClock()), 20_000);
+      loadNovedades();
+      novedadesTimer = window.setInterval(loadNovedades, NOVEDADES_REFRESH_MS);
     },
-    onHide: () => window.clearInterval(clockTimer),
+    onHide: () => {
+      window.clearInterval(clockTimer);
+      window.clearInterval(novedadesTimer);
+    },
   };
 }

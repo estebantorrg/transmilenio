@@ -18,39 +18,14 @@ import { api, type NovedadesResponse } from '../services/api';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
 import { escapeHTML } from '../utils/html';
 import { crumbsHtml, mastheadHtml, openOverlayPage, refreshOverlayPage, registerPageResolver, type OverlayPage } from './pageShell';
+import { BANNER_MAX_AGE_MS, PROFILE_URL as CHANNEL_URL, ago, clock, headline, postText } from '../../../shared/novedades.js';
 
 const PAGE_PATH = '/novedades/';
 const REFRESH_MS = 3 * 60_000;
-const BANNER_MAX_AGE_MS = 3 * 3_600_000;
 /** The server reads every three minutes; well past that, it has stopped reading. */
 const SOURCE_STALE_MS = 15 * 60_000;
-const CHANNEL_URL = 'https://x.com/TransMilenio';
 
 let latest: NovedadesResponse | null = null;
-
-/** "hace 12 min" / "hace 2 h", for a post time. */
-function ago(at: number, now = Date.now()): string {
-  const min = Math.max(0, Math.round((now - at) / 60_000));
-  if (min < 1) return 'hace un momento';
-  if (min < 60) return `hace ${min} min`;
-  return `hace ${Math.floor(min / 60)} h`;
-}
-
-function clock(at: number): string {
-  return new Date(at).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Bogota' });
-}
-
-/** The post as written, minus the `t.co` links to its own photos (the X link
- *  covers those) and its blank lines — on a phone they doubled every card. */
-function postText(text: string): string {
-  return text.replace(/\s*https:\/\/t\.co\/\S+/g, '').replace(/\n{2,}/g, '\n').trim();
-}
-
-/** The line that says what happened: the first one after the `⏰ #TMAhora (…)` stamp. */
-function headline(text: string): string {
-  const lines = postText(text).split('\n').map((l) => l.trim()).filter(Boolean);
-  return lines.find((l) => !/#TMAhora/i.test(l)) ?? lines[0] ?? '';
-}
 
 function renderBanner(): void {
   const banner = document.getElementById('novedades-banner');

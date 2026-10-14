@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { extractPosts, getNovedades, pollNovedades } from '../server/src/services/novedades.ts';
+import { getNovedades, pollNovedades } from '../server/src/services/novedades.ts';
+import { ago, extractPosts, headline, postText } from '../shared/novedades.js';
 
 /**
  * TransMilenio's #TMAhora posts read off its X profile page
@@ -60,6 +61,19 @@ test.describe('reading #TMAhora off the profile page', () => {
     const { items, status } = getNovedades();
     expect(status).toEqual({ lastAttemptAt: 1791998200000, lastOkAt: 1791998200000, lastError: null });
     expect(items.map((p) => p.id)).toEqual(['2110418282796748857', '2110407543243546651']);
+  });
+
+  test('a post reads as written, without its photo link or blank lines; its headline is what happened', () => {
+    const text = '⏰ #TMAhora (5:13 p. m.)\n\n⚠️ Manifestación en la Circunvalar\n\n📍 Calle 10 https://t.co/abc123';
+    expect(postText(text)).toBe('⏰ #TMAhora (5:13 p. m.)\n⚠️ Manifestación en la Circunvalar\n📍 Calle 10');
+    expect(headline(text)).toBe('⚠️ Manifestación en la Circunvalar');
+  });
+
+  test('how long ago, as a rider says it', () => {
+    const now = 1791998000000;
+    expect(ago(now - 20_000, now)).toBe('hace un momento');
+    expect(ago(now - 12 * 60_000, now)).toBe('hace 12 min');
+    expect(ago(now - 150 * 60_000, now)).toBe('hace 2 h');
   });
 
   test('a notice is kept for a day', async () => {
