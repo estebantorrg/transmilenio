@@ -31,6 +31,7 @@ import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteBy
 import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshRoutePage } from './ui/routePage';
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { initLegalPages } from './ui/legalPage';
+import { openNotFoundPage } from './ui/notFoundPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
@@ -309,6 +310,16 @@ initRoutePage({
 // The legal pages need no catalog, so a visitor landing on `/privacidad/` gets
 // the page now rather than when the network data arrives (spec §5.5.7).
 initLegalPages();
+
+// An address of no shape this site has is a 404 at once (spec §5.5.8). One of a
+// known shape that names nothing — `/ruta/zz9/`, `#/r/zz9` — has to wait for
+// the catalog: the sidebar's `setRoutes` and the estación deep link say so then.
+const knownPath =
+  ['/', '/index.html'].includes(location.pathname) ||
+  Boolean(parseRoutePathname() || parseStationPathname()) ||
+  isOverlayPageOpen();
+const knownHash = !location.hash.startsWith('#/') || /^#\/(r\/|plan\b)/.test(location.hash);
+if (!knownPath || !knownHash) openNotFoundPage('esa página');
 
 function getPlannerModule(): Promise<PlannerModule> {
   plannerModulePromise ??= import('./ui/planner').catch((error) => {
@@ -722,7 +733,7 @@ async function main(): Promise<void> {
         setCatalog(deepCatalog);
         // `push: false` — the URL is already this page; pushing would wedge a
         // duplicate entry in front of the Back that should leave the site.
-        openStationPage(deepStationCode, { push: false });
+        if (!openStationPage(deepStationCode, { push: false })) openNotFoundPage('esa estación');
       })
       .catch((error) => console.warn('[Deep link] Estación page could not open early:', error));
   }

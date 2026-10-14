@@ -627,6 +627,16 @@ The privacy policy and privacy notice required by Ley 1581 de 2012 and Decreto 1
 * **The card notice is the policy's express authorisation** (policy §2.1). Under the card field, on the website (`client/index.html`, `#card-consent`) and in the APK (`client/mobile/src/views/saldo.ts`), a line says where the number goes before the reader presses Consultar, and links the policy. The two texts differ on purpose: the website's names our server and the proxies, which cannot read the number; the APK's says the phone asks TRANSMILENIO directly and that the app remembers the last five numbers. A change to either data flow changes the notice in the same commit.
 * **No in-page anchors.** A `#section` link on an overlay page is intercepted as a navigation to the same page (the shell resolves the pathname, §5.5.5) and would reach the hash router besides; the sections are numbered and cross-referenced by number instead.
 
+#### 5.5.8 An address the site does not have (404)
+
+Every extensionless path used to answer **200 with the app shell**, and the app then opened the map as if nothing had been asked: `/ruta/1-1000000/`, `/cualquier/cosa` and a shared `#/r/<código>` nobody runs all looked like links that had worked. To a crawler each was a soft 404, and so was the URL of every route TRANSMILENIO retires once its prerendered file is gone.
+
+* **The page** (`ui/notFoundPage.ts`) opens in the shell every other page uses (`pageShell.ts`): "Error 404 · No encontramos la ruta 1-1000000", one line of why, and the way to the map. It is drawn over the address that was asked for; leaving returns the address bar to `/`, fragment included.
+  * An address of **no known shape** is a 404 at once, before the map loads (`main.ts`): a path that is not `/`, `/ruta/…`, `/estacion/…` or a legal page, or a `#/…` fragment that is neither `#/r/…` nor `#/plan…`.
+  * One of a known shape that **names nothing** waits for the data that can say so: an estación on the catalog (`openStationPage` returning false), a route on the route list (`setRoutes`, `applyRouteHash`) — the list, not the catalog, because that is where a código retired by renumbering still resolves to its route. Editing the fragment to a real route takes the page down again.
+* **The status** (`server/src/known_page.ts`, used by the shell fallback in `index.ts`). The shell still goes out — the app draws the page — but with **404** unless the path is a page. "No file" cannot be the test: only troncal pages are prerendered, and a zonal `/ruta/<código>/` exists only in the bundle. So the catalog answers, and it errs towards 200: a 404 on a page that works gets it de-indexed, a 200 on one that does not is only the soft 404 it was. A fragment never reaches the server, so for `#/r/…` the page above is the only 404 there is.
+* Covered by `tests/known_page.spec.mts` (which paths are pages) and `tests/not-found.spec.ts` (the page itself).
+
 ---
 
 ### 5.6 Data Models & Journey Planner

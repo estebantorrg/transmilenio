@@ -5897,6 +5897,39 @@ body.native-app .route-detail-close:active {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* ══ Not found (spec §5.5.8) ══════════════════════════════════════════════
+   The estación hero's type scale, with nothing under it: one line of what was
+   not found, one of why, and the way back to the map. */
+.not-found-code {
+  margin: 56px 0 0;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tm-red-light);
+}
+
+.not-found-title {
+  margin: 7px 0 0;
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.not-found-text {
+  margin: 10px 0 0;
+  font-size: var(--font-size-base);
+  color: var(--text-secondary);
+}
+
+/* Nothing here is worth sharing; hidden, not removed, so the masthead keeps its
+   three columns. */
+.not-found-page .page-share {
+  visibility: hidden;
+}
+
 /* ══ Route page ═══════════════════════════════════════════════════════════ */
 
 .route-hero {

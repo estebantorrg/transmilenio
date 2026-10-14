@@ -2,8 +2,9 @@ import express, { type ErrorRequestHandler } from 'express';
 import cors from 'cors';
 import compression from 'compression';
 import apiRoutes, { prewarmArcgisLayers } from './routes/api.js';
-import { loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
+import { getCatalog, loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
 import { retiredHostRedirect } from './retired_host.js';
+import { isKnownPage } from './known_page.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -172,7 +173,9 @@ app.get('*', (req, res) => {
     res.sendStatus(404);
     return;
   }
-  res.sendFile(path.resolve(clientDist, 'index.html'));
+  // An address that names no page gets the shell with the 404 it is (the app
+  // draws the "no existe" page), not a 200 that tells a crawler it found one.
+  res.status(isKnownPage(req.path, getCatalog()) ? 200 : 404).sendFile(path.resolve(clientDist, 'index.html'));
 });
 
 // Last in the stack, so it catches anything any route above threw (Express walks

@@ -20,6 +20,7 @@ import {
   routeTypeLabel,
   slugifyRoute,
 } from './routeDetail';
+import { closeNotFoundPage, openNotFoundPage } from './notFoundPage';
 import { getZonalAreas, getZoneLabel } from '../data/zones';
 import { placeRowHtml, type NearbyPoint } from './cerca';
 import {
@@ -233,6 +234,10 @@ function applyRouteHash(): void {
   const parsed = parseRouteHash();
   if (parsed) {
     const target = resolveRouteFromHash(parsed.code, parsed.slug);
+    // A código nobody runs — made up, mistyped, retired — is said to be one,
+    // rather than leaving the map open as if the link had worked (§5.5.8).
+    if (!target) openNotFoundPage(`la ruta ${parsed.code}`);
+    else closeNotFoundPage();
     if (target && target.id !== selectedRouteId) {
       selectRoute(target);
     }
@@ -1022,6 +1027,7 @@ export function setRoutes(routes: RouteListItem[]): void {
       const path = parseRoutePathname();
       const target = path ? resolveRouteFromHash(path) : undefined;
       if (target && target.id !== selectedRouteId) selectRoute(target);
+      if (path && !target) openNotFoundPage(`la ruta ${path}`);
     }
   }
 }
