@@ -13,6 +13,10 @@
  *   stack into one blob.
  * - Precision: rendered relative to a per-frame local origin (no mercator jitter).
  * - Follow: the open popup tracks its bus every frame via `setFollow`.
+ * - Beacon: a disc in the route's colour with a white ring and a nose pointing
+ *   the way the bus is heading, flat on the ground under every bus. Zoomed out
+ *   the model is 26 × 5 px on a route line that is wider than it is; the disc is
+ *   what says where the buses are, and it fades once the model has grown past it.
  */
 
 import * as THREE from 'three';
@@ -36,6 +40,13 @@ const HEADING_OFFSET_DEG = 0;
 const HEADING_SIGN = 1;
 const DEG2RAD = Math.PI / 180;
 const DECLUMP_RING = 0.62;        // fan radius as a fraction of the model footprint
+// Beacon, in model metres (the bus is 12.2 long, 2.6 wide). At/below
+// SCALE_REF_ZOOM one model metre is ~2.1 px, so the disc is ~32 px across.
+const BEACON_RADIUS = 7.5;        // outer edge of the white ring
+const BEACON_RING = 1.4;          // ring width
+const BEACON_NOSE = 3.2;          // how far the heading nose reaches past the ring
+const BEACON_FADE_ZOOM = 15.5;    // opaque up to here…
+const BEACON_GONE_ZOOM = 16.75;   // …and gone by here, where the model reads alone
 
 export interface LiveBusInput {
   id: string;
@@ -48,6 +59,7 @@ interface Vec3 { x: number; y: number; z: number; }
 
 interface BusObj {
   group: THREE.Group;
+  beacon: THREE.Group;
   lod?: THREE.Object3D;
   full?: THREE.Object3D;
   from: Vec3;
@@ -119,6 +131,35 @@ function prepModel(root: THREE.Object3D): void {
       mat.needsUpdate = true;
     }
   });
+}
+
+// One set of beacon geometry and materials for every bus: they all belong to the
+// route being tracked, so they share its colour and fade together.
+// Not depth-written, and drawn in the transparent pass after the models: the
+// disc lies on the ground, so the bus standing on it hides the part it covers.
+const beaconMaterial = (color: number): THREE.MeshBasicMaterial =>
+  new THREE.MeshBasicMaterial({ color, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+const beaconFill = beaconMaterial(0xfb2c17);
+const beaconWhite = beaconMaterial(0xffffff);
+const beaconFillGeo = new THREE.CircleGeometry(BEACON_RADIUS - BEACON_RING, 40);
+const beaconRingGeo = new THREE.RingGeometry(BEACON_RADIUS - BEACON_RING, BEACON_RADIUS, 40);
+// The front of the bus is −Y in its group (a heading of 0 is north, mercator −y).
+const beaconNoseGeo = new THREE.ShapeGeometry(
+  new THREE.Shape([
+    new THREE.Vector2(0, -(BEACON_RADIUS + BEACON_NOSE)),
+    new THREE.Vector2(2.8, -(BEACON_RADIUS - 0.5)),
+    new THREE.Vector2(-2.8, -(BEACON_RADIUS - 0.5)),
+  ])
+);
+
+function makeBeacon(): THREE.Group {
+  const beacon = new THREE.Group();
+  beacon.add(
+    new THREE.Mesh(beaconFillGeo, beaconFill),
+    new THREE.Mesh(beaconRingGeo, beaconWhite),
+    new THREE.Mesh(beaconNoseGeo, beaconWhite)
+  );
+  return beacon;
 }
 
 function tilted(template: THREE.Object3D): THREE.Object3D {
@@ -209,6 +250,12 @@ const customLayer: maplibregl.CustomLayerInterface = {
     }
     const useFull = zoom >= LOD_ZOOM && !!templateFull;
 
+    // The beacon keeps its screen size past SCALE_REF_ZOOM, where the model
+    // starts growing — so the bus outgrows its disc, and then the disc fades.
+    const beaconScale = Math.min(1, Math.pow(2, SCALE_REF_ZOOM - zoom));
+    const beaconOpacity = clamp((BEACON_GONE_ZOOM - zoom) / (BEACON_GONE_ZOOM - BEACON_FADE_ZOOM), 0, 1);
+    beaconFill.opacity = beaconWhite.opacity = beaconOpacity;
+
     // Sample all buses, then declump any that share a spot.
     const entries = [...buses.entries()];
     const states = entries.map(([id, b]) => ({ id, b, s: sample(b, now), ox: 0, oy: 0, scale: b.meter * MODEL_SCALE * boost }));
@@ -219,6 +266,8 @@ const customLayer: maplibregl.CustomLayerInterface = {
       b.group.position.set(s.x + st.ox - origin.x, s.y + st.oy - origin.y, s.z - origin.z);
       b.group.rotation.z = s.rot;
       b.group.scale.setScalar(st.scale);
+      b.beacon.scale.setScalar(beaconScale);
+      b.beacon.visible = beaconOpacity > 0;
       if (b.lod) b.lod.visible = !useFull;
       if (b.full) b.full.visible = useFull;
       // Cache the actual drawn position (incl. declump) for click-picking.
@@ -279,9 +328,14 @@ export function ensureBusLayer(map: maplibregl.Map): void {
   map.addLayer(customLayer);
 }
 
-/** Reconcile the rendered bus set with the latest live positions, starting a new tween. */
-export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
+/**
+ * Reconcile the rendered bus set with the latest live positions, starting a new
+ * tween. `color` is the tracked route's, for the beacons; one three.js cannot
+ * read (a CSS variable, say) leaves the previous colour in place.
+ */
+export function setBusModels(map: maplibregl.Map, input: LiveBusInput[], color?: string): void {
   ensureBusLayer(map);
+  if (color) beaconFill.color.setStyle(color);
   const now = performance.now();
   const seen = new Set<string>();
 
@@ -296,8 +350,10 @@ export function setBusModels(map: maplibregl.Map, input: LiveBusInput[]): void {
     let obj = buses.get(bus.id);
     if (!obj) {
       const group = new THREE.Group();
+      const beacon = makeBeacon();
+      group.add(beacon);
       const r0 = providedRot ?? 0;
-      obj = { group, from: to, to, rotFrom: r0, rotTo: r0, start: now, duration: POLL_MS, meter };
+      obj = { group, beacon, from: to, to, rotFrom: r0, rotTo: r0, start: now, duration: POLL_MS, meter };
       attachModels(obj);
       scene?.add(group);
       buses.set(bus.id, obj);

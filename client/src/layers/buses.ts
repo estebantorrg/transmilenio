@@ -282,7 +282,7 @@ async function fetchAndRenderBuses(
         lng: bus.longitude,
         lat: bus.latitude,
         heading: bus.angulo,
-      })));
+      })), currentRouteColor);
 
       // Keep the open popup in sync with the latest fix (or close it if its bus left).
       if (selectedBusId) {
