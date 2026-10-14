@@ -84,6 +84,30 @@ export function abordajeEn(parent, codigo, destino) {
   return { station, ...(platform ? { platform } : {}), ...(vagon ? { vagon } : {}), wagons };
 }
 
+/**
+ * The platforms of a merged stop (Ricaurte, Av. Jiménez) a route calls at, in
+ * travel order — the planner's nodes for that stop. One for every route but the
+ * service that leaves from one half and calls at the other on its way out
+ * (`paranAlSalir`: route 5 at Av. Jiménez).
+ *
+ * @param {any} parent        The catalog stop the route lists.
+ * @param {string} codigo     The route's código.
+ * @param {boolean} [saliendo] The stop is the route's first.
+ * @returns {import('./station_platforms.js').StationPlatform[]} Empty where the
+ *   stop is not a merged one, or no wagon carries the route — its half is then
+ *   not known, and it is not guessed.
+ */
+export function plataformasDe(parent, codigo, saliendo) {
+  const halves = platformsOf(parent?.codigo);
+  if (!halves.length) return [];
+  const platform = abordajeEn(parent, codigo)?.platform;
+  if (!platform) return [];
+  const code = String(codigo ?? '').trim().toUpperCase();
+  return saliendo
+    ? [platform, ...halves.filter((half) => half !== platform && half.paranAlSalir?.includes(code))]
+    : [platform];
+}
+
 /** "Vagón 3", or the sign as it stands where it is not a number ("T7"). */
 export function vagonTexto(vagon) {
   return /^\d+$/.test(String(vagon)) ? `Vagón ${vagon}` : String(vagon);

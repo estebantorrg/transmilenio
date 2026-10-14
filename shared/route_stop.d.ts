@@ -20,5 +20,9 @@ export interface Abordaje {
 
 export function abordajeEn(parent: any, codigo: string, destino?: string): Abordaje | null;
 
+/** The platforms of a merged stop (Ricaurte, Av. Jiménez) a route calls at, in
+ *  travel order; empty for an ordinary stop or a route no wagon carries. */
+export function plataformasDe(parent: any, codigo: string, saliendo?: boolean): StationPlatform[];
+
 /** "Vagón 3", or the sign as it stands where it is not a number ("T7"). */
 export function vagonTexto(vagon: string): string;

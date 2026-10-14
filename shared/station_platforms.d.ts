@@ -31,6 +31,12 @@ export interface StationPlatform {
   /** The register's node id for THIS platform. The open ridership dataset is
    *  keyed by node, so without it both halves would report the merged stop. */
   nodo?: string;
+  /** [lng, lat] of THIS platform. The merged stop has one coordinate for both
+   *  halves, and the planner needs to tell them apart. */
+  coordinate: [number, number];
+  /** Códigos that start on the sibling platform and call here next on their way
+   *  out — route 5 at Av. Jiménez, the only link between its halves. */
+  paranAlSalir?: string[];
 }
 
 /** A station shape narrowed to one platform. Structurally the catalog station

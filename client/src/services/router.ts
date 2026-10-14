@@ -502,14 +502,15 @@ function getSearchPreference(sortBy: 'transfers' | 'time' | 'walk' | undefined, 
 const TRANSFER_PRIMARY_SCALE = 1e6;
 const WALK_PRIMARY_SCALE = 1e3; // per walked meter
 
+// Keyed on graph node codes: Ricaurte's two platforms (`graphStops`) and the
+// Las Aguas ↔ Universidades pair. Av. Jiménez's tunnel is closed — no entry.
 const STATION_TUNNEL_CONNECTIONS = new Set([
-  tunnelKey('07111', '12003'),
-  tunnelKey('14005', '06111'),
+  tunnelKey('TM0069NQS', 'TM0069C13'),
   tunnelKey('TM0121', 'TM0122'),
 ]);
 
 const TUNNEL_PATHS: { [key: string]: [number, number][] } = {
-  [tunnelKey('07111', '12003')]: [
+  [tunnelKey('TM0069NQS', 'TM0069C13')]: [
     [-74.09048002, 4.61301485],
     [-74.091827, 4.614198],
     [-74.09386888, 4.6116862],
@@ -518,10 +519,6 @@ const TUNNEL_PATHS: { [key: string]: [number, number][] } = {
     [-74.0684003997693, 4.602459798238067],
     [-74.0671115606689, 4.6048826151965505],
   ],
-  [tunnelKey('14005', '06111')]: [
-    [-74.06840143, 4.60257975],
-    [-74.06730954, 4.60464286],
-  ]
 };
 
 function tunnelKey(a: string, b: string): string {
@@ -530,6 +527,27 @@ function tunnelKey(a: string, b: string): string {
 
 function hasTunnelConnection(a: RouteStop, b: RouteStop): boolean {
   return STATION_TUNNEL_CONNECTIONS.has(tunnelKey(a.codigo, b.codigo));
+}
+
+/** Metres of the verified tunnel between two stations; Infinity where there is none. */
+function tunnelMeters(fromCode: string, toCode: string): number {
+  if (!STATION_TUNNEL_CONNECTIONS.has(tunnelKey(fromCode, toCode))) return Infinity;
+  const toIdx = stopIndexByCode.get(toCode);
+  const edge = adjacency[stopIndexByCode.get(fromCode) ?? -1]?.find((e) => e.type === 'walking' && e.toIdx === toIdx);
+  return edge?.distance ?? Infinity;
+}
+
+/**
+ * A route's stops as graph nodes. A stop the catalog merges out of two stations
+ * (Av. Jiménez, Ricaurte) is replaced by the platform(s) the route really calls
+ * at (`stop.platforms`, stamped by routeCatalog): as one node, a rider changed
+ * between halves that share no service for free. Ordinals (`fromOrd`, the trace
+ * index) count THIS list, so everything that indexes a route's stops reads it.
+ */
+function graphStops(route: RouteListItem): NonNullable<RouteListItem['stops']> {
+  const stops = route.stops ?? [];
+  if (!stops.some((stop) => stop.platforms)) return stops;
+  return stops.flatMap<(typeof stops)[number]>((stop) => stop.platforms ?? [stop]);
 }
 
 function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boolean {
@@ -611,8 +629,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
 
   // 1. Identify all unique stops/stations
   for (const route of routes) {
-    if (!route.stops) continue;
-    for (const stop of route.stops) {
+    for (const stop of graphStops(route)) {
       if (!stop.codigo) continue;
 
       const existing = uniqueStops.get(stop.codigo);
@@ -667,7 +684,8 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   let transitEdgesCount = 0;
   let tracedEdgesCount = 0;
   for (const route of routes) {
-    if (!route.stops || route.stops.length < 2) continue;
+    const stops = graphStops(route);
+    if (stops.length < 2) continue;
 
     // Does this service stop in the street? Answered by its own recorrido, not
     // by its label.
@@ -683,17 +701,17 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     // street stops happen to be coded as stations.
     const streetStops =
       /PADR[OÓ]N/i.test(String(route.busType ?? '')) ||
-      (route.stops ?? []).some((stop) => stop.kind !== 'station');
+      stops.some((stop) => stop.kind !== 'station');
     const speed = route.type === 'troncal' ? TRONCAL_SPEED_M_PER_MINUTE : ZONAL_SPEED_M_PER_MINUTE;
     const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
     const routeIdx = routeIndexById.get(route.id)!;
 
-    const traceIndex = buildTraceIndex(route.stops, route.geometry?.paths);
+    const traceIndex = buildTraceIndex(stops, route.geometry?.paths);
     if (traceIndex) traceIndexById.set(route.id, traceIndex);
 
-    for (let i = 0; i < route.stops.length - 1; i++) {
-      const fromStop = route.stops[i];
-      const toStop = route.stops[i + 1];
+    for (let i = 0; i < stops.length - 1; i++) {
+      const fromStop = stops[i];
+      const toStop = stops[i + 1];
       if (!fromStop.codigo || !toStop.codigo) continue;
 
       const straight = getDistance(fromStop.coordinate, toStop.coordinate);
@@ -1167,8 +1185,9 @@ function boardingPenalty(schedule: ScheduleContext, routeIdx: number): number {
  */
 export function refreshRouteTrace(routeId: string): void {
   const route = routesById.get(routeId);
-  if (!route?.stops || route.stops.length < 2) return;
-  const index = buildTraceIndex(route.stops, route.geometry?.paths);
+  const stops = route ? graphStops(route) : [];
+  if (stops.length < 2) return;
+  const index = buildTraceIndex(stops, route!.geometry?.paths);
   if (index) traceIndexById.set(routeId, index);
   else traceIndexById.delete(routeId);
 }
@@ -1571,7 +1590,13 @@ function findAccessNodes(
   }
 
   if (candidates.length > 0) {
-    return candidates.sort((a, b) => a.distance - b.distance);
+    // A station across a tunnel from a nearer candidate is reached THROUGH the
+    // tunnel — it is inside the paid area and already an edge. Offered as a
+    // street walk as well, it outranked the tunnel arrival (dropped below as
+    // "dominated") and a trip ending at Las Aguas never showed the crossing.
+    return candidates
+      .filter((far) => !candidates.some((near) => near.walk + tunnelMeters(near.nodeCode, far.nodeCode) <= far.walk))
+      .sort((a, b) => a.distance - b.distance);
   }
 
   // Fallback: widen the search ring until something compatible appears.
@@ -1730,7 +1755,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     queue.push(state, cost + remainingBound(nodeIdx));
   }
 
-  const results: { state: DijkstraState; egressDistance: number }[] = [];
+  const results: { state: DijkstraState; egressDistance: number; endCost: number }[] = [];
   let bestEndCost = Infinity;
   let nodePops = 0;
 
@@ -1760,7 +1785,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     if (egressDistance !== undefined && current.hasRidden && !dominatedWalkArrival) {
       const endCost = current.cost + egressDistance / WALK_SPEED_M_PER_MINUTE + egressDistance * walkPrimary;
       if (endCost < bestEndCost) bestEndCost = endCost;
-      results.push({ state: current, egressDistance });
+      results.push({ state: current, egressDistance, endCost });
       if (results.length >= TERMINAL_HARD_CAP) break;
     }
 
@@ -1855,7 +1880,11 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     }
   }
 
-  // 4. Reconstruct paths and map to JourneyPlan structures
+  // 4. Reconstruct paths and map to JourneyPlan structures. Best ending first:
+  // plans riding the same buses are deduplicated below and the first seen is
+  // kept, and pop order is not end-cost order — a walk to a paradero beside the
+  // destination pops before the tunnel that actually arrives sooner.
+  results.sort((a, b) => a.endCost - b.endCost);
   const plans: JourneyPlan[] = [];
 
   for (const { state: targetState, egressDistance } of results) {

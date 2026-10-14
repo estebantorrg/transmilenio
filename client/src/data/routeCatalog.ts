@@ -14,8 +14,11 @@ import { isStampedStationCode } from '../utils/routeType';
 import { mergeServiceSpans, parseServiceSpans } from '../services/schedule';
 import type { RouteListItem, TroncalRouteFeature } from '../types/transmilenio';
 import type { CatalogRoute, MasterCatalog } from '../types/catalog';
+import { plataformasDe } from '../../../shared/route_stop.js';
 
 export type RouteStop = NonNullable<RouteListItem['stops']>[number];
+/** A catalog route as its variant lists it: `stops` says where it starts. */
+type CatalogVariant = CatalogRoute & { stops?: unknown[] };
 
 export function normalizeRouteText(value: string | null | undefined): string {
   return normalizeRouteCodeForMatch(value)
@@ -68,16 +71,36 @@ function stopKind(code: string | null | undefined): 'station' | 'stop' {
 }
 
 /**
- * Parses one catalog route stop into a map-ready stop. The `route`/`catalog`
- * params are kept for call-site compatibility but no longer used: stations like
- * Avenida Jiménez (TM0013) and Ricaurte (TM0069) are single merged stops in the
- * source catalog, so no wagon-based split is applied (spec §5.4.1).
+ * The planner's nodes for a stop the catalog merges out of two stations (Av.
+ * Jiménez, Ricaurte): the platform this route calls at, read off the wagon it
+ * is filed under. As one node the router let a rider change between halves that
+ * share no service — C15 to J23 at "Avenida Jiménez", whose tunnel is closed —
+ * and crossed Ricaurte's tunnel in no time at all (spec §5.6.3).
  */
-export function parseCatalogStop(stop: any, _route?: CatalogRoute, _catalog?: MasterCatalog): RouteStop | null {
+function platformNodes(stop: any, route: CatalogVariant, catalog: MasterCatalog): RouteStop['platforms'] {
+  const calls = plataformasDe(catalog.stations?.[stop.codigo], route.codigo, route.stops?.[0] === stop);
+  // A route no wagon carries keeps the merged stop: its half is not known.
+  if (!calls.length) return undefined;
+  return calls.map((half) => ({
+    nombre: half.nombre,
+    codigo: half.codigo,
+    sourceCode: half.parent,
+    coordinate: half.coordinate,
+    kind: 'station' as const,
+  }));
+}
+
+/**
+ * Parses one catalog route stop into a map-ready stop. Avenida Jiménez (TM0013)
+ * and Ricaurte (TM0069) stay the single merged stops the catalog files them as
+ * (spec §5.4.1); only the planner reads the `platforms` stamped beside them.
+ */
+export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: MasterCatalog): RouteStop | null {
   if (!stop?.coordenada || typeof stop.coordenada !== 'string' || !stop.coordenada.includes(',')) return null;
   const [lat, lng] = stop.coordenada.split(',').map(Number);
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
+  const platforms = route && catalog ? platformNodes(stop, route, catalog) : undefined;
   return {
     nombre: stop.nombre,
     codigo: stop.codigo,
@@ -85,6 +108,7 @@ export function parseCatalogStop(stop: any, _route?: CatalogRoute, _catalog?: Ma
     coordinate: [lng, lat] as [number, number],
     direccion: stop.direccion,
     kind: stopKind(stop.codigo),
+    ...(platforms ? { platforms } : {}),
   };
 }
 

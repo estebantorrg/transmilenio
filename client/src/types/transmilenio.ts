@@ -121,6 +121,16 @@ export interface RouteListItem {
     coordinate: [number, number];
     direccion?: string;
     kind?: 'station' | 'stop';
+    /** Planner nodes for a stop the catalog merges out of two stations (Av.
+     *  Jiménez, Ricaurte): the platform(s) THIS route calls at, in travel order
+     *  (`platformNodes`, routeCatalog.ts). Every other surface keeps the stop. */
+    platforms?: Array<{
+      nombre: string;
+      codigo: string;
+      sourceCode: string;
+      coordinate: [number, number];
+      kind: 'station';
+    }>;
   }>;
   catalogNombre?: string;
   liveNameCandidates?: string[];

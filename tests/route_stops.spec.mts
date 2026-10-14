@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { abordajeEn, vagonTexto } from '../shared/route_stop.js';
+import { abordajeEn, plataformasDe, vagonTexto } from '../shared/route_stop.js';
 
 /**
  * The route page's stop list (spec §5.5.5): beside each estación, the vagón the
@@ -58,6 +58,20 @@ test.describe('where a route boards at a stop', () => {
     const st = { ...estacion({}), codigo: 'TM0069', wagons: { A: [ruta('E48')], E: [ruta('F19')] } };
     expect(abordajeEn(st, 'F19', 'P. Américas')?.platform?.codigo).toBe('TM0069C13');
     expect(abordajeEn(st, 'E48', 'CAD')?.platform?.codigo).toBe('TM0069NQS');
+  });
+
+  test('the planner gets the half a route calls at, and both only for the service that links them', () => {
+    // Av. Jiménez: Caracas on A–C, Calle 13 on D–E, tunnel closed. Route 5 leaves
+    // from Caracas and is printed on Calle 13 too — the one way across.
+    const st = { ...estacion({}), codigo: 'TM0013', wagons: { A: [ruta('C15')], B: [ruta('5')], E: [ruta('J23')] } };
+    const codigos = (codigo: string, saliendo?: boolean) => plataformasDe(st, codigo, saliendo).map((p) => p.codigo);
+    expect(codigos('C15')).toEqual(['TM0013CAR']);
+    expect(codigos('J23', true)).toEqual(['TM0013C13']);
+    expect(codigos('5', true)).toEqual(['TM0013CAR', 'TM0013C13']);
+    expect(codigos('5')).toEqual(['TM0013CAR']);
+    // No wagon carries it: the half is not known, and not guessed.
+    expect(codigos('X99')).toEqual([]);
+    expect(plataformasDe(estacion({ wagons: { A: [ruta('C15')] } }), 'C15')).toEqual([]);
   });
 
   test('a vagón reads as its sign does', () => {

@@ -36,6 +36,7 @@ import {
   type PreparedGuide,
 } from '@shared/services/journeyGuide';
 import type { JourneyPlan } from '@shared/services/router';
+import { stationPlatform } from '../../../../shared/station_platforms.js';
 import { speak } from '../voice/bridge';
 import { bus, state } from '../state';
 import { loadJSON, saveJSON, removeKey } from '../lib/storage';
@@ -124,7 +125,10 @@ function publish(patch: Partial<GuidanceSnapshot>): void {
 /** Which vagón `routeCode` boards from at `stationCode`, when the catalog knows. */
 function wagonAt(stationCode: string, routeCode: string | undefined): string | undefined {
   if (!routeCode) return undefined;
-  const station = state.stations.find((s) => s.code === stationCode);
+  // The planner names one half of Av. Jiménez / Ricaurte; the catalog files
+  // both under the merged stop, and that is where the wagons are.
+  const code = stationPlatform(stationCode)?.parent ?? stationCode;
+  const station = state.stations.find((s) => s.code === code);
   return station?.wagonByRoute?.[routeCode];
 }
 

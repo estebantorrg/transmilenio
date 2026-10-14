@@ -34,6 +34,11 @@
  * @property {string} [nodo]      The register's node id for THIS platform, so a
  *                                platform page reports its own ridership rather
  *                                than the merged stop's.
+ * @property {[number, number]} coordinate  [lng, lat] of THIS platform (the
+ *                                register's point) — the merged stop has one
+ *                                coordinate for both, and the planner needs two.
+ * @property {string[]} [paranAlSalir]  Códigos that start on the sibling
+ *                                platform and call here next on their way out.
  */
 
 /** @type {StationPlatform[]} */
@@ -47,6 +52,7 @@ export const STATION_PLATFORMS = [
     letra: 'A',
     matchMethod: 'verified-split:av-jimenez-caracas',
     nodo: '9110',
+    coordinate: [-74.08042807, 4.60287397],
     // NO `tunelA`. There is a tunnel, and its own plano strikes it through in
     // red — CIERRE. A closed crossing is not a way to the other platform, and
     // offering it as one would be the confident wrong answer this dataset
@@ -61,6 +67,11 @@ export const STATION_PLATFORMS = [
     letra: 'F',
     matchMethod: 'verified-split:av-jimenez-cl13',
     nodo: '14003',
+    coordinate: [-74.07910861, 4.60304793],
+    // Route 5 leaves the Caracas platform and both sheets print it here too
+    // (Vagón 5, towards Portal Américas). With the tunnel closed it is the only
+    // way from that half to this one; nothing is printed for the way back.
+    paranAlSalir: ['5'],
   },
   {
     codigo: 'TM0069NQS',
@@ -71,6 +82,7 @@ export const STATION_PLATFORMS = [
     letra: 'E',
     matchMethod: 'verified-split:ricaurte-nqs',
     nodo: '7111',
+    coordinate: [-74.09386888, 4.6116862],
     tunelA: 'TM0069C13',
   },
   {
@@ -82,6 +94,7 @@ export const STATION_PLATFORMS = [
     letra: 'F',
     matchMethod: 'verified-split:ricaurte-cl13',
     nodo: '12003',
+    coordinate: [-74.09048002, 4.61301485],
     tunelA: 'TM0069NQS',
   },
 ];
