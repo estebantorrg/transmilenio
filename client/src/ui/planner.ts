@@ -32,7 +32,7 @@ import { initChipRowScroll } from './chipRow';
 import { escapeHTML, safeColor } from '../utils/html';
 import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
-import { BOGOTA_CENTER, isWithinBogota } from '../utils/geo';
+import { isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 
 let mapInstance: maplibregl.Map;
@@ -1400,12 +1400,17 @@ function initInputHandlers(): void {
   });
 }
 
+/**
+ * The rider's own position for "Usar mi ubicación actual": a device fix inside
+ * Bogotá, or the last one this session got. Rejects with the cause otherwise
+ * (`classifyLocationFailure` reads it).
+ *
+ * It used to fall back twice more — to the IP's location, which for a Bogotá
+ * address is one point downtown, and then to the city centre outright. So a
+ * rider whose fix failed, or who was not in the city at all, got "Mi ubicación
+ * actual" pinned in the middle of Bogotá and a trip planned from there.
+ */
 async function resolveLocation(): Promise<{ longitude: number; latitude: number }> {
-  // Bounds + city centre come from `utils/geo` — the single definition every
-  // location gate in the client shares (spec §1.1 R2). They were re-declared
-  // inline here, a fifth copy of the same four numbers.
-  const bogotaCenter = { longitude: BOGOTA_CENTER[0], latitude: BOGOTA_CENTER[1] };
-
   const getPosition = (highAccuracy: boolean): Promise<GeolocationPosition> => {
     return new Promise<GeolocationPosition>((resolve, reject) => {
       navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -1415,28 +1420,21 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
     });
   };
 
-  // Try GPS (High Accuracy first)
+  let cause: unknown = new Error('Geolocation API unavailable');
   if ('geolocation' in navigator) {
-    try {
-      const pos = await getPosition(true);
-      const lng = pos.coords.longitude;
-      const lat = pos.coords.latitude;
-      if (isWithinBogota(lng, lat)) {
-        setSessionExactLocation(lng, lat, 'gps');
-        return { longitude: lng, latitude: lat };
-      }
-    } catch (highError) {
-      console.warn('[Planner GPS] Native high-accuracy failed, trying low accuracy...', highError);
+    for (const highAccuracy of [true, false]) {
       try {
-        const pos = await getPosition(false);
-        const lng = pos.coords.longitude;
-        const lat = pos.coords.latitude;
-        if (isWithinBogota(lng, lat)) {
-          setSessionExactLocation(lng, lat, 'gps');
-          return { longitude: lng, latitude: lat };
+        const { longitude, latitude } = (await getPosition(highAccuracy)).coords;
+        if (isWithinBogota(longitude, latitude)) {
+          setSessionExactLocation(longitude, latitude, 'gps');
+          return { longitude, latitude };
         }
-      } catch (lowError) {
-        console.warn('[Planner GPS] Native low-accuracy failed, checking session fix...', lowError);
+        // A real fix, just not here: a coarser one will not move it into the city.
+        cause = new Error('fuera de Bogotá');
+        break;
+      } catch (error) {
+        console.warn(`[Planner GPS] No fix (highAccuracy=${highAccuracy})`, error);
+        cause = error;
       }
     }
   }
@@ -1447,22 +1445,7 @@ async function resolveLocation(): Promise<{ longitude: number; latitude: number 
     return { longitude: cached.lng, latitude: cached.lat };
   }
 
-  // Fallback to IP GeoIP
-  try {
-    const geoip = await api.getGeoIp();
-    if (geoip.success && geoip.longitude != null && geoip.latitude != null) {
-      const lng = geoip.longitude;
-      const lat = geoip.latitude;
-      if (isWithinBogota(lng, lat)) {
-        return { longitude: lng, latitude: lat };
-      }
-    }
-  } catch {
-    /* fallback to center */
-  }
-
-  // Fallback to central Bogotá if both GPS/IP fail or are out of bounds (e.g. testing from outside Bogotá/Colombia)
-  return bogotaCenter;
+  throw cause;
 }
 
 /** Error state for a failed route search. Shows the underlying message (muted)

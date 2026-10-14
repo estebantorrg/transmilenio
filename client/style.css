@@ -3368,7 +3368,10 @@ body.sidebar-collapsed .sidebar-fab {
      give it a native draggable feel; `sidebar.ts` tracks the finger between
      them. `--peek-h` is the visible strip when parked, and is the single source
      of truth the drag math reads back (detentPositions). `--kb-inset` lifts the
-     whole sheet above the soft keyboard when an input is focused. */
+     whole sheet above the soft keyboard when an input is focused — and the
+     sheet gives up that much height, or a full sheet (92dvh, which focusing a
+     field promotes it to) is lifted clean off the top of the screen, taking
+     the search bar being typed in with it. */
   .sidebar {
     top: auto;
     left: 0;
@@ -3376,7 +3379,7 @@ body.sidebar-collapsed .sidebar-fab {
     bottom: var(--kb-inset, 0px);
     width: 100%;
     max-width: none;
-    height: 92dvh;
+    height: min(92dvh, calc(100dvh - var(--kb-inset, 0px)));
     --peek-h: 112px;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     border-left: none;
@@ -3386,7 +3389,8 @@ body.sidebar-collapsed .sidebar-fab {
     box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
     /* iOS-like spring curve, used only for the sheet on touch. */
     transition: transform 340ms cubic-bezier(0.32, 0.72, 0, 1),
-                bottom 220ms ease;
+                bottom 220ms ease,
+                height 220ms ease;
     will-change: transform;
   }
 
