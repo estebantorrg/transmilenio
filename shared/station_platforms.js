@@ -70,7 +70,8 @@ export const STATION_PLATFORMS = [
     coordinate: [-74.07910861, 4.60304793],
     // Route 5 leaves the Caracas platform and both sheets print it here too
     // (Vagón 5, towards Portal Américas). With the tunnel closed it is the only
-    // way from that half to this one; nothing is printed for the way back.
+    // way from that half to this one. Heading in, to Av. Jiménez, it skips this
+    // platform (confirmed by the maintainer, 2026-10-13) — so no way back on it.
     paranAlSalir: ['5'],
   },
   {
