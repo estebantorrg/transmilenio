@@ -213,6 +213,7 @@ export function startGuidance(plan: JourneyPlan): boolean {
     problem: null,
   });
   persist(plan);
+  void holdScreen();
 
   watchId = navigator.geolocation.watchPosition(onFix, onWatchError, {
     enableHighAccuracy: true,
@@ -261,9 +262,43 @@ function stopWatch(): void {
     navigator.geolocation.clearWatch(watchId);
     watchId = null;
   }
+  releaseScreen();
   prepared = null;
   guideState = initialGuideState();
 }
+
+// The fixes arrive through the app's web view, and Android pauses a web view with
+// its screen: a phone locked on the bus would hear no "Bájate". So the screen is
+// held on while a journey runs (Screen Wake Lock, WebView 84+), and taken again
+// whenever the app comes back to the front — the system drops it when hidden.
+let screenLock: WakeLockSentinel | null = null;
+
+async function holdScreen(): Promise<void> {
+  if (screenLock || !snapshot.active || document.visibilityState !== 'visible') return;
+  try {
+    const lock = await navigator.wakeLock?.request('screen');
+    if (!lock) return;
+    if (!snapshot.active) {
+      void lock.release(); // the journey ended while the request was pending
+      return;
+    }
+    screenLock = lock;
+    lock.addEventListener('release', () => {
+      if (screenLock === lock) screenLock = null;
+    });
+  } catch {
+    // Battery saver or no support: the banner already asks for the screen on.
+  }
+}
+
+function releaseScreen(): void {
+  void screenLock?.release();
+  screenLock = null;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void holdScreen();
+});
 
 function persist(plan: JourneyPlan): void {
   saveJSON<Persisted>(STORAGE_KEY, { plan, state: guideState, savedAt: Date.now() });

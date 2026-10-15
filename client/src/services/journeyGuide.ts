@@ -23,6 +23,7 @@
 
 import type { JourneyPlan, JourneyStep } from './router';
 import { both, type Phrasing } from './voiceAnswer';
+import { haversineMeters } from '../utils/geo';
 
 export type LngLat = [number, number];
 
@@ -176,18 +177,7 @@ const MAX_USABLE_ACCURACY_M = 100;
 // plain point-to-polyline projection over an already-cut leg, which that index
 // does not expose. Kept small enough not to be a second implementation of it.
 
-const EARTH_RADIUS_M = 6371008.8;
-
-function haversineMeters(a: LngLat, b: LngLat): number {
-  const toRad = Math.PI / 180;
-  const dLat = (b[1] - a[1]) * toRad;
-  const dLon = (b[0] - a[0]) * toRad;
-  const lat1 = a[1] * toRad;
-  const lat2 = b[1] * toRad;
-  const h =
-    Math.sin(dLat / 2) ** 2 + Math.sin(dLon / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
-  return 2 * EARTH_RADIUS_M * Math.asin(Math.min(1, Math.sqrt(h)));
-}
+const EARTH_RADIUS_M = 6371000; // the radius `haversineMeters` uses
 
 /** Local planar approximation, good to well under a metre at city scale. */
 function toPlane(origin: LngLat, p: LngLat): [number, number] {
@@ -496,9 +486,12 @@ function selectCue(ctx: CueContext): Cue | null {
   }
 
   // Arrival, alighting and transfers all fire on proximity to the step's end,
-  // at the radius appropriate to how the rider is travelling.
+  // at the radius appropriate to how the rider is travelling — and on a ride only
+  // once the stop before it is behind: 7% of SITP stops are under 150 m apart,
+  // and "Bájate aquí" said ahead of the previous one put riders off a stop early.
   const endRadius = step.type === 'walk' ? ARRIVE_RADIUS_M : ALIGHT_RADIUS_M;
-  if (remaining <= endRadius) {
+  const previousStopPassed = step.type !== 'ride' || (stopsRemaining ?? 1) <= 1;
+  if (remaining <= endRadius && previousStopPassed) {
     const last = !next;
     if (last && unspoken('arrived')) return makeCue('arrived', index, step, next, step.to);
     if (!last && step.type === 'ride') {

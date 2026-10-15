@@ -139,7 +139,7 @@ function render(snapshot: GuidanceSnapshot): void {
       cueIsCurrent
       ? snapshot.cue!.written
       : (snapshot.standing?.written ??
-        (snapshot.active ? 'Guiando el viaje. Puedes guardar el teléfono.' : ''));
+        (snapshot.active ? 'Guiando el viaje. Deja la app abierta y la pantalla encendida para oír los avisos.' : ''));
 
   if (!message) {
     hide();
