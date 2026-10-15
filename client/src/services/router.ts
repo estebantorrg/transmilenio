@@ -1620,12 +1620,37 @@ function findAccessNodes(
  * walking is real) are in this file. The clients used to call it themselves,
  * which is how a re-rank could silently undo the §5.6.2 long-service preference.
  */
+// Ranked minutes = the search's own time criterion: door-to-door time plus the
+// long-service preference the search charged in cost (§5.6.2). Ranking on the
+// raw total would silently undo that preference on every re-rank.
+const ranked = (plan: JourneyPlan): number => plan.totalTime + (plan.servicePenalty ?? 0);
+
+/**
+ * `a` is no worse than `b` on transfers, time (raw and ranked) and walking, and
+ * really better on one of them. The long-service preference alone never wins:
+ * two equally fast buses are a choice to show (§5.6.2). An out-of-service plan
+ * is shown for what exists and when it starts, so it is not compared at all.
+ */
+function dominates(a: JourneyPlan, b: JourneyPlan): boolean {
+  if (Boolean(a.outsideService) !== Boolean(b.outsideService)) return false;
+  const noWorse =
+    a.transfers <= b.transfers && a.totalTime <= b.totalTime && ranked(a) <= ranked(b) && a.walkDistance <= b.walkDistance;
+  return noWorse && (a.transfers < b.transfers || a.totalTime < b.totalTime || a.walkDistance < b.walkDistance);
+}
+
+/**
+ * Drops, in place, every plan another plan beats on all three things a rider
+ * weighs. Such a plan is never the answer to any preference, and offered as an
+ * alternative it reads as nonsense: the same bus one stop further with a walk
+ * back, or a bus ride slower and longer on foot than walking the whole way.
+ */
+function dropDominated(plans: JourneyPlan[]): void {
+  const kept = plans.filter((b) => !plans.some((a) => dominates(a, b)));
+  plans.splice(0, plans.length, ...kept);
+}
+
 function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
   const sortCriteria = sortBy || 'transfers';
-  // Ranked minutes = the search's own time criterion: door-to-door time plus the
-  // long-service preference the search charged in cost (§5.6.2). Ranking on the
-  // raw total here would silently undo that preference on every re-rank.
-  const ranked = (plan: JourneyPlan): number => plan.totalTime + (plan.servicePenalty ?? 0);
   plans.sort((a, b) => {
     if (sortCriteria === 'transfers') {
       return a.transfers - b.transfers || ranked(a) - ranked(b) || a.walkDistance - b.walkDistance;
@@ -2030,6 +2055,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     finalPlans.push(...longWalkPlans);
   }
 
+  dropDominated(finalPlans);
   sortJourneyPlans(finalPlans, sortBy);
 
   // Keep a pool, not just the four we will show. Which four are *best* is only
@@ -2169,6 +2195,7 @@ export function findRoutes(params: RouteSearchParams, out?: { candidates?: Journ
       plans.push(walkPlan);
     } else if (walkPlan.totalTime <= Math.min(...plans.map((p) => p.totalTime))) {
       plans.push(walkPlan);
+      dropDominated(plans);
       sortJourneyPlans(plans, params.sortBy);
       plans.splice(PLAN_CANDIDATE_POOL);
     }
@@ -2544,6 +2571,9 @@ export async function resolveWalkingLegs(
     plans.push(...walkable);
   }
 
+  // Again on the real metres: a walk that turned out longer can sink a plan
+  // under one it used to edge out.
+  dropDominated(plans);
   sortJourneyPlans(plans, sortBy);
   if (out) out.pool = plans.slice();
   plans.splice(PLAN_DISPLAY_LIMIT);
