@@ -78,7 +78,7 @@ function pageHtml(): string {
     <div class="page-inner">
       ${crumbsHtml([{ label: 'Inicio', href: '/' }, { label: 'Novedades' }])}
       <h1 class="novedades-title">Novedades de la operación</h1>
-      <p class="novedades-intro">Lo que TransMilenio publica como #TMAhora en <a href="${CHANNEL_URL}" target="_blank" rel="noopener noreferrer">su cuenta de X</a>, de las últimas 24 horas, tal como lo publica.</p>
+      <p class="novedades-intro">#TMAhora de <a href="${CHANNEL_URL}" target="_blank" rel="noopener noreferrer">@TransMilenio</a> · últimas 24 horas</p>
       ${notice}
       ${list}
     </div>

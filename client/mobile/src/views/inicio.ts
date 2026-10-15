@@ -24,7 +24,7 @@ function openNovedadesSheet(items: Novedad[]): void {
   sheet.body.append(
     h('p', {
       class: 'novedades-intro',
-      text: 'Lo que TransMilenio publica como #TMAhora en X, de las últimas 24 horas, tal como lo publica.',
+      text: '#TMAhora de @TransMilenio · últimas 24 horas',
     }),
     ...items.map((post) =>
       h('article', { class: 'novedades-item' }, [

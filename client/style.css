@@ -6338,14 +6338,28 @@ body.native-app .route-detail-close:active {
   letter-spacing: -0.02em;
 }
 
-.novedades-intro,
 .novedades-nota {
   margin: 10px 0 0;
   font-size: var(--font-size-base);
   color: var(--text-secondary);
 }
 
-.novedades-intro a { color: var(--tm-yellow); }
+/* A source line, not a paragraph; its link in the crumbs' idiom. */
+.novedades-intro {
+  margin: 6px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+.novedades-intro a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.novedades-intro a:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
 
 .novedades-lista {
   display: grid;
