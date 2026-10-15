@@ -109,6 +109,14 @@ function interceptPageLink(event: MouseEvent): void {
   const url = new URL(anchor.href, location.href);
   if (url.origin !== location.origin) return;
 
+  // The masthead's brand and the "Inicio" crumb: the map is already behind the
+  // page, so going home is closing it, not reloading the app.
+  if (current && url.pathname === '/' && !url.hash) {
+    event.preventDefault();
+    dismissOverlayPage();
+    return;
+  }
+
   const page = resolvePage(url.pathname);
   if (!page) return;
 
@@ -256,15 +264,23 @@ function syncFromLocation(): void {
  * lockup over the same glass and hairline, with the way out on the left and the
  * share action on the right. Sticky, because the way out of a 60-parada page has
  * to be on screen wherever the reader has got to.
+ *
+ * "Ver en el mapa" only on a page whose subject is on the map (a route, an
+ * estación); elsewhere the brand is the way home and the cell stays empty so
+ * the brand keeps the centre.
  */
-export function mastheadHtml(): string {
+export function mastheadHtml(options: { mapSubject?: boolean } = {}): string {
+  const back =
+    options.mapSubject === false
+      ? '<span></span>'
+      : `<button class="page-back" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+          <span>Ver en el mapa</span>
+        </button>`;
   return `
     <header class="page-bar">
       <div class="page-bar-inner">
-        <button class="page-back" type="button">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
-          <span>Ver en el mapa</span>
-        </button>
+        ${back}
         <a class="page-brand" href="/" aria-label="Inicio — MiTrasto">
           <img class="page-logo" src="/icon-192.png" alt="" width="34" height="34" />
           <span class="page-brand-text">

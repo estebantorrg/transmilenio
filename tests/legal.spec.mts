@@ -121,7 +121,9 @@ test.describe('the page in the app', () => {
     const legal = page.locator('#legal-page');
     await expect(legal).toBeVisible();
     await expect(legal.locator('h1')).toHaveText(PRIVACIDAD.titulo);
-    await expect(legal.locator('.page-bar .page-back')).toBeVisible();
+    // Nothing on the map belongs to it, so no "Ver en el mapa"; the brand is the way out.
+    await expect(legal.locator('.page-bar .page-back')).toHaveCount(0);
+    await expect(legal.locator('.page-bar .page-brand')).toBeVisible();
     await expect(legal.locator('.page-crumbs')).toContainText('Política de privacidad');
     await expect(legal.locator('.legal-sec')).toHaveCount(PRIVACIDAD.secciones.length);
     await expect(legal.locator(`a[href="mailto:${RESPONSABLE.correo}"]`).first()).toBeVisible();
@@ -135,6 +137,16 @@ test.describe('the page in the app', () => {
     await page.keyboard.press('Escape');
     await expect(page.locator('#legal-page')).toHaveCount(0);
     await expect(page).toHaveURL(/\/$/);
+  });
+
+  test('the brand leaves the page for the map without reloading the app', async ({ page }) => {
+    await page.goto('/privacidad/');
+    await expect(page.locator('#legal-page')).toBeVisible();
+    await page.evaluate(() => ((window as unknown as { __sameLoad: boolean }).__sameLoad = true));
+    await page.locator('#legal-page .page-brand').click();
+    await expect(page.locator('#legal-page')).toHaveCount(0);
+    await expect(page).toHaveURL(/\/$/);
+    expect(await page.evaluate(() => (window as unknown as { __sameLoad?: boolean }).__sameLoad)).toBe(true);
   });
 });
 

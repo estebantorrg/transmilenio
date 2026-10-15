@@ -74,7 +74,7 @@ function pageHtml(): string {
       ? '<p class="novedades-nota">TransMilenio no ha publicado novedades en las últimas 24 horas.</p>'
       : '';
   return `
-    ${mastheadHtml()}
+    ${mastheadHtml({ mapSubject: false })}
     <div class="page-inner">
       ${crumbsHtml([{ label: 'Inicio', href: '/' }, { label: 'Novedades' }])}
       <h1 class="novedades-title">Novedades de la operación</h1>

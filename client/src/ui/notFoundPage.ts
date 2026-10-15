@@ -26,7 +26,7 @@ export function openNotFoundPage(what: string): void {
       path: location.pathname,
       accent: 'var(--tm-red)',
       render: () => `
-        ${mastheadHtml()}
+        ${mastheadHtml({ mapSubject: false })}
         <div class="page-inner">
           <p class="not-found-code">Error 404</p>
           <h1 class="not-found-title">No encontramos ${escapeHTML(what)}</h1>

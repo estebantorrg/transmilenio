@@ -2,8 +2,8 @@
  * The legal pages — `/privacidad/` and `/terminos/` (spec §5.5.7) — as in-app pages.
  *
  * They are real URLs like the route and estación pages, and they open in the
- * same shell (`pageShell.ts`): masthead, map inert behind, Escape and "Ver en el
- * mapa" to leave, Back/Forward driven by the address bar. A link to one from
+ * same shell (`pageShell.ts`): masthead, map inert behind, Escape and the brand
+ * to leave, Back/Forward driven by the address bar. A link to one from
  * anywhere in the app is a plain anchor that the shell turns into a page, so it
  * still middle-clicks and copies like any other link.
  *
@@ -30,7 +30,7 @@ function descriptor(doc: LegalDoc): OverlayPage {
     // Not keyed to a subject: the site's own red, the prerender's default accent.
     accent: 'var(--tm-red)',
     render: () => `
-      ${mastheadHtml()}
+      ${mastheadHtml({ mapSubject: false })}
       <div class="page-inner">
         ${crumbsHtml([{ label: 'Inicio', href: '/' }, { label: doc.breadcrumb }])}
         ${legalDocHtml(doc)}
