@@ -1,6 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import type { JourneyPlan } from '../services/router';
 import { getRouteAccentColor } from '../utils/routeColors';
+import { fadeBackground, restoreBackground } from './backgroundDim';
 import type { RouteListItem } from '../types/transmilenio';
 
 const JOURNEY_LAYERS = [
@@ -522,23 +523,21 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     }
   });
 
-  // Dim background layers
-  if (map.getLayer('troncal-corridors-line')) map.setPaintProperty('troncal-corridors-line', 'line-opacity', 0.08);
-  if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.04);
-  if (map.getLayer('troncal-corridors-labels')) map.setPaintProperty('troncal-corridors-labels', 'text-opacity', 0.08);
-
-  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.02);
-  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.01);
-  if (map.getLayer('zonal-routes-glow')) map.setPaintProperty('zonal-routes-glow', 'line-opacity', 0);
-
-  if (map.getLayer('stations-circle')) map.setPaintProperty('stations-circle', 'icon-opacity', 0.2);
-  if (map.getLayer('stations-labels')) map.setPaintProperty('stations-labels', 'text-opacity', 0.15);
-  if (map.getLayer('stops-circle')) map.setPaintProperty('stops-circle', 'icon-opacity', 0.2);
-  if (map.getLayer('stops-labels')) map.setPaintProperty('stops-labels', 'text-opacity', 0.15);
-
-  if (map.getLayer('cable-traces-line')) map.setPaintProperty('cable-traces-line', 'line-opacity', 0.1);
-  if (map.getLayer('cable-stations-circle')) map.setPaintProperty('cable-stations-circle', 'icon-opacity', 0.2);
-  if (map.getLayer('cable-stations-labels')) map.setPaintProperty('cable-stations-labels', 'text-opacity', 0.15);
+  fadeBackground(map, [
+    ['troncal-corridors-line', 'line-opacity', 0.08],
+    ['troncal-corridors-casing', 'line-opacity', 0.04],
+    ['troncal-corridors-labels', 'text-opacity', 0.08],
+    ['zonal-routes-line', 'line-opacity', 0.02],
+    ['zonal-routes-casing', 'line-opacity', 0.01],
+    ['zonal-routes-glow', 'line-opacity', 0],
+    ['stations-circle', 'icon-opacity', 0.2],
+    ['stations-labels', 'text-opacity', 0.15],
+    ['stops-circle', 'icon-opacity', 0.2],
+    ['stops-labels', 'text-opacity', 0.15],
+    ['cable-traces-line', 'line-opacity', 0.1],
+    ['cable-stations-circle', 'icon-opacity', 0.2],
+    ['cable-stations-labels', 'text-opacity', 0.15],
+  ]);
 
   // Bring journey layers to front
   JOURNEY_LAYERS.forEach((id) => {
@@ -598,21 +597,5 @@ export function clearJourneyPath(map: maplibregl.Map): void {
   if (tunnelSource) tunnelSource.setData({ type: 'FeatureCollection', features: [] });
   if (stopsSource) stopsSource.setData({ type: 'FeatureCollection', features: [] });
 
-  // Restore opacity for background layers
-  if (map.getLayer('troncal-corridors-line')) map.setPaintProperty('troncal-corridors-line', 'line-opacity', 0.95);
-  if (map.getLayer('troncal-corridors-casing')) map.setPaintProperty('troncal-corridors-casing', 'line-opacity', 0.72);
-  if (map.getLayer('troncal-corridors-labels')) map.setPaintProperty('troncal-corridors-labels', 'text-opacity', 1);
-
-  if (map.getLayer('zonal-routes-line')) map.setPaintProperty('zonal-routes-line', 'line-opacity', 0.78);
-  if (map.getLayer('zonal-routes-casing')) map.setPaintProperty('zonal-routes-casing', 'line-opacity', 0.35);
-  if (map.getLayer('zonal-routes-glow')) map.setPaintProperty('zonal-routes-glow', 'line-opacity', 0.16);
-
-  if (map.getLayer('stations-circle')) map.setPaintProperty('stations-circle', 'icon-opacity', 1);
-  if (map.getLayer('stations-labels')) map.setPaintProperty('stations-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 14, 0.6, 16, 1]);
-  if (map.getLayer('stops-circle')) map.setPaintProperty('stops-circle', 'icon-opacity', 1);
-  if (map.getLayer('stops-labels')) map.setPaintProperty('stops-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 16, 0.5, 17, 0.9]);
-
-  if (map.getLayer('cable-traces-line')) map.setPaintProperty('cable-traces-line', 'line-opacity', 0.85);
-  if (map.getLayer('cable-stations-circle')) map.setPaintProperty('cable-stations-circle', 'icon-opacity', 1);
-  if (map.getLayer('cable-stations-labels')) map.setPaintProperty('cable-stations-labels', 'text-opacity', ['interpolate', ['linear'], ['zoom'], 13, 0.6, 15, 1]);
+  restoreBackground(map);
 }
