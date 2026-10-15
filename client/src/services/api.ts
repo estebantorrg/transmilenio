@@ -11,6 +11,7 @@ import type { HorariosCabeceraData } from './cabecera';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../../../shared/live_payload.js';
+import type { FootRoute } from '../../../shared/osrm_foot.js';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
  *  - live        buses are present.
@@ -618,24 +619,12 @@ export interface GeoIpResponse {
   error?: string;
 }
 
-export interface WalkingRouteResult {
-  /** Routed pedestrian geometry, between the points OSRM *snapped* to — it does
-   *  not reach the requested endpoints. `snapFrom`/`snapTo` are how far short it
-   *  falls at each end; `fetchWalkingPath` stitches them closed (§5.6.4). */
-  coordinates: [number, number][];
-  /** Honest walked metres: the routed path plus both snap legs. */
-  distance: number;
-  time: number;
-  /** Metres from the requested origin to the first routed coordinate. */
-  snapFrom?: number;
-  /** Metres from the last routed coordinate to the requested destination. */
-  snapTo?: number;
-  source: 'osrm';
-}
 
 export interface WalkingRouteResponse {
   success: boolean;
-  data?: WalkingRouteResult;
+  /** `shared/osrm_foot.js`: geometry between the points OSRM snapped to (the
+   *  router stitches it onto the endpoints) and the walked metres, snaps included. */
+  data?: FootRoute;
   error?: string;
 }
 

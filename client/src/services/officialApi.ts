@@ -27,6 +27,7 @@ import { LIVE_HOST, APPID, nativeHttpRequest } from './nativeLive';
 import { installUuid } from './installId';
 import { normalizeArrivalsPayload } from '../../../shared/live_payload.js';
 import { isCardNumber, isLedgerRow, ledgerMovement, maskCardNumber } from '../../../shared/card_ledger.js';
+import { FOOT_HEADERS, FOOT_MIN_INTERVAL_MS, createPacer, footRouteUrl, readFootRoute } from '../../../shared/osrm_foot.js';
 import type {
   ArrivalsResponse,
   CardBalanceRead,
@@ -225,53 +226,26 @@ async function readCardBalance(numeroTarjeta: string, consultar: 'true' | 'false
 
 // ─── Walking route (public OSRM foot profile, spec §5.6) ───────────────────
 const OSRM_TIMEOUT_MS = 9_000;
-const WALK_SPEED_M_PER_MINUTE = 75; // must match server + router.ts
+// This phone's own share of FOSSGIS's one request a second (`shared/osrm_foot.js`).
+// A leg that would wait longer keeps its estimate; the next search asks again.
+const footPacer = createPacer(FOOT_MIN_INTERVAL_MS, 10_000);
 
 /**
- * Real pedestrian geometry from the public OSRM foot router (the same instance
- * the server proxies, spec §5.6). Byte-for-byte the same contract as
- * `GET /api/walking-route`: `distance` is the honest walked total (route +
- * both snap legs) and the snap legs are broken out so the caller can stitch the
- * drawn path back onto the endpoints it belongs to. Time is derived from
- * distance so totals match the router's estimate before enrichment.
+ * Real pedestrian geometry from the public OSRM foot router, asked from the phone
+ * — the same answer, read the same way, as the website's `GET /api/walking-route`.
  */
 async function getWalkingRoute(from: [number, number], to: [number, number]): Promise<WalkingRouteResponse> {
   if (!isWithinBogota(from[0], from[1]) || !isWithinBogota(to[0], to[1])) {
     return { success: false, error: 'Walking route coordinates must be within Bogota bounds' };
   }
-  const url =
-    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}` +
-    '?overview=full&geometries=geojson';
+  const wait = footPacer();
+  if (wait === null) return { success: false, error: 'Walking route queue is full' };
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
   try {
-    const res = await nativeHttpRequest({
-      method: 'GET',
-      url,
-      headers: { Accept: 'application/json', 'User-Agent': 'TransMilenioExplorer/1.0' },
-      timeoutMs: OSRM_TIMEOUT_MS,
-    });
+    const res = await nativeHttpRequest({ method: 'GET', url: footRouteUrl(from, to), headers: FOOT_HEADERS, timeoutMs: OSRM_TIMEOUT_MS });
     if (res.status < 200 || res.status >= 300) throw new Error(`OSRM HTTP ${res.status}`);
-    const data = parseJson(res.data);
-    const route = data?.routes?.[0];
-    const coordinates: number[][] | undefined = route?.geometry?.coordinates;
-    if (data?.code !== 'Ok' || !route || !Array.isArray(coordinates) || coordinates.length < 2 || !Number.isFinite(route.distance)) {
-      return { success: false, error: 'Walking route upstream returned no usable route' };
-    }
-    const normalized = coordinates.map(([lng, lat]) => [Number(lng), Number(lat)] as [number, number]);
-    if (normalized.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
-      return { success: false, error: 'Walking route upstream returned invalid coordinates' };
-    }
-    // See the server twin: OSRM routes between the points it snapped to, and
-    // reports neither the snap legs in `distance` nor the requested points in
-    // the geometry.
-    const rawFrom = Number(data?.waypoints?.[0]?.distance);
-    const rawTo = Number(data?.waypoints?.[1]?.distance);
-    const snapFrom = Number.isFinite(rawFrom) ? rawFrom : 0;
-    const snapTo = Number.isFinite(rawTo) ? rawTo : 0;
-    const distance = Number(route.distance) + snapFrom + snapTo;
-    return {
-      success: true,
-      data: { coordinates: normalized, distance, time: distance / WALK_SPEED_M_PER_MINUTE, snapFrom, snapTo, source: 'osrm' },
-    };
+    const route = readFootRoute(parseJson(res.data));
+    return route ? { success: true, data: route } : { success: false, error: 'Walking route upstream returned no usable route' };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : 'Walking route lookup failed' };
   }

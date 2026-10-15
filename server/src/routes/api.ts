@@ -7,6 +7,7 @@ import { computeStopArrivals } from '../services/stop_arrivals.js';
 import { geocodeAddress } from '../services/geocode.js';
 import { getNovedades } from '../services/novedades.js';
 import { isWithinBogota } from '../services/bogota.js';
+import { FOOT_HEADERS, FOOT_MIN_INTERVAL_MS, createPacer, footRouteUrl, readFootRoute, type FootRoute } from '../../../shared/osrm_foot.js';
 import zlib from 'zlib';
 import { promisify } from 'node:util';
 import { readFile } from 'node:fs/promises';
@@ -558,12 +559,16 @@ router.post('/card/read', rateLimit('card'), async (req: Request, res: Response)
 // (spec §3.3 — zero PII storage); the client only calls /api/* (spec §2.3).
 
 const GEOIP_TIMEOUT_MS = 5_000;
-const WALKING_ROUTE_TIMEOUT_MS = 9_000;
-// Pedestrian speed used to derive walking time from the routed path distance.
-// We recompute time from distance rather than trusting upstream `duration` so
-// the value matches the client router's WALK_SPEED_M_PER_MINUTE exactly —
-// totals stay consistent before and after walking-geometry enrichment.
-const WALK_SPEED_M_PER_MINUTE = 75;
+// Queue wait + upstream must stay inside the client's 10 s budget for one leg,
+// past which it keeps the estimate anyway.
+const WALKING_ROUTE_TIMEOUT_MS = 6_000;
+const WALKING_QUEUE_MAX_MS = 3_000;
+// Every rider on the website reaches FOSSGIS from this one address, so the one
+// request a second it allows is shared by all of them (`shared/osrm_foot.js`),
+// and a leg one rider already walked is answered from here for the next.
+const footPacer = createPacer(FOOT_MIN_INTERVAL_MS, WALKING_QUEUE_MAX_MS);
+const WALKING_CACHE_MAX = 2_000; // ~1 KB each
+const walkingCache = new Map<string, FootRoute>();
 const PRIVATE_IP_RE = /^(?:10\.|127\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|::1$|fc|fd)/i;
 
 type LngLat = [number, number];
@@ -670,85 +675,44 @@ router.get('/walking-route', rateLimit('walking-route'), async (req: Request, re
     return;
   }
 
+  const key = `${from[0].toFixed(5)},${from[1].toFixed(5)}|${to[0].toFixed(5)},${to[1].toFixed(5)}`;
+  const send = (route: FootRoute): void => {
+    // A walk between two fixed points never changes, so the answer is worth
+    // caching for anyone between here and the rider.
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.json({ success: true, data: route });
+  };
+  const known = walkingCache.get(key);
+  if (known) {
+    send(known);
+    return;
+  }
+
+  const wait = footPacer();
+  if (wait === null) {
+    // Busier than FOSSGIS's one-a-second allows: the client keeps its estimate
+    // for this leg and asks again on the next search.
+    res.setHeader('Retry-After', '2');
+    res.status(503).json({ success: false, error: 'Walking route queue is full' });
+    return;
+  }
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), WALKING_ROUTE_TIMEOUT_MS);
-  // FOSSGIS routing service — a real OSRM `foot` profile (the public
-  // router.project-osrm.org demo only ships the car profile, so its `/foot/`
-  // routes follow one-way streets and miss pedestrian shortcuts). This instance
-  // routes true pedestrian geometry, so the path returned is the fastest walk.
-  const url =
-    `https://routing.openstreetmap.de/routed-foot/route/v1/foot/${from[0]},${from[1]};${to[0]},${to[1]}` +
-    '?overview=full&geometries=geojson';
-
   try {
-    const upstream = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'TransMilenioExplorer/1.0',
-      },
-      signal: controller.signal,
-    });
-
+    // FOSSGIS's real OSRM `foot` profile — the router.project-osrm.org demo only
+    // ships the car profile, whose `/foot/` routes follow one-way streets.
+    const upstream = await fetch(footRouteUrl(from, to), { headers: FOOT_HEADERS, signal: controller.signal });
     if (!upstream.ok) throw new Error(`OSRM HTTP ${upstream.status}`);
-
-    const data = await upstream.json() as {
-      code?: string;
-      routes?: Array<{
-        distance?: number;
-        duration?: number;
-        geometry?: { coordinates?: number[][] };
-      }>;
-      waypoints?: Array<{ distance?: number }>;
-    };
-    const route = data.routes?.[0];
-    const coordinates = route?.geometry?.coordinates;
-    if (
-      data.code !== 'Ok' ||
-      !route ||
-      !Array.isArray(coordinates) ||
-      coordinates.length < 2 ||
-      !Number.isFinite(route.distance)
-    ) {
+    const route = readFootRoute(await upstream.json());
+    if (!route) {
       res.status(502).json({ success: false, error: 'Walking route upstream returned no usable route' });
       return;
     }
-    const normalizedCoordinates = coordinates.map(([lng, lat]) => [Number(lng), Number(lat)] as LngLat);
-    if (normalizedCoordinates.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
-      res.status(502).json({ success: false, error: 'Walking route upstream returned invalid coordinates' });
-      return;
-    }
-    // OSRM routes between the points it *snapped* the request to, and reports
-    // neither the snap legs in `distance` nor the requested points in the
-    // geometry. A stop set back from the kerb — or an origin dropped inside a
-    // block — is routinely 20–90 m off the pedestrian network, so taking the
-    // route at face value under-charges every leg (measured over this graph:
-    // mean 24 m, p90 42 m, max 94 m per leg, always in the same direction) and
-    // draws a walk that starts short of where the rider is standing. Both parts
-    // are reported: `distance` is the honest walked total, and the two snap legs
-    // are broken out so the client can stitch the drawn path back onto the
-    // endpoints it belongs to (spec §5.6.4).
-    const snapFrom = Number(data.waypoints?.[0]?.distance);
-    const snapTo = Number(data.waypoints?.[1]?.distance);
-    const snapped = (Number.isFinite(snapFrom) ? snapFrom : 0) + (Number.isFinite(snapTo) ? snapTo : 0);
-    const distance = Number(route.distance) + snapped;
-
-    // A walk between two fixed points never changes, so the answer is worth
-    // caching for anyone between here and the rider — the previous `no-store`
-    // sent every repeat of an identical leg back to the public router.
-    res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.json({
-      success: true,
-      data: {
-        coordinates: normalizedCoordinates,
-        distance,
-        // Derive from distance, not OSRM's duration (driving-speed on the demo
-        // server — see WALK_SPEED_M_PER_MINUTE note above).
-        time: distance / WALK_SPEED_M_PER_MINUTE,
-        snapFrom: Number.isFinite(snapFrom) ? snapFrom : 0,
-        snapTo: Number.isFinite(snapTo) ? snapTo : 0,
-        source: 'osrm',
-      },
-    });
+    walkingCache.set(key, route);
+    if (walkingCache.size > WALKING_CACHE_MAX) walkingCache.delete(walkingCache.keys().next().value!);
+    send(route);
   } catch (error: any) {
     const timedOut = error?.name === 'AbortError';
     console.error('[/walking-route] Error:', error?.message || error);

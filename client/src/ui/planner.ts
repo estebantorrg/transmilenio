@@ -34,6 +34,7 @@ import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/loca
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
 import { isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
+import { FOOT_CREDIT_HTML } from '../../../shared/osrm_foot.js';
 
 let mapInstance: maplibregl.Map;
 
@@ -1840,7 +1841,8 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
     })
     .join('');
 
-  container.innerHTML = renderOutOfServiceNotice(plans) + container.innerHTML;
+  container.innerHTML =
+    renderOutOfServiceNotice(plans) + container.innerHTML + `<p class="planner-credit">${FOOT_CREDIT_HTML}</p>`;
 
   container.querySelector<HTMLButtonElement>('.planner-notice-action')?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -2072,7 +2074,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
                 ${clockHtml}${boardVerb} <span style="${accentStyle}">${escapeHTML(step.routeCode)}</span>
               </div>
               <div class="journey-step-desc">
-                En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong> (Dirección ${escapeHTML(step.toName)})<br/>
+                En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong>, hasta <strong>${escapeHTML(step.toName)}</strong><br/>
                 Viajar <strong>${step.stopCount} ${rideStopsNoun(step.routeType, step.stopCount ?? 0)}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
               ${renderStepServiceLine(step)}

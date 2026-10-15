@@ -37,6 +37,7 @@ import { getRecentTrips, pushRecentTrip, type RecentTrip } from '../lib/storage'
 import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
 import type { View } from './types';
+import { FOOT_CREDIT_HTML } from '../../../../shared/osrm_foot.js';
 
 interface Endpoint {
   coord: [number, number];
@@ -50,14 +51,20 @@ let searchSeq = 0;
 // Background enrichment adds zonal-route stops after boot (data.ts loadBackground).
 // Invalidate the built graph so the next search rebuilds it with the enriched
 // stops — mirrors the website's post-enrichment router rebuild (main.ts).
-bus.on('stops:ready', () => {
-  routerReady = false;
-});
 // TransMiCable stations arrive after boot too — rebuild the graph so journeys
 // can route over the cable line (spec §6.1; shared router handles the edges).
-bus.on('cable:ready', () => {
+// A graph already built is rebuilt now, while the rider is not waiting on it —
+// it blocks the thread ~0.5 s even on a desktop CPU — instead of on their next
+// "Buscar ruta"; one never built stays lazy.
+function invalidateRouter(): void {
+  const wasBuilt = routerReady;
   routerReady = false;
-});
+  if (!wasBuilt) return;
+  const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 200));
+  idle(() => ensureRouter());
+}
+bus.on('stops:ready', invalidateRouter);
+bus.on('cable:ready', invalidateRouter);
 // Measured speeds and real headways (spec §5.6.5) — fetched once, then re-applied
 // by every graph rebuild. The planner keeps its constants if the load fails.
 let calibrationRequested = false;
@@ -961,7 +968,7 @@ function renderPlans(
       const line =
         step.type === 'walk'
           ? `${clock}Camina ${formatDistance(step.distance)} hasta ${step.toName}`
-          : `${clock}Toma ${step.routeCode} hasta ${step.toName}${step.stopCount ? ` · ${step.stopCount} paradas` : ''}`;
+          : `${clock}Toma ${step.routeCode} hasta ${step.toName}${step.stopCount ? ` · ${step.stopCount} ${step.stopCount === 1 ? 'parada' : 'paradas'}` : ''}`;
       detail.append(h('div', { class: 'plan-step', text: line }));
 
       if (step.type !== 'ride') continue;
@@ -1031,4 +1038,5 @@ function renderPlans(
     card.append(guideBtn);
     host.append(card);
   });
+  host.append(h('p', { class: 'pl-credit', html: FOOT_CREDIT_HTML }));
 }
