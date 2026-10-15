@@ -94,13 +94,19 @@ export function createInicioView(): View {
     const show = newest !== undefined && Date.now() - newest.at <= BANNER_MAX_AGE_MS;
     novedadesCard.classList.toggle('hidden', !show);
     if (!newest || !show) return;
+    const count = novedades.length;
+    // The bare count on screen needs its words for a screen reader.
+    novedadesCard.setAttribute(
+      'aria-label',
+      `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`
+    );
     novedadesCard.replaceChildren(
-      h('span', { class: 'novedades-eyebrow', text: `TransMilenio · #TMAhora · ${ago(newest.at)}` }),
-      h('span', { class: 'novedades-headline', text: headline(newest.text) }),
-      h('span', {
-        class: 'novedades-more',
-        text: novedades.length === 1 ? 'Ver la novedad ›' : `Ver las ${novedades.length} novedades de hoy ›`,
-      })
+      h('span', { class: 'status-dot warn' }),
+      h('span', { class: 'novedades-card-text' }, [
+        h('span', { class: 'novedades-meta', text: `TransMilenio · ${ago(newest.at)}` }),
+        h('span', { class: 'novedades-headline', text: headline(newest.text) }),
+      ]),
+      h('span', { class: 'novedades-more', 'aria-hidden': 'true', text: `${count} ›` })
     );
   }
   novedadesCard.addEventListener('click', () => {

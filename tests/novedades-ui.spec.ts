@@ -34,7 +34,7 @@ test('a recent post shows in the banner, and the banner opens the page', async (
   await expect(banner).toBeVisible();
   await expect(banner).toContainText('hace 12 min');
   await expect(banner).toContainText('Manifestación número 1');
-  await expect(banner).toContainText('las 2 novedades');
+  await expect(banner).toHaveAttribute('aria-label', /Manifestación número 1.*las 2 novedades de hoy/);
 
   await banner.click();
   await expect(page).toHaveURL(/\/novedades\/$/);

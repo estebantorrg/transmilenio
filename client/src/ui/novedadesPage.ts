@@ -36,10 +36,17 @@ function renderBanner(): void {
     return;
   }
   const count = latest!.items.length;
+  // The bare count on screen needs its words for a screen reader.
+  banner.setAttribute(
+    'aria-label',
+    `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`
+  );
   banner.innerHTML =
-    `<p class="aviso-eyebrow">TransMilenio · #TMAhora · ${escapeHTML(ago(newest.at))}</p>` +
-    `<p class="aviso-titulo">${escapeHTML(headline(newest.text))}</p>` +
-    `<p class="aviso-detalle">Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy ›</p>`;
+    `<span class="novedades-banner-text">` +
+    `<span class="novedades-banner-meta">TransMilenio · ${escapeHTML(ago(newest.at))}</span>` +
+    `<span class="novedades-banner-title">${escapeHTML(headline(newest.text))}</span>` +
+    `</span>` +
+    `<span class="novedades-banner-more" aria-hidden="true">${count} ›</span>`;
   banner.hidden = false;
 }
 
@@ -104,7 +111,7 @@ async function refresh(): Promise<void> {
 export function initNovedades(): void {
   document.querySelector('.sidebar-tabs')?.insertAdjacentHTML(
     'afterend',
-    `<a id="novedades-banner" class="aviso novedades-banner" href="${PAGE_PATH}" hidden></a>`
+    `<a id="novedades-banner" class="novedades-banner" href="${PAGE_PATH}" hidden></a>`
   );
   registerPageResolver((pathname) => (pathname.replace(/\/?$/, '/') === PAGE_PATH ? page : null));
   if (location.pathname.replace(/\/?$/, '/') === PAGE_PATH) openOverlayPage(page, { push: false });
