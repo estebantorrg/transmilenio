@@ -218,6 +218,31 @@ test.describe('schedule-aware routing', () => {
     expect([...strict]).toEqual(['DAY']);
   });
 
+  test('a closed route is listed after a running one, however quick it looks', () => {
+    // At 23:30 LATE has closed, so it is charged no wait (there is no next bus),
+    // and its fictional minutes beat OPEN's — which detours far enough to fall
+    // past the search's slack. Ranked on those minutes LATE was offered first,
+    // and OPEN not at all.
+    const at = (codigo: string, lng: number, lat: number) => ({ nombre: codigo, codigo, coordinate: [lng, lat] as [number, number], kind: 'stop' as const });
+    const route = (id: string, closes: string, ...stops: Array<ReturnType<typeof at>>): RouteListItem => ({
+      ...line(id, spans([['L-D', '4:30 AM', closes]])),
+      stops,
+    });
+    initRouter([
+      route('late', '11:00 PM', at('L1', -74.07, 4.6), at('L2', -74.07, 4.63)),
+      route('open', '11:59 PM', at('O1', -74.0712, 4.6), at('O2', -74.04, 4.615), at('O3', -74.0712, 4.63)),
+    ]);
+    const codes = findRoutes({
+      ...search,
+      origin: [-74.0702, 4.5995],
+      destination: [-74.0702, 4.6305],
+      sortBy: 'transfers',
+      departAt: { ...FRIDAY, minute: 23 * 60 + 30 },
+    }).map((plan) => plan.steps.find((step) => step.type === 'ride')?.routeCode);
+    expect(codes[0]).toBe('OPEN');
+    expect(codes).toContain('LATE');
+  });
+
   test('a service that runs all day outranks an equally fast peak-only one', () => {
     initRouter([
       line('allday', spans([['L-D', '4:30 AM', '11:00 PM']])),

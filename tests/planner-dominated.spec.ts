@@ -49,6 +49,38 @@ test('a bus slower and longer on foot than walking the whole way is not offered'
   expect(plans.map(rides)).toEqual([[]]);
 });
 
+test('a plan never ends walking to a stop only to walk on to the destination', () => {
+  // Twelve paraderos crowd the destination, so the 621's last stop (650 m out)
+  // is not one of its candidates; the cluster's far end is a 440 m transfer walk
+  // from it. That used to end the plan "walk to that paradero, then walk on".
+  const m = (metres: number): number => 4.6 + metres / 111320;
+  const cluster = Array.from({ length: 12 }, (_, i) => paradero(`C${i}`, -74.07, m(100 + i * 10)));
+  initRouter([
+    zonal('621', paradero('ORI', -74.07, m(-3000)), paradero('ALT', -74.07, m(650))),
+    zonal('Z1', ...cluster),
+  ]);
+  const plans = plan([-74.07, m(-3000)], [-74.07, m(0)]);
+  expect(plans.length).toBeGreaterThan(0);
+  for (const p of plans) {
+    const walkAfterWalk = p.steps.some((s, i) => i > 0 && s.type === 'walk' && p.steps[i - 1].type === 'walk');
+    expect(walkAfterWalk).toBe(false);
+  }
+  expect(plans[0].steps.map((s) => s.toCode)).toEqual(['ALT', 'END']);
+});
+
+test('a route whose own stop is a short walk away is used, however many stops are nearer', () => {
+  // Twelve paraderos within 210 m; the 621 stops 420 m from the destination.
+  // As the thirteenth-nearest stop it could not be left there at all.
+  const m = (metres: number): number => 4.6 + metres / 111320;
+  const cluster = Array.from({ length: 12 }, (_, i) => paradero(`C${i}`, -74.07, m(-100 - i * 10)));
+  initRouter([
+    zonal('621', paradero('ORI', -74.07, m(3000)), paradero('NEAR', -74.07, m(420)), paradero('FAR', -74.07, m(-1100))),
+    zonal('Z1', ...cluster),
+  ]);
+  const [best] = plan([-74.07, m(3000)], [-74.07, m(0)]);
+  expect(best.steps.map((s) => s.toCode)).toEqual(['NEAR', 'END']);
+});
+
 test('no plan rides one stop past the destination to walk back', () => {
   initRouter([zonal('621', TEUSAQUILLO, MAGDALENA, ALCALDIA, NORTE)]);
   // From beside Teusaquillo to a door beside Alcaldía: NORTE is one stop on and

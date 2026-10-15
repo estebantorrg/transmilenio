@@ -459,6 +459,8 @@ const WALK_TRANSFER_THRESHOLD_M = 500;
 const MAX_WALK_NEIGHBORS = 6;
 const ACCESS_SEARCH_RADIUS_M = 1500;
 const ACCESS_CANDIDATE_LIMIT = 12;
+// Every compatible stop this close is a candidate, however many nearer ones exist.
+const ACCESS_ALL_WITHIN_M = 600;
 // Stations guaranteed as access candidates in mixed mode even when paraderos
 // crowd them out of the nearest-N list (a slightly longer walk to a troncal
 // station is often the far better trip).
@@ -699,9 +701,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
     // question directly, though: a stop is in the recorrido because the bus
     // stops there. `busType` stays only as a second signal, for a variant whose
     // street stops happen to be coded as stations.
-    const streetStops =
-      /PADR[OÓ]N/i.test(String(route.busType ?? '')) ||
-      stops.some((stop) => stop.kind !== 'station');
+    const streetStops = servesStreetStops(route);
     const speed = route.type === 'troncal' ? TRONCAL_SPEED_M_PER_MINUTE : ZONAL_SPEED_M_PER_MINUTE;
     const dwell = route.type === 'troncal' ? TRONCAL_DWELL_MINUTES : ZONAL_DWELL_MINUTES;
     const routeIdx = routeIndexById.get(route.id)!;
@@ -1192,18 +1192,21 @@ export function refreshRouteTrace(routeId: string): void {
   else traceIndexById.delete(routeId);
 }
 
-/** Public schedule of a route variant, for the UIs' service labels. */
-/** Whether this route variant calls at street paraderos (`GraphEdge.streetStops`). */
-export function routeServesStreetStops(routeId: string | undefined): boolean {
-  if (!routeId) return false;
-  const route = routesById.get(routeId);
-  if (!route) return false;
-  return (
-    /PADR[OÓ]N/i.test(String(route.busType ?? '')) ||
-    (route.stops ?? []).some((stop) => stop.kind !== 'station')
-  );
+/**
+ * Whether this route variant calls at street paraderos (`GraphEdge.streetStops`).
+ * One rule for the search's edge gate and the plan validator: the two disagreeing
+ * is how padrón routes were once severed at their first street stop.
+ */
+function servesStreetStops(route: RouteListItem): boolean {
+  return /PADR[OÓ]N/i.test(String(route.busType ?? '')) || (route.stops ?? []).some((stop) => stop.kind !== 'station');
 }
 
+export function routeServesStreetStops(routeId: string | undefined): boolean {
+  const route = routeId ? routesById.get(routeId) : undefined;
+  return route ? servesStreetStops(route) : false;
+}
+
+/** Public schedule of a route variant, for the UIs' service labels. */
 export function getRouteServiceSpans(routeId: string | undefined): ServiceSpan[] | undefined {
   if (!routeId) return undefined;
   return routesById.get(routeId)?.serviceSpans;
@@ -1571,7 +1574,13 @@ function findAccessNodes(
       .filter(({ stop }) => isStopCompatible(stop, mode) && !seenCodes.has(stop.codigo))
       .sort((a, b) => a.distance - b.distance);
 
-    for (const { stop, distance } of inRadius.slice(0, limit)) {
+    // The nearest N, and past them every stop still a short walk away: in a
+    // dense area twelve paraderos sit within 300 m, and a route whose own stop
+    // was 420 m off could not be boarded or left there at all — it rode on to a
+    // station a kilometre away instead.
+    const allWithin = selectedCode ? 0 : ACCESS_ALL_WITHIN_M;
+    for (const [rank, { stop, distance }] of inRadius.entries()) {
+      if (rank >= limit && distance > allWithin) break;
       candidates.push(accessNode(stop.codigo, distance));
       seenCodes.add(stop.codigo);
     }
@@ -1652,6 +1661,10 @@ function dropDominated(plans: JourneyPlan[]): void {
 function sortJourneyPlans(plans: JourneyPlan[], sortBy?: 'transfers' | 'time' | 'walk'): void {
   const sortCriteria = sortBy || 'transfers';
   plans.sort((a, b) => {
+    // A closed boarding is charged no wait (it has no next bus to wait for), so
+    // its minutes are fiction: it is shown for what exists, after what runs.
+    const closed = Number(Boolean(a.outsideService)) - Number(Boolean(b.outsideService));
+    if (closed !== 0) return closed;
     if (sortCriteria === 'transfers') {
       return a.transfers - b.transfers || ranked(a) - ranked(b) || a.walkDistance - b.walkDistance;
     } else if (sortCriteria === 'time') {
@@ -1798,19 +1811,27 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     const bestCost = bestCosts.get(currentKey);
     if (bestCost !== undefined && current.cost > bestCost) continue;
 
-    const egressDistance = destByIdx.get(current.nodeIdx);
     // A journey candidate must contain at least one ride (pure walking is the
-    // explicit fallback plan). An arrival straight off a transfer walk whose
-    // alighting node is itself a destination candidate is dominated by ending
-    // there (straight-line egress obeys the triangle inequality) — skip it.
-    const walkArrivalParent = current.routeIdx === walkingRouteIdx && current.parentKey !== null
-      ? stateRegistry.get(current.parentKey)?.nodeIdx
-      : undefined;
-    const dominatedWalkArrival = walkArrivalParent !== undefined && destByIdx.has(walkArrivalParent);
-    if (egressDistance !== undefined && current.hasRidden && !dominatedWalkArrival) {
-      const endCost = current.cost + egressDistance / WALK_SPEED_M_PER_MINUTE + egressDistance * walkPrimary;
+    // explicit fallback plan). A transfer walk straight into the egress is one
+    // walk from the stop where the bus was left, never "walk to that stop, then
+    // walk on" (60 of 300 benched trips showed one): the arrival is recorded at
+    // the alighting stop, egress measured from there. A tunnel is a real leg and
+    // stays; an alighting stop that is itself a candidate was recorded already.
+    let arrival = current;
+    let egressDistance = destByIdx.get(current.nodeIdx);
+    if (egressDistance !== undefined && current.routeIdx === walkingRouteIdx && current.parentKey !== null) {
+      const parent = stateRegistry.get(current.parentKey);
+      if (parent && !hasTunnelConnection(stopList[parent.nodeIdx], stopList[current.nodeIdx])) {
+        arrival = parent;
+        egressDistance = destByIdx.has(parent.nodeIdx)
+          ? undefined
+          : walkMeters(getDistance(stopList[parent.nodeIdx].coordinate, destination));
+      }
+    }
+    if (egressDistance !== undefined && arrival.hasRidden) {
+      const endCost = arrival.cost + egressDistance / WALK_SPEED_M_PER_MINUTE + egressDistance * walkPrimary;
       if (endCost < bestEndCost) bestEndCost = endCost;
-      results.push({ state: current, egressDistance, endCost });
+      results.push({ state: arrival, egressDistance, endCost });
       if (results.length >= TERMINAL_HARD_CAP) break;
     }
 
@@ -2178,6 +2199,14 @@ export function findRoutes(params: RouteSearchParams, out?: { candidates?: Journ
     }
   }
 
+  // 1c. The unfiltered search charges a closed boarding no wait, so a closed
+  // route's fictional minutes can push every running one past the search's
+  // slack. When every plan it found is closed, ask for the running ones too.
+  if (plans.length > 0 && search.enforceSchedules !== true && plans.every((plan) => plan.outsideService)) {
+    const running = findRoutesCore({ ...search, enforceSchedules: true });
+    if (running.length > 0) plans = [...running, ...plans].slice(0, PLAN_CANDIDATE_POOL);
+  }
+
   // 2. Walking-only plan: the sole option when no transit exists under the
   // selected filter, and a competing option whenever plain walking would beat
   // every transit plan door-to-door (common on sub-km trips once waits are
@@ -2315,7 +2344,9 @@ function loadPersistedWalkCache(): void {
     const raw = store.getItem(WALK_CACHE_STORAGE_KEY);
     if (!raw) return;
     const parsed = JSON.parse(raw) as Record<string, [number, number, number[][]]>;
-    for (const [key, value] of Object.entries(parsed)) {
+    // Stored newest first; inserted oldest first, so the Map's order (what
+    // `persistWalkCache` evicts by) survives the round trip instead of flipping.
+    for (const [key, value] of Object.entries(parsed).reverse()) {
       if (!Array.isArray(value) || value.length !== 3 || !Array.isArray(value[2])) continue;
       // Distance and time are read back into arithmetic that has no other guard:
       // one `null` or `"812"` in a hand-edited or half-written store turns a
@@ -2370,7 +2401,13 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
   const orient = (result: WalkingPathResult): WalkingPathResult => (flipped ? reverseWalk(result) : result);
 
   const cached = walkingCache.get(key);
-  if (cached) return orient(cached);
+  if (cached) {
+    // Used again = recent again: a commuter's daily legs must not be the first evicted.
+    walkingCache.delete(key);
+    walkingCache.set(key, cached);
+    walkingCacheDirty = true;
+    return orient(cached);
+  }
   const pending = walkingInFlight.get(key);
   if (pending) return pending.then(orient);
 
@@ -2450,8 +2487,10 @@ async function runBounded<T>(
   await Promise.all(workers);
 }
 
-/** Concurrent pedestrian lookups. One public router, one short queue. */
-const WALK_FETCH_CONCURRENCY = 6;
+/** Pedestrian lookups in flight at once. The public router takes one a second
+ *  (`shared/osrm_foot.js` paces every transport), so more than one waiting buys
+ *  nothing — at six, the server's queue turned the last of them away. */
+const WALK_FETCH_CONCURRENCY = 2;
 
 export function isTunnelTransfer(fromCode: string, toCode: string): boolean {
   const fromStop = uniqueStops.get(fromCode);
