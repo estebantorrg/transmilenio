@@ -2,8 +2,8 @@ import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Novedades on the website (`client/src/ui/novedadesPage.ts`, spec §5.5.9): a
- * banner under the sidebar tabs while the newest #TMAhora post is recent, and
- * the `/novedades/` page with the last day's posts. The API is stubbed, so the
+ * banner at the top of Explorar while the newest #TMAhora post is recent and
+ * unseen, and the `/novedades/` page with the last day's posts. The API is stubbed, so the
  * test does not depend on what TransMilenio posted today or on X answering.
  */
 
@@ -18,6 +18,7 @@ const post = (minutesAgo: number, n: number) => ({
 });
 
 async function boot(page: Page, items: ReturnType<typeof post>[], path = '/'): Promise<void> {
+  await page.unroute('**/api/novedades');
   await page.route('**/api/novedades', (route) =>
     route.fulfill({
       json: { success: true, items, status: { lastAttemptAt: Date.now(), lastOkAt: Date.now(), lastError: null } },
@@ -34,9 +35,10 @@ test('a recent post shows in the banner, and the banner opens the page', async (
   await expect(banner).toBeVisible();
   await expect(banner).toContainText('hace 12 min');
   await expect(banner).toContainText('Manifestación número 1');
-  await expect(banner).toHaveAttribute('aria-label', /Manifestación número 1.*las 2 novedades de hoy/);
+  const link = banner.locator('.novedades-banner-link');
+  await expect(link).toHaveAttribute('aria-label', /Manifestación número 1.*las 2 novedades de hoy/);
 
-  await banner.click();
+  await link.click();
   await expect(page).toHaveURL(/\/novedades\/$/);
   const items = page.locator('#novedades-page .novedades-lista > li');
   await expect(items).toHaveCount(2);
@@ -59,3 +61,32 @@ test('/novedades/ opens straight on the page', async ({ page }) => {
   await expect(page.locator('#novedades-page h1')).toHaveText('Novedades de la operación');
   await expect(page.locator('#novedades-page .novedades-lista > li')).toHaveCount(1);
 });
+
+test('the banner is part of Explorar, not of Cerca or Planear', async ({ page }) => {
+  await boot(page, [post(12, 1)]);
+  await expect(page.locator('#novedades-banner')).toBeVisible();
+  await page.locator('#tab-planner').click();
+  await expect(page.locator('#novedades-banner')).toBeHidden();
+  await page.locator('#tab-explore').click();
+  await expect(page.locator('#novedades-banner')).toBeVisible();
+});
+
+test('closing the banner keeps it down until TransMilenio posts again', async ({ page }) => {
+  await boot(page, [post(12, 1)]);
+  await page.locator('#novedades-banner .novedades-banner-close').click();
+  await expect(page.locator('#novedades-banner')).toBeHidden();
+
+  await boot(page, [post(12, 1)]);
+  await expect(page.locator('#novedades-banner')).toBeHidden();
+
+  await boot(page, [post(1, 2), post(12, 1)]);
+  await expect(page.locator('#novedades-banner')).toContainText('Manifestación número 2');
+});
+
+test('reading the page counts as seeing the banner', async ({ page }) => {
+  await boot(page, [post(5, 1)], '/novedades/');
+  await expect(page.locator('#novedades-page .novedades-lista > li')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#novedades-banner')).toBeHidden();
+});
+

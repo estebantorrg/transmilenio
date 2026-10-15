@@ -1,10 +1,10 @@
 /**
  * Novedades de la operación — TransMilenio's `#TMAhora` posts (spec §5.5.9).
  *
- * Two surfaces. A banner under the sidebar tabs, only while the newest post is
- * recent: an old detour shown as if it were current is worse than none, so
- * past {@link BANNER_MAX_AGE_MS} the banner goes and the posts are left to the
- * page. And the page, `/novedades/`, in the same shell as every other page
+ * Two surfaces. A banner at the top of Explorar (never over Cerca or Planear),
+ * shown like an unread notice: only for a post newer than the last one the rider
+ * saw — by opening the page or closing the banner — and only while it is recent,
+ * since an old detour shown as current is worse than none (`bannerPost`). And the page, `/novedades/`, in the same shell as every other page
  * (`pageShell.ts`): the last day's posts, newest first, each with when it was
  * posted and a link to it on X.
  *
@@ -18,7 +18,7 @@ import { api, type NovedadesResponse } from '../services/api';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
 import { escapeHTML } from '../utils/html';
 import { crumbsHtml, mastheadHtml, openOverlayPage, refreshOverlayPage, registerPageResolver, type OverlayPage } from './pageShell';
-import { BANNER_MAX_AGE_MS, PROFILE_URL as CHANNEL_URL, ago, clock, headline, postText } from '../../../shared/novedades.js';
+import { PROFILE_URL as CHANNEL_URL, SEEN_STORAGE_KEY, ago, bannerPost, clock, headline, postText } from '../../../shared/novedades.js';
 
 const PAGE_PATH = '/novedades/';
 const REFRESH_MS = 3 * 60_000;
@@ -27,26 +27,47 @@ const SOURCE_STALE_MS = 15 * 60_000;
 
 let latest: NovedadesResponse | null = null;
 
+function seenAt(): number {
+  try {
+    return Number(localStorage.getItem(SEEN_STORAGE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** The newest post counts as seen: the banner stays down until a newer one. */
+function markSeen(): void {
+  const newest = latest?.items[0];
+  if (!newest) return;
+  try {
+    localStorage.setItem(SEEN_STORAGE_KEY, String(newest.at));
+  } catch {
+    // Blocked storage: the banner simply comes back on the next load.
+  }
+  renderBanner();
+}
+
 function renderBanner(): void {
   const banner = document.getElementById('novedades-banner');
   if (!banner) return;
-  const newest = latest?.items[0];
-  if (!newest || Date.now() - newest.at > BANNER_MAX_AGE_MS) {
+  const newest = bannerPost(latest?.items, seenAt());
+  if (!newest) {
     banner.hidden = true;
     return;
   }
   const count = latest!.items.length;
   // The bare count on screen needs its words for a screen reader.
-  banner.setAttribute(
-    'aria-label',
-    `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`
-  );
+  const label = `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`;
   banner.innerHTML =
+    `<a class="novedades-banner-link" href="${PAGE_PATH}" aria-label="${escapeHTML(label)}">` +
     `<span class="novedades-banner-text">` +
     `<span class="novedades-banner-meta">TransMilenio · ${escapeHTML(ago(newest.at))}</span>` +
     `<span class="novedades-banner-title">${escapeHTML(headline(newest.text))}</span>` +
     `</span>` +
-    `<span class="novedades-banner-more" aria-hidden="true">${count} ›</span>`;
+    `<span class="novedades-banner-more" aria-hidden="true">${count} ›</span>` +
+    `</a>` +
+    `<button type="button" class="novedades-banner-close" aria-label="Ocultar hasta la próxima novedad" title="Ocultar">×</button>`;
+  banner.querySelector('.novedades-banner-close')?.addEventListener('click', markSeen);
   banner.hidden = false;
 }
 
@@ -92,7 +113,8 @@ const page: OverlayPage = {
   // Notices are the yellow of the operator's own (`ui/avisos.ts`).
   accent: 'var(--tm-yellow)',
   render: pageHtml,
-  wire: () => {},
+  // Reading the list is seeing what it holds.
+  wire: () => markSeen(),
   onLeave: () => {},
 };
 
@@ -109,9 +131,11 @@ async function refresh(): Promise<void> {
 
 /** Banner + page. Called once from `main.ts`, after `initPageShell`. */
 export function initNovedades(): void {
-  document.querySelector('.sidebar-tabs')?.insertAdjacentHTML(
-    'afterend',
-    `<a id="novedades-banner" class="novedades-banner" href="${PAGE_PATH}" hidden></a>`
+  // Inside Explorar only: over Cerca and Planear it was a notice in the way of
+  // a task already under way.
+  document.getElementById('explore-panel')?.insertAdjacentHTML(
+    'afterbegin',
+    `<div id="novedades-banner" class="novedades-banner" hidden></div>`
   );
   registerPageResolver((pathname) => (pathname.replace(/\/?$/, '/') === PAGE_PATH ? page : null));
   if (location.pathname.replace(/\/?$/, '/') === PAGE_PATH) openOverlayPage(page, { push: false });

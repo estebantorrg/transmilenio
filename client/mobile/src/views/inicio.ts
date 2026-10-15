@@ -5,7 +5,7 @@ import { closedWindowNotice, liveWindowLabel } from '@shared/services/liveWindow
 import { h, haptic } from '../lib/dom';
 import { formatClock, greeting, needsDarkText } from '../lib/format';
 import { bus, state } from '../state';
-import { getFavorites, getRecents } from '../lib/storage';
+import { getFavorites, getRecents, loadJSON, saveJSON } from '../lib/storage';
 import { app } from '../appContext';
 import { WEB_ORIGIN, openRouteSheet } from '../ui/detailSheets';
 import { legalLinksHtml } from '../../../../shared/legal.js';
@@ -13,7 +13,7 @@ import { ICONS, routeBadge } from '../ui/components';
 import { canInstallInApp, dismissUpdate, findUpdate, installUpdate } from '../services/appUpdate';
 import { refreshNovedades, type Novedad } from '../services/novedades';
 import { openSheet } from '../ui/sheet';
-import { BANNER_MAX_AGE_MS, ago, clock, headline, postText } from '../../../../shared/novedades.js';
+import { SEEN_STORAGE_KEY, ago, bannerPost, clock, headline, postText } from '../../../../shared/novedades.js';
 import type { View } from './types';
 
 const NOVEDADES_REFRESH_MS = 3 * 60_000;
@@ -87,20 +87,29 @@ export function createInicioView(): View {
   // ── Novedades (spec §5.5.9) ──
   // Only while the newest post is recent: an old detour shown as current is
   // worse than none. The whole day's posts stay a tap away in the sheet.
-  const novedadesCard = h('button', { class: 'novedades-card hidden', type: 'button' });
+  // Shown like an unread notice (`bannerPost`): TransMilenio posts most hours, so
+  // "recent" alone kept it up all day. Opening the list or closing the card marks
+  // the newest post seen, and the card stays down until a newer one.
+  const novedadesOpen = h('button', { class: 'novedades-open', type: 'button' });
+  const novedadesClose = h('button', {
+    class: 'novedades-close',
+    type: 'button',
+    'aria-label': 'Ocultar hasta la próxima novedad',
+    text: '×',
+  });
+  const novedadesCard = h('div', { class: 'novedades-card hidden' }, [novedadesOpen, novedadesClose]);
   let novedades: Novedad[] = [];
   function renderNovedades(): void {
-    const newest = novedades[0];
-    const show = newest !== undefined && Date.now() - newest.at <= BANNER_MAX_AGE_MS;
-    novedadesCard.classList.toggle('hidden', !show);
-    if (!newest || !show) return;
+    const newest = bannerPost(novedades, loadJSON<number>(SEEN_STORAGE_KEY) ?? 0);
+    novedadesCard.classList.toggle('hidden', !newest);
+    if (!newest) return;
     const count = novedades.length;
     // The bare count on screen needs its words for a screen reader.
-    novedadesCard.setAttribute(
+    novedadesOpen.setAttribute(
       'aria-label',
       `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`
     );
-    novedadesCard.replaceChildren(
+    novedadesOpen.replaceChildren(
       h('span', { class: 'status-dot warn' }),
       h('span', { class: 'novedades-card-text' }, [
         h('span', { class: 'novedades-meta', text: `TransMilenio · ${ago(newest.at)}` }),
@@ -109,9 +118,18 @@ export function createInicioView(): View {
       h('span', { class: 'novedades-more', 'aria-hidden': 'true', text: `${count} ›` })
     );
   }
-  novedadesCard.addEventListener('click', () => {
+  const markNovedadesSeen = (): void => {
+    if (novedades[0]) saveJSON(SEEN_STORAGE_KEY, novedades[0].at);
+    renderNovedades();
+  };
+  novedadesOpen.addEventListener('click', () => {
     haptic('light');
     openNovedadesSheet(novedades);
+    markNovedadesSeen();
+  });
+  novedadesClose.addEventListener('click', () => {
+    haptic('light');
+    markNovedadesSeen();
   });
   const loadNovedades = (): void => {
     void refreshNovedades().then((items) => {

@@ -6290,25 +6290,33 @@ body.native-app .route-detail-close:active {
 .station-avisos { margin-top: 18px; }
 
 /* Novedades (`ui/novedadesPage.ts`, spec §5.5.9): TransMilenio's #TMAhora
-   posts. The banner is a link to the page, in the search bar's own card so it
-   sits in the sidebar; only its dot carries the notices' yellow. */
+   posts. The banner — a link to the page and a close button — is in the search
+   bar's own card so it sits in the sidebar; only its dot carries the notices'
+   yellow. */
 .novedades-banner {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
+  display: flex;
   margin: 10px 16px 0;
-  padding: 7px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-card);
   border-radius: var(--radius-md);
-  color: var(--text-primary);
-  text-decoration: none;
+  overflow: hidden;
 }
 
 .novedades-banner[hidden] { display: none; }
 
-.novedades-banner::before {
+.novedades-banner-link {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px 7px 12px;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.novedades-banner-link::before {
   content: '';
   width: 8px;
   height: 8px;
@@ -6316,10 +6324,25 @@ body.native-app .route-detail-close:active {
   background: var(--tm-yellow);
 }
 
-.novedades-banner:hover,
-.novedades-banner:focus-visible {
+.novedades-banner-link:hover,
+.novedades-banner-link:focus-visible,
+.novedades-banner-close:hover,
+.novedades-banner-close:focus-visible {
   background: var(--bg-hover);
 }
+
+.novedades-banner-close {
+  flex: none;
+  width: 34px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.novedades-banner-close:hover { color: var(--text-primary); }
 
 .novedades-banner-meta {
   display: block;

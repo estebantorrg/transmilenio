@@ -22,6 +22,21 @@ export const PROFILE_HEADERS = {
 export const KEEP_MS = 24 * 3_600_000;
 export const BANNER_MAX_AGE_MS = 3 * 3_600_000;
 
+/** Per-device memory of the newest post the rider has seen (its `at`). */
+export const SEEN_STORAGE_KEY = 'tm.novedades.seenAt';
+
+/**
+ * The post to put up front, or null. TransMilenio posts #TMAhora most hours of
+ * the day, so "recent" alone kept the banner up all day long; it is shown like an
+ * unread notice instead — only for a post newer than the last one the rider saw
+ * (opened the list, or closed the banner on).
+ */
+export function bannerPost(items, seenAt = 0, now = Date.now()) {
+  const newest = items?.[0];
+  if (!newest || now - newest.at > BANNER_MAX_AGE_MS || newest.at <= seenAt) return null;
+  return newest;
+}
+
 /** A string literal as the page serialises it (JSON escapes, plus `\xNN`). */
 function unescapeLiteral(raw) {
   try {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { getNovedades, pollNovedades } from '../server/src/services/novedades.ts';
-import { ago, extractPosts, headline, postText } from '../shared/novedades.js';
+import { ago, bannerPost, extractPosts, headline, postText } from '../shared/novedades.js';
 
 /**
  * TransMilenio's #TMAhora posts read off its X profile page
@@ -81,4 +81,17 @@ test.describe('reading #TMAhora off the profile page', () => {
     await pollNovedades((async () => new Response('', { status: 503 })) as typeof fetch, dayLater);
     expect(getNovedades().items.map((p) => p.id)).toEqual([]);
   });
+});
+
+test('the banner shows a recent post the rider has not seen yet, and nothing else', () => {
+  const now = Date.UTC(2026, 9, 14, 20);
+  const post = (minutesAgo: number) => ({ id: String(minutesAgo), at: now - minutesAgo * 60_000, text: '#TMAhora', url: '' });
+  const items = [post(12), post(40)];
+  expect(bannerPost(items, 0, now)).toBe(items[0]);
+  // Seen (opened or closed): down until TransMilenio posts again.
+  expect(bannerPost(items, items[0].at, now)).toBeNull();
+  expect(bannerPost([post(2), ...items], items[0].at, now)?.id).toBe('2');
+  // Unseen but old: an old detour shown as current is worse than none.
+  expect(bannerPost([post(4 * 60)], 0, now)).toBeNull();
+  expect(bannerPost([], 0, now)).toBeNull();
 });

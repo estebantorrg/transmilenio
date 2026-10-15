@@ -17,6 +17,9 @@ export declare const PROFILE_URL: string;
 export declare const PROFILE_HEADERS: Record<string, string>;
 export declare const KEEP_MS: number;
 export declare const BANNER_MAX_AGE_MS: number;
+export declare const SEEN_STORAGE_KEY: string;
+
+export declare function bannerPost(items: Novedad[] | undefined, seenAt?: number, now?: number): Novedad | null;
 
 export declare function extractPosts(html: string): Novedad[];
 export declare function postText(text: string): string;
