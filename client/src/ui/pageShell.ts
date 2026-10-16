@@ -22,6 +22,7 @@
  */
 
 import { escapeHTML } from '../utils/html';
+import type { Resumen } from '../../../shared/resumen.js';
 
 const CHROME_IDS = ['map', 'sidebar', 'sidebar-fab'];
 
@@ -324,6 +325,19 @@ export function factsHtml(items: Array<{ label: string; value: string | null | u
     )
     .join('');
   return cells ? `<dl class="page-facts">${cells}</dl>` : '';
+}
+
+/** The search questions a page answers (`shared/resumen.js`), a section each —
+ *  the same ones the prerendered body carries (spec §5.5.4). */
+export function resumenesHtml(resumenes: Array<Resumen | null>): string {
+  return resumenes
+    .filter((r): r is Resumen => r !== null)
+    .map((r, i) => `
+      <section class="page-section" aria-labelledby="resumen-h-${i}">
+        <h2 class="page-section-title" id="resumen-h-${i}">${escapeHTML(r.pregunta)}</h2>
+        <p class="page-note">${escapeHTML(r.respuesta)}</p>
+      </section>`)
+    .join('');
 }
 
 /** `Inicio › Ruta G47` — the last item is the page itself and is never a link.

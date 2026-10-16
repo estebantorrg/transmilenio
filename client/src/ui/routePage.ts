@@ -27,6 +27,7 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
+import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import { api } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
@@ -50,6 +51,7 @@ import {
   openOverlayPage,
   refreshOverlayPage,
   registerPageResolver,
+  resumenesHtml,
   type OverlayPage,
 } from './pageShell';
 import { routesWithCode } from './sidebar';
@@ -263,6 +265,11 @@ function render(route: RouteListItem): string {
   const statusRoute = cabeceraSpans ? { ...route, serviceSpans: cabeceraSpans } : route;
   const rutero = hasRutero(route) ? ruteroBlock(route) : '';
   const stopCount = route.stops?.length ?? 0;
+  // The same questions the prerendered page answers (`shared/resumen.js`).
+  const resumenes = resumenesHtml([
+    resumenRuta(route.code, (route.stops ?? []).map((stop) => tidy(stop.nombre))),
+    horarioRuta(route.code, route.schedule),
+  ]);
 
   const facts = factsHtml([
     { label: 'Paradas', value: stopCount ? String(stopCount) : null },
@@ -301,6 +308,8 @@ function render(route: RouteListItem): string {
       </header>
 
       ${facts}
+
+      ${resumenes}
 
       <div class="route-rutero-slot">${tablaRuteroSection(route)}</div>
 

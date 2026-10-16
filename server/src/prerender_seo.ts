@@ -36,6 +36,7 @@ import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../share
 import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
 import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
+import { horarioRuta, resumenEstacion, resumenRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
@@ -704,6 +705,23 @@ ${legalDocHtml(doc)}
   return { url, title: doc.titulo, description: clamp(doc.descripcion), jsonLd, body, noindex: Boolean(doc.noindex) };
 }
 
+/** The search question the page answers, as its own section (`shared/resumen.js`). */
+function resumenHtml(resumen: Resumen | null): string {
+  return resumen
+    ? `<section class="sec">\n<h2>${escapeHtml(resumen.pregunta)}</h2>\n<p class="sub">${escapeHtml(resumen.respuesta)}</p>\n</section>`
+    : '';
+}
+
+/** The station's question, troncal códigos apart from feeders the way its page splits them. */
+function resumenEstacionDe(nombre: string, routes: LightWagonEntry[]): Resumen | null {
+  const zonal = (route: LightWagonEntry) => isZonalService(route.sistema, route.tipoServicio);
+  return resumenEstacion(
+    nombre,
+    routes.filter((route) => !zonal(route)).map((route) => route.codigo),
+    routes.filter(zonal).map((route) => route.codigo)
+  );
+}
+
 // ─── Route pages ──────────────────────────────────────────
 function renderRoute(
   codigo: string,
@@ -818,6 +836,14 @@ ${items}
     { label: 'Horario', value: horarios.split(' · ')[0] || null },
   ]);
 
+  // The schedule in the form the bundle reads it (`formatScheduleText`,
+  // client/src/data/routeCatalog.ts), so both pages word the hours alike.
+  const horario = (primary.horarios?.data ?? []).map((r) => `${r.convencion} ${r.hora_inicio}-${r.hora_fin}`).join(' / ');
+  const resumen = [
+    resumenRuta(codigo, (primary.stops ?? []).map((stop) => tidy(stop.nombre))),
+    horarioRuta(codigo, horario),
+  ].map(resumenHtml).join('\n');
+
   const body = `${PRERENDER_STYLE}
 <main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
 ${breadcrumbHtml(trail)}
@@ -832,6 +858,7 @@ ${ruteros}
 ${ruteros ? `<p class="meta">El letrero LED sobre el parabrisas del bus, un sentido por letrero: con él se reconoce en el andén qué bus es cuál.</p>` : ''}
 ${tablas}
 ${facts}
+${resumen}
 ${directions}
 </div></main>`;
 
@@ -1159,6 +1186,8 @@ ${breadcrumbHtml(trail)}
     <ul class="chips">${chips.map((chip) => `<li>${escapeHtml(chip)}</li>`).join('')}</ul>
   </div>
 </header>
+${resumenHtml(resumenEstacionDe(nombre, Object.values(station.wagons ?? {}).flat()))}
+${resumenHtml(ubicacionEstacion(nombre, direccion, station.corridor?.nombre))}
 ${wagonSections || '<section class="sec"><p class="meta">El catálogo oficial no asigna vagones a esta estación.</p></section>'}
 </div></main>`;
 

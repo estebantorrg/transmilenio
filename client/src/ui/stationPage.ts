@@ -42,10 +42,13 @@ import {
   openOverlayPage,
   refreshOverlayPage,
   registerPageResolver,
+  resumenesHtml,
   type OverlayPage,
 } from './pageShell';
 import { parseStationPathname, stationPagePath, tidy } from './routeDetail';
 import { platformsOf, stationPlatform } from '../../../shared/station_platforms.js';
+import { resumenEstacion, ubicacionEstacion } from '../../../shared/resumen.js';
+import { isZonalService } from '../utils/routeType';
 
 const PAGE_ID = 'station-page';
 
@@ -297,6 +300,17 @@ function render(station: StationPageData): string {
   if (halves.length > 1) return renderChooser(station, halves);
   const view =buildStationWagonView(station.wagons, station.vagonLabels, station.wagonPlan, station.corridorSentidos, station.planoLayout, station.code, station.planoDetalle, station.planoGeo);
   const name = tidy(station.name);
+  // The same questions the prerendered page answers (`shared/resumen.js`).
+  const routes = Object.values(station.wagons).flat();
+  const zonal = (route: (typeof routes)[number]) => isZonalService(route.sistema, route.tipoServicio);
+  const resumenes = resumenesHtml([
+    resumenEstacion(
+      name,
+      routes.filter((route) => !zonal(route)).map((route) => route.codigo),
+      routes.filter(zonal).map((route) => route.codigo)
+    ),
+    ubicacionEstacion(name, tidy(station.direccion), tidy(station.corridor)),
+  ]);
 
   const planoSection = view.plano
     ? `
@@ -343,6 +357,8 @@ function render(station: StationPageData): string {
         ${station.direccion ? `<p class="station-hero-address">${escapeHTML(tidy(station.direccion))}</p>` : ''}
         ${heroChips(station, view.serviceCount)}
       </header>
+
+      ${resumenes}
 
       ${avisosSlotHtml(station.avisos, 'station-avisos')}
 
