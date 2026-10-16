@@ -3,8 +3,8 @@
     "what": "Official troncal estaciones, joined to the catalog stop code that carries their routes.",
     "source": "ArcGIS Troncal/consulta_estaciones_troncales, joined to server/src/data/master_catalog.json.",
     "why": "A station is an estación because the register says so, not because its catalog code starts with TM — stations open before they are assigned one (Tibanica - Primavera, Los Laureles, Islandia). See spec 5.5.6.",
-    "generated": "2026-08-26",
-    "registryStations": 153,
+    "generated": "2026-10-15",
+    "registryStations": 152,
     "matched": 144,
     "unmatched": [
       "09109 Tercer Milenio",
@@ -14,7 +14,6 @@
       "14003 Temporal AV. Jiménez - Inter Eléctricas (catalog stop TM0013 already claimed by 09110)",
       "09120 Calle 63",
       "09108 Hospital",
-      "05001 Patio Bonito",
       "07009 SENA"
     ],
     "match_what": "node-id = the register node equals the catalog stop id; name-and-distance = same name within 450 m; proximity = no name match, nearest catalog stop within 200 m. distanceM is register point to catalog point."
@@ -56,7 +55,7 @@
     "TM0005": {
       "numero": "09119",
       "nodo": "9119",
-      "nombre": "Temporal Calle 57",
+      "nombre": "Calle 57 - Marly",
       "troncal": "Caracas",
       "vagones": 2,
       "lat": 4.64298174,
@@ -64,21 +63,10 @@
       "match": "node-id",
       "distanceM": 32
     },
-    "TM0006": {
-      "numero": "09118",
-      "nodo": "9118",
-      "nombre": "Temporal Marly",
-      "troncal": "Caracas",
-      "vagones": 2,
-      "lat": 4.63755688,
-      "lon": -74.06676939,
-      "match": "node-id",
-      "distanceM": 19
-    },
     "TM0008": {
       "numero": "09116",
       "nodo": "9116",
-      "nombre": "Temporal AV. 39",
+      "nombre": "Calle 39",
       "troncal": "Caracas",
       "vagones": 3,
       "lat": 4.62689711,
@@ -889,6 +877,17 @@
       "match": "node-id",
       "distanceM": 12
     },
+    "TM0086": {
+      "numero": "05001",
+      "nodo": "5001",
+      "nombre": "Patio Bonito",
+      "troncal": "Americas",
+      "vagones": 2,
+      "lat": 4.63317191,
+      "lon": -74.16460618,
+      "match": "node-id",
+      "distanceM": 14
+    },
     "TM0087": {
       "numero": "05000",
       "nodo": "5000",
@@ -1560,7 +1559,7 @@
       "match": "node-id",
       "distanceM": 7
     },
-    "TM0190": {
+    "TM90008": {
       "numero": "9005",
       "nodo": "9005",
       "nombre": "Danubio",
@@ -1569,7 +1568,7 @@
       "lat": 4.54365084,
       "lon": -74.12089669,
       "match": "name-and-distance",
-      "distanceM": 360
+      "distanceM": 301
     },
     "TM90009": {
       "numero": "05010",
