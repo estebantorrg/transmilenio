@@ -122,12 +122,14 @@ test.describe('the API surface', () => {
     expect(ROUTES).not.toContain('/troncal/sync');
     expect(ROUTES).not.toContain('syncMasterCatalog');
     expect(ROUTES).not.toContain('/debug-buses');
+    // No client called these; the app reads the arrivals board from the phone.
+    expect(ROUTES).not.toContain("post('/arrivals'");
+    expect(ROUTES).not.toContain("get('/troncal/station/");
   });
 
   test('every route that forwards to another host has a budget', () => {
     const forwarding: Array<[string, string]> = [
       ["post('/buses'", 'buses'],
-      ["post('/arrivals'", 'arrivals'],
       ["post('/stop-arrivals'", 'stop-arrivals'],
       ["post('/card/read'", 'card'],
       ["get('/geoip'", 'geoip'],

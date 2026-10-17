@@ -100,7 +100,6 @@ function normalizeLiveNameCandidates(value: unknown): string[] {
 const RATE_WINDOW_MS = 60_000;
 const RATE_BUDGETS = {
   buses: 90,
-  arrivals: 60,
   'stop-arrivals': 60,
   card: 10,
   geoip: 60,
@@ -122,16 +121,12 @@ function rateLimit(name: keyof typeof RATE_BUDGETS): RequestHandler {
 
 async function getCachedOrFetch(key: string, fetcher: () => Promise<any[]>): Promise<LayerBody> {
   const cached = cache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log(`[Cache] HIT: ${key}`);
-    return cached.data;
-  }
+  // Hits and waits are not logged: every page load asks for ~8 layers, and a
+  // line per hit was a synchronous stdout write per request on a 0.1-CPU box.
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) return cached.data;
 
   const pending = inFlightCache.get(key);
-  if (pending) {
-    console.log(`[Cache] WAIT: ${key}`);
-    return pending;
-  }
+  if (pending) return pending;
 
   console.log(`[Cache] MISS: ${key} — fetching from ArcGIS...`);
   const request = fetcher()
@@ -284,16 +279,6 @@ router.get('/troncal/route/:code', async (req: Request, res: Response) => {
   } catch (error) {
     console.error(`Error fetching route detail for ${req.params.code}:`, error);
     res.status(500).json({ success: false, error: 'Failed to load route detail' });
-  }
-});
-
-router.get('/troncal/station/:code', async (req: Request, res: Response) => {
-  const { code } = req.params;
-  const station = tmApi.getStationByCode(code);
-  if (station) {
-    res.json({ success: true, data: station });
-  } else {
-    res.status(404).json({ success: false, error: 'Station not found in catalog' });
   }
 });
 
@@ -475,27 +460,6 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
       return;
     }
     res.json({ success: true, status: 'unreachable', confidence: 'low', count: 0, data: [], source: null });
-  }
-});
-
-// ─── Arrivals (llegadas at a paradero) ────────────────────
-// Real-time bus arrivals/ETAs at a stop (spec §5.8). Rides the same CO live
-// transport as /buses; like it, never hard-fails — empty list on any outage.
-router.post('/arrivals', rateLimit('arrivals'), async (req: Request, res: Response) => {
-  const paradero = normalizeLiveText(
-    req.body?.paradero ?? req.body?.cenefa ?? req.body?.codigo,
-    LIVE_ROUTE_CODE_MAX_LENGTH
-  );
-  if (!paradero) {
-    res.status(400).json({ success: false, error: 'paradero is required' });
-    return;
-  }
-  try {
-    const { arrivals, source } = await tmApi.fetchArrivals(paradero);
-    res.json({ success: true, count: arrivals.length, arrivals, source });
-  } catch (error: any) {
-    console.error('[/arrivals] Error:', error?.message || error);
-    res.json({ success: true, count: 0, arrivals: [], source: null });
   }
 });
 

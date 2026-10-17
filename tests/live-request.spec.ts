@@ -130,11 +130,13 @@ test.describe('the names a route is asked under', () => {
 });
 
 test.describe('the relay forwarder', () => {
-  test('forwards the four live-host paths, each with its own verb', () => {
+  test('forwards the three live-host paths, each with its own verb', () => {
     expect(isForwardAllowed('/lectura_tarjeta', 'POST')).toBe(true);
-    expect(isForwardAllowed('/paradero/buses', 'POST')).toBe(true);
     expect(isForwardAllowed('/puntos_recarga', 'GET')).toBe(true);
     expect(isForwardAllowed('/puntos_personalizacion', 'GET')).toBe(true);
+    // The arrivals board went with `/api/arrivals`, which nothing called: the app
+    // asks the live host for it from the phone (`officialApi.getArrivals`).
+    expect(isForwardAllowed('/paradero/buses', 'POST')).toBe(false);
   });
 
   test('and nothing else: it is a forwarder, not an open proxy', () => {
@@ -142,7 +144,7 @@ test.describe('the relay forwarder', () => {
     expect(isForwardAllowed('/lectura_tarjeta', 'GET')).toBe(false);
     // Exact paths — a prefix match would authorize everything under one.
     expect(isForwardAllowed('/lectura_tarjeta/../admin', 'POST')).toBe(false);
-    expect(isForwardAllowed('/paradero/buses?x=1', 'POST')).toBe(false);
+    expect(isForwardAllowed('/lectura_tarjeta?x=1', 'POST')).toBe(false);
     expect(isForwardAllowed('/buses', 'POST')).toBe(false);
     expect(isForwardAllowed('https://example.com/lectura_tarjeta', 'POST')).toBe(false);
     // `constructor` is a property of every object, and it is not a path.

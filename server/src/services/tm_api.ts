@@ -12,19 +12,15 @@ import { fileURLToPath } from 'url';
 import zlib from 'zlib';
 import { createHash } from 'crypto';
 import { promisify } from 'util';
-import { isColombiaRelayConfigured, relayAgentFor, relayBaseUrl, relayForward, relaySecret } from './co_relay.js';
+import { isColombiaRelayConfigured, relayAgentFor, relayBaseUrl, relaySecret } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
 import { OFFICIAL_APP_HEADERS } from './official_app_headers.js';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
-import { normalizeArrivalsPayload } from '../../../shared/live_payload.js';
+import { traceToPaths } from '../../../shared/eta_geometry.js';
 import { createSharedWindow } from './flow_control.js';
-import { LIVE_ROUTE_CODE_MAX_LENGTH, normalizeLiveText } from './live_payload.js';
 import {
-  LIVE_API_ORIGIN,
-  buildLiveApiHeaders,
   buildLiveNameCandidates,
   createLiveRequestContext,
-  parseLivePayload,
   raceLiveCandidates,
   requestLiveBuses,
   requestLiveJson,
@@ -381,29 +377,6 @@ export async function loadCatalogFromDisk(): Promise<void> {
 
 export function getCatalog(): MasterCatalog {
   return masterCatalog;
-}
-
-function isCoordinatePair(value: unknown): value is number[] {
-  return Array.isArray(value) &&
-    value.length >= 2 &&
-    Number.isFinite(Number(value[0])) &&
-    Number.isFinite(Number(value[1]));
-}
-
-/** Normalize a LineString / MultiLineString trace to an array of [lng,lat] paths. */
-export function traceToPaths(trace: RouteTrace | undefined): number[][][] {
-  if (!Array.isArray(trace) || trace.length === 0) return [];
-
-  const first = trace[0];
-  if (isCoordinatePair(first)) {
-    return [trace as number[][]];
-  }
-
-  if (Array.isArray(first) && isCoordinatePair(first[0])) {
-    return (trace as number[][][]).filter((path) => Array.isArray(path) && path.length > 1);
-  }
-
-  return [];
 }
 
 function sampleLine(line: number[][], maxPoints: number): number[][] {
@@ -804,11 +777,6 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
     });
   }
   return lightCatalogBuilding;
-}
-
-export function getStationByCode(code: string): CatalogStation | null {
-  // Own keys only: `constructor` is a property of every object, and it is not a station.
-  return Object.hasOwn(masterCatalog.stations || {}, code) ? masterCatalog.stations[code] : null;
 }
 
 /**
@@ -1220,13 +1188,9 @@ function clearDirectTierGeofence(): void {
   directGeofencedUntil = 0;
 }
 
-// Live buses and arrivals may use the public CO proxy pool (spec §5.2.5).
+// Live buses may use the public CO proxy pool (spec §5.2.5).
 function allowPublicColombianProxyFallback(): boolean {
   return publicProxyAllowed('live');
-}
-
-function parseArrivalsResponse(raw: Buffer, encoding: string | string[] | undefined, source: string): Promise<any[]> {
-  return parseLivePayload(raw, encoding, source, normalizeArrivalsPayload);
 }
 
 function buildColombiaRelayRequestUrl(baseUrl: string): URL {
@@ -1480,79 +1444,4 @@ export function startLiveWarmup(): void {
   warmupTimer = setInterval(() => void warmLivePath(), LIVE_WARMUP_INTERVAL_MS);
   warmupTimer.unref(); // never hold the process open
   console.log(`[TM API] Live warm-up every ${Math.round(LIVE_WARMUP_INTERVAL_MS / 1000)}s (TM_LIVE_WARMUP_MS=0 to disable)`);
-}
-
-// ─── Arrivals (llegadas at a paradero, spec §5.8) ─────────
-const ARRIVALS_TIMEOUT_MS = 9_000;
-
-export interface ArrivalsResult {
-  arrivals: any[];
-  /** `null` = no transport reached upstream (an empty list is NOT a verified
-   *  "no buses inbound"). */
-  source: LiveBusSource | null;
-}
-
-/**
- * Real-time arrivals at a paradero (`POST /paradero/buses`, spec §5.8). Reuses
- * the live transport tiers: direct (Colombian egress) → CO relay → public CO
- * proxy. Never throws for "no buses" — returns an empty list, with `source: null`
- * when no transport reached upstream at all, so the caller can tell a verified
- * "nothing inbound" from an outage (spec §1 certainty).
- */
-export async function fetchArrivals(paradero: string): Promise<ArrivalsResult> {
-  const cenefa = normalizeLiveText(paradero, LIVE_ROUTE_CODE_MAX_LENGTH);
-  if (!cenefa) return { arrivals: [], source: null };
-
-  const url = new URL(`${LIVE_API_ORIGIN}/paradero/buses`);
-  const postData = JSON.stringify({ paradero: cenefa });
-  const headers = buildLiveApiHeaders(postData);
-
-  const overall = new AbortController();
-  const timer = setTimeout(() => overall.abort(), LIVE_OVERALL_TIMEOUT_MS);
-  try {
-    // 1. Direct (works when the backend egress is Colombian: local / CO host).
-    // Skipped while the geofence memo is hot — same egress, same rejection.
-    if (!isDirectTierGeofenced()) {
-      try {
-        const arrivals = await requestLiveJson(url, headers, postData, ARRIVALS_TIMEOUT_MS, liveKeepAliveAgent, overall.signal, parseArrivalsResponse);
-        clearDirectTierGeofence();
-        return { arrivals, source: 'direct' };
-      } catch (error) {
-        if (isGeofenceRejection(error)) markDirectTierGeofenced();
-        else console.warn('[TM API] arrivals direct failed:', (error as any)?.message || error);
-      }
-    }
-
-    // 2. Colombia relay, when one is configured — reliable CO path.
-    if (isColombiaRelayConfigured()) {
-      try {
-        const { upstreamStatus, payload } = await relayForward('/paradero/buses', { paradero: cenefa }, ARRIVALS_TIMEOUT_MS, overall.signal);
-        if (upstreamStatus === 200) {
-          return { arrivals: normalizeArrivalsPayload(payload), source: 'co-relay' };
-        }
-        console.warn(`[TM API] arrivals CO relay upstream status ${upstreamStatus}`);
-      } catch (error) {
-        console.warn('[TM API] arrivals CO relay failed:', (error as any)?.message || error);
-      }
-    }
-
-    // 3. Public Colombian proxy (opt-in prod fallback, §5.2.5).
-    if (allowPublicColombianProxyFallback()) {
-      try {
-        const arrivals = await viaColombianProxy(
-          `arrivals paradero=${cenefa}`,
-          (agent, proxySignal) => requestLiveJson(url, headers, postData, CO_PROXY_TIMEOUT_MS, agent, proxySignal, parseArrivalsResponse),
-          overall.signal
-        );
-        return { arrivals, source: 'public-co-proxy' };
-      } catch (error) {
-        console.warn('[TM API] arrivals CO proxy failed:', (error as any)?.message || error);
-      }
-    }
-    // Nothing reached upstream. Reporting `direct` here would claim a Colombian
-    // egress verified an empty arrivals board when in fact none answered.
-    return { arrivals: [], source: null };
-  } finally {
-    clearTimeout(timer);
-  }
 }

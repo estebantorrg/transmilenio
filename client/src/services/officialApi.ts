@@ -133,8 +133,9 @@ const LIVE_JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json; charset=UTF-8',
 };
 
-/** Real-time arrivals at a paradero. Never hard-fails — empty list on any outage
- *  (mirrors the server `/api/arrivals` contract, spec §5.8). */
+/** Real-time arrivals at a paradero, the official app's own board (spec §5.8).
+ *  Never hard-fails — empty list on any outage, `source: null` when nothing
+ *  answered. */
 async function getArrivals(paradero: string): Promise<ArrivalsResponse> {
   const cenefa = String(paradero ?? '').trim();
   if (!cenefa) return { success: true, count: 0, arrivals: [], source: null };
@@ -281,7 +282,7 @@ function normalizeCity(value: unknown): string {
 /**
  * Address/place lookup for the app.
  *
- * The server's `/api/geocode` fans out to four sources; the app has no server
+ * The server's `/api/geocode` fans out to three sources; the app has no server
  * (spec §5.2.1b), so it queries the same **public** Photon instance the server
  * uses for its place tier — enough to turn "planear a una dirección" from
  * impossible into working. The station/stop half of the merge is already local:

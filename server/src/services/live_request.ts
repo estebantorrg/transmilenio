@@ -308,7 +308,6 @@ export function raceLiveCandidates<C>(
  */
 const FORWARD_PATHS: Record<string, 'GET' | 'POST'> = {
   '/lectura_tarjeta': 'POST',
-  '/paradero/buses': 'POST',
   '/puntos_recarga': 'GET',
   '/puntos_personalizacion': 'GET',
 };

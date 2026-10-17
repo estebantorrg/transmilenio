@@ -496,17 +496,10 @@ export const api = {
   /** First/last scheduled bus from each route's own cabecera (`services/cabecera.ts`). */
   getHorariosCabecera: () => fetchJson<HorariosCabeceraResponse>('/horarios-cabecera', 15_000, undefined, 1),
 
-  /** Real-time arrivals/ETAs at a paradero (spec §5.8). Never hard-fails.
-   *  15 s (not 12 s) so prod's proxy-fallback budget (~14.5 s) isn't cut off;
-   *  0 retries — live requests must not stack (spec §3.4). */
-  getArrivals: (paradero: string) =>
-    isNativeLiveAvailable()
-      ? officialApi.getArrivals(paradero)
-      : fetchJson<ArrivalsResponse>('/arrivals', 15_000, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ paradero }),
-        }, 0),
+  /** The official app's own arrivals board at a paradero (spec §5.8), asked from
+   *  the phone — app-only, hence no server branch: the website shows
+   *  `getStopArrivals` instead. Never hard-fails. */
+  getArrivals: (paradero: string) => officialApi.getArrivals(paradero),
 
   /** Global per-route ETA for any stop (paradero or estación), computed from
    *  live bus positions projected onto each serving route's trace (spec §5.8).
