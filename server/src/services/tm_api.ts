@@ -60,6 +60,7 @@ import { platformsOf } from '../../../shared/station_platforms.js';
 import { isTroncalStationCode, troncalStationEntry, unregisteredServedStations } from './station_registry.js';
 import { publicProxyAllowed } from './public_proxy_policy.js';
 import {
+  applyStopAliases,
   correctRecorrido,
   isRetiredRoute,
   reportUnusedCorrections,
@@ -850,12 +851,17 @@ export async function pruneCatalogFileInPlace(): Promise<number> {
   if (retired > 0) {
     console.log(`[TM API] Dropped ${retired} route variant(s) filed as replaced in recorrido_corrections.json.`);
   }
+  // Before the prune, which reads each recorrido's stop codes as its evidence.
+  const aliased = applyStopAliases(masterCatalog);
+  if (aliased > 0) {
+    console.log(`[TM API] Filed ${aliased} aliased stop(s) and mapping(s) under their real station.`);
+  }
   const placed = applyPlanoWagons(masterCatalog);
   if (placed > 0) {
     console.log(`[TM API] Placed ${placed} unlettered mapping(s) on the vagón their plano prints.`);
   }
   const pruned = pruneUnservedStationRoutes(masterCatalog);
-  if (pruned > 0 || retired > 0 || placed > 0 || renamed > 0) {
+  if (pruned > 0 || retired > 0 || placed > 0 || renamed > 0 || aliased > 0) {
     await writeCatalogAtomically(masterCatalog);
     invalidateLightCatalog();
   }
@@ -1081,6 +1087,8 @@ export async function syncMasterCatalog(): Promise<void> {
     //    runs Sundays and festivos) and anything a partial fetch missed survive,
     //    then save atomically and publish once the file is complete.
     const merged = mergeCatalogs(masterCatalog, newCatalog);
+    // Retained data predates the stop aliases the fetch applied at the edge.
+    applyStopAliases(merged);
 
     // 3a. Retained mappings predate the edge rule above, so the plano answer is
     //     applied to the merged whole as well — otherwise a service the sheet

@@ -37,8 +37,14 @@ interface RetiredVariant {
   nombre?: string;
   note?: string;
 }
+/** A stop upstream files under a made-up code that is really this station. */
+interface StopAlias {
+  stop: string;
+  station: string;
+  note?: string;
+}
 
-function load(): { dropStops: DropStop[]; retiredRoutes: RetiredRoute[]; retiredVariants: RetiredVariant[] } {
+function load(): { dropStops: DropStop[]; retiredRoutes: RetiredRoute[]; retiredVariants: RetiredVariant[]; stopAliases: StopAlias[] } {
   try {
     const file = path.resolve(__dirname, '..', 'data', 'recorrido_corrections.json');
     const parsed = JSON.parse(readFileSync(file, 'utf-8'));
@@ -46,11 +52,12 @@ function load(): { dropStops: DropStop[]; retiredRoutes: RetiredRoute[]; retired
       dropStops: parsed.dropStops ?? [],
       retiredRoutes: parsed.retiredRoutes ?? [],
       retiredVariants: parsed.retiredVariants ?? [],
+      stopAliases: parsed.stopAliases ?? [],
     };
   } catch {
     // Missing file = no corrections. The catalog is then exactly what upstream
     // says, which is the honest fallback.
-    return { dropStops: [], retiredRoutes: [], retiredVariants: [] };
+    return { dropStops: [], retiredRoutes: [], retiredVariants: [], stopAliases: [] };
   }
 }
 
@@ -60,19 +67,79 @@ const key = (codigo: unknown, stop: unknown): string =>
 const DROPPED = new Set(CORRECTIONS.dropStops.map((entry) => key(entry.codigo, entry.stop)));
 const RETIRED = new Set(CORRECTIONS.retiredRoutes.map((entry) => String(entry.codigo).trim().toUpperCase()));
 const RETIRED_VARIANTS = new Set(CORRECTIONS.retiredVariants.map((entry) => key(entry.codigo, entry.id)));
+const ALIASES = new Map(CORRECTIONS.stopAliases.map((entry) => [String(entry.stop).trim().toUpperCase(), String(entry.station).trim()]));
 
 /** Corrections that fired at least once this run — the rest are candidates for deletion. */
 const used = new Set<string>();
 
-/** The recorrido without the stops this route does not actually make. */
+/** The station a stop code names: itself, or the station an alias files it as. */
+function aliasedCode(code: unknown): string | undefined {
+  const upper = String(code ?? '').trim().toUpperCase();
+  const station = ALIASES.get(upper);
+  if (station) used.add(`alias|${upper}`);
+  return station;
+}
+
+/**
+ * The recorrido without the stops this route does not actually make, and with
+ * every aliased stop filed under the station it is. An alias stays a stop of
+ * the route; only its code changes, so its coordinate and `vagon` still say
+ * where on the station the service boards.
+ */
 export function correctRecorrido<T extends { codigo?: string }>(codigo: string, stops: T[]): T[] {
-  if (DROPPED.size === 0) return stops;
-  return stops.filter((stop) => {
-    const id = key(codigo, stop?.codigo);
-    if (!DROPPED.has(id)) return true;
-    used.add(id);
-    return false;
-  });
+  if (DROPPED.size === 0 && ALIASES.size === 0) return stops;
+  return stops
+    .filter((stop) => {
+      const id = key(codigo, stop?.codigo);
+      if (!DROPPED.has(id)) return true;
+      used.add(id);
+      return false;
+    })
+    .map((stop) => {
+      const station = aliasedCode(stop?.codigo);
+      return station ? { ...stop, codigo: station } : stop;
+    });
+}
+
+interface AliasableCatalog {
+  stations: Record<string, { wagons: Record<string, Array<{ id?: string; codigo?: string }>> }>;
+  routes: Record<string, Array<{ stops?: Array<{ codigo?: string }> }>>;
+}
+
+/**
+ * Applies the stop aliases to a catalog already on disk (`npm run prune`): the
+ * stops are re-coded, and the stand-in station an alias created is folded into
+ * the real one, wagon labels kept — what the next sync builds from the
+ * corrected recorrido. Returns how many stops and mappings it changed.
+ */
+export function applyStopAliases(catalog: AliasableCatalog): number {
+  if (ALIASES.size === 0) return 0;
+  let moved = 0;
+  for (const variants of Object.values(catalog.routes ?? {})) {
+    for (const variant of variants) {
+      for (const stop of variant.stops ?? []) {
+        const station = aliasedCode(stop.codigo);
+        if (!station) continue;
+        stop.codigo = station;
+        moved++;
+      }
+    }
+  }
+  for (const code of Object.keys(catalog.stations ?? {})) {
+    const station = aliasedCode(code);
+    const target = station ? catalog.stations[station] : undefined;
+    if (!target) continue;
+    for (const [wagon, routes] of Object.entries(catalog.stations[code].wagons ?? {})) {
+      const into = (target.wagons[wagon] ??= []);
+      for (const route of routes) {
+        if (into.some((r) => r.id === route.id && r.codigo === route.codigo)) continue;
+        into.push(route);
+        moved++;
+      }
+    }
+    delete catalog.stations[code];
+  }
+  return moved;
 }
 
 /** Whether this código names a route the network has retired (answered, not inferred). */
@@ -135,6 +202,13 @@ export function reportUnusedCorrections(seenCodigos: Set<string>, healthy = fals
     for (const entry of CORRECTIONS.retiredRoutes) {
       const id = String(entry.codigo).trim().toUpperCase();
       if (!used.has(`retired|${id}`)) stale.push(`${entry.codigo} is no longer listed upstream`);
+    }
+    // An alias fires whenever a fetched recorrido carries the made-up code, so on
+    // a run that saw the whole listing, silence means upstream stopped using it.
+    for (const entry of CORRECTIONS.stopAliases) {
+      if (!used.has(`alias|${String(entry.stop).trim().toUpperCase()}`)) {
+        stale.push(`no recorrido files stop ${entry.stop} any more`);
+      }
     }
   }
   // A variant retirement fires against the *previous* catalog, not against the

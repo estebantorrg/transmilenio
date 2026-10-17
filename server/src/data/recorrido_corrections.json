@@ -8,6 +8,14 @@
     "cleared_2026_08_28": "Emptied after the 2026-08-28 sync, which was the first healthy run (0 errors) since reportUnusedCorrections was wired in and named all five entries as spent: A61 no longer lists TM0087 (upstream fixed its own recorrido), F61 is gone from searchRutaByTipo entirely, and the three replaced variants A60#1187, 6#692 and G52#296 are out of the catalog. Keeping any of them would be the same stale fact each was filed to remove. G52 is worth remembering: it is a LIVE service that TRANSMILENIO lists at Calle 72 on its own closure notice, and it is absent from this app only because upstream publishes no recorrido for it — if it returns carrying its pre-closure stop list through the closed Calle 76, file it again."
   },
   "dropStops": [],
+  "stopAliases": [
+    {
+      "stop": "Portal Usme T3A",
+      "station": "TM0118",
+      "added": "2026-10-16",
+      "note": "Since the 2026-10-15 sync the official recorrido of B72 (#338 Toberín, checked again on the route finder on 2026-10-16) opens at a stop coded 'Portal Usme T3A' with no name, where every earlier sync filed TM0118 Portal Usme. Its coordinate (4.53172,-74.11936) is 17 m from TM0118's, its vagón T3A is one of Portal Usme's boarding zones (the catalog names them T1 to T6 with A/B halves), and TRANSMILENIO's notice of the 19 September 2026 redistribution puts B72 on Portal Usme's Plataforma 2. Read as a code, it made a stand-in station and the prune step took B72 off the portal. Filed as TM0118 on the maintainer's answer of 2026-10-16."
+    }
+  ],
   "retiredRoutes": [
     {
       "codigo": "G41",
