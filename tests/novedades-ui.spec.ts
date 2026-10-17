@@ -72,14 +72,18 @@ test('the banner is part of Explorar, not of Cerca or Planear', async ({ page })
 });
 
 test('closing the banner keeps it down until TransMilenio posts again', async ({ page }) => {
-  await boot(page, [post(12, 1)]);
+  // ONE post, served on every boot: `post()` stamps `Date.now()`, so building it
+  // again seconds later made a newer post than the one closed — which the banner
+  // rightly showed as unseen, and the test failed on every run.
+  const closed = post(12, 1);
+  await boot(page, [closed]);
   await page.locator('#novedades-banner .novedades-banner-close').click();
   await expect(page.locator('#novedades-banner')).toBeHidden();
 
-  await boot(page, [post(12, 1)]);
+  await boot(page, [closed]);
   await expect(page.locator('#novedades-banner')).toBeHidden();
 
-  await boot(page, [post(1, 2), post(12, 1)]);
+  await boot(page, [post(1, 2), closed]);
   await expect(page.locator('#novedades-banner')).toContainText('Manifestación número 2');
 });
 
