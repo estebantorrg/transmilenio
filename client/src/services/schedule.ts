@@ -17,6 +17,7 @@
 
 import type { CatalogRoute } from '../types/catalog';
 import { festivoName, isFestivo } from '../../../shared/festivos.js';
+import { bogotaClock } from '../../../shared/bogota_clock.js';
 
 export const MINUTES_PER_DAY = 1440;
 
@@ -147,11 +148,8 @@ export function mergeServiceSpans(
 // ─── Bogotá wall clock ──────────────────────────────────────────────────────
 // Schedules are Bogotá local time. The device may be anywhere (a maintainer
 // outside Colombia, a traveller's phone), so the planning clock is always
-// resolved in America/Bogota and carried as plain wall-clock fields — no Date
-// arithmetic that a host time zone could shift underneath us.
-
-const BOGOTA_TIME_ZONE = 'America/Bogota';
-const BOGOTA_UTC_OFFSET_MINUTES = -300; // fixed, no DST — the Intl fallback
+// resolved in Bogotá (`shared/bogota_clock.js`) and carried as plain wall-clock
+// fields — no Date arithmetic that a host time zone could shift underneath us.
 
 /** A wall-clock instant in Bogotá. `minute` is minutes from local midnight. */
 export interface PlanTime {
@@ -161,49 +159,10 @@ export interface PlanTime {
   minute: number;
 }
 
-let bogotaParts: Intl.DateTimeFormat | null | undefined;
-
-function getBogotaFormatter(): Intl.DateTimeFormat | null {
-  if (bogotaParts !== undefined) return bogotaParts;
-  try {
-    bogotaParts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: BOGOTA_TIME_ZONE,
-      hourCycle: 'h23',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    bogotaParts = null;
-  }
-  return bogotaParts;
-}
-
 /** The current Bogotá wall clock. */
 export function bogotaNow(now: Date = new Date()): PlanTime {
-  const formatter = getBogotaFormatter();
-  if (formatter) {
-    const parts: Record<string, string> = {};
-    for (const part of formatter.formatToParts(now)) parts[part.type] = part.value;
-    const year = Number(parts.year);
-    const month = Number(parts.month);
-    const day = Number(parts.day);
-    const hour = Number(parts.hour);
-    const minute = Number(parts.minute);
-    if ([year, month, day, hour, minute].every(Number.isFinite)) {
-      return { year, month, day, minute: hour * 60 + minute };
-    }
-  }
-
-  const shifted = new Date(now.getTime() + BOGOTA_UTC_OFFSET_MINUTES * 60_000);
-  return {
-    year: shifted.getUTCFullYear(),
-    month: shifted.getUTCMonth() + 1,
-    day: shifted.getUTCDate(),
-    minute: shifted.getUTCHours() * 60 + shifted.getUTCMinutes(),
-  };
+  const { year, month, day, minute } = bogotaClock(now.getTime());
+  return { year, month, day, minute };
 }
 
 /** `"2026-07-24"` + `"14:05"` → PlanTime. `null` when either input is unusable. */

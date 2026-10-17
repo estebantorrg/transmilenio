@@ -20,10 +20,10 @@ import {
   getCatalog,
   getCatalogLoadedAt,
   fetchLiveBuses,
-  traceToPaths,
   type CatalogRouteDetail,
 } from './tm_api.js';
 import { variantLiveNames } from './live_request.js';
+import { ON_ROUTE_MAX_PERP_M, PASSED_STOP_EPSILON_M, projectOntoPaths, traceToPaths } from '../../../shared/eta_geometry.js';
 import {
   dayTypeFor,
   LIVE_TRONCAL_M_PER_MIN,
@@ -33,6 +33,7 @@ import {
 } from '../../../shared/calibration.js';
 import type { PreparedCalibration } from '../../../shared/calibration.js';
 import { isFestivo } from '../../../shared/festivos.js';
+import { bogotaClock } from '../../../shared/bogota_clock.js';
 
 export interface StopArrival {
   codigo: string;
@@ -65,21 +66,23 @@ export interface StopArrivalsResult {
 // wait (§5.6.6) cannot drift apart.
 const TRONCAL_SPEED_M_PER_MIN = LIVE_TRONCAL_M_PER_MIN;
 const ZONAL_SPEED_M_PER_MIN = LIVE_ZONAL_M_PER_MIN;
-// A bus farther than this from the route polyline is not really on this trace
-// (GPS drift / wrong-variant overlap) — don't let it fabricate an ETA.
-const ON_ROUTE_MAX_PERP_M = 160;
-// Ignore buses already at/after the stop (small epsilon absorbs GPS jitter).
-const PASSED_STOP_EPSILON_M = 40;
+// The on-route tolerance, the passed-stop epsilon and the projection are
+// `shared/eta_geometry.js`, the same module the app's voice ETA reads.
 // Bound the live fan-out: a busy trunk station is served by many routes, but we
 // must not fire an unbounded number of live requests per popup (spec §3.4).
-const MAX_FANOUT_ROUTES = 24;
+// Sized to the busiest stop, not below it: the cut takes routes in catalog
+// order, so at 24 it silently dropped 22 of Portal Sur's 46 route-directions
+// (28 stops were over, every portal and Ricaurte among them) and the board said
+// "Sin buses en aproximación" with their buses on the way. Repeat asks for one
+// route share a call (`fetchLiveBuses`), and the board is cached for 30 s.
+const MAX_FANOUT_ROUTES = 48;
 // Fan the serving routes out in ONE wave (concurrency ≥ MAX_FANOUT) so the total
 // time is ~one live call, not a stack of sequential waves. Serializing into
 // small waves was the real cause of the multi-second stalls that surfaced as
 // "Llegadas no disponibles" — one slow route in an early wave delayed the rest.
 // The live host tolerates this burst (direct/relay), and the hard per-route cut
 // below bounds any single laggard.
-const FANOUT_CONCURRENCY = 24;
+const FANOUT_CONCURRENCY = MAX_FANOUT_ROUTES;
 // Per-route ceiling: a single slow route must not hold up the wave. On timeout
 // that route is simply omitted from this response (it reappears once its live
 // call is fast again / from cache). Below the 9 s direct live timeout so a
@@ -99,64 +102,6 @@ const RESULT_CACHE_TTL_MS = 30_000;
 // never freed — one per stop code ever queried (~7500 possible) on a 512 MB
 // instance (spec §5.1.3). Bound it, evicting the oldest computation.
 const RESULT_CACHE_MAX = 200;
-
-const DEG2RAD = Math.PI / 180;
-const EARTH_R = 6_371_000;
-
-// ─── Geometry helpers ─────────────────────────────────────
-
-interface Projection {
-  /** Distance from the query point to its nearest point on the polyline (m). */
-  perp: number;
-  /** Cumulative along-track distance of that nearest point from the origin (m). */
-  along: number;
-}
-
-/**
- * Project a lng/lat point onto a multi-path polyline. Distances are computed on
- * a local equirectangular plane anchored at the query point (sub-0.3% error at
- * city scale). Inter-path gaps are NOT counted toward along-track distance, so a
- * MultiLineString's disjoint segments don't inflate the cumulative measure.
- */
-function projectOntoPaths(paths: number[][][], pLng: number, pLat: number): Projection | null {
-  const cosLat = Math.cos(pLat * DEG2RAD);
-  const toXY = (lng: number, lat: number): [number, number] => [
-    (lng - pLng) * DEG2RAD * EARTH_R * cosLat,
-    (lat - pLat) * DEG2RAD * EARTH_R,
-  ];
-
-  let best: Projection | null = null;
-  let base = 0; // along-track distance accumulated by fully-traversed prior paths
-
-  for (const path of paths) {
-    if (path.length < 2) continue;
-    let cum = 0; // distance within this path up to segment start
-    let prev = toXY(Number(path[0][0]), Number(path[0][1]));
-
-    for (let i = 1; i < path.length; i++) {
-      const curr = toXY(Number(path[i][0]), Number(path[i][1]));
-      const dx = curr[0] - prev[0];
-      const dy = curr[1] - prev[1];
-      const segLen2 = dx * dx + dy * dy;
-      const segLen = Math.sqrt(segLen2);
-
-      // Query point is at the local origin (0,0) by construction.
-      const t = segLen2 > 0 ? Math.max(0, Math.min(1, -(prev[0] * dx + prev[1] * dy) / segLen2)) : 0;
-      const footX = prev[0] + t * dx;
-      const footY = prev[1] + t * dy;
-      const perp = Math.hypot(footX, footY);
-      if (best === null || perp < best.perp) {
-        best = { perp, along: base + cum + t * segLen };
-      }
-
-      cum += segLen;
-      prev = curr;
-    }
-    base += cum;
-  }
-
-  return best;
-}
 
 function parseCoordenada(coordenada: string | undefined): [number, number] | null {
   if (!coordenada || typeof coordenada !== 'string' || !coordenada.includes(',')) return null;
@@ -201,11 +146,10 @@ function calibration(): PreparedCalibration | null {
   return calibrationCache;
 }
 
-/** Bogotá is UTC−5 all year (no DST), so the offset is a constant, not a lookup. */
+/** The day type and hour the calibration is read at, Bogotá time. */
 function bogotaSlot(): { dayType: ReturnType<typeof dayTypeFor>; hour: number } {
-  const local = new Date(Date.now() - 5 * 60 * 60 * 1000);
-  const festivo = isFestivo(local.getUTCFullYear(), local.getUTCMonth() + 1, local.getUTCDate());
-  return { dayType: dayTypeFor(local.getUTCDay(), festivo), hour: local.getUTCHours() };
+  const { year, month, day, weekday, minute } = bogotaClock();
+  return { dayType: dayTypeFor(weekday, isFestivo(year, month, day)), hour: Math.floor(minute / 60) };
 }
 
 /**
@@ -399,6 +343,10 @@ const fanOutsInFlight = new Map<string, Promise<StopArrivalsResult>>();
 async function fanOut(code: string, cacheKey: string, catalogAt: number): Promise<StopArrivalsResult> {
   const serving = findServingVariants(code);
   const fanned = serving.slice(0, MAX_FANOUT_ROUTES);
+  // The cut is silent on the board, so it is not silent here.
+  if (serving.length > fanned.length) {
+    console.warn(`[arrivals] ${code}: ${serving.length} serving routes, only ${fanned.length} asked — raise MAX_FANOUT_ROUTES`);
+  }
   if (fanned.length === 0) {
     const empty: StopArrivalsResult = { arrivals: [], routesServing: 0 };
     cacheResult(cacheKey, catalogAt, empty);

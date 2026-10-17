@@ -2,17 +2,15 @@
  * On-device route-proximity engine (spec §5.9) — "¿qué tan cerca está el F19?".
  *
  * Answers the inverse of `server/src/services/stop_arrivals.ts`. That module asks
- * *"at this stop, which routes are coming?"* and fans out over up to 24 routes on
+ * *"at this stop, which routes are coming?"* and fans out over up to 48 routes on
  * the server. This one asks *"this route — where is it relative to me?"*: one
  * route, one live call, and it runs **in the app**, because the APK talks to no
  * web server of ours (spec §5.2.1b). Everything it needs ships in the APK: the
  * voice index and one ~5 KB geometry shard.
  *
- * ETA is the same absolute time-distance calculation as the server's, and the
- * tunables below are deliberately identical — the same bus must not be "4 min
- * away" in the app and "6 min away" on the website (spec §1.1 R2). The projection
- * is duplicated rather than shared because the two live in different packages;
- * any change to the constants or the projection belongs in BOTH files.
+ * ETA is the same absolute time-distance calculation as the server's, read from
+ * the same module (`shared/eta_geometry.js`) — the same bus must not be "4 min
+ * away" in the app and "6 min away" on the website (spec §1.1 R2).
  *
  * Pure: no fetching, no clock reads. Buses, position and the Bogotá wall clock
  * are all inputs, so the whole thing is exercisable from Node with a fixed
@@ -41,11 +39,12 @@ import {
 } from './schedule';
 import type { VoiceIndexRoute, VoiceRouteGeo, VoiceStop } from '../types/voice';
 import { dayTypeFor, LIVE_TRONCAL_M_PER_MIN, LIVE_ZONAL_M_PER_MIN, rideSpeedMpm } from '../../../shared/calibration.js';
+import { ON_ROUTE_MAX_PERP_M, PASSED_STOP_EPSILON_M, projectOntoPaths, traceToPaths } from '../../../shared/eta_geometry.js';
 import { getCalibration } from './calibrationStore';
 
 // ─── Tunables ─────────────────────────────────────────────
-// On-route tolerance and the passed-stop epsilon are the SAME numbers as
-// server/src/services/stop_arrivals.ts. Change them together.
+// On-route tolerance, the passed-stop epsilon and the projection itself are
+// `shared/eta_geometry.js`, which the server's board reads too.
 //
 // The cruising speeds below are now only the FALLBACK. A zonal ride is charged
 // the speed TRANSMILENIO measured on the stretches of that direction, scaled by
@@ -56,8 +55,6 @@ import { getCalibration } from './calibrationStore';
 // server's board and the planner's live wait (§5.6.6) hold one copy.
 const TRONCAL_SPEED_M_PER_MIN = LIVE_TRONCAL_M_PER_MIN;
 const ZONAL_SPEED_M_PER_MIN = LIVE_ZONAL_M_PER_MIN;
-const ON_ROUTE_MAX_PERP_M = 160;
-const PASSED_STOP_EPSILON_M = 40;
 
 // Voice-specific, no server counterpart:
 // How far the rider is willing to be from a stop of this route before the honest
@@ -70,9 +67,6 @@ const ACCESS_MAX_M = 1500;
 const CATCH_MARGIN_MINUTES = 1;
 // Arriving within this much of the bus is "sal ya", not "you have time".
 const SAL_YA_SLACK_MINUTES = 2;
-
-const DEG2RAD = Math.PI / 180;
-const EARTH_R = 6_371_000;
 
 // ─── Result shapes ────────────────────────────────────────
 
@@ -162,81 +156,6 @@ export interface RouteEtaAnswer {
    *  answerable as "su parada más cercana, Banderas, está a 3,2 km" rather than
    *  a shrug. Null only when the route ships no geometry at all. */
   nearest: { code: string; name: string; meters: number } | null;
-}
-
-// ─── Geometry (mirrors stop_arrivals.ts) ──────────────────
-
-function isCoordPair(value: unknown): value is number[] {
-  return Array.isArray(value) &&
-    value.length >= 2 &&
-    Number.isFinite(Number(value[0])) &&
-    Number.isFinite(Number(value[1]));
-}
-
-/** Normalize a LineString / MultiLineString trace to an array of [lng,lat] paths. */
-export function traceToPaths(trace: number[][] | number[][][] | undefined): number[][][] {
-  if (!Array.isArray(trace) || trace.length === 0) return [];
-  const first = trace[0];
-  if (isCoordPair(first)) return [trace as number[][]];
-  if (Array.isArray(first) && isCoordPair(first[0])) {
-    return (trace as number[][][]).filter((path) => Array.isArray(path) && path.length > 1);
-  }
-  return [];
-}
-
-interface Projection {
-  /** Distance from the query point to its nearest point on the polyline (m). */
-  perp: number;
-  /** Cumulative along-track distance of that nearest point from the origin (m). */
-  along: number;
-}
-
-/**
- * Project a lng/lat point onto a multi-path polyline. Distances are computed on
- * a local equirectangular plane anchored at the query point (sub-0.3% error at
- * city scale). Inter-path gaps are NOT counted toward along-track distance.
- *
- * Bus and stop are projected onto the SAME simplified trace, so the shard's
- * Ramer–Douglas–Peucker corner-cutting largely cancels in their difference.
- */
-export function projectOntoPaths(paths: number[][][], pLng: number, pLat: number): Projection | null {
-  const cosLat = Math.cos(pLat * DEG2RAD);
-  const toXY = (lng: number, lat: number): [number, number] => [
-    (lng - pLng) * DEG2RAD * EARTH_R * cosLat,
-    (lat - pLat) * DEG2RAD * EARTH_R,
-  ];
-
-  let best: Projection | null = null;
-  let base = 0; // along-track distance accumulated by fully-traversed prior paths
-
-  for (const path of paths) {
-    if (path.length < 2) continue;
-    let cum = 0; // distance within this path up to segment start
-    let prev = toXY(Number(path[0][0]), Number(path[0][1]));
-
-    for (let i = 1; i < path.length; i++) {
-      const curr = toXY(Number(path[i][0]), Number(path[i][1]));
-      const dx = curr[0] - prev[0];
-      const dy = curr[1] - prev[1];
-      const segLen2 = dx * dx + dy * dy;
-      const segLen = Math.sqrt(segLen2);
-
-      // Query point is at the local origin (0,0) by construction.
-      const t = segLen2 > 0 ? Math.max(0, Math.min(1, -(prev[0] * dx + prev[1] * dy) / segLen2)) : 0;
-      const footX = prev[0] + t * dx;
-      const footY = prev[1] + t * dy;
-      const perp = Math.hypot(footX, footY);
-      if (best === null || perp < best.perp) {
-        best = { perp, along: base + cum + t * segLen };
-      }
-
-      cum += segLen;
-      prev = curr;
-    }
-    base += cum;
-  }
-
-  return best;
 }
 
 // ─── Schedule (no geometry, no network) ───────────────────

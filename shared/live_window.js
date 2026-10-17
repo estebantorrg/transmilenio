@@ -8,12 +8,12 @@
  * the host is shut (`server/src/services/proxy_health.ts`).
  */
 
+import { bogotaClock } from './bogota_clock.js';
+
 export const LIVE_WINDOW_START_MINUTE = 5 * 60; // 05:00
 export const LIVE_WINDOW_END_MINUTE = 23 * 60; // 23:00
 
-/** Bogotá is UTC−5 all year (no DST), so the offset is a constant, not a lookup. */
 export function liveWindowOpenAt(epochMs) {
-  const local = new Date(epochMs - 5 * 60 * 60 * 1000);
-  const minute = local.getUTCHours() * 60 + local.getUTCMinutes();
+  const { minute } = bogotaClock(epochMs);
   return minute >= LIVE_WINDOW_START_MINUTE && minute < LIVE_WINDOW_END_MINUTE;
 }
