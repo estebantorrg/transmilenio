@@ -381,7 +381,7 @@ function renderDepartDays(): void {
         return `
           <button class="depart-day${selected ? ' active' : ''}${option.festivo ? ' festivo' : ''}"
                   type="button" role="radio" aria-checked="${selected}" tabindex="${selected ? 0 : -1}"
-                  data-date="${option.date}" title="${escapeHTML(title)}">
+                  data-date="${escapeHTML(option.date)}" title="${escapeHTML(title)}">
             ${escapeHTML(option.label)}${option.festivo ? '<span class="depart-day-dot" aria-hidden="true"></span>' : ''}
           </button>`;
       })
