@@ -148,7 +148,8 @@ function hexByte(b: number): string {
 }
 
 function parseMovement(r: Uint8Array): NfcMovement | null {
-  // A valid record ends in SW 9000 and carries a non-zero type byte.
+  // `transceive` already refused any reply not ending in SW 9000; a record also
+  // needs its full length and a non-zero type byte.
   if (r.length < 33) return null;
   const t = r[0];
   if (t === 0) return null;
@@ -181,8 +182,17 @@ export function readCardBalance(signal?: AbortSignal): Promise<NfcBalanceRead> {
   // phonegap-nfc's connect/transceive/close are Promise-based; transceive takes a
   // Uint8Array (or ArrayBuffer/hex string) and resolves with an ArrayBuffer.
   const connect = (tech: string) => nfc.connect!(tech, 5000);
-  const transceive = async (data: number[]): Promise<Uint8Array> =>
-    new Uint8Array(await nfc.transceive!(new Uint8Array(data)));
+  // The reply carries the card's status word (SW1 SW2) as its last two bytes, and
+  // the plugin hands back whatever the card said. Anything but `90 00` is a
+  // refusal: a bank card answers `6E 00`, which the parse below read as a
+  // $1.845.493.760 balance. Thrown, so the caller falls back to NDEF + server.
+  const transceive = async (data: number[]): Promise<Uint8Array> => {
+    const reply = new Uint8Array(await nfc.transceive!(new Uint8Array(data)));
+    if (reply.length < 2 || reply[reply.length - 2] !== 0x90 || reply[reply.length - 1] !== 0x00) {
+      throw new Error('La tarjeta no respondió como una tullave');
+    }
+    return reply;
+  };
   const close = () => (nfc.close ? nfc.close() : Promise.resolve());
 
   return new Promise<NfcBalanceRead>((resolve, reject) => {
