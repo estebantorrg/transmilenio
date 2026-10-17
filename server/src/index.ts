@@ -33,7 +33,9 @@ const jsonErrorHandler: ErrorRequestHandler = (error, _req, res, next) => {
  * structured shape the API contract promises.
  */
 const apiErrorHandler: ErrorRequestHandler = (error, req, res, _next) => {
-  console.error(`[Unhandled] ${req.method} ${req.originalUrl}:`, error);
+  // The URL is an argument, not part of the format string: a `%o` in it would
+  // otherwise swallow the error into the middle of the line.
+  console.error('[Unhandled] %s %s:', req.method, req.originalUrl, error);
   if (res.headersSent) {
     res.end();
     return;

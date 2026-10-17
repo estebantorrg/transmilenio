@@ -148,4 +148,14 @@ test.describe('the API surface', () => {
     expect(ROUTES.toLowerCase()).not.toContain('x-forwarded-for');
     expect(ROUTES.toLowerCase()).not.toContain('x-real-ip');
   });
+
+  test('a log line never makes request text its format string', () => {
+    // `console.*` reads `%o`/`%s` in its FIRST argument as format specifiers, so
+    // a URL carrying `/%o` swallowed the logged error into the middle of the line
+    // (CodeQL js/tainted-format-string). Request text goes in as an argument.
+    const INDEX = fs.readFileSync(path.resolve(__dirname, '..', 'server/src/index.ts'), 'utf8');
+    for (const [file, source] of [['routes/api.ts', ROUTES], ['index.ts', INDEX]]) {
+      expect(source, file).not.toMatch(/console\.\w+\(`[^`]*\$\{req\./);
+    }
+  });
 });

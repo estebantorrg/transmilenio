@@ -277,7 +277,7 @@ router.get('/troncal/route/:code', async (req: Request, res: Response) => {
       res.status(404).json({ success: false, error: `Route ${code} not found in catalog` });
     }
   } catch (error) {
-    console.error(`Error fetching route detail for ${req.params.code}:`, error);
+    console.error('Error fetching route detail for %s:', req.params.code, error);
     res.status(500).json({ success: false, error: 'Failed to load route detail' });
   }
 });
