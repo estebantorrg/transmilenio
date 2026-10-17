@@ -30,13 +30,13 @@ import { CO_PROXY_TIMEOUT_MS, viaColombianProxy } from './proxy_race.js';
 import {
   ROUTE_RETENTION_DAYS,
   applyPlanoWagons,
-  cleanRouteName,
   dropRenamedInPlace,
   dropRetiredVariants,
   expireUnseenVariants,
   isDuplicateRoute,
   mergeCatalogs,
   pruneUnservedStationRoutes,
+  variantKey,
   type CatalogRoute,
   type CatalogRouteDetail,
   type CatalogStation,
@@ -1045,8 +1045,9 @@ export async function syncMasterCatalog(): Promise<void> {
             newCatalog.routes[route.codigo] = [];
           }
           
+          // Ciclovía-aware: a route's Sunday detour is its own variant (`variantKey`).
           const routeExists = newCatalog.routes[route.codigo].some(
-            (r) => cleanRouteName(r.nombre) === cleanRouteName(route.nombre)
+            (r) => variantKey(r.nombre) === variantKey(route.nombre)
           );
           if (!routeExists) {
             newCatalog.routes[route.codigo].push({

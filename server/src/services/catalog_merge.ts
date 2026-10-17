@@ -92,6 +92,12 @@ export interface MasterCatalog {
  */
 export const ROUTE_RETENTION_DAYS = Number(process.env.TM_ROUTE_RETENTION_DAYS || 21);
 
+/**
+ * A route's name as one STATION shows it: accents, spacing and the Ciclov\u00eda
+ * suffix dropped, so a stop's popup lists `K86 Portal El Dorado` once whether
+ * the weekday run or its Sunday detour filed it. Never a variant's identity \u2014
+ * see {@link variantKey}.
+ */
 export function cleanRouteName(name: string | null | undefined): string {
   if (!name) return '';
   return name
@@ -101,6 +107,20 @@ export function cleanRouteName(name: string | null | undefined): string {
     .replace(/\bCICLOVIA\b/g, '')
     .replace(/[^A-Z0-9]/g, '')
     .trim();
+}
+
+/**
+ * Which variant of its c\u00f3digo a route is: its name as filed, Ciclov\u00eda kept. The
+ * Sunday-and-festivo Ciclov\u00eda run is a variant of its own \u2014 its own stops, its
+ * own `D-F` horario \u2014 and keyed by {@link cleanRouteName} it was the SAME one:
+ * whichever the listing returned first was kept and the other dropped, in 195
+ * directions on the 2026-10-16 sync. K86 kept only `Portal ElDorado Ciclov\u00eda`
+ * (D-F 7:00\u201314:00), so on a weekday the planner had no K86 to Portal El Dorado
+ * and El Tiempo lost the service; A124 and T25 the same.
+ */
+export function variantKey(name: string | null | undefined): string {
+  if (!name) return '';
+  return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 export function isDuplicateRoute(a: { codigo: string; nombre: string }, b: { codigo: string; nombre: string }): boolean {
@@ -183,10 +203,10 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
     // the trace down with it. A missing trace is never evidence a route has no
     // geometry (spec §1 Certainty), and the planner charges ride distance along
     // it (§5.1.4, §5.6.3), so it falls back to the previous trace instead.
-    const oldByName = new Map(oldVariants.map((v) => [cleanRouteName(v.nombre), v]));
+    const oldByName = new Map(oldVariants.map((v) => [variantKey(v.nombre), v]));
     for (const variant of freshVariants) {
       if (hasTrace(variant.trazado)) continue;
-      const previousTrace = oldByName.get(cleanRouteName(variant.nombre))?.trazado;
+      const previousTrace = oldByName.get(variantKey(variant.nombre))?.trazado;
       if (!hasTrace(previousTrace)) continue;
       variant.trazado = previousTrace;
       tracesCarried++;
@@ -202,9 +222,9 @@ export function mergeCatalogs(previous: MasterCatalog, fresh: MasterCatalog): Ma
     const freshIds = new Set(freshVariants.map((v) => String(v.id ?? '').trim()).filter(Boolean));
     const renamedInPlace = oldVariants.filter((v) => freshIds.has(String(v.id ?? '').trim()));
 
-    const freshKeys = new Set(freshVariants.map((v) => cleanRouteName(v.nombre)));
+    const freshKeys = new Set(freshVariants.map((v) => variantKey(v.nombre)));
     const retained = oldVariants.filter(
-      (v) => !freshKeys.has(cleanRouteName(v.nombre)) && !renamedInPlace.includes(v)
+      (v) => !freshKeys.has(variantKey(v.nombre)) && !renamedInPlace.includes(v)
     );
     renamedAway += renamedInPlace.length;
     const alive = retained.filter((v) => !isRetiredTwin(v, code));

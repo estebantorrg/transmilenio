@@ -14,8 +14,10 @@ import {
   ROUTE_RETENTION_DAYS,
   dropRenamedInPlace,
   expireUnseenVariants,
+  isDuplicateRoute,
   mergeCatalogs,
   pruneUnservedStationRoutes,
+  variantKey,
 } from '../server/src/services/catalog_merge.ts';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -69,6 +71,19 @@ test.describe('merging a sync over the previous catalog', () => {
     // one run is not a retirement.
     expect(merged.routes.QQ9.map((v) => v.nombre)).toEqual(['Domingo']);
     expect(merged.stations.S9.wagons.A.map((r) => r.codigo)).toEqual(['QQ9']);
+  });
+
+  test('a route and its Ciclovía detour are two variants, and neither replaces the other', () => {
+    // K86 kept only `Portal ElDorado Ciclovía` (D-F) after a sync, so on a
+    // weekday there was no K86 to Portal El Dorado: the Sunday run and the
+    // weekday run shared one key.
+    const previous: any = { stations: {}, routes: { QQ5: [variant('QQ5', '5', 'Portal ElDorado', { seenAt: NOW - DAY })] } };
+    const fresh: any = { stations: {}, routes: { QQ5: [variant('QQ5', '6', 'Portal ElDorado Ciclovía', { seenAt: NOW })] } };
+    const merged = mergeCatalogs(previous, fresh);
+    expect(merged.routes.QQ5.map((v) => v.id).sort()).toEqual(['5', '6']);
+    expect(variantKey('Portal ElDorado Ciclovía')).not.toBe(variantKey('Portal ElDorado'));
+    // A station still lists the service once, whichever run filed it.
+    expect(isDuplicateRoute(tag('QQ5', '5', 'Portal ElDorado'), tag('QQ5', '6', 'Portal ElDorado Ciclovía'))).toBe(true);
   });
 
   test('an id that now answers to another código takes the old one with it', () => {
