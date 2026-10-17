@@ -6,6 +6,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# Read-only token: the job checks out, caches and uploads artifacts, and
+# Chromatic reports through its own project token, so nothing here writes to
+# the repository (CodeQL actions/missing-workflow-permissions).
+permissions:
+  contents: read
+
 # A push train used to leave a queue of full runs racing each other. Only the tip
 # of a PR branch is worth building; every push to main still runs, because each
 # one is a Chromatic baseline.
