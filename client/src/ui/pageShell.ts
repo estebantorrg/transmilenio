@@ -83,11 +83,6 @@ function resolvePage(pathname: string): OverlayPage | null {
   return null;
 }
 
-/** The page open right now, or null. */
-export function openOverlayPagePath(): string | null {
-  return current?.path ?? null;
-}
-
 export function isOverlayPageOpen(id?: string): boolean {
   if (!current) return false;
   return id ? current.id === id : true;

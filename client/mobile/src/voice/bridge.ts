@@ -47,10 +47,6 @@ function plugin(): VoicePluginApi | null {
   return voice && typeof voice.listen === 'function' ? (voice as VoicePluginApi) : null;
 }
 
-export function isNativeVoice(): boolean {
-  return plugin() !== null;
-}
-
 // ─── Launch ───────────────────────────────────────────────
 
 export async function consumeVoiceLaunch(): Promise<VoiceLaunch> {

@@ -64,11 +64,6 @@ export function troncalStationEntry(code: string | null | undefined): RegistryEn
   return REGISTRY[String(code ?? '').trim()] ?? REGISTRY[String(code ?? '').trim().toUpperCase()];
 }
 
-/** How many stations the registry pairs with a catalog stop — for logging. */
-export function registeredStationCount(): number {
-  return REGISTERED.size;
-}
-
 /**
  * Catalog stops that carry TransMilenio service but are in neither the registry
  * nor the `TM…` code space — i.e. estaciones this build cannot recognise.

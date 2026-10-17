@@ -83,10 +83,6 @@ export function isRetiredRoute(codigo: unknown): boolean {
   return true;
 }
 
-export function retiredRouteCodes(): string[] {
-  return Array.from(RETIRED);
-}
-
 /**
  * Whether this (código, id) names a *variant* the network has replaced.
  *

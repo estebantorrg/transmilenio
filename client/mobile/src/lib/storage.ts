@@ -144,14 +144,6 @@ export function pushRecentTrip(trip: RecentTrip): void {
   }
 }
 
-export function clearRecentTrips(): void {
-  try {
-    localStorage.removeItem(TRIPS_KEY);
-  } catch {
-    /* non-fatal */
-  }
-}
-
 /** Remembered card numbers (last used first). Stored locally only. */
 export function getCards(): string[] {
   return read(CARDS_KEY);
