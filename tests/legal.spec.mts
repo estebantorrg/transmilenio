@@ -55,7 +55,6 @@ test.describe('what the policy says', () => {
       'TRANSMILENIO S.A.',
       'FOSSGIS e.V.',
       'Photon',
-      'Nominatim',
       'Esri',
       'GeoJS',
       'GitHub, Inc.',
@@ -63,6 +62,9 @@ test.describe('what the policy says', () => {
     ]) {
       expect(texto, quien).toContain(quien);
     }
+    // The geocoder stopped asking Nominatim (its policy forbids type-ahead use),
+    // so the policy must stop naming it as a recipient.
+    expect(texto).not.toContain('Nominatim');
     expect(texto).toContain('artículo 26 de la Ley 1581 de 2012');
   });
 

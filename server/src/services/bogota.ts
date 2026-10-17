@@ -17,7 +17,7 @@ export const BOGOTA_BOUNDS = {
   north: 4.85,
 } as const;
 
-/** `west,south,east,north` — the form Nominatim/Photon want for a viewbox/bbox. */
+/** `west,south,east,north` — the form Photon wants for its bbox. */
 export const BOGOTA_BBOX = `${BOGOTA_BOUNDS.west},${BOGOTA_BOUNDS.south},${BOGOTA_BOUNDS.east},${BOGOTA_BOUNDS.north}`;
 
 export function isWithinBogota(lng: number, lat: number): boolean {

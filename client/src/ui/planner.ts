@@ -1221,7 +1221,7 @@ function initInputHandlers(): void {
     dropdown.classList.remove('hidden');
 
     try {
-      // Query local lookup + Nominatim + ArcGIS geocoder proxy
+      // Query local lookup + Photon + ArcGIS geocoder proxy
       const res = await api.geocodeAddress(trimmed);
       if (!isCurrentRequest()) return;
       const candidates: GeocodeCandidate[] = res.success && Array.isArray(res.candidates) ? res.candidates : [];

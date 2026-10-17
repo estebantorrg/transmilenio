@@ -23,7 +23,6 @@ repeated here.
 |---|---|---|
 | Basemap style and tiles (`dark-matter`) | © CARTO | [CARTO attribution and basemap terms](https://carto.com/attributions) |
 | Address search (Photon) | Komoot GmbH, on OpenStreetMap data | Service terms of photon.komoot.io |
-| Address search (Nominatim) | OpenStreetMap Foundation | [Nominatim usage policy](https://operations.osmfoundation.org/policies/nominatim/) |
 | Address search (ArcGIS geocoder) | Esri | Esri service terms |
 | Walking routes | FOSSGIS e.V. (`routing.openstreetmap.de`) | FOSSGIS service terms |
 

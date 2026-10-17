@@ -310,46 +310,16 @@ function searchLocalCatalog(query: string): LocalCandidate[] {
     .slice(0, 8);
 }
 
-async function fetchNominatim(query: string): Promise<GeocodeCandidate[]> {
-  // Same window as `inBogota` — a hard-coded literal here had already drifted from it.
-  const url =
-    `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}` +
-    `&format=json&viewbox=${BOGOTA_BBOX}&bounded=1&limit=6`;
-
-  const response = await fetch(url, {
-    headers: {
-      'User-Agent': 'TransMilenioExplorer/1.0 (contact: github.com/estebantorrg/transmilenio)',
-      'Accept-Language': 'es-CO,es;q=0.9',
-    },
-    signal: AbortSignal.timeout(5000),
-  });
-
-  if (!response.ok) throw new Error(`Nominatim HTTP ${response.status}`);
-
-  const data = await response.json();
-  if (!Array.isArray(data)) return [];
-
-  return data
-    .map((item: any): GeocodeCandidate | null => {
-      if (typeof item?.display_name !== 'string') return null;
-      const lat = finiteNumber(item.lat);
-      const lon = finiteNumber(item.lon);
-      if (lat === null || lon === null) return null;
-      return {
-        name: item.display_name.split(',').slice(0, 3).join(',').trim(),
-        lat,
-        lon,
-        type: item.class === 'railway' || item.type === 'station' ? 'station' : 'place',
-      };
-    })
-    .filter((candidate): candidate is GeocodeCandidate => candidate !== null)
-    .filter(inBogota);
-}
-
 /**
  * Photon (Komoot) — OSM-backed, autocomplete-tuned place search. No key/card.
  * Best partial-typing coverage of Bogotá POIs (malls, universities, landmarks).
  * `bbox` restricts to the Bogotá window; `inBogota` re-checks as defense in depth.
+ *
+ * It is the only OSM source on purpose. Nominatim was asked too, and its usage
+ * policy allows one request a second and no autocomplete at all — while every
+ * rider's debounced keystroke left from this server's one IP, unpaced, which is
+ * how an IP gets blocked. Photon serves the same OpenStreetMap data for exactly
+ * this use, and ArcGIS covers street addresses.
  */
 async function fetchPhoton(query: string): Promise<GeocodeCandidate[]> {
   const url =
@@ -478,17 +448,12 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
 
   const localCandidates = searchLocalCatalog(trimmed);
 
-  // Query all geocoders in parallel — a slow or failed provider must not block
-  // the others. Previously ArcGIS only ran after Nominatim's full 5s timeout, so
-  // a slow Nominatim stalled every lookup. Photon/Nominatim cover POIs, ArcGIS
-  // covers addresses; the union gives broader real-place coverage.
-  const [photon, nominatim, arcgis] = await Promise.all([
+  // Query both geocoders in parallel — a slow or failed provider must not block
+  // the other. Photon covers POIs, ArcGIS covers addresses; the union gives
+  // broader real-place coverage.
+  const [photon, arcgis] = await Promise.all([
     fetchPhoton(trimmed).catch((error) => {
       console.warn('[Geocode] Photon failed:', error);
-      return [] as GeocodeCandidate[];
-    }),
-    fetchNominatim(trimmed).catch((error) => {
-      console.warn('[Geocode] Nominatim failed:', error);
       return [] as GeocodeCandidate[];
     }),
     fetchArcGIS(trimmed).catch((error) => {
@@ -497,10 +462,10 @@ export async function geocodeAddress(query: string): Promise<GeocodeCandidate[]>
     }),
   ]);
 
-  // Photon leads: it's the autocomplete-tuned place source. Nominatim/ArcGIS
-  // backfill addresses it misses. dedupeCandidates + inBogota keep it Bogotá-only.
+  // Photon leads: it's the autocomplete-tuned place source. ArcGIS backfills
+  // addresses it misses. dedupeCandidates + inBogota keep it Bogotá-only.
   const remoteTokens = queryTokens(trimmed);
-  const relevantRemote = [...photon, ...nominatim, ...arcgis].filter((candidate) =>
+  const relevantRemote = [...photon, ...arcgis].filter((candidate) =>
     remoteLooksRelevant(remoteTokens, candidate)
   );
 

@@ -76,7 +76,7 @@ export const PRIVACIDAD = {
   breadcrumb: 'Política de privacidad',
   descripcion:
     'Qué datos trata este servicio de rutas de Bogotá, para qué, quién los recibe, cuánto tiempo se guardan y cómo ejercer tus derechos (Ley 1581 de 2012).',
-  vigencia: '10 de octubre de 2026',
+  vigencia: '16 de octubre de 2026',
   resumen: `
 <p><strong>Aviso de privacidad.</strong> ${esc(RESPONSABLE.nombre)}, persona natural con domicilio en Bogotá, es el responsable del tratamiento de los datos personales que se procesan al usar este sitio web y su aplicación para Android (en adelante, «el servicio»).</p>
 <p>El servicio no tiene cuentas de usuario: no te pide nombre, cédula, correo ni teléfono. Solo trata los datos que necesita para lo que tú le pides: el número de tu tarjeta tu llave cuando consultas su saldo, tu ubicación cuando la compartes para ver estaciones cercanas o planear un viaje, lo que escribes al buscar una dirección, y los datos técnicos de la conexión (como tu dirección IP) que recibe cualquier sitio web. No vende datos ni los usa para publicidad.</p>
@@ -122,7 +122,7 @@ ${dato('2.4 Búsquedas de direcciones y lugares', [
   ['Qué', 'El texto que escribes como origen o destino en el planificador, que puede ser una dirección.'],
   ['Para qué', 'Encontrar el lugar y sus coordenadas.'],
   ['Autorización', 'Expresa: la das al escribir la búsqueda.'],
-  ['Quién la recibe', 'En el sitio web, nuestro servidor busca ese texto en Photon (Komoot GmbH, Alemania), Nominatim (OpenStreetMap Foundation, Reino Unido) y el geocodificador de ArcGIS (Esri, Estados Unidos). Esos servicios ven la dirección IP de nuestro servidor, no la tuya. En la app, el teléfono busca directamente en Photon.'],
+  ['Quién la recibe', 'En el sitio web, nuestro servidor busca ese texto en Photon (Komoot GmbH, Alemania) y en el geocodificador de ArcGIS (Esri, Estados Unidos). Esos servicios ven la dirección IP de nuestro servidor, no la tuya. En la app, el teléfono busca directamente en Photon.'],
   ['Cuánto tiempo', 'No guardamos las búsquedas, aunque pueden quedar en los registros técnicos del alojamiento (2.3). Tu navegador recuerda los últimos resultados solo mientras la página está abierta.'],
 ])}
 ${dato('2.5 Consultas de la app a TRANSMILENIO S.A. e identificador de instalación', [
@@ -158,14 +158,13 @@ ${destinatario('CARTO', 'Estados Unidos y España', 'Sirve las imágenes del map
 ${destinatario('TRANSMILENIO S.A.', 'Colombia', 'Recibe el número de tarjeta que consultas. Desde la app, también tu dirección IP y el identificador de instalación (2.5). Trata esos datos como responsable de su propio sistema.')}
 ${destinatario('FOSSGIS e.V.', 'Alemania', 'Calcula las rutas a pie. Recibe los puntos de inicio y llegada de cada tramo; desde la app, también tu dirección IP.')}
 ${destinatario('Komoot GmbH (Photon)', 'Alemania', 'Busca direcciones. Recibe el texto de la búsqueda; desde la app, también tu dirección IP.')}
-${destinatario('OpenStreetMap Foundation (Nominatim)', 'Reino Unido', 'Busca direcciones para el sitio web. Recibe el texto de la búsqueda desde nuestro servidor.')}
 ${destinatario('Esri (ArcGIS)', 'Estados Unidos', 'Busca direcciones para el sitio web. Recibe el texto de la búsqueda desde nuestro servidor.')}
 ${destinatario('GeoJS', 'Fuera de Colombia', 'Estima una ubicación aproximada. Recibe tu dirección IP, solo cuando no compartes tu ubicación y el sitio web la necesita.')}
 ${destinatario('GitHub, Inc.', 'Estados Unidos', 'Publica las versiones de la app para Android. Recibe tu dirección IP y el tipo de dispositivo cuando la app, al abrirse, comprueba si hay una versión más reciente, y cuando la descargas para actualizar.')}
 ${destinatario('Servidores proxy públicos', 'Colombia', 'Transportan tráfico cifrado entre nuestro servidor y TRANSMILENIO S.A. No pueden leer tus datos (sección 4).')}
 </ul>
 <p>Render y Cloudflare tratan los datos por nuestra cuenta, según los términos de protección de datos de sus servicios. Los demás los reciben como terceros independientes y los tratan según sus propias políticas.</p>
-<p>Varios de estos destinatarios están fuera de Colombia. Estados Unidos, Alemania, España y el Reino Unido figuran en la lista de países con un nivel adecuado de protección de datos de la Superintendencia de Industria y Comercio (Circular Externa 005 de 2017), por lo que el artículo 26 de la Ley 1581 de 2012 permite enviarles datos. Para cualquier otro destino, al usar la función correspondiente después de conocer esta política autorizas de forma expresa esa transferencia.</p>`,
+<p>Varios de estos destinatarios están fuera de Colombia. Estados Unidos, Alemania y España figuran en la lista de países con un nivel adecuado de protección de datos de la Superintendencia de Industria y Comercio (Circular Externa 005 de 2017), por lo que el artículo 26 de la Ley 1581 de 2012 permite enviarles datos. Para cualquier otro destino, al usar la función correspondiente después de conocer esta política autorizas de forma expresa esa transferencia.</p>`,
     },
     {
       titulo: '4. Los proxies públicos, en palabras simples',
@@ -231,7 +230,7 @@ ${destinatario('Servidores proxy públicos', 'Colombia', 'Transportan tráfico c
     {
       titulo: '10. Vigencia',
       html: `
-<p>Esta política rige desde el 10 de octubre de 2026. Los datos se tratan durante los plazos que se indican en la sección 2 y, en todo caso, solo mientras el servicio esté en funcionamiento. Si el servicio se cierra, se eliminarán los registros que queden en nuestro servidor.</p>`,
+<p>Esta política rige desde el 16 de octubre de 2026. Los datos se tratan durante los plazos que se indican en la sección 2 y, en todo caso, solo mientras el servicio esté en funcionamiento. Si el servicio se cierra, se eliminarán los registros que queden en nuestro servidor.</p>`,
     },
   ],
 };
