@@ -629,6 +629,12 @@ body.sidebar-collapsed .sidebar-fab {
   color: rgba(255, 255, 255, 0.25);
 }
 
+/* `.search-clear` is the clear button; the browser's own would be a second X. */
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .search-input:focus {
   border-color: var(--tm-red);
   box-shadow: 0 0 0 3px rgba(216, 16, 45, 0.15);
