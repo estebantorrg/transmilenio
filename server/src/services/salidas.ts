@@ -68,6 +68,22 @@ export function aggregateDay(csv: string, agg: Map<string, { e: number; s: numbe
 }
 
 /**
+ * The first candidate `works` says yes to, or null. Tried a batch at a time,
+ * in order: free proxies are mostly dead and a probe can take seconds, so one
+ * at a time is minutes, and all at once is hundreds of sockets. A probe that
+ * throws counts as a no.
+ */
+export async function firstWorking<T>(candidates: T[], works: (candidate: T) => Promise<boolean>, batch = 25): Promise<T | null> {
+  for (let i = 0; i < candidates.length; i += batch) {
+    const slice = candidates.slice(i, i + batch);
+    const ok = await Promise.all(slice.map((candidate) => works(candidate).catch(() => false)));
+    const at = ok.indexOf(true);
+    if (at >= 0) return slice[at];
+  }
+  return null;
+}
+
+/**
  * Whether a service day belongs in the weekday mean: Monday to Friday, and not
  * a festivo. A holiday that falls on a weekday is published like any other day
  * and carries a Sunday's ridership, so counting it pulled every station's mean

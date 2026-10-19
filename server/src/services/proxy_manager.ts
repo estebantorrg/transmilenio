@@ -294,8 +294,10 @@ class ProxyManagerClass {
    * Gathers candidates from several free sources. CO-tagged sources go first
    * (highest hit rate); a bounded slice of a global list tops up to catch CO
    * proxies the tagged lists miss. The live-API test is the real CO filter.
+   * Public for the station-demand sync, which verifies them against its own
+   * Colombia-only host instead (`sync_demand.ts`).
    */
-  private async fetchCandidates(): Promise<ProxyItem[]> {
+  public async fetchCandidates(): Promise<ProxyItem[]> {
     const tagged = new Map<string, ProxyItem>();
     const add = (map: Map<string, ProxyItem>, ip: string, port: number) => {
       if (ip && Number.isFinite(port) && port > 0) map.set(keyOf(ip, port), { ip, port });

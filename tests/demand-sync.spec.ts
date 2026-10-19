@@ -12,7 +12,7 @@
 
 import { expect, test } from '@playwright/test';
 import zlib from 'node:zlib';
-import { aggregateDay, isOrdinaryWeekday, unzipSingleEntry } from '../server/src/services/salidas';
+import { aggregateDay, firstWorking, isOrdinaryWeekday, unzipSingleEntry } from '../server/src/services/salidas';
 
 // The real header and row shape (salidas20261009.zip).
 const HEADER = 'Fecha_Transaccion,Tiempo,Linea,Estacion,Acceso_Estacion,Dispositivo,Entradas_E,Salidas_S';
@@ -110,5 +110,26 @@ test.describe('the ZIP reader', () => {
 
   test('and says so when the bytes are not a ZIP', () => {
     expect(() => unzipSingleEntry(Buffer.from('<html>404</html>'))).toThrow('end-of-central-directory not found');
+  });
+});
+
+// The Salidas host answers Colombia only, so the daily runner (abroad) picks a
+// free proxy that the host answers as Colombian (`colombianProxy`, sync_demand.ts).
+test.describe('picking a proxy', () => {
+  test('the first one that works, a batch at a time, and a probe that throws is a no', async () => {
+    const probed: number[] = [];
+    const works = async (n: number) => {
+      probed.push(n);
+      if (n === 2) throw new Error('tunnel reset');
+      return n === 3 || n === 5;
+    };
+    expect(await firstWorking([1, 2, 3, 4, 5], works, 2)).toBe(3);
+    // Batch [1,2] all failed, batch [3,4] found 3; batch [5] was never asked.
+    expect(probed.sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  test('none that works is null, not an error', async () => {
+    expect(await firstWorking([1, 2, 3], async () => false)).toBeNull();
+    expect(await firstWorking([], async () => true)).toBeNull();
   });
 });

@@ -39,12 +39,20 @@ jobs:
       - name: Install server dependencies
         run: npm ci --workspace server
 
+      # A day's file never changes once published, and this runner can only fetch
+      # it through a free Colombian proxy (the host serves Colombia only), so the
+      # days already downloaded are kept between runs: a run fetches ~1 new file.
+      - name: Restore downloaded Salidas days
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/salidas
+          key: salidas-${{ github.run_id }}
+          restore-keys: salidas-
+
       - name: Regenerate station demand
         id: sync
-        # TRANSMILENIO's open-data host answers 403 to GitHub's runners, so the
-        # files come through the relay Worker (scripts/salidas-relay/worker).
         env:
-          SALIDAS_BASE_URL: https://transmi-salidas-relay.estebantorrg-8d9.workers.dev/Salidas
+          SALIDAS_CACHE_DIR: ${{ runner.temp }}/salidas
         run: |
           before=$(node -p "try { require('./server/src/data/station_demand.json').window.to } catch (e) { '' }")
           npm --prefix server run sync:demand

@@ -19,17 +19,25 @@
  * to the ArcGIS troncal station layer by `numero_estacion` for its name +
  * coordinates; unmatched codes (bike parks, yards, temporary stops) are dropped.
  *
- * Run from anywhere (the site is public, no Colombian egress needed):
+ * The host serves Colombia only: 403 to any other country (the daily GitHub
+ * runner included, measured 2026-10-18), 404 for a day it has not published. So
+ * a run abroad downloads through a free public proxy that exits in Colombia,
+ * checked against this host before it is used (`colombianProxy`). Day files
+ * never change once published, so with `SALIDAS_CACHE_DIR` set (the workflow
+ * keeps it between runs) a day is downloaded once, not fifteen times.
+ *
  *   npm run sync:demand
  */
-import { writeFile } from 'node:fs/promises';
+import https from 'node:https';
+import { mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { aggregateDay, isOrdinaryWeekday, unzipSingleEntry } from './services/salidas.js';
+import { aggregateDay, firstWorking, isOrdinaryWeekday, unzipSingleEntry } from './services/salidas.js';
+import { ProxyManager, SimpleProxyAgent } from './services/proxy_manager.js';
+import { collectBody } from './services/upstream_body.js';
 
-// The host refuses GitHub's runners, so the workflow sets SALIDAS_BASE_URL to the
-// relay Worker (`scripts/salidas-relay/worker`); anywhere else asks it directly.
-const SALIDAS = (process.env.SALIDAS_BASE_URL || 'https://validaciones.datosabiertos.transmilenio.gov.co/Salidas').replace(/\/$/, '');
+const SALIDAS_HOST = 'validaciones.datosabiertos.transmilenio.gov.co';
+const CACHE_DIR = process.env.SALIDAS_CACHE_DIR || '';
 const STATIONS_URL =
   'https://gis.transmilenio.gov.co/arcgis/rest/services/Troncal/consulta_estaciones_troncales/FeatureServer/0/query' +
   '?where=1=1&outFields=numero_estacion,nombre_estacion,codigo_nodo_estacion,latitud_estacion,longitud_estacion' +
@@ -84,6 +92,63 @@ async function fetchStationRefs(): Promise<Map<string, StationRef>> {
   return refs;
 }
 
+/** One request to the Salidas host, through `agent` when there is one. */
+function salidas(path: string, method: 'GET' | 'HEAD', agent?: https.Agent, timeoutMs = 30_000): Promise<{ status: number; body: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request({ host: SALIDAS_HOST, path, method, agent, timeout: timeoutMs }, (res) => {
+      collectBody(res, `Salidas ${path}`).then((body) => resolve({ status: res.statusCode ?? 0, body }), reject);
+    });
+    req.on('timeout', () => req.destroy(new Error(`${path} timed out`)));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+let candidates: Array<{ ip: string; port: number }> | null = null;
+const tried = new Set<string>();
+
+/**
+ * A free public proxy that the Salidas host answers as Colombian: its home page
+ * is 200 from Colombia and 403 from anywhere else, so that is the whole test.
+ * The pool lists are the live tier's (`ProxyManager.fetchCandidates`), but none
+ * of them is probed against the live host here.
+ */
+async function colombianProxy(): Promise<https.Agent | undefined> {
+  candidates ??= await ProxyManager.fetchCandidates();
+  const fresh = candidates.filter((p) => !tried.has(`${p.ip}:${p.port}`));
+  const found = await firstWorking(fresh, async (p) => {
+    tried.add(`${p.ip}:${p.port}`);
+    return (await salidas('/', 'HEAD', new SimpleProxyAgent(p.ip, p.port), 9_000)).status === 200;
+  });
+  if (found) console.log(`[sync:demand] downloading through Colombian proxy ${found.ip}:${found.port}`);
+  return found ? new SimpleProxyAgent(found.ip, found.port) : undefined;
+}
+
+let proxy: https.Agent | undefined;
+
+// A proxy that passed the probe still dies on the download about half the time
+// (three in a row on 2026-10-18), so a file gets this many before it is skipped.
+const DOWNLOAD_ATTEMPTS = 8;
+
+/** One day's zip, or null when the host has not published that day. */
+async function downloadDay(name: string): Promise<Buffer | null> {
+  for (let attempt = 0; attempt < DOWNLOAD_ATTEMPTS; attempt++) {
+    const res = await salidas(`/Salidas/${name}`, 'GET', proxy).catch((err) => {
+      if (!proxy) throw err;
+      console.warn(`[sync:demand] ${name}: proxy failed (${err?.message || err}), trying another`);
+      return null;
+    });
+    if (res?.status === 200) return res.body;
+    if (res?.status === 404) return null;
+    if (res && res.status !== 403) throw new Error(`HTTP ${res.status}`);
+    // 403: this egress is not Colombian; null: the proxy died. Either way, a new one.
+    if (res) console.warn(`[sync:demand] ${name}: HTTP 403 ${proxy ? 'through the proxy' : 'from here (geofence)'} — finding a Colombian proxy`);
+    proxy = await colombianProxy();
+    if (!proxy) throw new Error('no free Colombian proxy answered');
+  }
+  throw new Error(`gave up after ${DOWNLOAD_ATTEMPTS} attempts`);
+}
+
 function fileNameForDate(d: Date): string {
   const y = d.getUTCFullYear();
   const m = String(d.getUTCMonth() + 1).padStart(2, '0');
@@ -94,7 +159,6 @@ function fileNameForDate(d: Date): string {
 export async function syncStationDemand(): Promise<number> {
   const refs = await fetchStationRefs();
   console.log(`[sync:demand] ${refs.size} troncal stations for the join`);
-
   const agg = new Map<string, { e: number; s: number }>();
   let daysUsed = 0;
   const usedDates: string[] = [];
@@ -106,14 +170,12 @@ export async function syncStationDemand(): Promise<number> {
     if (!isOrdinaryWeekday(cursor)) continue; // weekdays only, festivos out
     const name = fileNameForDate(cursor);
     try {
-      const res = await fetch(`${SALIDAS}/${name}`);
-      // A missing day (not yet published) is routine; logged anyway, because a
-      // host that refuses EVERY day read as "no files" with the cause unsaid.
-      if (!res.ok) {
-        console.warn(`[sync:demand] ${name} HTTP ${res.status} — skipped`);
+      const cached = CACHE_DIR ? await readFile(join(CACHE_DIR, name)).catch(() => null) : null;
+      const buf = cached ?? await downloadDay(name);
+      if (!buf) {
+        console.warn(`[sync:demand] ${name} not published (404) — skipped`);
         continue;
       }
-      const buf = Buffer.from(await res.arrayBuffer());
       const csv = unzipSingleEntry(buf).toString('utf8');
       const rows = aggregateDay(csv, agg);
       // A day that parsed to ZERO rows must not count: `daysUsed` is the divisor
@@ -125,9 +187,21 @@ export async function syncStationDemand(): Promise<number> {
       }
       daysUsed++;
       usedDates.push(name.slice(7, 15));
-      console.log(`[sync:demand] ${name} ok, ${rows} rows (${daysUsed}/${TARGET_DAYS})`);
+      // Kept only once it parsed, so a broken download is never served from the cache.
+      if (CACHE_DIR && !cached) {
+        await mkdir(CACHE_DIR, { recursive: true });
+        await writeFile(join(CACHE_DIR, name), buf);
+      }
+      console.log(`[sync:demand] ${name} ok, ${rows} rows (${daysUsed}/${TARGET_DAYS})${cached ? ' (cached)' : ''}`);
     } catch (err: any) {
       console.warn(`[sync:demand] ${name} skipped: ${err?.message || err}`);
+    }
+  }
+  // Days that fell out of the window are never read again (a run that read
+  // nothing proves nothing about the window, so it leaves the cache alone).
+  if (CACHE_DIR && usedDates.length > 0) {
+    for (const file of await readdir(CACHE_DIR).catch(() => [] as string[])) {
+      if (!usedDates.includes(file.slice(7, 15))) await rm(join(CACHE_DIR, file), { force: true });
     }
   }
 
