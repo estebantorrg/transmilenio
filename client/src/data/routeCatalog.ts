@@ -92,8 +92,10 @@ function platformNodes(stop: any, route: CatalogVariant, catalog: MasterCatalog)
 
 /**
  * Parses one catalog route stop into a map-ready stop. Avenida Jiménez (TM0013)
- * and Ricaurte (TM0069) stay the single merged stops the catalog files them as
- * (spec §5.4.1); only the planner reads the `platforms` stamped beside them.
+ * and Ricaurte (TM0069) keep the merged código the catalog files them under
+ * (spec §5.4.1) but stand where the route boards: the catalog's one point is the
+ * trunk half, so every Calle 13 route was pinned across the tunnel. The planner
+ * reads the `platforms` stamped beside them.
  */
 export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: MasterCatalog): RouteStop | null {
   if (!stop?.coordenada || typeof stop.coordenada !== 'string' || !stop.coordenada.includes(',')) return null;
@@ -105,7 +107,7 @@ export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: Ma
     nombre: stop.nombre,
     codigo: stop.codigo,
     sourceCode: stop.codigo,
-    coordinate: [lng, lat] as [number, number],
+    coordinate: platforms?.[0]?.coordinate ?? ([lng, lat] as [number, number]),
     direccion: stop.direccion,
     kind: stopKind(stop.codigo),
     ...(platforms ? { platforms } : {}),

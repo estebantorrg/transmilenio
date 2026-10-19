@@ -1311,15 +1311,20 @@ export function bringStationsLayerToFront(map: maplibregl.Map): void {
 let globalStations: TroncalStationFeature[] = [];
 
 export function showStationPopupByCode(map: maplibregl.Map, stationCode: string, coordinate: [number, number]): boolean {
+  // A merged stop's código (Ricaurte, Av. Jiménez) matches both halves: open the one standing at `coordinate`.
+  const away = (station: ResolvedCatalogStation): number => {
+    const at = platformForMatchMethod(station.matchMethod)?.coordinate;
+    return at ? Math.hypot(at[0] - coordinate[0], at[1] - coordinate[1]) : Infinity;
+  };
   let resolvedStation: ResolvedCatalogStation | undefined;
   for (const station of Object.values(_resolvedStations)) {
     if (
-      station.stationCode === stationCode ||
-      station.stationKey === stationCode ||
-      station.sourceStops.some(ss => ss.codigo === stationCode)
+      (station.stationCode === stationCode ||
+        station.stationKey === stationCode ||
+        station.sourceStops.some(ss => ss.codigo === stationCode)) &&
+      (!resolvedStation || away(station) < away(resolvedStation))
     ) {
       resolvedStation = station;
-      break;
     }
   }
 

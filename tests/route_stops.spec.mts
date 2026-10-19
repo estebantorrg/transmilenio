@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { abordajeEn, plataformasDe, vagonTexto } from '../shared/route_stop.js';
+import { stationPlatform } from '../shared/station_platforms.js';
 
 /**
  * The route page's stop list (spec §5.5.5): beside each estación, the vagón the
@@ -112,5 +113,15 @@ test.describe('the stop list on a route page', () => {
     expect(stops.every((s) => !s.lines.includes('F'))).toBe(true);
     // No estación prints the catalog's TM código.
     expect(stops.filter((s) => /^#\s*TM\d+/i.test(s.sub))).toEqual([]);
+    // Its map pin stands on that platform too, not on the NQS point the catalog files the stop at.
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (window as any).__tmMap
+            ?.getSource('selected-route-stops')
+            ?._data?.features?.find((f: any) => f.properties.code === 'TM0069')?.geometry.coordinates
+        )
+      )
+      .toEqual(stationPlatform('TM0069C13')?.coordinate);
   });
 });
