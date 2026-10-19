@@ -2,8 +2,11 @@
  * Builds the station-demand catalog (`data/station_demand.json`) from TRANSMILENIO's
  * open "Salidas" dataset — daily per-station entry/exit (validation) counts.
  *
- * Source: public Google Cloud Storage bucket `gs://validaciones_tmsa` (spec §5.8,
- * "Validaciones/Salidas"). Each `Salidas/salidasYYYYMMDD.zip` holds one CSV of
+ * Source: TRANSMILENIO's open-data site for validaciones (spec §5.8,
+ * "Validaciones/Salidas"), which replaced the public `gs://validaciones_tmsa`
+ * bucket on 2026-10-13 — the bucket now answers 403 to every anonymous read,
+ * with the same file names served from the new host. Each
+ * `Salidas/salidasYYYYMMDD.zip` holds one CSV of
  * per-access, per-15-min `Entradas_E`/`Salidas_S` counts. Like the master catalog
  * and recharge points, we aggregate offline and commit the small result so
  * production serves it read-only with no bulk download/parse on the hot path
@@ -16,7 +19,7 @@
  * to the ArcGIS troncal station layer by `numero_estacion` for its name +
  * coordinates; unmatched codes (bike parks, yards, temporary stops) are dropped.
  *
- * Run from anywhere (the bucket is public, no Colombian egress needed):
+ * Run from anywhere (the site is public, no Colombian egress needed):
  *   npm run sync:demand
  */
 import { writeFile } from 'node:fs/promises';
@@ -24,7 +27,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { aggregateDay, isOrdinaryWeekday, unzipSingleEntry } from './services/salidas.js';
 
-const BUCKET = 'https://storage.googleapis.com/validaciones_tmsa';
+const SALIDAS = 'https://validaciones.datosabiertos.transmilenio.gov.co/Salidas';
 const STATIONS_URL =
   'https://gis.transmilenio.gov.co/arcgis/rest/services/Troncal/consulta_estaciones_troncales/FeatureServer/0/query' +
   '?where=1=1&outFields=numero_estacion,nombre_estacion,codigo_nodo_estacion,latitud_estacion,longitud_estacion' +
@@ -101,8 +104,13 @@ export async function syncStationDemand(): Promise<number> {
     if (!isOrdinaryWeekday(cursor)) continue; // weekdays only, festivos out
     const name = fileNameForDate(cursor);
     try {
-      const res = await fetch(`${BUCKET}/Salidas/${name}`);
-      if (!res.ok) continue; // missing day (holiday/not yet published) — skip
+      const res = await fetch(`${SALIDAS}/${name}`);
+      // A missing day (not yet published) is routine; logged anyway, because a
+      // host that refuses EVERY day read as "no files" with the cause unsaid.
+      if (!res.ok) {
+        console.warn(`[sync:demand] ${name} HTTP ${res.status} — skipped`);
+        continue;
+      }
       const buf = Buffer.from(await res.arrayBuffer());
       const csv = unzipSingleEntry(buf).toString('utf8');
       const rows = aggregateDay(csv, agg);
@@ -148,7 +156,7 @@ export async function syncStationDemand(): Promise<number> {
 
   const payload = {
     generatedAt: new Date().toISOString(),
-    source: 'validaciones_tmsa/Salidas',
+    source: 'validaciones.datosabiertos.transmilenio.gov.co/Salidas',
     days: daysUsed,
     window: usedDates.length ? { from: usedDates[usedDates.length - 1], to: usedDates[0] } : null,
     count: stations.length,
