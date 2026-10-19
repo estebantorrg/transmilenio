@@ -25,6 +25,8 @@ export interface LegalDoc {
 }
 
 export declare const RESPONSABLE: { nombre: string; correo: string; ciudad: string };
+/** General contact address, linked from `legalLinksHtml`. */
+export declare const CONTACTO: string;
 export declare const PRIVACIDAD: LegalDoc;
 export declare const TERMINOS: LegalDoc;
 export declare const LEGAL_DOCS: LegalDoc[];
@@ -32,7 +34,7 @@ export declare const LEGAL_DOCS: LegalDoc[];
 /** The legal page at `pathname` (trailing slash and case ignored), or null. */
 export declare function legalDocForPath(pathname: string): LegalDoc | null;
 
-/** A `<nav>` linking every legal page; `base` prefixes an origin (the APK). */
+/** A `<nav>` linking every legal page and the contact address (as a mailto); `base` prefixes an origin (the APK). */
 export declare function legalLinksHtml(base?: string): string;
 
 /** The document body without page chrome, identical in the prerender and the app. */

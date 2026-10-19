@@ -303,8 +303,8 @@ export function createInicioView(): View {
   renderLines();
   renderZones();
 
-  // Privacidad · Términos at the foot of the home screen. They are pages of the
-  // website, so they open in the browser (Capacitor hands off-app URLs to it).
+  // Privacidad · Términos · contacto@ at the foot of the home screen. They are pages
+  // of the website (and a mailto), so Capacitor hands them to the browser / mail app.
   const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
 
   el.append(hero, statusCard, novedadesCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);

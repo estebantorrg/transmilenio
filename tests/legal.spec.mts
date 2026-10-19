@@ -11,7 +11,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, TERMINOS, legalDocForPath, legalDocHtml, legalLinksHtml } from '../shared/legal.js';
+import { CONTACTO, LEGAL_DOCS, PRIVACIDAD, RESPONSABLE, TERMINOS, legalDocForPath, legalDocHtml, legalLinksHtml } from '../shared/legal.js';
 
 /** The rendered policy as plain text, the way a reader (or a regulator) reads it. */
 const texto = legalDocHtml(PRIVACIDAD)
@@ -205,10 +205,19 @@ test.describe('links to the legal pages', () => {
     expect(apk).toContain('href="https://mitrasto.app/terminos/"');
   });
 
+  test('end with the contact address, shown and as a mailto no origin prefixes', () => {
+    expect(CONTACTO).toBe('contacto@mitrasto.app');
+    expect(CONTACTO).not.toBe(RESPONSABLE.correo);
+    for (const html of [legalLinksHtml(), legalLinksHtml('https://mitrasto.app')]) {
+      expect(html).toContain(`<a href="mailto:${CONTACTO}">${CONTACTO}</a></nav>`);
+    }
+  });
+
   test('sit at the foot of the sidebar and open the pages', async ({ page }) => {
     await page.goto('/');
     const links = page.locator('.sidebar-footer .legal-links');
-    await expect(links.locator('a')).toHaveCount(LEGAL_DOCS.length);
+    await expect(links.locator('a')).toHaveCount(LEGAL_DOCS.length + 1);
+    await expect(links.getByRole('link', { name: CONTACTO })).toHaveAttribute('href', `mailto:${CONTACTO}`);
     await links.getByRole('link', { name: TERMINOS.breadcrumb }).click();
     await expect(page).toHaveURL(/\/terminos\/$/);
     await expect(page.locator('#legal-page h1')).toHaveText(TERMINOS.titulo);
