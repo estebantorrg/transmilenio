@@ -54,6 +54,8 @@ export interface GraphEdge {
    * charged raw; read it through `rideEdgeTime`.
    */
   rideTime: number;
+  /** Zonal edges: `rideTime` on a bad-traffic day (§5.6.5). Shown as a range, never searched on. */
+  slowRideTime?: number;
   /** Floor on the scaled time: `distance` at `SPEED_CAP_M_PER_MIN`, which
    *  keeps the A* bound admissible however fast a stretch was measured. */
   minTime: number;
@@ -235,7 +237,17 @@ export interface JourneyPlan {
    * across the city must not read as the shape of the ride (spec §5.7 #8).
    */
   traceEstimated?: boolean;
+  /**
+   * Minutes a bad-traffic day adds to the zonal rides (§5.6.5): the stretches'
+   * 10th-percentile day, not the usual one. Kept out of `totalTime` and of the
+   * ranking; set only when it reaches `SLOW_TRAFFIC_SHOWN_MINUTES`, so a card
+   * shows "con trancón" where the risk is real and nowhere else.
+   */
+  slowTrafficExtra?: number;
 }
+
+/** Below this, a bad-traffic day is within the noise of the estimate itself. */
+const SLOW_TRAFFIC_SHOWN_MINUTES = 10;
 
 export interface RouteSearchParams {
   origin: [number, number];      // [lng, lat]
@@ -1077,13 +1089,16 @@ function applyCalibration(): number {
     const fromCode = stopList[nodeIdx].codigo;
     for (const edge of adjacency[nodeIdx]) {
       if (edge.type !== 'zonal') continue;
-      const speed = loaded?.pairSpeed.get(`${fromCode}>${edge.to}`);
+      const key = `${fromCode}>${edge.to}`;
+      const speed = loaded?.pairSpeed.get(key);
       if (speed !== undefined) {
         edge.rideTime = edge.distance / clampSpeedMpm(speed);
         measured++;
       } else {
         edge.rideTime = edge.time;
       }
+      const slow = loaded ? loaded.pairSlow.get(key) ?? loaded.slowDefault : null;
+      edge.slowRideTime = slow ? edge.rideTime / slow : undefined;
       if (edge.rideTime > 0) fastest = Math.max(fastest, edge.distance / edge.rideTime);
     }
   }
@@ -1094,6 +1109,12 @@ function applyCalibration(): number {
 /** Minutes one graph edge charges in this search's calibration slot (§5.6.5). */
 function rideEdgeTime(edge: GraphEdge, schedule: ScheduleContext): number {
   return edge.type === 'zonal' ? Math.max(edge.rideTime * schedule.zonalInvFactor, edge.minTime) : edge.time;
+}
+
+/** Minutes a bad-traffic day adds to one edge in this search's slot; 0 off zonal. */
+function slowEdgeExtra(edge: GraphEdge, schedule: ScheduleContext): number {
+  if (edge.slowRideTime === undefined) return 0;
+  return Math.max(edge.slowRideTime * schedule.zonalInvFactor, edge.minTime) - rideEdgeTime(edge, schedule);
 }
 
 /**
@@ -1937,6 +1958,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
     const legs: RawLeg[] = [];
     const virtualStops = new Map<string, RouteStop>();
     let state = targetState;
+    let slowExtra = 0;
 
     if (egressDistance > 0) {
       legs.push({
@@ -1981,6 +2003,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
           fromOrd: edge.fromOrd,
           traced: edge.traced,
         });
+        slowExtra += slowEdgeExtra(edge, schedule);
       }
 
       state = parent;
@@ -2027,6 +2050,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       // only settles after the pedestrian pass — so the first card the rider
       // sees already says whether it is showing a real trace (§5.7 #8).
       traceEstimated: journeySteps.some((s) => s.traceSource && s.traceSource !== 'trace') || undefined,
+      slowTrafficExtra: slowExtra >= SLOW_TRAFFIC_SHOWN_MINUTES ? Math.round(slowExtra) : undefined,
     };
     summarizeSchedule(plan, schedule.clock);
     plans.push(plan);

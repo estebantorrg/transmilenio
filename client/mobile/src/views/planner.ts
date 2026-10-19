@@ -915,6 +915,10 @@ function renderPlans(
       if (plan.outsideService) clock.append(h('span', { class: 'plan-chip danger', text: 'Fuera de servicio' }));
       else if (plan.serviceWait) clock.append(h('span', { class: 'plan-chip warn', text: `Espera ${plan.serviceWait} min` }));
       if (!plan.outsideService && plan.lastServiceRisk) clock.append(h('span', { class: 'plan-chip warn', text: 'Último servicio' }));
+      // Zonal legs share the street with traffic; a busway leg does not (§5.6.5).
+      if (!plan.outsideService && plan.slowTrafficExtra) {
+        clock.append(h('span', { class: 'plan-chip warn', text: `Con trancón: ~${plan.totalTime + plan.slowTrafficExtra} min` }));
+      }
       // Why a slightly slower itinerary can outrank this one (§5.6.2).
       if (!plan.outsideService && plan.shortService) clock.append(h('span', { class: 'plan-chip', text: 'Servicio limitado' }));
       // Some leg's pedestrian route could not be fetched, so its distance is an

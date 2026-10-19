@@ -61,12 +61,22 @@ export function prepareCalibration(data) {
     }
   }
 
+  const pairSlow = new Map();
+  for (const [from, next] of Object.entries(data.speeds?.slow ?? {})) {
+    for (const [to, ratio] of Object.entries(next ?? {})) {
+      if (ratio > 0 && ratio <= 1) pairSlow.set(`${from}>${to}`, Number(ratio));
+    }
+  }
+  // An unmeasured stretch still sits in the same traffic: it takes the city's median bad day.
+  const ratios = [...pairSlow.values()].sort((a, b) => a - b);
+  const slowDefault = ratios.length ? ratios[ratios.length >> 1] : null;
+
   const headways = new Map();
   for (const [code, byDay] of Object.entries(data.headways ?? {})) {
     headways.set(code, { H: hourTable(byDay?.H), S: hourTable(byDay?.S), F: hourTable(byDay?.F) });
   }
 
-  return { factor, pairSpeed, headways };
+  return { factor, pairSpeed, pairSlow, slowDefault, headways };
 }
 
 /** `H`/`S`/`F` for a date. Sunday and festivos share one programme. */

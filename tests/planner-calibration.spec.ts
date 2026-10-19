@@ -41,11 +41,13 @@ const calibration = (opts: {
   factorH?: number[];
   factorF?: number[];
   headways?: Record<string, Record<string, number[]>>;
+  slow?: Record<string, Record<string, number>>;
 }): PlannerCalibrationData => ({
   version: 1,
   speeds: {
     factor: { H: opts.factorH ?? flat(1), S: flat(1), F: opts.factorF ?? flat(1) },
     pairs: opts.pairs ?? {},
+    slow: opts.slow,
   },
   headways: opts.headways ?? {},
 });
@@ -174,5 +176,31 @@ test.describe('boarding waits from the dispatch programme', () => {
     withHeadways({ 12: 30 }, 'F');
     expect(ride(FRIDAY).wait).toBe(6);
     expect(ride(SUNDAY).wait).toBe(15);
+  });
+});
+
+test.describe('bad-traffic range', () => {
+  const slowFor = (ratio: number) => ({ A: { B: ratio }, B: { C: ratio }, C: { D: ratio } });
+
+  test('a jammed day is a range on the card, never part of the time or the ranking', () => {
+    setPlannerCalibration(calibration({ pairs: speedsFor(12) }));
+    const usual = ride().plan;
+    expect(usual.slowTrafficExtra).toBeUndefined(); // a calibration without the field shows nothing
+
+    setPlannerCalibration(calibration({ pairs: speedsFor(12), slow: slowFor(0.5) }));
+    const { plan, minutes } = ride();
+    expect(plan.totalTime).toBe(usual.totalTime);
+    expect(plan.slowTrafficExtra).toBe(Math.round(minutes)); // half the speed, twice the ride
+  });
+
+  test('a few minutes of risk is noise, not a chip', () => {
+    setPlannerCalibration(calibration({ pairs: speedsFor(12), slow: slowFor(0.9) }));
+    expect(ride().plan.slowTrafficExtra).toBeUndefined();
+  });
+
+  test('an unmeasured stretch sits in the same traffic: it takes the median bad day', () => {
+    setPlannerCalibration(calibration({ pairs: { A: { B: 12 } }, slow: { A: { B: 0.5 } } }));
+    const { plan, minutes } = ride();
+    expect(plan.slowTrafficExtra).toBe(Math.round(minutes));
   });
 });

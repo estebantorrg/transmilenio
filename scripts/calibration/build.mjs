@@ -22,6 +22,9 @@
  *                   base × factor reproduces the measured hourly medians to a
  *                   9.3% median error (a single citywide speed: 25.9%), at a
  *                   fraction of the size of shipping every hour of every stretch.
+ *   speeds.slow     from código → to código → that stretch's speed on a bad-
+ *                   traffic day as a share of its usual one (10th percentile, day
+ *                   to day). Only shown to the rider as a range; never ranks.
  *   headways        catalog route código → median scheduled interval (minutes)
  *                   per day type × hour, 0 where nothing is dispatched.
  *
@@ -87,12 +90,13 @@ if (first.slice(0, 7) !== last.slice(0, 7) || !FESTIVOS.every((d) => d.startsWit
 }
 
 const festivoList = FESTIVOS.map((d) => `DATE '${d}'`).join(', ');
+const dayTypeSql = `CASE WHEN fecha IN (${festivoList}) OR dayofweek(fecha) = 0 THEN 'F'
+              WHEN dayofweek(fecha) = 6 THEN 'S' ELSE 'H' END`;
 await con.run(`
   CREATE TABLE cell AS
   SELECT split_part(tramo_parada, ' - ', 1) AS a,
          split_part(tramo_parada, ' - ', 2) AS b,
-         CASE WHEN fecha IN (${festivoList}) OR dayofweek(fecha) = 0 THEN 'F'
-              WHEN dayofweek(fecha) = 6 THEN 'S' ELSE 'H' END AS dt,
+         ${dayTypeSql} AS dt,
          cat_hora AS h,
          median(avg_vel_kmh_calc_v2) AS v,
          count(*) AS n
@@ -125,6 +129,32 @@ let pairCount = 0;
 for (const { a, b, base } of await query(`SELECT a, b, base FROM base ORDER BY a, b`)) {
   (pairs[a] ??= {})[b] = round(base, 0.1);
   pairCount++;
+}
+
+// A bad-traffic day, per stretch: one day's hourly speed over that hour's usual
+// (median) one, at the 10th percentile across every daytime day × hour. Day to
+// day, not bus to bus — a jammed corridor slows the whole trip at once.
+const slow = {};
+let slowCount = 0;
+for (const { a, b, r } of await query(`
+  WITH daily AS (
+    SELECT split_part(tramo_parada, ' - ', 1) AS a,
+           split_part(tramo_parada, ' - ', 2) AS b,
+           ${dayTypeSql} AS dt,
+           cat_hora AS h,
+           fecha,
+           median(avg_vel_kmh_calc_v2) AS v
+    FROM ${source}
+    WHERE avg_vel_kmh_calc_v2 BETWEEN ${SPEED_BAND_KMH[0]} AND ${SPEED_BAND_KMH[1]} AND cat_hora BETWEEN 5 AND 22
+    GROUP BY ALL)
+  SELECT a, b, quantile_cont(daily.v / cell.v, 0.1) AS r
+  FROM daily JOIN cell USING (a, b, dt, h) SEMI JOIN base USING (a, b)
+  GROUP BY a, b HAVING count(*) >= ${MIN_PAIR_ROWS}
+  ORDER BY a, b`)) {
+  const ratio = round(Math.max(0.2, r), 0.01);
+  if (ratio >= 1) continue;
+  (slow[a] ??= {})[b] = ratio;
+  slowCount++;
 }
 
 // ── Headways ────────────────────────────────────────────────────────────────
@@ -220,13 +250,13 @@ const output = {
   source:
     'TRANSMILENIO S.A., respuesta a solicitud de acceso a información pública (Ley 1712 de 2014), septiembre de 2026: ' +
     `velocidad comercial por tramo ${first} a ${last} y programación de despachos INTERVALOS RUTAS URBANAS.`,
-  speeds: { factor, pairs },
+  speeds: { factor, pairs, slow },
   headways,
 };
 writeFileSync(OUT, JSON.stringify(output) + '\n');
 
 console.log(`period ${first} → ${last} · festivos ${FESTIVOS.join(', ')}`);
-console.log(`stretches with a base speed: ${pairCount}`);
+console.log(`stretches with a base speed: ${pairCount} · with a bad-day ratio: ${slowCount}`);
 console.log(`headways: ${perRoute.size} INTERVALOS routes → ${Object.keys(headways).length} catalog códigos (${unmatched} unmatched, ${conflicts} conflicts)`);
 console.log('factor H:', factor.H.join(' '));
 console.table(Object.fromEntries(Object.entries(coverage).map(([type, c]) => [type, {

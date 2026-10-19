@@ -834,6 +834,8 @@ export function initPlanner(
     .then((response) => {
       if (response.success && response.speeds && response.headways) {
         setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways });
+        // A deep link plans before this lands; those cards ran on the constants.
+        if (calculatedPlans.length) calculateRoute();
       }
     })
     .catch((error) => console.warn('[Router] calibration unavailable, keeping constants:', error));
@@ -1596,6 +1598,10 @@ function renderPlanClockRow(plan: JourneyPlan): string {
   }
   if (!plan.outsideService && plan.lastServiceRisk) {
     chips.push('<span class="journey-chip warn">Último servicio</span>');
+  }
+  // Zonal legs share the street with traffic; a busway leg does not (§5.6.5).
+  if (!plan.outsideService && plan.slowTrafficExtra) {
+    chips.push(`<span class="journey-chip warn" title="Un día de tráfico pesado en los tramos zonales, según las velocidades medidas por TransMilenio.">Con trancón: ~${plan.totalTime + plan.slowTrafficExtra} min</span>`);
   }
   // Why a slightly slower itinerary may be ranked above this one (§5.6.2).
   if (!plan.outsideService && plan.shortService) {

@@ -6,6 +6,8 @@ export interface PlannerCalibrationData {
   speeds?: {
     factor?: Partial<Record<CalibrationDayType, number[]>>;
     pairs?: Record<string, Record<string, number>>;
+    /** from → to → bad-traffic-day speed as a share of the usual one (0..1). */
+    slow?: Record<string, Record<string, number>>;
   };
   headways?: Record<string, Partial<Record<CalibrationDayType, number[]>>>;
 }
@@ -14,6 +16,10 @@ export interface PreparedCalibration {
   factor: Record<CalibrationDayType, Float64Array>;
   /** `from>to` stop códigos → base commercial speed in m/min. */
   pairSpeed: Map<string, number>;
+  /** `from>to` stop códigos → bad-traffic-day share of the usual speed (0..1). */
+  pairSlow: Map<string, number>;
+  /** Median of `pairSlow`, for zonal stretches it does not cover; null = no slow data. */
+  slowDefault: number | null;
   headways: Map<string, Record<CalibrationDayType, Float64Array>>;
 }
 
