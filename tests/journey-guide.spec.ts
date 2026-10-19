@@ -32,13 +32,17 @@ const walkTo = (from: number, to: number): GuideStep => ({
   distance: to - from,
 });
 
-/** Every cue the rider hears riding `steps` from 0 to `end`, every 10 m. */
-function ridden(steps: GuideStep[], end: number): Array<{ at: number; kind: string; written: string }> {
+/** Every cue the rider hears riding `steps` from `from` to `end`, every 10 m. */
+function ridden(
+  steps: GuideStep[],
+  end: number,
+  { from = 0, speed }: { from?: number; speed?: number } = {},
+): Array<{ at: number; kind: string; written: string }> {
   const prepared = prepareGuide({ steps });
   let state = initialGuideState();
   const cues: Array<{ at: number; kind: string; written: string }> = [];
-  for (let m = 0; m <= end; m += 10) {
-    const update = advanceGuide(prepared, { coord: at(m), accuracy: 10, at: m }, state);
+  for (let m = from; m <= end; m += 10) {
+    const update = advanceGuide(prepared, { coord: at(m), accuracy: 10, speed, at: m }, state);
     state = update.state;
     if (update.progress.cue) cues.push({ at: m, kind: update.progress.cue.kind, written: update.progress.cue.written });
   }
@@ -60,4 +64,18 @@ test('a ride is announced in order: board, next stop, get off, arrived', () => {
   expect(cues.map((cue) => cue.kind)).toEqual(['board', 'prepare', 'alight', 'walk', 'arrived']);
   // "Próxima: C" only once B2 — the last stop before C — has gone by.
   expect(cues.find((cue) => cue.kind === 'prepare')!.at).toBeGreaterThanOrEqual(1500);
+});
+
+test('a rider who planned from a seat on the bus is not sent walking to the station', () => {
+  // Planned 500 m past station A while already riding: the walk leg points back
+  // to A, the rider moves away from it, and used to hear "Camina" until "te
+  // saliste de la ruta".
+  const walkBack: GuideStep = { ...walkTo(500, 0), from: point('Origen', 500), to: point('A', 0), distance: 500 };
+  const steps = [walkBack, ride(2000, [])];
+  expect(ridden(steps, 2000, { from: 500, speed: 10 }).map((cue) => cue.kind)).toEqual(['prepare', 'arrived']);
+
+  // Same spot at walking pace: still the walk to A.
+  const standing = advanceGuide(prepareGuide({ steps }), { coord: at(500), accuracy: 10, speed: 1.4, at: 0 });
+  expect(standing.progress.stepIndex).toBe(0);
+  expect(standing.progress.cue?.kind).toBe('walk');
 });

@@ -66,6 +66,8 @@ export interface GuideJourney {
 export interface RiderFix {
   coord: LngLat;
   accuracy?: number;
+  /** Ground speed in m/s, as `GeolocationCoordinates.speed` reports it (null when unknown). */
+  speed?: number | null;
   at: number;
 }
 
@@ -164,6 +166,13 @@ const PREPARE_LEAD_STOPS = 1;
  * would fire the instant the rider boarded. Roughly one troncal inter-station gap.
  */
 const PREPARE_MAX_REMAINING_M = 1200;
+/**
+ * Faster than this on a walk leg is not walking (~22 km/h). With {@link ON_RIDE_M}
+ * it says the rider is already on the next leg's bus — they opened the app aboard.
+ */
+const RIDING_SPEED_MS = 6;
+/** Within this of the next ride's path, a rider at {@link RIDING_SPEED_MS} is on it. */
+const ON_RIDE_M = 60;
 /** Beyond this from the plan, a fix counts as stray. */
 const STRAY_M = 400;
 /** Consecutive stray fixes before `offRoute` is announced — one bad fix is not lost. */
@@ -370,7 +379,9 @@ function makeCue(
  * Step selection only ever moves forward, and only to the immediately following
  * step: a rider whose fix lands near a later leg (two legs of one trip often run
  * within metres of each other) must not be teleported past a transfer they have
- * not made yet.
+ * not made yet. The one move that skips the "nearly done" check is a walk to a
+ * ride the rider is visibly already on (bus speed, on its path): planned from a
+ * seat, the walk to the station never ends and the trip was called lost.
  */
 export function advanceGuide(
   prepared: PreparedGuide,
@@ -411,10 +422,17 @@ export function advanceGuide(
   if (ahead) {
     const aheadProjection = projectOntoPath(ahead.step.path, ahead.cumulative, fix.coord);
     const nearlyDone = current.length - projection.along < ALIGHT_RADIUS_M;
-    if (aheadProjection.offset < projection.offset && nearlyDone) {
+    const aboard =
+      current.step.type === 'walk' &&
+      ahead.step.type === 'ride' &&
+      (fix.speed ?? 0) >= RIDING_SPEED_MS &&
+      aheadProjection.offset <= ON_RIDE_M;
+    if ((aheadProjection.offset < projection.offset && nearlyDone) || aboard) {
       index += 1;
       projection = aheadProjection;
       state.stepIndex = index;
+      // "Sube al…" to someone already seated is noise.
+      if (aboard) state.emitted.push(`${index}:board`);
     }
   }
 

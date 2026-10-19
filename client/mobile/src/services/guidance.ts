@@ -330,6 +330,8 @@ function onFix(pos: GeolocationPosition): void {
     {
       coord: [pos.coords.longitude, pos.coords.latitude],
       accuracy: pos.coords.accuracy,
+      // shortcut: only the device's Doppler speed counts, a WebView reporting null never detects "already aboard"; derive from fixes if handsets show that.
+      speed: pos.coords.speed,
       at: pos.timestamp,
     },
     guideState,
