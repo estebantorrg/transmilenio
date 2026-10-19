@@ -27,7 +27,9 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { aggregateDay, isOrdinaryWeekday, unzipSingleEntry } from './services/salidas.js';
 
-const SALIDAS = 'https://validaciones.datosabiertos.transmilenio.gov.co/Salidas';
+// The host refuses GitHub's runners, so the workflow sets SALIDAS_BASE_URL to the
+// relay Worker (`scripts/salidas-relay/worker`); anywhere else asks it directly.
+const SALIDAS = (process.env.SALIDAS_BASE_URL || 'https://validaciones.datosabiertos.transmilenio.gov.co/Salidas').replace(/\/$/, '');
 const STATIONS_URL =
   'https://gis.transmilenio.gov.co/arcgis/rest/services/Troncal/consulta_estaciones_troncales/FeatureServer/0/query' +
   '?where=1=1&outFields=numero_estacion,nombre_estacion,codigo_nodo_estacion,latitud_estacion,longitud_estacion' +
