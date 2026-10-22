@@ -110,6 +110,24 @@ const ROUTE_SEARCH_SEEDS = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'];
  */
 const LIGHT_TRACE_MAX_POINTS = 320;
 
+/**
+ * Decimals kept on the browser catalog's coordinates. Upstream ships 13–15
+ * (sub-millimetre), and those random digits were most of the gzipped payload:
+ * rounding took it from 4.3 to 2.4 MB, the bulk of a first visit from a search
+ * result. 6 is ~0.1 m for a stop or a station; a trace gets 5 (~1 m), still finer
+ * than the 5.5 m its simplification already gives up (`TRACE_SIMPLIFY_EPSILON`).
+ */
+const LIGHT_POINT_DECIMALS = 6;
+const LIGHT_TRACE_DECIMALS = 5;
+
+/** A `"lat,lon"` string with each number cut to {@link LIGHT_POINT_DECIMALS}. */
+function lightCoordenada<T>(coordenada: T): T {
+  if (typeof coordenada !== 'string') return coordenada;
+  return coordenada.replace(/-?\d+\.\d+/g, (n) => String(Number(Number(n).toFixed(LIGHT_POINT_DECIMALS)))) as T;
+}
+
+const lightTracePoint = (point: number[]): number[] => point.map((n) => Number(n.toFixed(LIGHT_TRACE_DECIMALS)));
+
 // ─── Types ──────────────────────────────────────────────
 
 export type { CatalogRoute, CatalogRouteDetail, CatalogStation, CatalogWagons, MasterCatalog } from './catalog_merge.js';
@@ -454,13 +472,13 @@ function simplifyTraceForLight(trace: RouteTrace | undefined): RouteTrace | unde
   if (paths.length === 0) return undefined;
 
   if (paths.length === 1) {
-    const path = simplifyLine(paths[0], LIGHT_TRACE_MAX_POINTS);
+    const path = simplifyLine(paths[0], LIGHT_TRACE_MAX_POINTS).map(lightTracePoint);
     return path.length > 1 ? path : undefined;
   }
 
   const maxPerPath = Math.max(2, Math.floor(LIGHT_TRACE_MAX_POINTS / paths.length));
   const simplified = paths
-    .map((path) => simplifyLine(path, maxPerPath))
+    .map((path) => simplifyLine(path, maxPerPath).map(lightTracePoint))
     .filter((path) => path.length > 1);
 
   return simplified.length > 0 ? simplified : undefined;
@@ -631,7 +649,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         codigo: station.codigo,
         nombre: station.nombre,
         direccion: station.direccion,
-        coordenada: station.coordenada,
+        coordenada: lightCoordenada(station.coordenada),
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
         // Shipped so the browser, the app and the prerenderer stop re-deriving
@@ -660,7 +678,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       cleanStations[code] = {
         codigo: station.codigo,
         nombre: station.nombre,
-        coordenada: station.coordenada,
+        coordenada: lightCoordenada(station.coordenada),
         wagons: cleanWagons,
       };
     }
@@ -681,7 +699,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         horarios: route.horarios,
         origin,
         destination,
-        stops: route.stops || [],
+        stops: (route.stops || []).map((stop: any) => ({ ...stop, coordenada: lightCoordenada(stop.coordenada) })),
         trazado: simplifyTraceForLight(route.trazado),
       };
     });
