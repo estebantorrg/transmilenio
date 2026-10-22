@@ -1,7 +1,6 @@
 import type {
   ApiResponse,
   TroncalCorridorFeature,
-  TroncalRouteFeature,
   TroncalStationFeature,
 } from '../types/transmilenio';
 import type { MasterCatalogResponse } from '../types/catalog';
@@ -363,10 +362,6 @@ export const api = {
   // official-host equivalents (below); the catalog + POI/demand datasets have no
   // single official endpoint and are read from APK-bundled assets instead
   // (`client/mobile/src/data.ts`).
-  getTroncalRoutes: () =>
-    isNativeLiveAvailable()
-      ? officialApi.getTroncalRoutes()
-      : fetchJson<ApiResponse<TroncalRouteFeature>>('/troncal/routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
   // Website-only, hence no `isNativeLiveAvailable()` branch: the app classifies
   // estaciones vs paraderos from the APK-bundled catalog by code (spec §5.4.1a)

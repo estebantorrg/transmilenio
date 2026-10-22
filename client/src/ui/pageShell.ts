@@ -51,6 +51,7 @@ let shareHandler: ((url: string) => void) | null = null;
 let current: OverlayPage | null = null;
 let lastFocus: HTMLElement | null = null;
 let initialized = false;
+const closeWaiters: Array<() => void> = [];
 
 /**
  * Wired once at module scope from `main.ts`: the Back/Forward listener has to
@@ -86,6 +87,15 @@ function resolvePage(pathname: string): OverlayPage | null {
 export function isOverlayPageOpen(id?: string): boolean {
   if (!current) return false;
   return id ? current.id === id : true;
+}
+
+/**
+ * Resolves once no page is open — at once when none is. For work that only
+ * feeds the map behind a page, which a reader who came for the page and left
+ * never sees.
+ */
+export function overlayPageClosed(): Promise<void> {
+  return current ? new Promise((resolve) => closeWaiters.push(resolve)) : Promise.resolve();
 }
 
 /**
@@ -241,6 +251,7 @@ export function closeOverlayPage(): void {
   setChromeInert(false);
   lastFocus?.focus();
   lastFocus = null;
+  closeWaiters.splice(0).forEach((resolve) => resolve());
 }
 
 /** Back/Forward: the page is a URL, so the browser's history has to drive it. */
@@ -305,7 +316,7 @@ export function mastheadHtml(options: { mapSubject?: boolean } = {}): string {
  * It is one strip on purpose: these are the facts you read *across*, and four
  * separate cards gave each of them the visual weight of a section. Cells with no
  * value are dropped rather than rendered empty, since the two pages carry
- * different subsets (a zonal route has no length, an estación off the ridership
+ * different subsets (a route has no ridership, an estación off the ridership
  * dataset has no counts).
  */
 export function factsHtml(items: Array<{ label: string; value: string | null | undefined }>): string {

@@ -20,7 +20,7 @@ import type {
   PlannerCalibrationResponse,
 } from '@shared/services/api';
 import type { CatalogStation, CatalogWagons, MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
-import type { ApiResponse, RouteListItem, TroncalRouteFeature } from '@shared/types/transmilenio';
+import type { ApiResponse, RouteListItem } from '@shared/types/transmilenio';
 import { bus, setRoutes, state, type DemandRecord, type HealthInfo, type StationRecord } from './state';
 import { idbGet, idbSet } from './lib/cache';
 
@@ -171,11 +171,11 @@ export function wakeBackend(): Promise<unknown> {
   return fetch(`${API_BASE}/health`).catch(() => undefined);
 }
 
-/** Build routes/stations/counts from a catalog (+ optional ArcGIS troncal geometry). */
-function applyCatalog(catalog: MasterCatalog, troncalRoutes: TroncalRouteFeature[] = [], corridorCount?: number): void {
+/** Build routes/stations/counts from a catalog. */
+function applyCatalog(catalog: MasterCatalog, corridorCount?: number): void {
   state.catalog = catalog;
   setCatalogIndexes(catalog);
-  const routes = buildRouteList(troncalRoutes, catalog);
+  const routes = buildRouteList(catalog);
   const { stations, paraderos } = catalogPointRecords(catalog);
   state.stations = stations;
   state.zonalStops = paraderos;
@@ -195,10 +195,9 @@ function catalogSignature(payload: MasterCatalogResponse): string {
   return `${payload.count}:${Object.keys(c.routes || {}).length}:${Object.keys(c.stations || {}).length}`;
 }
 
-/** Fetch the fresh catalog + ArcGIS troncal layers. Throws if the catalog is unreachable. */
-async function fetchFresh(): Promise<{ payload: MasterCatalogResponse; troncalRoutes: TroncalRouteFeature[]; corridorCount: number }> {
-  const [troncalRes, corridorsRes, catalogRes] = await Promise.allSettled([
-    api.getTroncalRoutes(),
+/** Fetch the fresh catalog + the ArcGIS corridor count. Throws if the catalog is unreachable. */
+async function fetchFresh(): Promise<{ payload: MasterCatalogResponse; corridorCount: number }> {
+  const [corridorsRes, catalogRes] = await Promise.allSettled([
     api.getTroncalCorridors(),
     fetchCatalogResponse(),
   ]);
@@ -207,7 +206,6 @@ async function fetchFresh(): Promise<{ payload: MasterCatalogResponse; troncalRo
   }
   return {
     payload: catalogRes.value as MasterCatalogResponse,
-    troncalRoutes: unwrap<TroncalRouteFeature>(troncalRes as PromiseSettledResult<ApiResponse<TroncalRouteFeature>>),
     corridorCount: corridorsRes.status === 'fulfilled' ? corridorsRes.value.features.length : 0,
   };
 }
@@ -235,7 +233,7 @@ export async function loadCore(onProgress: (pct: number, label: string) => void)
   onProgress(35, 'Descargando catálogo maestro…');
   const fresh = await fetchFresh();
   onProgress(82, 'Trazando rutas…');
-  applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.troncalRoutes, fresh.corridorCount);
+  applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.corridorCount);
   // Persist for next launch without delaying first paint.
   void idbSet(CATALOG_KEY, fresh.payload);
 }
@@ -249,7 +247,7 @@ async function revalidate(cachedSig: string): Promise<void> {
   try {
     const fresh = await fetchFresh();
     if (catalogSignature(fresh.payload) === cachedSig) return; // unchanged — keep cache paint
-    applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.troncalRoutes, fresh.corridorCount);
+    applyCatalog(fresh.payload.data || { stations: {}, routes: {} }, fresh.corridorCount);
     await idbSet(CATALOG_KEY, fresh.payload);
   } catch (err) {
     console.warn('[data] catalog revalidation failed (using cache):', err);

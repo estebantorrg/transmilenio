@@ -33,7 +33,7 @@ import { initStationPage, openStationPage, refreshStationPage } from './ui/stati
 import { initLegalPages } from './ui/legalPage';
 import { openNotFoundPage } from './ui/notFoundPage';
 import { initNovedades } from './ui/novedadesPage';
-import { dismissOverlayPage, initPageShell, isOverlayPageOpen } from './ui/pageShell';
+import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
@@ -58,7 +58,7 @@ import {
   traceToGeometry,
   type RouteStop,
 } from './data/routeCatalog';
-import type { ApiResponse, RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, TroncalStationFeature } from './types/transmilenio';
+import type { ApiResponse, RouteListItem, TroncalCorridorFeature, TroncalStationFeature } from './types/transmilenio';
 import type { MasterCatalog, MasterCatalogResponse } from './types/catalog';
 
 // ─── Status Updates ───────────────────────────────────────
@@ -777,7 +777,6 @@ async function main(): Promise<void> {
   updateProgress(15, 'Conectando con el servidor...');
 
 
-  let troncalRoutes: TroncalRouteFeature[] = [];
   let catalog: MasterCatalog = { stations: {}, routes: {} };
   let routeList: RouteListItem[] = [];
   let stationCount = 0;
@@ -805,7 +804,7 @@ async function main(): Promise<void> {
       updateProgress(currentProgress, msg);
     };
 
-    // The five ArcGIS layers are optional — each has a catalog substitute or a
+    // The four ArcGIS layers are optional — each has a catalog substitute or a
     // recovery pass below — yet each was given its whole 60 s and a retry here,
     // so one slow upstream query held the loading screen for two minutes and
     // the app then opened without that layer anyway. They hold it only while
@@ -822,29 +821,25 @@ async function main(): Promise<void> {
       ]);
 
     const [
-      troncalRoutesResult,
       corridorsResult,
       stationsResult,
       cableStationsResult,
       cableTracesResult,
       catalogResult,
     ] = await Promise.allSettled([
-      inBudget(api.getTroncalRoutes()).then((res) => { incrementProgress(10, 'Descargando rutas troncales...'); return res; }),
       inBudget(api.getTroncalCorridors()).then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
       inBudget(api.getTroncalStations()).then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
       inBudget(api.getCableStations()).then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
       inBudget(api.getCableTrazado()).then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
-      catalogPromise.then((res) => { incrementProgress(30, 'Descargando catálogo maestro...'); return res; }),
+      catalogPromise.then((res) => { incrementProgress(40, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
     const catalogRes = requireLoaded<MasterCatalogResponse>('Master catalog', catalogResult);
-    const troncalRoutesRes = optionalFeatures('Troncal routes', troncalRoutesResult);
     const corridorsRes = optionalFeatures('Troncal corridors', corridorsResult);
     const stationsRes = optionalFeatures('Troncal stations', stationsResult);
     const cableStationsRes = optionalFeatures('Cable stations', cableStationsResult);
     const cableTracesRes = optionalFeatures('Cable traces', cableTracesResult);
 
-    troncalRoutes = troncalRoutesRes.features;
     const cableStations = cableStationsRes.features || [];
     const cableTraces = cableTracesRes.features || [];
     catalog = catalogRes.data || { stations: {}, routes: {} };
@@ -871,7 +866,6 @@ async function main(): Promise<void> {
       degradedLayers.add('cable');
     }
 
-    console.log(`✅ Troncal routes: ${troncalRoutes.length}`);
     console.log(`✅ Troncal corridors: ${corridorsRes.features.length}`);
     console.log(`✅ Stations: ${stations.length}`);
     console.log(`✅ Cable stations: ${cableStations.length}`);
@@ -884,7 +878,7 @@ async function main(): Promise<void> {
 
     // 2. Pre-calculate unified route list from API
     updateProgress(80, 'Procesando catálogo...');
-    routeList = buildRouteList(troncalRoutes, catalog);
+    routeList = buildRouteList(catalog);
     const troncalListItems = routeList.filter(r => r.type === 'troncal');
     const zonalListItems = routeList.filter(r => r.type === 'zonal');
 
@@ -1402,12 +1396,16 @@ async function main(): Promise<void> {
   };
 
   // 5. Background Loading: fetch Zonal Stops, stop-route mappings, and the
-  //    zonal-routes feed (SITP zones) asynchronously.
-  Promise.allSettled([
+  //    zonal-routes feed (SITP zones) asynchronously. All of it — and the bus
+  //    asset preload and recovery pass chained below — feeds the map, so a
+  //    reader who landed on a `/ruta/` or `/estacion/` page gets it only when
+  //    they leave the page: 1 MB that a search visitor who reads and goes
+  //    never needs.
+  overlayPageClosed().then(() => Promise.allSettled([
     api.getZonalStops(),
     api.getZonalStopRoutes(),
     api.getZonalRoutes()
-  ]).then(([zonalStopsResult, zonalStopRoutesResult, zonalRoutesResult]) => {
+  ])).then(([zonalStopsResult, zonalStopRoutesResult, zonalRoutesResult]) => {
     try {
       const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
       const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);

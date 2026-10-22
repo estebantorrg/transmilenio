@@ -2,7 +2,7 @@
  * Master-catalog → RouteListItem builder (shared, presentation-agnostic).
  *
  * This is the single source of truth for turning the raw master catalog (+ the
- * optional ArcGIS troncal geometries and zonal stop mappings) into the unified
+ * optional zonal stop mappings) into the unified
  * `RouteListItem[]` both front-ends consume. The website (`main.ts`) and the
  * native mobile app (`mobile/`) import it verbatim so the two clients can never
  * drift in how a route is deduped, colored, or named (spec §1.1 R2 — no
@@ -12,7 +12,8 @@
 import { getRouteColor, getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
 import { isStampedStationCode } from '../utils/routeType';
 import { mergeServiceSpans, parseServiceSpans } from '../services/schedule';
-import type { RouteListItem, TroncalRouteFeature } from '../types/transmilenio';
+import { haversineMeters } from '../utils/geo';
+import type { RouteListItem } from '../types/transmilenio';
 import type { CatalogRoute, MasterCatalog } from '../types/catalog';
 import { plataformasDe } from '../../../shared/route_stop.js';
 
@@ -152,6 +153,18 @@ export function traceToGeometry(trace: number[][] | number[][][] | undefined): {
   }
 
   return undefined;
+}
+
+/** Kilometres along a route's trace — what its ficha shows as "Longitud". */
+export function traceKm(geometry: RouteListItem['geometry']): number | undefined {
+  if (!geometry) return undefined;
+  let meters = 0;
+  for (const path of geometry.paths) {
+    for (let i = 1; i < path.length; i++) {
+      meters += haversineMeters(path[i - 1] as [number, number], path[i] as [number, number]);
+    }
+  }
+  return meters / 1000;
 }
 
 export function routeHasDualStops(stops: any[] | undefined): boolean {
@@ -297,6 +310,12 @@ export function buildCatalogRouteList(
     }
   }
 
+  // Measured once the merges above have settled which variant's trace each
+  // route carries. It used to be ArcGIS's `longitud_ruta_troncal`, a 0.9 MB
+  // download for 128 numbers, troncal only; the light trace's simplification
+  // shortens it by well under 1%.
+  for (const item of items) item.length = traceKm(item.geometry);
+
   return items;
 }
 
@@ -398,90 +417,19 @@ export function applyZonalStopEnrichment(routes: RouteListItem[], groupsByCode: 
 export { getLiveNameCandidates } from './liveNames';
 
 /**
- * Builds the unified route list from the catalog, enriching it with ArcGIS
- * troncal geometries and (optionally) zonal stop mappings when available.
+ * Builds the unified route list from the catalog, enriching it with zonal stop
+ * mappings when available.
+ *
+ * The ArcGIS troncal routes layer used to be merged in here, for a geometry no
+ * catalog variant lacks and a length the trace now gives (`traceKm`); it was
+ * 0.9 MB of every first visit, so it is no longer fetched.
  */
 export function buildRouteList(
-  troncalRoutes: TroncalRouteFeature[],
   catalog: MasterCatalog,
   zonalStops: any[] = [],
   zonalMappings: any[] = []
 ): RouteListItem[] {
-  // 1. Build authoritative catalog items
-  const catalogItems = buildCatalogRouteList(catalog);
-  const mergedRoutes = new Map<string, RouteListItem>();
-  const catalogItemsByBaseAndType = new Map<string, RouteListItem[]>();
-
-  const indexCatalogRoute = (route: RouteListItem) => {
-    const indexKey = `${getBaseRouteCode(route.code)}|${route.type}`;
-    const routes = catalogItemsByBaseAndType.get(indexKey) ?? [];
-    routes.push(route);
-    catalogItemsByBaseAndType.set(indexKey, routes);
-  };
-
-  const endpointMatches = (left: string, right: string) =>
-    Boolean(left && right && (left.includes(right) || right.includes(left)));
-
-  const findCatalogRouteForArcgis = (
-    baseCode: string,
-    type: 'troncal' | 'zonal',
-    normOrigin: string,
-    normDest: string
-  ): RouteListItem | undefined => {
-    const candidates = catalogItemsByBaseAndType.get(`${baseCode}|${type}`) ?? [];
-    if (candidates.length === 0) return undefined;
-
-    return candidates.find((candidate) => {
-      const candidateOrigin = cleanRouteText(candidate.origin);
-      const candidateDest = cleanRouteText(candidate.destination);
-      return endpointMatches(candidateOrigin, normOrigin) && endpointMatches(candidateDest, normDest);
-    }) ?? (candidates.length === 1 ? candidates[0] : undefined);
-  };
-
-  // Add all catalog items keyed by a unified baseCode|type|origin|dest key
-  catalogItems.forEach((catRoute) => {
-    const baseCode = getBaseRouteCode(catRoute.code);
-    const normOrigin = cleanRouteText(catRoute.origin);
-    const normDest = cleanRouteText(catRoute.destination);
-    const key = `${baseCode}|${catRoute.type}|${normOrigin}|${normDest}`;
-
-    mergedRoutes.set(key, catRoute);
-    indexCatalogRoute(catRoute);
-  });
-
-  // 2. Process Troncal geometries from ArcGIS to enrich catalog items
-  troncalRoutes.forEach((r) => {
-    let code = r.attributes.route_name_ruta_troncal;
-    if (!code) return;
-
-    const baseCode = getBaseRouteCode(code.replace(/-\d$/, ''));
-    const origin = r.attributes.origen_ruta_troncal || '';
-    const destination = r.attributes.destino_ruta_troncal || '';
-    const normOrigin = cleanRouteText(origin);
-    const normDest = cleanRouteText(destination);
-
-    const key = `${baseCode}|troncal|${normOrigin}|${normDest}`;
-
-    const existing = mergedRoutes.get(key) ?? findCatalogRouteForArcgis(baseCode, 'troncal', normOrigin, normDest);
-    if (existing) {
-      // ArcGIS **enriches** a troncal route, it does not re-draw it (spec §4.2).
-      // Its geometry is a survey centreline from a different source than the
-      // variant that supplied the stops, and the planner projects those stops
-      // onto this line to charge and draw every ride (§5.6.3) — the same
-      // same-variant rule that §5.6.3 fixed inside the catalog. Adopting the
-      // centreline cost 13 troncal ride legs their trace (96.2% → 95.4% of
-      // 1599) and forced the route panel to re-hydrate the real `trazado`
-      // behind the user's back on every selection. It is used only where the
-      // catalog variant shipped no trace at all.
-      if (r.geometry && !existing.geometry) existing.geometry = r.geometry;
-      if (!existing.length && r.attributes.longitud_ruta_troncal) {
-        existing.length = r.attributes.longitud_ruta_troncal;
-      }
-    }
-  });
-
-  // 3. Enrich Zonal routes with stops from mappings if missing
-  const merged = Array.from(mergedRoutes.values());
+  const merged = buildCatalogRouteList(catalog);
   if (zonalStops.length > 0 && zonalMappings.length > 0) {
     applyZonalStopEnrichment(merged, buildZonalStopGroups(zonalStops, zonalMappings));
   }

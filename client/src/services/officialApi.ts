@@ -101,7 +101,6 @@ async function arcgisResponse(cfg: ArcgisConfig): Promise<ApiResponse<any>> {
 
 // Layer configs mirror `queries` in server/src/services/arcgis.ts — keep in sync.
 const ARCGIS_LAYERS = {
-  troncalRoutes: { folder: 'Troncal', service: 'consulta_rutas_troncales' },
   troncalCorridors: { folder: 'Troncal', service: 'consulta_trazados_troncales' },
   zonalRoutes: {
     folder: 'Zonal',
@@ -334,7 +333,6 @@ async function geocode(query: string): Promise<GeocodeResponse> {
 }
 
 export const officialApi = {
-  getTroncalRoutes: () => arcgisResponse(ARCGIS_LAYERS.troncalRoutes),
   getTroncalCorridors: () => arcgisResponse(ARCGIS_LAYERS.troncalCorridors),
   getZonalRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalRoutes),
   getZonalStops: () => arcgisResponse(ARCGIS_LAYERS.zonalStops),

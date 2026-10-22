@@ -3,7 +3,7 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import type { RouteListItem, TroncalCorridorFeature, TroncalRouteFeature, TroncalStationFeature } from '../types/transmilenio';
+import type { RouteListItem, TroncalCorridorFeature, TroncalStationFeature } from '../types/transmilenio';
 import { fadeBackground, restoreBackground } from './backgroundDim';
 import {
   DEFAULT_TRONCAL_COLOR,

@@ -125,8 +125,7 @@ export function openRouteSheet(route: RouteListItem): void {
 
   const tags = h('div', { class: 'rd-tags' });
   tags.append(h('span', { class: 'rd-tag', text: routeTypeLabel(route) }));
-  // ArcGIS longitud_ruta_troncal is already in kilometres (verified: ~13–24),
-  // matching the website's route.length display — do not divide by 1000.
+  // Already in kilometres (`traceKm`), as the website shows it — do not divide by 1000.
   if (route.length && route.length > 0.2) tags.append(h('span', { class: 'rd-tag', text: `${route.length.toFixed(1)} km` }));
   if (route.busType) tags.append(h('span', { class: 'rd-tag', text: route.busType }));
   if (route.operator) tags.append(h('span', { class: 'rd-tag', text: route.operator }));

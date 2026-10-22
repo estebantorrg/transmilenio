@@ -4,30 +4,6 @@ import type { ServiceSpan } from '../services/schedule';
 
 // ─── Troncal ──────────────────────────────────────────────
 
-export interface TroncalRoute {
-  objectid: number;
-  route_name_ruta_troncal: string;
-  nombre_ruta_troncal: string;
-  servicio_unico_ruta_troncal: string;
-  origen_ruta_troncal: string;
-  destino_ruta_troncal: string;
-  desc_tipo_ruta_troncal: string;
-  tipo_operacion: string;
-  desc_tipo_bus_ruta_troncal: string;
-  horario_lunes_viernes: string;
-  horario_sabado: string;
-  horario_domingo_festivo: string;
-  estado_ruta_troncal: string;
-  longitud_comercial: number;
-  longitud_ruta_troncal: number;
-  Shape__Length?: number;
-}
-
-export interface TroncalRouteFeature {
-  attributes: TroncalRoute;
-  geometry: { paths: number[][][] };
-}
-
 export interface TroncalStation {
   objectid: number;
   numero_estacion: string;
@@ -111,6 +87,7 @@ export interface RouteListItem {
   /** Parsed operating windows (§5.6.2). Absent = unknown → always operating. */
   serviceSpans?: ServiceSpan[];
   operator?: string;
+  /** Kilometres along the route's own trace (`traceKm`). */
   length?: number;
   color?: string;
   geometry?: { paths: number[][][] };
