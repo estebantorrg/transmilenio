@@ -27,6 +27,7 @@ import {
 } from '../server/src/services/proxy_health';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../shared/live_name_memo.js';
 import { raceProxies, type ProxyPool } from '../server/src/services/proxy_race';
+import { ProxyManager } from '../server/src/services/proxy_manager';
 
 const MINUTE = 60_000;
 
@@ -184,5 +185,34 @@ test.describe('one request through the pool (cut 2, every caller)', () => {
 
     const empty = pool(null, []);
     await expect(raceProxies(empty.fake, async () => 'x', 'test')).rejects.toThrow('No Colombian proxy available');
+  });
+});
+
+test.describe('a request on a cold pool', () => {
+  // Every restart starts the pool empty. Waiting for the whole verification
+  // pass — over a minute — held each request to the 18 s cap, past the live,
+  // card and arrivals budgets and the browser's 15 s, with proxies verified in
+  // the first seconds of it. The pass is stubbed: nothing here leaves the box.
+  const stub = ProxyManager as unknown as { refresh: () => Promise<void> };
+
+  test('goes as soon as the first proxy verifies, not when the pass ends', async () => {
+    try {
+      let endPass = () => {};
+      stub.refresh = () => new Promise<void>((resolve) => { endPass = resolve; });
+      setTimeout(() => ProxyManager.reportSuccess('190.0.0.9', 8080, 900), 300);
+      const started = Date.now();
+      expect(await ProxyManager.waitForReady(5_000)).toBe(1);
+      expect(Date.now() - started).toBeLessThan(2_000);
+      endPass();
+
+      // A pass that ends empty answers then, not at the cap.
+      for (let i = 0; i < 5; i++) ProxyManager.reportFailure('190.0.0.9', 8080); // evicted
+      stub.refresh = async () => {};
+      const emptyAt = Date.now();
+      expect(await ProxyManager.waitForReady(5_000)).toBe(0);
+      expect(Date.now() - emptyAt).toBeLessThan(1_000);
+    } finally {
+      delete (stub as { refresh?: unknown }).refresh; // the class's own again
+    }
   });
 });

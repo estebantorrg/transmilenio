@@ -17,7 +17,10 @@ import type { ProxyItem } from './proxy_manager.js';
 
 // Free CO proxies run 4.5–14 s; be patient and race several so the fastest wins.
 export const CO_PROXY_TIMEOUT_MS = Number(process.env.LIVE_PROXY_TIMEOUT_MS) || 14_000;
-const CO_PROXY_READY_TIMEOUT_MS = 18_000;
+// How long a request waits on a cold pool for its first verified proxy. Well
+// under every caller's budget (live 14.5 s, card 14 s, an arrivals route 8.5 s):
+// at 18 s the wait alone outlasted all of them, and the browser's 15 s.
+const CO_PROXY_READY_TIMEOUT_MS = 6_000;
 const CO_PROXY_RACE_WIDTH = Number(process.env.CO_PROXY_RACE_WIDTH) || 5;
 // If a whole wave of free proxies dies (connection reset / timeout — common),
 // fall through to the next-best, non-overlapping wave instead of failing.

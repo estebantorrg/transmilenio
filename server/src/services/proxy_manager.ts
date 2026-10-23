@@ -14,6 +14,8 @@ const PROXY_CONNECT_TIMEOUT_MS = 8000;
 // test must be patient enough to keep the slow-but-working ones.
 const TEST_TIMEOUT_MS = 12_000;
 const TEST_BATCH = 50;
+// How often a request waiting on a cold pool looks for its first proxy.
+const READY_POLL_MS = 200;
 
 // Pool maintenance.
 const REFRESH_INTERVAL_MS = 10 * 60 * 1000; // re-scrape cadence, while the pool is short and in use
@@ -231,16 +233,24 @@ class ProxyManagerClass {
     }
   }
 
+  /**
+   * Resolves with the pool size as soon as a proxy is in it, when the pass ends
+   * empty, or at `timeoutMs`. A pass adds each proxy the moment it verifies
+   * (`refresh`), so waiting for the whole pass — which runs past a minute —
+   * held every request on a cold pool to the full timeout, past the budget of
+   * every caller, after every restart.
+   */
   public async waitForReady(timeoutMs = 12_000): Promise<number> {
     this.lastUsedAt = Date.now();
     if (this.pool.size > 0) return this.pool.size;
 
     const refresh = this.isTesting ? this.refreshPromise : this.refresh();
-    if (refresh) {
-      await Promise.race([
-        refresh.catch(() => undefined),
-        new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
-      ]);
+    let passOver = !refresh;
+    const settle = () => { passOver = true; };
+    void refresh?.then(settle, settle);
+    const deadline = Date.now() + timeoutMs;
+    while (this.pool.size === 0 && !passOver && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, READY_POLL_MS));
     }
     return this.pool.size;
   }
