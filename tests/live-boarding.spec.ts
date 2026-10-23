@@ -21,11 +21,11 @@ import {
   type LiveBusFix,
 } from '../client/src/services/liveWait';
 import { buildTraceIndex, projectOntoTrace } from '../client/src/services/trace';
+import { haversineMeters } from '../client/src/utils/geo';
 import { describeLiveBoarding, watchLiveBoarding } from '../client/src/services/liveBoarding';
 import {
   applyLiveBoarding,
   findRoutes,
-  getDistance,
   initRouter,
   liveBoardingTargets,
   setPlannerCalibration,
@@ -337,7 +337,7 @@ test.describe('the itineraries, with the live wait in them', () => {
     const a1 = plans.find((p) => rideOf(p).routeId === 'a1')!;
     const ride = rideOf(a1);
     const rideOnly = ride.time - ride.assumedWait!;
-    expect(rideOnly).toBeGreaterThan(getDistance(at(2000), at(4000)) / 600); // sanity: it is a real ride
+    expect(rideOnly).toBeGreaterThan(haversineMeters(at(2000), at(4000)) / 600); // sanity: it is a real ride
     applyLiveBoarding(plans, new Map([['a1', [bus(0, 'Portal Uno')]]]), { nowMs: NOW, departAt: FRIDAY_NOON });
     expect(ride.time - ride.boardWait!).toBeCloseTo(rideOnly, 5);
   });

@@ -1,7 +1,7 @@
 import maplibregl from 'maplibre-gl';
 import { api } from '../services/api';
 import { describeLiveBoarding, watchLiveBoarding } from '../services/liveBoarding';
-import { findRoutes, getDistance, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, setPlannerCalibration, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
+import { findRoutes, getRouteServiceSpans, initRouter, isTunnelTransfer, resolveWalkingLegs, setPlannerCalibration, SHORT_SERVICE_DAY_MINUTES, type JourneyPlan, type JourneyStep, type CableStationInput } from '../services/router';
 import {
   bogotaNow,
   createServiceClock,
@@ -32,7 +32,7 @@ import { initChipRowScroll } from './chipRow';
 import { escapeHTML, safeColor } from '../utils/html';
 import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
 import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessionLocation';
-import { isWithinBogota } from '../utils/geo';
+import { haversineMeters, isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 import { FOOT_CREDIT_HTML } from '../../../shared/osrm_foot.js';
 
@@ -1494,7 +1494,7 @@ function calculateRoute(): void {
   }
 
   // Calculate distance between origin and destination coordinates
-  const distance = getDistance(originCoord, destCoord);
+  const distance = haversineMeters(originCoord, destCoord);
   if (distance < 50) {
     calculatedPlans = [];
     activePlanIndex = null;

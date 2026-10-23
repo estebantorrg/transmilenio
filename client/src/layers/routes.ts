@@ -170,6 +170,9 @@ function cellKey(lng: number, lat: number): string {
   return `${Math.floor(lng / CORRIDOR_CELL_DEG)}:${Math.floor(lat / CORRIDOR_CELL_DEG)}`;
 }
 
+// Its own copy of `utils/geo`'s haversine on purpose: that module is loaded by
+// the `.ts` specs and this one by an `.mts` spec, and one module reached from
+// both aborts the whole Playwright run.
 function metersBetween(a: number[], b: number[]): number {
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(b[1] - a[1]);

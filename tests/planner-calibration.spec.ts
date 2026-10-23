@@ -9,7 +9,8 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { findRoutes, getDistance, initRouter, setPlannerCalibration } from '../client/src/services/router';
+import { findRoutes, initRouter, setPlannerCalibration } from '../client/src/services/router';
+import { haversineMeters } from '../client/src/utils/geo';
 import type { PlannerCalibrationData } from '../shared/calibration.js';
 import type { RouteListItem } from '../client/src/types/transmilenio';
 import type { PlanTime } from '../client/src/services/schedule';
@@ -28,7 +29,7 @@ const line = (id: string): RouteListItem => ({
 });
 
 /** Metres the graph charges for A→D: three straight legs, no trace to measure. */
-const RIDE_METRES = [0, 1, 2].reduce((sum, i) => sum + getDistance(coordOf(i), coordOf(i + 1)), 0);
+const RIDE_METRES = [0, 1, 2].reduce((sum, i) => sum + haversineMeters(coordOf(i), coordOf(i + 1)), 0);
 const LEGS = 3;
 /** What the constants charge, unchanged: 333 m/min plus 0.35 min dwell per leg. */
 const CONSTANT_MINUTES = RIDE_METRES / 333 + 0.35 * LEGS;

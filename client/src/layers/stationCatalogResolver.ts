@@ -1,6 +1,7 @@
 import type { CatalogPlanGroup, CatalogRoute, CatalogStation, MasterCatalog } from '../types/catalog';
 import type { TroncalStationFeature } from '../types/transmilenio';
 import { isStationStopCode } from '../data/routeCatalog';
+import { haversineMeters } from '../utils/geo';
 
 const TERMINAL_PLATFORM_RADIUS_M = 180;
 const NAME_MATCH_RADIUS_M = 450;
@@ -226,16 +227,7 @@ function catalogPoint(station: CatalogStation): LngLat | null {
 }
 
 function distanceMeters(a: LngLat | null, b: LngLat | null): number | null {
-  if (!a || !b) return null;
-  const toRad = (degrees: number) => (degrees * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const lat1 = toRad(a.lat);
-  const lat2 = toRad(b.lat);
-  const h =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
-  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+  return a && b ? haversineMeters([a.lng, a.lat], [b.lng, b.lat]) : null;
 }
 
 function buildIndexes(catalog: MasterCatalog): ResolverIndexes {

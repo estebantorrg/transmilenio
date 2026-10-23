@@ -14,7 +14,7 @@ import { findBusPayloadArray, toFiniteNumber } from '../../../shared/live_payloa
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
 // One distance formatter for the whole app: this module had its own copy, so a
 // bus popup and a Cerca row could word the same distance differently (§1.1 R2).
-import { formatDistance } from '../utils/geo';
+import { formatDistance, haversineMeters } from '../utils/geo';
 import { setBusModels, clearBusModels, setFollow, getRenderedBusLngLat, type LiveBusInput } from './busModelLayer';
 
 // Re-exported so callers that lazy-load this module can warm the 3D assets
@@ -316,16 +316,6 @@ async function fetchAndRenderBuses(
 // ─── Next-stop resolution ────────────────────────────────
 
 const DEG2RAD = Math.PI / 180;
-const EARTH_R = 6371000; // metres
-
-function haversineMeters(aLng: number, aLat: number, bLng: number, bLat: number): number {
-  const dLat = (bLat - aLat) * DEG2RAD;
-  const dLng = (bLng - aLng) * DEG2RAD;
-  const la1 = aLat * DEG2RAD;
-  const la2 = bLat * DEG2RAD;
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(la1) * Math.cos(la2) * Math.sin(dLng / 2) ** 2;
-  return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
-}
 
 /** Initial compass bearing (0=N, clockwise) from A to B, matching telemetry `angulo`. */
 function bearingDeg(aLng: number, aLat: number, bLng: number, bLat: number): number {
@@ -349,7 +339,7 @@ function nearestStopIndex(bus: LiveBus, stops: PopupStop[]): number {
   let nearDist = Infinity;
   for (let i = 0; i < stops.length; i++) {
     const [lng, lat] = stops[i].coordinate;
-    const d = haversineMeters(bus.longitude, bus.latitude, lng, lat);
+    const d = haversineMeters([bus.longitude, bus.latitude], [lng, lat]);
     if (d < nearDist) { nearDist = d; nearIdx = i; }
   }
   return nearIdx;
@@ -394,7 +384,7 @@ function computeNextStop(bus: LiveBus, stops: PopupStop[]): { stop: PopupStop; m
 
   const stop = stops[idx];
   const [lng, lat] = stop.coordinate;
-  return { stop, meters: haversineMeters(bus.longitude, bus.latitude, lng, lat) };
+  return { stop, meters: haversineMeters([bus.longitude, bus.latitude], [lng, lat]) };
 }
 
 /**

@@ -574,13 +574,6 @@ function canCreateWalkingTransfer(fromStop: RouteStop, toStop: RouteStop): boole
   return true;
 }
 
-/**
- * Calculates geographic distance in meters between two coordinates using the Haversine formula.
- */
-export function getDistance(coord1: [number, number], coord2: [number, number]): number {
-  return haversineMeters(coord1, coord2);
-}
-
 // ── Spatial grid ────────────────────────────────────────────────────────────
 // Uniform lat/lng grid over all stops so neighbor lookups (walk transfers,
 // access-node search) are O(cell) instead of O(all stops). ~550 m cells.
@@ -612,7 +605,7 @@ function stopsWithinRadius(coordinate: [number, number], radiusM: number): { sto
       const bucket = spatialGrid.get(gridKey(cx + dx, cy + dy));
       if (!bucket) continue;
       for (const stop of bucket) {
-        const distance = getDistance(coordinate, stop.coordinate);
+        const distance = haversineMeters(coordinate, stop.coordinate);
         if (distance <= radiusM) found.push({ stop, distance });
       }
     }
@@ -726,7 +719,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
       const toStop = stops[i + 1];
       if (!fromStop.codigo || !toStop.codigo) continue;
 
-      const straight = getDistance(fromStop.coordinate, toStop.coordinate);
+      const straight = haversineMeters(fromStop.coordinate, toStop.coordinate);
       const traced = traceIndex ? traceDistanceBetween(traceIndex, i, i + 1) : null;
       // Below the straight line is a pair of stops projecting almost on top of
       // each other (opposite kerbs of one street) — not a reason to throw the
@@ -764,7 +757,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   for (let i = 0; i < cableLine.length - 1; i++) {
     const a = cableLine[i];
     const b = cableLine[i + 1];
-    const distance = getDistance(a.coordinate, b.coordinate);
+    const distance = haversineMeters(a.coordinate, b.coordinate);
     const time = distance / CABLE_SPEED_M_PER_MINUTE + CABLE_DWELL_MINUTES;
     const edge = (from: string, to: string) => {
       adjacency[stopIndexByCode.get(from)!].push({
@@ -824,12 +817,12 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
 
     // A hand-traced tunnel is a real measured path — it is already the walked
     // distance and must not be corrected again.
-    let distance = walkMeters(getDistance(fromStop.coordinate, toStop.coordinate));
+    let distance = walkMeters(haversineMeters(fromStop.coordinate, toStop.coordinate));
     if (TUNNEL_PATHS[key]) {
       const coords = TUNNEL_PATHS[key];
       let pathDist = 0;
       for (let idx = 0; idx < coords.length - 1; idx++) {
-        pathDist += getDistance(coords[idx], coords[idx + 1]);
+        pathDist += haversineMeters(coords[idx], coords[idx + 1]);
       }
       distance = pathDist;
     }
@@ -845,7 +838,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   const portalTunal = uniqueStops.get(PORTAL_TUNAL_STATION_CODE);
   const cableTunal = uniqueStops.get(CABLE_TUNAL_CODE);
   if (portalTunal && cableTunal) {
-    const dist = walkMeters(getDistance(portalTunal.coordinate, cableTunal.coordinate));
+    const dist = walkMeters(haversineMeters(portalTunal.coordinate, cableTunal.coordinate));
     addWalkingEdge(PORTAL_TUNAL_STATION_CODE, CABLE_TUNAL_CODE, dist);
     addWalkingEdge(CABLE_TUNAL_CODE, PORTAL_TUNAL_STATION_CODE, dist);
   }
@@ -1432,12 +1425,12 @@ function buildJourneySteps(
 
       if (TUNNEL_PATHS[key]) {
         const coords = TUNNEL_PATHS[key];
-        const isReversed = getDistance(fromStop.coordinate, coords[0]) > getDistance(fromStop.coordinate, coords[coords.length - 1]);
+        const isReversed = haversineMeters(fromStop.coordinate, coords[0]) > haversineMeters(fromStop.coordinate, coords[coords.length - 1]);
         walkPath = isReversed ? [...coords].reverse() : coords;
 
         let pathDist = 0;
         for (let idx = 0; idx < walkPath.length - 1; idx++) {
-          pathDist += getDistance(walkPath[idx], walkPath[idx + 1]);
+          pathDist += haversineMeters(walkPath[idx], walkPath[idx + 1]);
         }
         distance = pathDist;
         time = pathDist / WALK_SPEED_M_PER_MINUTE;
@@ -1783,7 +1776,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   const remainingBound = (nodeIdx: number): number => {
     let bound = heuristicCache[nodeIdx];
     if (Number.isNaN(bound)) {
-      bound = getDistance(stopList[nodeIdx].coordinate, destination) / heuristicSpeed + minEgressPrimary;
+      bound = haversineMeters(stopList[nodeIdx].coordinate, destination) / heuristicSpeed + minEgressPrimary;
       heuristicCache[nodeIdx] = bound;
     }
     return bound;
@@ -1846,7 +1839,7 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
         arrival = parent;
         egressDistance = destByIdx.has(parent.nodeIdx)
           ? undefined
-          : walkMeters(getDistance(stopList[parent.nodeIdx].coordinate, destination));
+          : walkMeters(haversineMeters(stopList[parent.nodeIdx].coordinate, destination));
       }
     }
     if (egressDistance !== undefined && arrival.hasRidden) {
@@ -2156,7 +2149,7 @@ function createWalkingFallbackPlan(
   destination: [number, number],
   departMinute: number
 ): JourneyPlan {
-  const distance = walkMeters(getDistance(origin, destination));
+  const distance = walkMeters(haversineMeters(origin, destination));
   const time = distance / WALK_SPEED_M_PER_MINUTE;
   return {
     totalTime: Math.round(time),
@@ -2240,7 +2233,7 @@ export function findRoutes(params: RouteSearchParams, out?: { candidates?: Journ
   // gating this one on the raw straight line instead would admit a "walk 2.5 km"
   // plan that is really 3.2 km of pavement, i.e. past the limit every transit
   // plan is held to, and that the pedestrian pass would then drop again.
-  const directWalk = walkMeters(getDistance(origin, destination));
+  const directWalk = walkMeters(haversineMeters(origin, destination));
   if (directWalk <= WALK_ONLY_FALLBACK_MAX_M) {
     const walkPlan = createWalkingFallbackPlan(origin, destination, departAt.minute);
     if (plans.length === 0) {
@@ -2343,9 +2336,9 @@ function stitchWalkGeometry(
   coordinates: [number, number][]
 ): [number, number][] {
   const stitched = coordinates.slice();
-  if (getDistance(from, stitched[0]) > WALK_STITCH_MIN_M) stitched.unshift(from);
+  if (haversineMeters(from, stitched[0]) > WALK_STITCH_MIN_M) stitched.unshift(from);
   const last = stitched[stitched.length - 1];
-  if (getDistance(to, last) > WALK_STITCH_MIN_M) stitched.push(to);
+  if (haversineMeters(to, last) > WALK_STITCH_MIN_M) stitched.push(to);
   return stitched;
 }
 
@@ -2451,7 +2444,7 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
         // them, §5.6.4) — the floor is for the pathological case where a snap
         // put both endpoints on the same way and the "route" came back shorter
         // than the straight line, which no rider can walk.
-        const distance = Math.max(route.distance, getDistance(canonFrom, canonTo));
+        const distance = Math.max(route.distance, haversineMeters(canonFrom, canonTo));
         const result: WalkingPathResult = {
           coordinates: stitchWalkGeometry(canonFrom, canonTo, route.coordinates),
           distance,
@@ -2470,7 +2463,7 @@ export async function fetchWalkingPath(from: [number, number], to: [number, numb
     // failed lookup leaves the itinerary consistent instead of shrinking one leg
     // back to a distance nobody can walk. Not cached — the next search should
     // try again rather than inherit the failure.
-    const distance = walkMeters(getDistance(canonFrom, canonTo));
+    const distance = walkMeters(haversineMeters(canonFrom, canonTo));
     return {
       coordinates: [canonFrom, canonTo],
       distance,
