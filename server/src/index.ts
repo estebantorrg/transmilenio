@@ -134,7 +134,6 @@ app.get('/api', (_req, res) => {
     version: '2.0.0',
     endpoints: [
       'GET /api/health',
-      'GET /api/troncal/routes',
       'GET /api/troncal/stations',
       'GET /api/troncal/corridors',
       'GET /api/troncal/master-catalog',
@@ -191,8 +190,8 @@ async function start(): Promise<void> {
   app.listen(PORT, () => {
     console.log(`\n🚌 Transmilenio API Proxy running on http://localhost:${PORT}\n`);
 
-    // Keep the Colombian egress (serverless Function) and its sockets hot so the
-    // first live poll of a tracking session isn't a cold start (spec §5.2.2b).
+    // Keep a configured Colombia relay and its sockets hot so the first live
+    // poll of a tracking session isn't a cold start (spec §5.2.2b).
     startLiveWarmup();
 
     // TransMilenio's #TMAhora posts on X, read every three minutes (§5.5.9).

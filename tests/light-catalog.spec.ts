@@ -27,3 +27,25 @@ test('master-catalog ships 6-decimal points and 5-decimal traces', async ({ requ
   expect(tracePoints.length).toBeGreaterThan(1000);
   expect(tracePoints.filter((n) => decimals(n) > 5)).toEqual([]);
 });
+
+test('master-catalog names its own content, in the body and in the ETag', async ({ request }) => {
+  // The app has no ETag to read — it ships this body in the APK — so the hash
+  // travels in the body too, and is how it tells a new catalog from its cached
+  // one (`catalogSignature`). Counts could not: moving K43 off CAD changes none.
+  const res = await request.get('/api/troncal/master-catalog', { timeout: 90_000 });
+  expect(res.ok()).toBe(true);
+  const { version } = await res.json();
+  expect(version).toMatch(/^[0-9a-f]{16}$/);
+  expect(res.headers()['etag']).toBe(`W/"catalog-${version}"`);
+});
+
+test('a client that refuses gzip gets the same bodies, inflated', async ({ request }) => {
+  // Every precomputed body (`sendGzipJson`): it is inflated as a stream now,
+  // where `gunzipSync` held the whole catalog per request on a 512 MB box.
+  for (const url of ['/api/troncal/master-catalog', '/api/planner-calibration']) {
+    const res = await request.get(url, { headers: { 'Accept-Encoding': 'identity' }, timeout: 90_000 });
+    expect(res.ok(), url).toBe(true);
+    expect(res.headers()['content-encoding'], url).toBeUndefined();
+    expect((await res.json()).success, url).toBe(true);
+  }
+});

@@ -22,7 +22,8 @@ import {
   fetchLiveBuses,
   type CatalogRouteDetail,
 } from './tm_api.js';
-import { variantLiveNames } from './live_request.js';
+import { isTrustedLiveAnswer, variantLiveNames } from './live_request.js';
+import { isZonalService } from './route_type.js';
 import { ON_ROUTE_MAX_PERP_M, PASSED_STOP_EPSILON_M, projectOntoPaths, traceToPaths } from '../../../shared/eta_geometry.js';
 import {
   dayTypeFor,
@@ -111,12 +112,7 @@ function parseCoordenada(coordenada: string | undefined): [number, number] | nul
   return Number.isFinite(lat) && Number.isFinite(lng) ? [lng, lat] : null;
 }
 
-// ─── Route classification & live buses ────────────────────
-
-function routeIsZonal(variant: CatalogRouteDetail): boolean {
-  const service = `${variant.sistema || ''} ${variant.tipoServicio || ''}`.toUpperCase();
-  return service.includes('ZONAL') || service.includes('TRANSMIZONAL') || service.includes('ALIMENTADOR');
-}
+// ─── Live buses ───────────────────────────────────────────
 
 interface ServingVariant {
   routeCode: string;
@@ -185,7 +181,7 @@ function findServingVariants(stopCode: string): ServingVariant[] {
         routeCode: code,
         destino,
         color: variant.color || '',
-        type: routeIsZonal(variant) ? 'zonal' : 'troncal',
+        type: isZonalService(variant.sistema, variant.tipoServicio) ? 'zonal' : 'troncal',
         candidates: variantLiveNames(variant),
         paths,
         stopAlong: proj.along,
@@ -251,13 +247,23 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
  * cascade stays. ONE name candidate input is enough (fetchLiveBuses expands it
  * internally), and the trace projection handles direction, so we don't pass the
  * full candidate set (each extra one is another live request → relay swamp).
+ *
+ * `answered` says whether the route's null arrival is a fact ("no bus on its
+ * way") or a gap ("could not ask"): the board may only say the first when at
+ * least one route answered (`isTrustedLiveAnswer`).
  */
-async function computeRouteEta(sv: ServingVariant): Promise<StopArrival | null> {
+interface RouteEta {
+  arrival: StopArrival | null;
+  answered: boolean;
+}
+const NOT_ANSWERED: RouteEta = { arrival: null, answered: false };
+
+async function computeRouteEta(sv: ServingVariant): Promise<RouteEta> {
   try {
     const res = await fetchLiveBuses(sv.routeCode, sv.candidates[0] || sv.destino, sv.type, []);
-    return etaFromBuses(sv, res.buses);
+    return { arrival: etaFromBuses(sv, res.buses), answered: isTrustedLiveAnswer(res) };
   } catch {
-    return null; // live upstream down for this route — skip, never hard-fail
+    return NOT_ANSWERED; // live upstream down for this route
   }
 }
 
@@ -270,8 +276,8 @@ async function computeRouteEta(sv: ServingVariant): Promise<StopArrival | null> 
 function runPool(
   items: ServingVariant[],
   concurrency: number,
-  fn: (item: ServingVariant) => Promise<StopArrival | null>,
-  out: (StopArrival | null)[]
+  fn: (item: ServingVariant) => Promise<RouteEta>,
+  out: RouteEta[]
 ): Promise<void> {
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -285,12 +291,12 @@ function runPool(
   return Promise.all(workers).then(() => undefined);
 }
 
-/** Resolve `p`, or `null` if it takes longer than `ms` (the work keeps running
- *  in the background but no longer blocks the fan-out). */
-function withTimeout(p: Promise<StopArrival | null>, ms: number): Promise<StopArrival | null> {
+/** Resolve `p`, or "not answered" if it takes longer than `ms` (the work keeps
+ *  running in the background but no longer blocks the fan-out). */
+function withTimeout(p: Promise<RouteEta>, ms: number): Promise<RouteEta> {
   return new Promise((resolve) => {
-    const t = setTimeout(() => resolve(null), ms);
-    p.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(null); });
+    const t = setTimeout(() => resolve(NOT_ANSWERED), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(NOT_ANSWERED); });
   });
 }
 
@@ -312,10 +318,11 @@ function cacheResult(key: string, catalogAt: number, result: StopArrivalsResult)
  * Real-time arrivals for a stop (paradero or estación), computed from live bus
  * positions projected onto each serving route's official trace.
  *
- * Never throws and never stalls past the client's fetch budget: the fan-out is
+ * Never stalls past the client's fetch budget: the fan-out is
  * concurrency-bounded and capped by a hard overall deadline. When the deadline
  * hits, whatever ETAs are ready are returned (a PARTIAL result) rather than
  * failing the popup — the rest resolve on the next open via the result cache.
+ * Rejects only when routes serve the stop and not one of them answered.
  */
 export function computeStopArrivals(stopCode: string): Promise<StopArrivalsResult> {
   const code = String(stopCode || '').trim();
@@ -357,7 +364,7 @@ async function fanOut(code: string, cacheKey: string, catalogAt: number): Promis
   // ~one live call, not stacked waves; each route capped by ROUTE_BUDGET and the
   // whole thing by a hard overall deadline. A partial result on deadline is fine
   // (the rest resolve on the next open); it just isn't cached.
-  const out: (StopArrival | null)[] = new Array(fanned.length).fill(null);
+  const out: RouteEta[] = new Array(fanned.length).fill(NOT_ANSWERED);
   let complete = false;
   const pool = runPool(
     fanned,
@@ -368,7 +375,15 @@ async function fanOut(code: string, cacheKey: string, catalogAt: number): Promis
   const deadline = new Promise<void>((resolve) => setTimeout(resolve, OVERALL_BUDGET_MS));
   await Promise.race([pool, deadline]);
 
+  // No route answered: an empty board would assert "no buses" about buses
+  // nobody could see — the free proxies are down far more often than every
+  // route at a stop is empty. Thrown, so nothing is cached and the next open asks.
+  if (!out.some((eta) => eta.answered)) {
+    throw new Error(`${code}: none of ${fanned.length} serving routes answered`);
+  }
+
   const arrivals = out
+    .map((eta) => eta.arrival)
     .filter((a): a is StopArrival => a !== null)
     .sort((a, b) => a.etaMinutes - b.etaMinutes || a.distanceMeters - b.distanceMeters);
 

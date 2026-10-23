@@ -160,12 +160,6 @@ export async function queryFeatureLayer(options: ArcGISQueryOptions): Promise<an
 
 /** Pre-configured queries for Transmilenio data */
 export const queries = {
-  troncalRoutes: () =>
-    queryFeatureLayer({
-      folder: 'Troncal',
-      service: 'consulta_rutas_troncales',
-    }),
-
   troncalStations: () =>
     queryFeatureLayer({
       folder: 'Troncal',

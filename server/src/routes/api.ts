@@ -10,6 +10,7 @@ import { isWithinBogota } from '../services/bogota.js';
 import { FOOT_HEADERS, FOOT_MIN_INTERVAL_MS, createPacer, footRouteUrl, readFootRoute, type FootRoute } from '../../../shared/osrm_foot.js';
 import zlib from 'zlib';
 import { promisify } from 'node:util';
+import { pipeline } from 'node:stream';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -21,7 +22,7 @@ import {
   LIVE_ROUTE_CODE_MAX_LENGTH,
   normalizeLiveText,
 } from '../services/live_payload.js';
-import { keepKnownLiveNames } from '../services/live_request.js';
+import { isTrustedLiveAnswer, keepKnownLiveNames } from '../services/live_request.js';
 
 const router = Router();
 const gzipAsync = promisify(zlib.gzip);
@@ -165,16 +166,23 @@ async function getCachedOrFetch(key: string, fetcher: () => Promise<any[]>): Pro
 
 /** Sends a precomputed gzip JSON body verbatim — no per-request stringify or
  *  re-compression. Every real browser accepts gzip; the identity fallback is
- *  only for the odd client that opts out via `Accept-Encoding`. */
+ *  only for the odd client that opts out via `Accept-Encoding`, and it is
+ *  inflated as a stream: `gunzipSync` blocked the event loop and held the whole
+ *  ~15 MB catalog per request, so a few slow `curl`s could push the 512 MB
+ *  instance over (spec §5.1.3). */
 function sendGzipJson(req: Request, res: Response, gzip: Buffer): void {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Vary', 'Accept-Encoding');
   if (req.acceptsEncodings('gzip')) {
     res.setHeader('Content-Encoding', 'gzip');
     res.end(gzip);
-  } else {
-    res.end(zlib.gunzipSync(gzip));
+    return;
   }
+  const inflate = zlib.createGunzip();
+  pipeline(inflate, res, (error) => {
+    if (error) console.warn(`[api] identity body for ${req.originalUrl} cut short:`, error.message);
+  });
+  inflate.end(gzip);
 }
 
 function featureEndpoint(
@@ -221,7 +229,6 @@ export function prewarmArcgisLayers(): void {
 
 // ─── Troncal Endpoints ────────────────────────────────────
 
-router.get('/troncal/routes', featureEndpoint('troncal-routes', queries.troncalRoutes, 'troncal routes', 600));
 router.get('/troncal/stations', featureEndpoint('troncal-stations', queries.troncalStations, 'troncal stations', 600));
 router.get('/troncal/corridors', featureEndpoint('troncal-corridors', queries.troncalCorridors, 'troncal corridors', 600));
 
@@ -299,42 +306,36 @@ router.get('/zonal/stop-routes', featureEndpoint('zonal-stop-routes', queries.zo
 // They are read from disk once and served read-only — no bulk download or parse
 // on the hot path, and no runtime geofence dependency.
 //
-// ONE loader for all three: the read + memo + concurrent-first-hit sharing is
-// identical, only the filename differs (spec §1.1 R2).
+// ONE loader for all of them: the read + memo + concurrent-first-hit sharing is
+// identical, only the filename differs (spec §1.1 R2). What is kept is the
+// gzipped response, as for the ArcGIS layers: `recarga_points.json` is 0.9 MB
+// and the calibration 0.5 MB, and `res.json` stringified and compressed them
+// again for every request on a 0.1-CPU instance.
 
 const DATA_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'data');
-const dataFileCache = new Map<string, unknown>();
-const dataFileInFlight = new Map<string, Promise<unknown>>();
+const dataFileBodies = new Map<string, Promise<Buffer>>();
 
-function loadDataFile<T>(filename: string): Promise<T> {
-  const cached = dataFileCache.get(filename);
-  if (cached !== undefined) return Promise.resolve(cached as T);
-
-  const pending = dataFileInFlight.get(filename);
-  if (pending) return pending as Promise<T>;
-
-  const request = readFile(join(DATA_DIR, filename), 'utf8')
-    .then((text) => {
-      const parsed = JSON.parse(text);
-      dataFileCache.set(filename, parsed);
-      return parsed;
-    })
-    .finally(() => {
-      dataFileInFlight.delete(filename);
-    });
-
-  dataFileInFlight.set(filename, request);
-  return request as Promise<T>;
+function dataFileBody<T>(filename: string, shape: (data: T) => object): Promise<Buffer> {
+  let body = dataFileBodies.get(filename);
+  if (!body) {
+    body = readFile(join(DATA_DIR, filename), 'utf8').then((text) =>
+      gzipAsync(JSON.stringify({ success: true, ...shape(JSON.parse(text) as T) }))
+    );
+    // A failed read is not kept: the next request tries the file again.
+    body.catch(() => dataFileBodies.delete(filename));
+    dataFileBodies.set(filename, body);
+  }
+  return body;
 }
 
 /** Serves one committed dataset. `shape` turns the parsed file into the response
- *  body, which is the only thing that differs between the three endpoints. */
+ *  body, which is the only thing that differs between the endpoints. */
 function dataFileEndpoint<T>(filename: string, label: string, shape: (data: T) => object): RequestHandler {
-  return async (_req: Request, res: Response) => {
+  return async (req: Request, res: Response) => {
     try {
-      const data = await loadDataFile<T>(filename);
+      const gzip = await dataFileBody(filename, shape);
       res.setHeader('Cache-Control', 'public, max-age=86400');
-      res.json({ success: true, ...shape(data) });
+      sendGzipJson(req, res, gzip);
     } catch (error) {
       console.error(`Error loading ${label}:`, error);
       res.status(500).json({ success: false, error: `Failed to load ${label}` });
@@ -435,7 +436,7 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
     }
 
     // Verified empty from a Colombian egress IP is a genuine "no buses now".
-    if (source === 'direct' || source === 'co-relay') {
+    if (isTrustedLiveAnswer({ buses, source })) {
       res.json({ success: true, status: 'no-buses', confidence: 'high', count: 0, data: [], source });
       return;
     }
@@ -467,7 +468,9 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
 // For a paradero OR estación: which routes reporting a stop here (matched BY
 // CODE) have a live bus approaching, and in how long. Computed from live bus
 // positions projected onto each route's official trace (spec §5.8, §5.6).
-// Never hard-fails — empty list on any outage.
+// An empty list means the routes answered and no bus is on its way; when none
+// of them could be asked, it is a 503 — the board says "no disponible", never
+// "sin buses" for buses it could not see.
 router.post('/stop-arrivals', rateLimit('stop-arrivals'), async (req: Request, res: Response) => {
   const code = normalizeLiveText(
     req.body?.code ?? req.body?.codigo ?? req.body?.cenefa ?? req.body?.paradero,
@@ -482,7 +485,8 @@ router.post('/stop-arrivals', rateLimit('stop-arrivals'), async (req: Request, r
     res.json({ success: true, count: arrivals.length, routesServing, arrivals });
   } catch (error: any) {
     console.error('[/stop-arrivals] Error:', error?.message || error);
-    res.json({ success: true, count: 0, routesServing: 0, arrivals: [] });
+    res.setHeader('Retry-After', String(UPSTREAM_RETRY_AFTER_S));
+    res.status(503).json({ success: false, error: 'Live arrivals temporarily unavailable upstream' });
   }
 });
 

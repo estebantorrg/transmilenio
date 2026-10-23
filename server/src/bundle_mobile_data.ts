@@ -32,6 +32,7 @@ import path from 'node:path';
 import { loadCatalogFromDisk, getCatalogLightGzip, type CatalogRouteDetail } from './services/tm_api.js';
 import { isTroncalStationCode } from './services/station_registry.js';
 import { variantLiveNames } from './services/live_request.js';
+import { isZonalService } from './services/route_type.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.resolve(__dirname, 'data');
@@ -95,13 +96,10 @@ function roundTrace(trace: CatalogRouteDetail['trazado']): CatalogRouteDetail['t
   return (trace as number[][][]).map((path) => path.map(([lng, lat]) => [round5(lng), round5(lat)]));
 }
 
-/** Mirrors `routeIsZonal` in services/stop_arrivals.ts — the two must agree, or
- *  the app and the website would apply different cruising speeds to the same
- *  route (spec §1.1 R2). */
+/** The rule the arrivals board reads too (`isZonalService`), or the app and the
+ *  website would apply different cruising speeds to the same route (spec §1.1 R2). */
 function voiceRouteType(variant: CatalogRouteDetail): 't' | 'z' {
-  const service = `${variant.sistema || ''} ${variant.tipoServicio || ''}`.toUpperCase();
-  const zonal = service.includes('ZONAL') || service.includes('TRANSMIZONAL') || service.includes('ALIMENTADOR');
-  return zonal ? 'z' : 't';
+  return isZonalService(variant.sistema, variant.tipoServicio) ? 'z' : 't';
 }
 
 function assertShardName(code: string): string {

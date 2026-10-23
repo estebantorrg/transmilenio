@@ -230,6 +230,8 @@ export interface MasterCatalog {
 
 export interface MasterCatalogResponse {
   success: boolean;
+  /** Hash of `data` (`getCatalogLightGzip`); absent on a body cached before it existed. */
+  version?: string;
   data: MasterCatalog;
   count: number;
 }

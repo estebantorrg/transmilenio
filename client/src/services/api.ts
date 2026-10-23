@@ -498,8 +498,9 @@ export const api = {
 
   /** Global per-route ETA for any stop (paradero or estación), computed from
    *  live bus positions projected onto each serving route's trace (spec §5.8).
-   *  Works for both TM…-coded estaciones and zonal cenefas. Never hard-fails.
-   *  Website-only, hence no native branch: the fan-out is the server's, and the
+   *  Works for both TM…-coded estaciones and zonal cenefas. Throws (a 503) when
+   *  no serving route could be asked, so the board says "no disponible" rather
+   *  than "sin buses". Website-only, hence no native branch: the fan-out is the server's, and the
    *  app shows the official imminent-arrivals feed instead (`getArrivals`). */
   getStopArrivals: (code: string) =>
     fetchJson<StopArrivalsResponse>('/stop-arrivals', 16_000, {

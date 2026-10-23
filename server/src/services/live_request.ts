@@ -299,6 +299,17 @@ export function raceLiveCandidates<C>(
   });
 }
 
+/**
+ * Whether a live answer can be shown as fact: buses seen, or an empty list from
+ * a Colombian egress (`direct`, `co-relay`). An empty list through a free public
+ * proxy may be a silent or garbled body that merely parsed to nothing, so it is
+ * not "no buses" (spec §5.2.5) — `/api/buses` and the arrivals board both read
+ * this one rule.
+ */
+export function isTrustedLiveAnswer(answer: { buses: unknown[]; source: string }): boolean {
+  return answer.buses.length > 0 || answer.source === 'direct' || answer.source === 'co-relay';
+}
+
 // ─── The relay's generic forwarder ────────────────────────
 
 /**

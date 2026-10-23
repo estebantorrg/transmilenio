@@ -46,3 +46,13 @@ test('the board and the voice ETA read the one copy', () => {
     expect(source, file).not.toContain('ON_ROUTE_MAX_PERP_M =');
   }
 });
+
+test('the board and the app voice index read the one zonal rule', () => {
+  // Zonal or troncal picks the cruising speed of both ETAs. Each file carried
+  // its own copy of `isZonalService` with a comment saying they must agree.
+  for (const file of ['server/src/services/stop_arrivals.ts', 'server/src/bundle_mobile_data.ts']) {
+    const source = fs.readFileSync(path.resolve(__dirname, '..', file), 'utf8');
+    expect(source, file).toContain("import { isZonalService } from './");
+    expect(source, file).not.toContain("includes('ALIMENTADOR')");
+  }
+});

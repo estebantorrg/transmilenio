@@ -22,7 +22,7 @@ import type {
 import type { CatalogStation, CatalogWagons, MasterCatalog, MasterCatalogResponse } from '@shared/types/catalog';
 import type { ApiResponse, RouteListItem } from '@shared/types/transmilenio';
 import { bus, setRoutes, state, type DemandRecord, type HealthInfo, type StationRecord } from './state';
-import { idbGet, idbSet } from './lib/cache';
+import { catalogSignature, idbGet, idbSet } from './lib/cache';
 
 // APK-bundled offline datasets. On a Colombian phone the app hits the official
 // government hosts directly for everything dynamic (spec §5.2.1b), but the master
@@ -187,12 +187,6 @@ function applyCatalog(catalog: MasterCatalog, corridorCount?: number): void {
     cable: corridorCount ?? state.counts.cable,
   };
   setRoutes(routes);
-}
-
-/** Cheap signature to detect whether a fresh catalog differs from the cached one. */
-function catalogSignature(payload: MasterCatalogResponse): string {
-  const c = payload.data || { stations: {}, routes: {} };
-  return `${payload.count}:${Object.keys(c.routes || {}).length}:${Object.keys(c.stations || {}).length}`;
 }
 
 /** Fetch the fresh catalog + the ArcGIS corridor count. Throws if the catalog is unreachable. */

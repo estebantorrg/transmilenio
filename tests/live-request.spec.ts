@@ -16,6 +16,7 @@ import { expect, test } from '@playwright/test';
 import {
   buildLiveNameCandidates,
   isForwardAllowed,
+  isTrustedLiveAnswer,
   keepKnownLiveNames,
   raceLiveCandidates,
   variantLiveNames,
@@ -151,5 +152,21 @@ test.describe('the relay forwarder', () => {
     expect(isForwardAllowed('constructor', 'POST')).toBe(false);
     expect(isForwardAllowed(undefined, 'POST')).toBe(false);
     expect(isForwardAllowed({ toString: () => '/lectura_tarjeta' }, 'POST')).toBe(false);
+  });
+});
+
+test.describe('what an answer is worth', () => {
+  // `/api/buses` (no-buses vs unverified) and the arrivals board (an empty
+  // board vs "no disponible") both read this. The board used to read nothing:
+  // every failure was an empty list, and every board in the city said "sin
+  // buses" whenever the free proxies were down.
+  test('buses are a fact from any transport', () => {
+    expect(isTrustedLiveAnswer({ buses: [BUS], source: 'public-co-proxy' })).toBe(true);
+  });
+
+  test('an empty list is a fact only from a Colombian egress', () => {
+    expect(isTrustedLiveAnswer({ buses: [], source: 'direct' })).toBe(true);
+    expect(isTrustedLiveAnswer({ buses: [], source: 'co-relay' })).toBe(true);
+    expect(isTrustedLiveAnswer({ buses: [], source: 'public-co-proxy' })).toBe(false);
   });
 });

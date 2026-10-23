@@ -712,8 +712,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
 }
 
 /**
-/**
- * The ETag is a hash of the bytes it names.
+ * The catalog's version — and its ETag — is a hash of the bytes it names.
  *
  * It used to be `catalog-<syncedAt>`, which identifies the catalog the payload
  * was built *from* rather than the payload — and everything else this endpoint
@@ -729,11 +728,17 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
  *
  * A hand-bumped shape counter fixed the first case and missed the second,
  * because the second was a data edit and not a shape change. There is no
- * version of that counter someone will remember to bump. Hashing the buffer
- * costs one pass over ~5 MB per catalog build and cannot be forgotten.
+ * version of that counter someone will remember to bump. Hashing the data
+ * costs one pass per catalog build and cannot be forgotten.
+ *
+ * The hash also travels IN the body (`version`), because the app has no ETag
+ * to read: it ships this body inside the APK (`bundle_mobile_data.ts`) and keeps
+ * a copy in IndexedDB, and it judged "changed" by counting stations and routes —
+ * so a release that moved K43 off CAD, same counts, left every updated phone on
+ * the cached catalog that still drew it there.
  */
-function lightCatalogEtag(gzip: Buffer): string {
-  return `W/"catalog-${createHash('sha1').update(gzip).digest('hex').slice(0, 16)}"`;
+function lightCatalogVersion(dataJson: string): string {
+  return createHash('sha1').update(dataJson).digest('hex').slice(0, 16);
 }
 
 export interface LightCatalogArtifact {
@@ -773,13 +778,12 @@ export async function getCatalogLightGzip(): Promise<LightCatalogArtifact> {
     const build = (async (): Promise<LightCatalogArtifact> => {
       const light = buildCatalogLight();
       const count = Object.keys(light.stations).length;
-      const body = JSON.stringify({
-        success: true,
-        data: light,
-        count,
-      });
-      const gzip = await gzipAsync(body);
-      const etag = lightCatalogEtag(gzip);
+      // Spliced rather than stringified twice: the data is ~15 MB of JSON on a
+      // 512 MB instance, and the body's `version` has to be its hash.
+      const dataJson = JSON.stringify(light);
+      const contentVersion = lightCatalogVersion(dataJson);
+      const gzip = await gzipAsync(`{"success":true,"version":"${contentVersion}","count":${count},"data":${dataJson}}`);
+      const etag = `W/"catalog-${contentVersion}"`;
       // Publish only while this is still the catalog on disk.
       if (catalogLoadedAt === version) {
         lightCatalogGzip = gzip;
@@ -1442,12 +1446,13 @@ async function runLiveCascade(
 // against dropped its container, §5.2.2a), the FIRST live request of a tracking
 // session pays that cold start on top of the upstream's own (App Engine also
 // idles down). A cheap periodic probe keeps both hot — and keeps the keep-alive
-// sockets above open —
+// sockets above open — so a user who starts tracking gets the warm latency, not
+// the cold one.
 //
-// Worth nothing when no relay is configured: the probe then just re-tries the
-// direct tier, which a non-CO host is 401-ed on, so production runs with
-// `TM_LIVE_WARMUP_MS=0` (§5.2.2a) rather than failing 6 requests an hour.
-// so a user who starts tracking gets the warm latency, not the cold one.
+// Only with a relay. Without one the probe could only ask the live host
+// directly, which a non-CO host is 401-ed on: ~6 refused requests an hour, in
+// the official app's name, to a host that has already blocklisted an id over
+// volume (§5.2.3) — and that is what an unset `TM_LIVE_WARMUP_MS` used to do.
 const LIVE_WARMUP_INTERVAL_MS = Number(process.env.TM_LIVE_WARMUP_MS ?? 240_000);
 const WARMUP_ROUTE = { ruta: '1', nombre: 'Universidades' };
 let warmupTimer: NodeJS.Timeout | null = null;
@@ -1455,8 +1460,7 @@ let warmupTimer: NodeJS.Timeout | null = null;
 async function warmLivePath(): Promise<void> {
   const context = createLiveRequestContext(WARMUP_ROUTE.ruta, WARMUP_ROUTE.nombre, 'troncal');
   try {
-    if (isColombiaRelayConfigured()) await fetchLiveBusesViaColombiaRelay(context);
-    else if (!isDirectTierGeofenced()) await fetchLiveBusesDirect(context);
+    await fetchLiveBusesViaColombiaRelay(context);
   } catch (error) {
     // A failed warm-up is not a user-facing failure — the next real request
     // still runs the full cascade. Log it once per tick and move on.
@@ -1464,9 +1468,10 @@ async function warmLivePath(): Promise<void> {
   }
 }
 
-/** Starts the periodic live-path warm-up. Idempotent; `TM_LIVE_WARMUP_MS=0` disables it. */
+/** Starts the periodic relay warm-up. Idempotent; a no-op with no relay, and
+ *  `TM_LIVE_WARMUP_MS=0` disables it. */
 export function startLiveWarmup(): void {
-  if (warmupTimer || !(LIVE_WARMUP_INTERVAL_MS > 0)) return;
+  if (warmupTimer || !(LIVE_WARMUP_INTERVAL_MS > 0) || !isColombiaRelayConfigured()) return;
   void warmLivePath();
   warmupTimer = setInterval(() => void warmLivePath(), LIVE_WARMUP_INTERVAL_MS);
   warmupTimer.unref(); // never hold the process open
