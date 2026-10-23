@@ -198,7 +198,7 @@ export function showCableStationPopup(
       <div class="popup-title">${escapeHTML(station.name || 'Estación TransMiCable')}</div>
       ${station.code ? `<div class="popup-meta"><span>${escapeHTML(station.code)}</span></div>` : ''}
       <div class="popup-cable-info">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F97316" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0" aria-hidden="true">
           <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
         </svg>
         <span>Las cabinas pasan aproximadamente cada 20 segundos, tanto para subir como para bajar.</span>

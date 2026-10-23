@@ -247,7 +247,7 @@ export function placeRowHtml(point: NearbyPoint, meters?: number): string {
             aria-label="${escapeHTML(label)}">
       <span class="route-item-badge place-badge ${meta.cls}" aria-hidden="true">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round">${POINT_KIND_GLYPHS[point.kind]}</svg>
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${POINT_KIND_GLYPHS[point.kind]}</svg>
       </span>
       <div class="route-item-info">
         <div class="route-item-name">${escapeHTML(point.name)}</div>

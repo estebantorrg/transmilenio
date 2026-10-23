@@ -92,7 +92,7 @@ function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'l
   switch (type) {
     case 'default':
       return `
-        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M16 48C16 48 24 24 36 24C48 24 48 16 48 16" stroke="url(#route-grad-default)" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 4" class="empty-route-path" />
           <circle cx="16" cy="48" r="7" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="3" />
           <circle cx="16" cy="48" r="3" fill="var(--tm-green)" />
@@ -110,7 +110,7 @@ function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'l
       `;
     case 'incomplete':
       return `
-        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <circle cx="32" cy="32" r="28" fill="rgba(239, 68, 68, 0.05)" stroke="rgba(239, 68, 68, 0.15)" stroke-width="2" />
           <path d="M16 48C18 42 22 38 26 38M38 32C42 30 46 26 48 16" stroke="rgba(255,255,255,0.15)" stroke-width="3" stroke-linecap="round" stroke-dasharray="6 4" />
           <circle cx="16" cy="48" r="6" fill="#1C1E22" stroke="rgba(255,255,255,0.3)" stroke-width="2" />
@@ -120,7 +120,7 @@ function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'l
       `;
     case 'close':
       return `
-        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <circle cx="24" cy="32" r="16" fill="rgba(93, 181, 123, 0.08)" stroke="rgba(93, 181, 123, 0.2)" stroke-width="2" />
           <circle cx="40" cy="32" r="16" fill="rgba(255, 90, 110, 0.08)" stroke="rgba(255, 90, 110, 0.2)" stroke-width="2" />
           <path d="M26 32H38" stroke="url(#route-grad-close)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 3" class="empty-route-path" />
@@ -137,7 +137,7 @@ function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'l
       `;
     case 'loading':
       return `
-        <svg class="planner-illustration loading-route-svg" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration loading-route-svg" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <circle cx="32" cy="32" r="24" stroke="rgba(216, 16, 45, 0.1)" stroke-width="4" />
           <circle cx="32" cy="32" r="24" stroke="url(#loading-grad)" stroke-width="4" stroke-linecap="round" stroke-dasharray="40 100" class="loading-circle-glow" />
           <path d="M20 40C20 40 26 28 34 28C42 28 44 24 44 24" stroke="rgba(255,255,255,0.2)" stroke-width="3" stroke-linecap="round" stroke-dasharray="5 3" />
@@ -153,14 +153,14 @@ function getEmptyStateIllustration(type: 'default' | 'incomplete' | 'close' | 'l
       `;
     case 'error':
       return `
-        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <circle cx="32" cy="32" r="28" fill="rgba(239, 68, 68, 0.05)" stroke="rgba(239, 68, 68, 0.15)" stroke-width="2" />
           <path d="M22 22 L42 42 M42 22 L22 42" stroke="var(--tm-red-light)" stroke-width="4" stroke-linecap="round" />
         </svg>
       `;
     case 'no-results':
       return `
-        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <svg class="planner-illustration" width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
           <path d="M16 48C20 44 24 44 28 44" stroke="rgba(255, 90, 110, 0.3)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4" />
           <path d="M36 36C40 36 44 32 48 16" stroke="rgba(93, 181, 123, 0.3)" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 4" />
           <circle cx="16" cy="48" r="6" fill="#1C1E22" stroke="var(--tm-green)" stroke-width="2" />

@@ -72,8 +72,8 @@
   <!-- Loading Overlay -->
   <div id="loading-overlay" class="loading-overlay">
     <div class="loading-content">
-      <img class="loading-logo" src="/icon-192.png" alt="MiTrasto" width="72" height="72" />
-      <h2 class="loading-title"><img class="wordmark" src="/wordmark.svg" alt="MiTrasto" width="114" height="22" /></h2>
+      <img class="loading-logo" src="/icon-192.png" alt="" width="72" height="72" />
+      <div class="loading-title"><img class="wordmark" src="/wordmark.svg" alt="MiTrasto" width="114" height="22" /></div>
       <div class="loading-bar">
         <div id="loading-bar-fill" class="loading-bar-fill"></div>
       </div>
@@ -106,29 +106,29 @@
     </button>
     <div class="sidebar-header">
       <div class="brand">
-        <img class="brand-logo" src="/icon-192.png" alt="MiTrasto" width="48" height="48" />
+        <img class="brand-logo" src="/icon-192.png" alt="" width="48" height="48" />
         <div class="brand-text">
-          <span class="brand-title"><img class="wordmark" src="/wordmark.svg" alt="MiTrasto" width="88" height="17" /></span>
+          <h1 class="brand-title"><img class="wordmark" src="/wordmark.svg" alt="MiTrasto" width="88" height="17" /></h1>
           <span class="brand-subtitle">Rutas de Bogotá</span>
         </div>
       </div>
       <button id="sidebar-toggle" class="sidebar-toggle" type="button" aria-controls="sidebar" aria-expanded="true" aria-label="Ocultar panel" title="Ocultar panel">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
       </button>
     </div>
 
     <!-- Tabs -->
     <div class="sidebar-tabs" role="tablist" aria-label="Secciones del panel">
       <button id="tab-explore" class="tab-btn active" type="button" role="tab" aria-selected="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <span>Explorar</span>
       </button>
       <button id="tab-cerca" class="tab-btn" type="button" role="tab" aria-selected="false">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.1-7-11a7 7 0 1 1 14 0c0 4.9-7 11-7 11Z"/><circle cx="12" cy="10" r="2.5"/></svg>
         <span>Cerca</span>
       </button>
       <button id="tab-planner" class="tab-btn" type="button" role="tab" aria-selected="false">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
         <span>Planear</span>
       </button>
     </div>
@@ -137,10 +137,10 @@
     <div id="explore-panel" class="explore-panel">
       <!-- Search -->
       <div class="search-container">
-        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <!-- The scope chips below reach five place catalogues, not just routes
              and estaciones (spec §5.4.2b) — the placeholder says so. -->
-        <input type="search" id="search-input" class="search-input" placeholder="Rutas, estaciones, paraderos, recargas…" autocomplete="off" enterkeyhint="search" />
+        <input type="search" id="search-input" class="search-input" aria-label="Buscar rutas, estaciones y lugares" placeholder="Rutas, estaciones, paraderos, recargas…" autocomplete="off" enterkeyhint="search" />
         <button id="search-clear" class="search-clear hidden" type="button" aria-label="Limpiar búsqueda">✕</button>
       </div>
 
@@ -191,7 +191,7 @@
       <!-- Route List -->
       <div class="route-list-header">
         <div class="route-list-title">
-          <h3 id="route-list-heading">Rutas</h3>
+          <h2 id="route-list-heading">Rutas</h2>
           <div class="route-list-views" role="group" aria-label="Vistas guardadas">
             <button class="route-view-toggle" type="button" id="view-fav" data-filter="fav" aria-pressed="false" aria-label="Ver solo favoritas" title="Favoritas">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
@@ -209,7 +209,7 @@
     <!-- Cerca Panel (nearest stations & paraderos by GPS) -->
     <div id="cerca-panel" class="cerca-panel hidden">
       <button id="cerca-locate" class="footer-action cerca-locate-btn" type="button">
-        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
         <span class="footer-action-label">Usar mi ubicación</span>
         <span class="footer-action-spinner" aria-hidden="true"></span>
       </button>
@@ -255,7 +255,7 @@
 
         <div class="swap-row">
           <button id="btn-swap-locations" class="swap-btn" type="button" title="Intercambiar origen y destino">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4"/></svg>
           </button>
         </div>
 
@@ -284,7 +284,7 @@
 
       <div class="planner-options">
         <div class="planner-option-row">
-          <label id="depart-label">Salida</label>
+          <span id="depart-label">Salida</span>
           <div class="depart-switch" role="group" aria-labelledby="depart-label">
             <button id="depart-mode-now" class="depart-switch-btn active" type="button" aria-pressed="true" title="Planear con la hora actual">Ahora</button>
             <button id="depart-mode-custom" class="depart-switch-btn" type="button" aria-pressed="false" title="Planear para otra fecha y hora">Otra hora</button>
@@ -315,11 +315,11 @@
           Solo rutas en servicio
         </button>
         <div class="planner-option-row">
-          <label id="transport-label">Transporte</label>
+          <span id="transport-label">Transporte</span>
           <div class="custom-dropdown" id="dropdown-transport">
             <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="transport-label">
               <span class="custom-dropdown-label">Todos (Mixto SITP/TM)</span>
-              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <ul class="custom-dropdown-menu hidden" role="listbox">
               <li class="custom-dropdown-item selected" role="option" data-value="mix">Todos (Mixto SITP/TM)</li>
@@ -330,11 +330,11 @@
           </div>
         </div>
         <div class="planner-option-row">
-          <label id="preference-label">Preferencia</label>
+          <span id="preference-label">Preferencia</span>
           <div class="custom-dropdown" id="dropdown-preference">
             <button class="custom-dropdown-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="preference-label">
               <span class="custom-dropdown-label">Menos transbordos</span>
-              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+              <svg class="custom-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
             </button>
             <ul class="custom-dropdown-menu hidden" role="listbox">
               <li class="custom-dropdown-item selected" role="option" data-value="transfers">Menos transbordos</li>
@@ -347,7 +347,7 @@
       </div>
 
       <button id="btn-calculate-route" class="footer-action planner-calculate-btn" type="button">
-        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
         <span class="footer-action-label">Buscar ruta</span>
         <span class="footer-action-spinner" aria-hidden="true"></span>
       </button>
@@ -399,7 +399,7 @@
             <a href="/privacidad/">Política de privacidad</a>
           </p>
           <button id="card-balance-submit" class="footer-action card-balance-submit" type="submit">
-            <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
             </svg>
             <span class="footer-action-label">Consultar</span>
@@ -414,7 +414,7 @@
     <!-- Footer actions -->
     <div class="sidebar-footer">
       <button id="card-balance-open" class="footer-action" type="button">
-        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
         </svg>
         <span class="footer-action-label">Consultar saldo</span>

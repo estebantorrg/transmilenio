@@ -787,7 +787,7 @@ body.sidebar-collapsed .sidebar-fab {
   min-width: 0;
 }
 
-.route-list-header h3 {
+.route-list-header h2 {
   font-size: var(--font-size-md);
   font-weight: 700;
   color: var(--text-primary);
@@ -4257,7 +4257,7 @@ body.sidebar-collapsed .sidebar-fab {
   gap: 12px;
 }
 
-.planner-option-row label {
+.planner-option-row > span {
   font-size: var(--font-size-sm);
   font-weight: 500;
   color: var(--text-secondary);
