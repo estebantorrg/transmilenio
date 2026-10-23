@@ -14,7 +14,11 @@ name: Sync station demand
 
 on:
   schedule:
-    - cron: '0 22 * * *' # daily 22:00 UTC = 17:00 Bogotá, after the day's file lands
+    # Daily 04:00 UTC = 23:00 Bogotá: after the day's file lands, and after the
+    # live host closes. The commit redeploys the one web instance, which starts
+    # with every cache and the proxy pool cold — at 17:00 Bogotá, the old slot,
+    # that restart landed on the start of the evening rush.
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 permissions:
