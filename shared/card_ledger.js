@@ -8,10 +8,14 @@ export function isCardNumber(value) {
   return /^\d{8,20}$/.test(String(value ?? ''));
 }
 
-/** `1234...5678` — the only form a card number is logged or echoed in. */
+/**
+ * `1234...5678` — the only form a card number is logged or echoed in. Below 16
+ * digits only the last four show (`...5678`): the server accepts 8, and four
+ * plus four of an 8-digit number is the whole number.
+ */
 export function maskCardNumber(cardNumber) {
-  if (cardNumber.length <= 6) return cardNumber;
-  return `${cardNumber.slice(0, 4)}...${cardNumber.slice(-4)}`;
+  if (cardNumber.length >= 16) return `${cardNumber.slice(0, 4)}...${cardNumber.slice(-4)}`;
+  return cardNumber.length > 4 ? `...${cardNumber.slice(-4)}` : cardNumber;
 }
 
 export function isLedgerRow(item) {

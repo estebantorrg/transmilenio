@@ -17,7 +17,8 @@ function groupDigits(digits: string): string {
 
 function maskCard(digits: string): string {
   const d = digits.replace(/\D/g, '');
-  return d.length <= 4 ? d : `•••• ${d.slice(-4)}`;
+  // A short number comes back from the server as `...5678`: four digits, still masked.
+  return d ? `•••• ${d.slice(-4)}` : '';
 }
 
 function formatCOP(n: number): string {
