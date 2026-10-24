@@ -35,6 +35,7 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { avisosSlotHtml, watchAvisos } from './avisos';
 import { TRONCAL_COLORS } from '../utils/routeColors';
 import {
+  appPromoHtml,
   crumbsHtml,
   factsHtml,
   isOverlayPageOpen,
@@ -369,6 +370,7 @@ function render(station: StationPageData): string {
       <section class="page-section" aria-labelledby="llegadas-h">
         <h2 class="page-section-title" id="llegadas-h">Próximos a llegar</h2>
         <div class="station-arrivals">${arrivalsSectionHtml(station.code)}</div>
+        ${appPromoHtml()}
       </section>
 
       <section class="page-section station-demand" aria-labelledby="demanda-h">

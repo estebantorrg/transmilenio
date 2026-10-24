@@ -44,6 +44,7 @@ import {
   tidy,
 } from './routeDetail';
 import {
+  appPromoHtml,
   crumbsHtml,
   factsHtml,
   isOverlayPageOpen,
@@ -316,6 +317,7 @@ function render(route: RouteListItem): string {
       <section class="page-section" aria-labelledby="live-h">
         <h2 class="page-section-title" id="live-h">En vivo</h2>
         ${renderLiveCard()}
+        ${appPromoHtml()}
       </section>
 
       ${scheduleHtml || cabecera ? `

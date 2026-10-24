@@ -5843,6 +5843,76 @@ body.native-app .route-detail-close:active {
   line-height: 1.5;
 }
 
+/* The Android app, offered inside a page's live section (`appPromoHtml`). */
+.page-app {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 40px 14px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-card);
+  border-radius: var(--radius-lg);
+}
+
+.page-app-icon {
+  flex: none;
+  border-radius: 10px;
+}
+
+.page-app-title {
+  margin: 0;
+  font-size: var(--font-size-md);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.page-app-body {
+  margin: 4px 0 0;
+  font-size: var(--font-size-sm);
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.page-app-get {
+  display: inline-flex;
+  align-items: center;
+  min-height: 40px;
+  margin-top: 10px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  background: var(--tm-red);
+  color: #fff;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.page-app-get:hover { background: var(--tm-red-dark); }
+
+.page-app-hint {
+  margin: 8px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  line-height: 1.4;
+}
+
+.page-app-close {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.page-app-close:hover { color: var(--text-primary); }
+
 .overlay-page .detail-service {
   margin-bottom: 12px;
 }

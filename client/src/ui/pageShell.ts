@@ -25,6 +25,9 @@ import { escapeHTML } from '../utils/html';
 import type { Resumen } from '../../../shared/resumen.js';
 
 const CHROME_IDS = ['map', 'sidebar', 'sidebar-fab'];
+/** A stable asset name CI publishes beside the versioned one (`android-apk.yml`). */
+const APP_DOWNLOAD_URL = 'https://github.com/estebantorrg/transmilenio/releases/latest/download/mitrasto.apk';
+const APP_DISMISSED_KEY = 'tm.appPromo.dismissed';
 
 export interface OverlayPage {
   /** DOM id of the page element. Stable per kind of page, not per subject. */
@@ -215,6 +218,14 @@ function wireShell(el: HTMLElement, page: OverlayPage): void {
   el.querySelector('.page-share')?.addEventListener('click', () => {
     shareHandler?.(`${location.origin}${page.path}`);
   });
+  el.querySelector('.page-app-close')?.addEventListener('click', () => {
+    try {
+      localStorage.setItem(APP_DISMISSED_KEY, '1');
+    } catch {
+      // Blocked storage: the card simply comes back on the next render.
+    }
+    el.querySelector('.page-app')?.remove();
+  });
 }
 
 /**
@@ -331,6 +342,34 @@ export function factsHtml(items: Array<{ label: string; value: string | null | u
     )
     .join('');
   return cells ? `<dl class="page-facts">${cells}</dl>` : '';
+}
+
+/**
+ * The Android app, offered inside a page's live section — where the website is
+ * weakest: its live data goes through our server and public proxies, while the
+ * app asks from the rider's own phone. Android only (there is no iOS app, and a
+ * desktop cannot install an APK), inline and closable for good — never an
+ * interstitial: these readers come from search, and a page whose content is
+ * covered on a phone ranks lower.
+ */
+export function appPromoHtml(): string {
+  if (!/Android/i.test(navigator.userAgent)) return '';
+  try {
+    if (localStorage.getItem(APP_DISMISSED_KEY)) return '';
+  } catch {
+    // Unreadable storage: offer it; closing it is what that would remember.
+  }
+  return `
+    <aside class="page-app" aria-labelledby="page-app-h">
+      <img class="page-app-icon" src="/icon-192.png" alt="" width="44" height="44" />
+      <div class="page-app-text">
+        <h3 class="page-app-title" id="page-app-h">Más rápido en la app</h3>
+        <p class="page-app-body">Con MiTrasto para Android ves los buses en vivo directo desde tu celular, consultas el saldo de tu tarjeta acercándola al teléfono y te guía mientras viajas.</p>
+        <a class="page-app-get" href="${APP_DOWNLOAD_URL}">Descargar para Android</a>
+        <p class="page-app-hint">Gratis. Se descarga como APK: Android te pedirá permitir la instalación desde el navegador.</p>
+      </div>
+      <button class="page-app-close" type="button" aria-label="No volver a mostrar" title="No volver a mostrar">×</button>
+    </aside>`;
 }
 
 /** The search questions a page answers (`shared/resumen.js`), a section each —
