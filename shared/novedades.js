@@ -49,26 +49,35 @@ function unescapeLiteral(raw) {
 /**
  * The `#TMAhora` posts embedded in the profile page, newest first.
  *
- * Every post's data opens with `details:` (time, text) and goes on to its id
- * and, for a post over 280 characters, the full text as a "note" — `full_text`
- * stops at the cut. A retweet is someone else's post and is left out.
+ * The page carries the timeline as a GraphQL answer serialised into a string
+ * (`result:…={kind:"Result.Ok",value:"{\"data\":…}"}`). Every post in it is an
+ * object with `details` (time, text), its id in `edit_control` and, for a post
+ * over 280 characters, the full text as a "note" — `full_text` stops at the
+ * cut. A retweet is someone else's post and is left out.
  *
  * @param {string} html
  * @returns {Array<{ id: string, at: number, text: string, url: string }>}
  */
 export function extractPosts(html) {
-  const posts = [];
-  for (const chunk of String(html).split('details:$R[').slice(1)) {
-    const at = Number(chunk.match(/created_at_ms:(\d+)/)?.[1]);
-    const id = chunk.match(/edit_tweet_ids:\$R\[\d+\]=\["(\d+)"/)?.[1];
-    const note = chunk.match(/note_tweet_results:[\s\S]*?rest_id:"\d+",text:"((?:[^"\\]|\\.)*)"/)?.[1];
-    const short = chunk.match(/full_text:"((?:[^"\\]|\\.)*)"/)?.[1];
-    const text = unescapeLiteral(note ?? short ?? '');
-    if (!id || !Number.isFinite(at) || !text) continue;
-    if (text.startsWith('RT @') || !/#TMAhora\b/i.test(text)) continue;
-    posts.push({ id, at, text: text.trim(), url: `${PROFILE_URL}/status/${id}` });
+  const posts = new Map();
+  const visit = (node) => {
+    if (!node || typeof node !== 'object') return;
+    const at = node.details?.created_at_ms;
+    const id = node.edit_control?.edit_tweet_ids?.[0] ?? node.rest_id;
+    const text = node.note_tweet?.note_tweet_results?.result?.text ?? node.details?.full_text;
+    if (Number.isFinite(at) && typeof id === 'string' && typeof text === 'string' && !text.startsWith('RT @') && /#TMAhora\b/i.test(text)) {
+      posts.set(id, { id, at, text: text.trim(), url: `${PROFILE_URL}/status/${id}` });
+    }
+    for (const child of Object.values(node)) visit(child);
+  };
+  for (const [, raw] of String(html).matchAll(/value:"((?:[^"\\]|\\.)*)"/g)) {
+    try {
+      visit(JSON.parse(unescapeLiteral(raw) ?? ''));
+    } catch {
+      // Not every `value:` string is JSON; the timeline is the one that is.
+    }
   }
-  return posts.sort((a, b) => b.at - a.at);
+  return [...posts.values()].sort((a, b) => b.at - a.at);
 }
 
 /** The post as written, minus the `t.co` links to its own photos (the X link

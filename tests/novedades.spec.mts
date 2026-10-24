@@ -5,29 +5,41 @@ import { ago, bannerPost, extractPosts, headline, postText } from '../shared/nov
 /**
  * TransMilenio's #TMAhora posts read off its X profile page
  * (`server/src/services/novedades.ts`, spec §5.5.9). The page's server-rendered
- * data is the only contract, so the fixtures below copy its shape: one block
- * per post opening with `details:`, the id in `edit_tweet_ids`, and the full
- * text of a long post in a `note_tweet` further on.
+ * data is the only contract, so the fixtures below copy its shape (October
+ * 2026): the timeline as JSON serialised into a `value:"…"` string, one object
+ * per post with `details`, the id in `edit_tweet_ids`, and the full text of a
+ * long post in a `note_tweet`.
  */
 
-const post = (o: { id: string; at: number; text: string; note?: string }) =>
-  `rest_id:"${o.id}",result:$R[1]={__typename:"Tweet",core:$R[2]={user_results:$R[3]={result:$R[4]={core:$R[5]={screen_name:"TransMilenio"}}}},` +
-  `details:$R[6]={cashtag_entities:$R[7]=[],created_at_ms:${o.at},display_text_range:$R[8]=[0,277],full_text:${JSON.stringify(o.text)},` +
-  `hashtag_entities:$R[9]=[$R[10]={indices:$R[11]=[2,10],text:"TMAhora"}]},edit_control:$R[12]={edit_tweet_ids:$R[13]=["${o.id}"]},` +
-  (o.note
-    ? `note_tweet:$R[14]={note_tweet_results:$R[15]={result:$R[16]={entity_set:$R[17]={hashtags:$R[18]=[$R[19]={text:"TMAhora"}]},rest_id:"9${o.id}",text:${JSON.stringify(o.note)}}}},`
-    : '') +
-  `legacy:$R[20]={lang:"es"}`;
+const post = (o: { id: string; at: number; text: string; note?: string }) => ({
+  content: {
+    tweet_results: {
+      rest_id: o.id,
+      result: {
+        __typename: 'Tweet',
+        core: { user_results: { result: { core: { screen_name: 'TransMilenio' } } } },
+        details: { created_at_ms: o.at, full_text: o.text, hashtag_entities: [{ indices: [2, 10], text: 'TMAhora' }] },
+        edit_control: { edit_tweet_ids: [o.id] },
+        ...(o.note && { note_tweet: { note_tweet_results: { result: { entity_set: { hashtags: [{ text: 'TMAhora' }] }, text: o.note } } } }),
+        rest_id: o.id,
+      },
+    },
+  },
+});
+const pageOf = (entries: ReturnType<typeof post>[]) =>
+  `<script>…query:"{\\"count\\":20}",result:$R[22]={kind:"Result.Ok",value:${JSON.stringify(
+    JSON.stringify({ data: { timeline: { instructions: [{ entries }] } } })
+  )}}…</script>`;
 
 const SHORT = '⏰ #TMAhora (5:13 p. m.)\n\n📍 Universidad Distrital, Sede Vivero.\n\n🔀 Los buses de TransMiZonal continúan los desvíos.';
 const LONG = '⏰ #TMAhora (12:10 p. m.)\n\n👥 Usuarios afectados: 200.538\n\n📍 Carrera 10\n\n⛔️ Continúan los retornos de las rutas';
 
-const page = [
+const page = pageOf([
   post({ id: '2110407543243546651', at: 1791997742000, text: SHORT }),
   post({ id: '2110418282796748857', at: 1791997902000, text: LONG.slice(0, 60), note: LONG }),
   post({ id: '2110000000000000001', at: 1791990000000, text: 'Recarga tu tarjeta en los puntos autorizados' }),
   post({ id: '2110000000000000002', at: 1791991000000, text: 'RT @Bogota: #TMAhora en la Caracas' }),
-].join(',');
+]);
 
 test.describe('reading #TMAhora off the profile page', () => {
   test('one notice per post, newest first, with its link', () => {
