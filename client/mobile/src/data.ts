@@ -8,7 +8,6 @@
 
 import { api } from '@shared/services/api';
 import { applyZonalStopEnrichment, buildRouteList, buildZonalStopGroups, isStationStopCode } from '@shared/data/routeCatalog';
-import { buildZonalAreas, getZoneLabel, getZones } from '@shared/data/zones';
 import { setCatalogIndexes } from '@shared/utils/routeType';
 import { isNativeLiveAvailable } from '@shared/services/nativeLive';
 import type {
@@ -248,38 +247,17 @@ async function revalidate(cachedSig: string): Promise<void> {
   }
 }
 
-// SITP zone taxonomy (spec §5.4.2a) — `variantBase`, the zone index and the
-// landmark-derived zone labels live in `@shared/data/zones`, shared verbatim with
-// the website. They used to be a ~95-line copy here, including a hand-curated
-// 33-entry landmark list that had to stay byte-identical in two files for the two
-// clients to agree on what "Zona 4" means (spec §1.1 R2, §5.2.1b).
-export { getZonalAreas, variantBase } from '@shared/data/zones';
-
-/** Mirrors the shared zone index into the app's own reactive state. */
-function applyZonalAreas(features: any[]): void {
-  buildZonalAreas(features, state.routes);
-  state.zones = getZones();
-  state.zoneLabels = new Map(
-    getZones()
-      .map((zone) => [zone, getZoneLabel(zone)] as const)
-      .filter(([, label]) => label !== '')
-  );
-}
-
-/** Background pass: SITP zones + enrich zonal routes with their stops and stop records. */
+/** Background pass: enrich zonal routes with their stops and stop records. */
 export async function loadBackground(): Promise<void> {
-  const [zonalRes, stopsRes, mapRes] = await Promise.allSettled([
-    api.getZonalRoutes(),
+  const [stopsRes, mapRes] = await Promise.allSettled([
     api.getZonalStops(),
     api.getZonalStopRoutes(),
   ]);
 
-  applyZonalAreas(unwrap<any>(zonalRes as PromiseSettledResult<ApiResponse<any>>));
-
   const stops = unwrap<any>(stopsRes as PromiseSettledResult<ApiResponse<any>>);
   const mappings = unwrap<any>(mapRes as PromiseSettledResult<ApiResponse<any>>);
   if (stops.length === 0) {
-    bus.emit('stops:ready', undefined); // still surfaces the zones we just built
+    bus.emit('stops:ready', undefined);
     return;
   }
 
@@ -290,8 +268,8 @@ export async function loadBackground(): Promise<void> {
   }
 
   // Paraderos themselves come from the catalog at boot (catalogPointRecords) — the
-  // ArcGIS zonal stops are used only for the route-stop enrichment above and the
-  // SITP zones built earlier. Signal the zones/enrichment are ready.
+  // ArcGIS zonal stops are used only for the route-stop enrichment above. Signal
+  // the enrichment is ready.
   bus.emit('stops:ready', undefined);
 
   // The two tullave POI catalogues (static, spec §5.8) → the Cerca/Buscar

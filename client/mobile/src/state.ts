@@ -107,12 +107,6 @@ interface AppState {
   /** Cable stations in the router's input shape, for journey planning over the cable line. */
   cableRouterStations: CableStationInput[];
   demand: DemandRecord[];
-  // The code → zone index itself lives in `@shared/data/zones` (read via
-  // `getZonalAreas`); only the presentation lists below are mirrored into state.
-  /** Sorted list of SITP zone numbers actually present in the network. */
-  zones: number[];
-  /** Human hint per zone (most common landmark from its routes' endpoints). */
-  zoneLabels: Map<number, string>;
   counts: { troncal: number; zonal: number; stations: number; stops: number; cable: number };
   health: HealthInfo | null;
   tab: TabId;
@@ -132,8 +126,6 @@ export const state: AppState = {
   cableTraces: [],
   cableRouterStations: [],
   demand: [],
-  zones: [],
-  zoneLabels: new Map(),
   counts: { troncal: 0, zonal: 0, stations: 0, stops: 0, cable: 0 },
   health: null,
   tab: 'inicio',

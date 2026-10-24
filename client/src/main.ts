@@ -27,7 +27,7 @@ import {
   bringTroncalLayersToFront,
   updateZonalRoutes,
 } from './layers/routes';
-import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setAvailableZones, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
+import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteByCode, selectRouteByIdOrCode, updateLiveBusStatus, setLiveRefreshHandler, openSidebar, setSearchPoints, shareLink, routesWithCode } from './ui/sidebar';
 import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshRoutePage } from './ui/routePage';
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { initLegalPages } from './ui/legalPage';
@@ -35,7 +35,6 @@ import { openNotFoundPage } from './ui/notFoundPage';
 import { initNovedades } from './ui/novedadesPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
-import { buildZonalAreas, getZones } from './data/zones';
 import { initNativeBack } from './services/nativeBack';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
 import { setCatalogIndexes } from './utils/routeType';
@@ -1395,8 +1394,8 @@ async function main(): Promise<void> {
     return true;
   };
 
-  // 5. Background Loading: fetch Zonal Stops, stop-route mappings, and the
-  //    zonal-routes feed (SITP zones) asynchronously. All of it — and the bus
+  // 5. Background Loading: fetch Zonal Stops and stop-route mappings
+  //    asynchronously. All of it — and the bus
   //    asset preload and recovery pass chained below — feeds the map, so a
   //    reader who landed on a `/ruta/` or `/estacion/` page gets it only when
   //    they leave the page: 1 MB that a search visitor who reads and goes
@@ -1404,17 +1403,10 @@ async function main(): Promise<void> {
   overlayPageClosed().then(() => Promise.allSettled([
     api.getZonalStops(),
     api.getZonalStopRoutes(),
-    api.getZonalRoutes()
-  ])).then(([zonalStopsResult, zonalStopRoutesResult, zonalRoutesResult]) => {
+  ])).then(([zonalStopsResult, zonalStopRoutesResult]) => {
     try {
       const zonalStopsRes = optionalFeatures('Zonal stops', zonalStopsResult);
       const zonalStopRoutesRes = optionalFeatures('Zonal stop-route mappings', zonalStopRoutesResult);
-
-      // SITP zone index (spec §5.4.2a) — drives the "Zonas SITP" browse chips.
-      const zonalRoutesRes = optionalFeatures('Zonal routes (zones)', zonalRoutesResult);
-      buildZonalAreas(zonalRoutesRes.features, routeList);
-      setAvailableZones(getZones());
-      console.log(`✅ Background load: SITP zones: ${getZones().length}`);
 
       console.log(`✅ Background load: Zonal stops: ${zonalStopsRes.features.length}`);
       console.log(`✅ Background load: Stop-route mappings: ${zonalStopRoutesRes.features.length}`);
@@ -1424,16 +1416,6 @@ async function main(): Promise<void> {
       } else {
         degradedLayers.add('stops');
         console.warn('⚠️ Zonal paraderos unavailable — scheduling recovery');
-      }
-
-      if (zonalRoutesRes.features.length === 0) {
-        recoverLayer('SITP zones', async () => {
-          const res = await api.getZonalRoutes();
-          if (!res.features?.length) return false;
-          buildZonalAreas(res.features, routeList);
-          setAvailableZones(getZones());
-          return true;
-        });
       }
 
       // Warm the live-tracking assets while the app is idle: the bus layer

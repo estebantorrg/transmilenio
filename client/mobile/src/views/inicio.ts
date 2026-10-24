@@ -260,41 +260,15 @@ export function createInicioView(): View {
     );
   }
 
-  // ── Explore by SITP zone (numeric, from the ArcGIS feed) ──
-  const zoneSection = h('div', { class: 'home-section' });
-  function renderZones(): void {
-    zoneSection.classList.toggle('hidden', state.zones.length === 0);
-    if (state.zones.length === 0) return;
-    const grid = h('div', { class: 'zone-grid' });
-    for (const zone of state.zones) {
-      const label = state.zoneLabels.get(zone);
-      const pill = h('button', { class: 'zone-pill', type: 'button' }, [
-        h('span', { class: 'zone-num', text: String(zone) }),
-        h('span', { class: 'zone-name', text: label || `Zona ${zone}` }),
-      ]);
-      pill.addEventListener('click', () => {
-        haptic('light');
-        app().openZone(zone);
-      });
-      grid.append(pill);
-    }
-    zoneSection.replaceChildren(
-      h('div', { class: 'section-head' }, [h('span', { class: 'section-title', html: `${ICONS.near} Zonas SITP` })]),
-      h('p', { class: 'zone-hint', text: 'Zonas operativas del SITP zonal · toca para ver sus rutas' }),
-      grid
-    );
-  }
-
   renderFavorites();
   renderRecents();
   renderLines();
-  renderZones();
 
   // Privacidad · Términos · contacto@ at the foot of the home screen. They are pages
   // of the website (and a mailto), so Capacitor hands them to the browser / mail app.
   const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
 
-  el.append(hero, statusCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
+  el.append(hero, statusCard, updateCard, actions, favSection, recentSection, lineSection, legal);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {
@@ -303,7 +277,6 @@ export function createInicioView(): View {
     renderRecents();
     renderLines();
   });
-  bus.on('stops:ready', renderZones);
   bus.on('favorites:changed', renderFavorites);
 
   let clockTimer: number | undefined;

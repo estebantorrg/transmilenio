@@ -21,7 +21,6 @@ import {
   slugifyRoute,
 } from './routeDetail';
 import { closeNotFoundPage, openNotFoundPage } from './notFoundPage';
-import { getZonalAreas, getZoneLabel } from '../data/zones';
 import { placeRowHtml, type NearbyPoint } from './cerca';
 import {
   countPointMatches,
@@ -98,8 +97,6 @@ const ROUTE_FILTER_LABELS: Record<RouteFilter, string> = {
   facil: 'Ruta fácil',
 };
 let currentFilter: RouteFilter = 'all';
-// SITP zone narrowing, active only under the Zonal filter (null = all zones).
-let currentZone: number | null = null;
 // Troncal corridor-line narrowing, active only under the Troncal filter (null = all lines).
 let currentLine: string | null = null;
 let searchQuery = '';
@@ -322,59 +319,11 @@ async function shareRoute(route: RouteListItem): Promise<void> {
 /** Apply a route filter and reflect it across both control surfaces. */
 function setRouteFilter(filter: RouteFilter): void {
   currentFilter = filter;
-  // The SITP zone browse only makes sense under the Zonal filter; leaving it
-  // clears any active zone so the other filters aren't silently narrowed.
-  if (filter !== 'zonal') currentZone = null;
   // The corridor-line browse only makes sense under the Troncal filter.
   if (filter !== 'troncal') currentLine = null;
   syncFilterButtons();
-  syncZoneChips();
   syncLineChips();
   applyFilters();
-}
-
-// ─── SITP zone browse (spec §5.4.2a) ──────────────────────
-// Zonal routes carry a home SITP zone (1–13). When the Zonal filter is active we
-// reveal a chip row so users can narrow the list to a single zone.
-let availableZones: number[] = [];
-
-export function setAvailableZones(zones: number[]): void {
-  availableZones = zones;
-  renderZoneChips();
-  syncZoneChips();
-}
-
-function renderZoneChips(): void {
-  const row = document.getElementById('zone-chips');
-  if (!row) return;
-  if (availableZones.length === 0) {
-    row.innerHTML = '';
-    return;
-  }
-  const chip = (zone: number | null): string => {
-    const active = currentZone === zone;
-    const label = zone === null ? 'Todas' : getZoneLabel(zone) || `Zona ${zone}`;
-    const title = zone === null ? 'Todas las zonas' : `Zona ${zone}${getZoneLabel(zone) ? ` · ${getZoneLabel(zone)}` : ''}`;
-    return `<button class="zone-chip${active ? ' active' : ''}" type="button" role="tab"
-      aria-selected="${active}" data-zone="${zone === null ? '' : zone}" title="${escapeHTML(title)}">${escapeHTML(label)}</button>`;
-  };
-  row.innerHTML = [chip(null), ...availableZones.map((z) => chip(z))].join('');
-  row.querySelectorAll<HTMLButtonElement>('.zone-chip').forEach((el) => {
-    el.addEventListener('click', () => {
-      const raw = el.dataset.zone;
-      currentZone = raw ? Number(raw) : null;
-      renderZoneChips();
-      applyFilters();
-    });
-  });
-}
-
-/** Show the zone row only under the Zonal filter, and only if zones are known. */
-function syncZoneChips(): void {
-  const row = document.getElementById('zone-chips');
-  if (!row) return;
-  const show = currentFilter === 'zonal' && availableZones.length > 0;
-  row.classList.toggle('hidden', !show);
 }
 
 // ─── Troncal corridor-line browse (parity with the app's Inicio line chips) ──
@@ -778,7 +727,7 @@ export function initSidebar(options: {
   initKeyboardShortcuts();
 
   // Horizontal chip rows need mouse wheel/drag panning (hidden scrollbar).
-  for (const id of ['layer-chips', 'line-chips', 'zone-chips', 'search-scope-chips']) {
+  for (const id of ['layer-chips', 'line-chips', 'search-scope-chips']) {
     const row = document.getElementById(id);
     if (row) initChipRowScroll(row);
   }
@@ -1059,10 +1008,6 @@ function applyFilters(): void {
       .filter((r): r is RouteListItem => !!r);
   } else {
     base = allRoutes.filter(matchesTypeFilter);
-    // Narrow to a single SITP zone when browsing zonal routes by zone.
-    if (currentFilter === 'zonal' && currentZone !== null) {
-      base = base.filter((r) => getZonalAreas(r.code).includes(currentZone!));
-    }
     // Narrow to a single corridor line when browsing troncal routes by line.
     if (currentFilter === 'troncal' && currentLine !== null) {
       base = base.filter((r) => getRouteZoneLetters(r.code).includes(currentLine!));
@@ -1266,7 +1211,7 @@ function renderSearchScopeChips(routeCount: number, points: PointMatches): void 
   });
 }
 
-/** Route-only controls (type segments, saved views, zone/line rows) make no
+/** Route-only controls (type segments, saved views, the line row) make no
  *  sense while the results are places — hide them instead of leaving dead
  *  chrome that silently does nothing. */
 function syncScopeChrome(): void {
@@ -1370,9 +1315,6 @@ function wireResultKeyboardColumn(container: HTMLElement): void {
 
 /** Labels for the narrowing currently in effect, so the empty state can name it. */
 function activeRouteNarrowing(): { label: string; clear: string } | null {
-  if (currentZone !== null) {
-    return { label: getZoneLabel(currentZone) || `la zona ${currentZone}`, clear: 'Ver todas las zonas' };
-  }
   if (currentLine !== null) return { label: `la línea ${currentLine}`, clear: 'Ver todas las líneas' };
   if (currentFilter !== 'all' && currentFilter !== 'fav' && currentFilter !== 'recent') {
     return { label: `el filtro ${ROUTE_FILTER_LABELS[currentFilter]}`, clear: 'Ver todos los tipos' };
@@ -1450,11 +1392,7 @@ function renderRouteList(
     container.innerHTML = pointsHtml || emptyRouteListHtml();
     container.querySelector<HTMLButtonElement>('.empty-state-action')?.addEventListener('click', () => {
       // The narrowing the rider forgot about is the one thing to undo.
-      if (currentZone !== null) {
-        currentZone = null;
-        renderZoneChips();
-        applyFilters();
-      } else if (currentLine !== null) {
+      if (currentLine !== null) {
         currentLine = null;
         renderLineChips();
         applyFilters();

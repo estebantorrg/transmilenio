@@ -102,12 +102,6 @@ async function arcgisResponse(cfg: ArcgisConfig): Promise<ApiResponse<any>> {
 // Layer configs mirror `queries` in server/src/services/arcgis.ts — keep in sync.
 const ARCGIS_LAYERS = {
   troncalCorridors: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 5 },
-  zonalRoutes: {
-    folder: 'Zonal',
-    service: 'consulta_rutas_zonales',
-    outFields: 'route_name_ruta_zonal,codigo_definitivo_ruta_zonal,zona_origen_ruta_zonal,zona_destino_ruta_zonal',
-    returnGeometry: false,
-  },
   zonalStops: { folder: 'Zonal', service: 'consulta_paraderos_zonales' },
   // `orden` (e.g. "CBO012"/"NOR045") carries the riding sequence per direction.
   // `buildZonalStopGroups` splits on its prefix and sorts on its number; without
@@ -334,7 +328,6 @@ async function geocode(query: string): Promise<GeocodeResponse> {
 
 export const officialApi = {
   getTroncalCorridors: () => arcgisResponse(ARCGIS_LAYERS.troncalCorridors),
-  getZonalRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalRoutes),
   getZonalStops: () => arcgisResponse(ARCGIS_LAYERS.zonalStops),
   getZonalStopRoutes: () => arcgisResponse(ARCGIS_LAYERS.zonalStopRoutes),
   getCableStations: () => arcgisResponse(ARCGIS_LAYERS.cableStations),

@@ -138,7 +138,6 @@ app.get('/api', (_req, res) => {
       'GET /api/troncal/corridors',
       'GET /api/troncal/master-catalog',
       'GET /api/troncal/route/:code',
-      'GET /api/zonal/routes',
       'GET /api/zonal/stops',
       'GET /api/zonal/stop-routes',
       'GET /api/cable/stations',

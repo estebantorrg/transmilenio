@@ -291,7 +291,6 @@ router.get('/troncal/route/:code', async (req: Request, res: Response) => {
 
 // ─── Zonal Endpoints ──────────────────────────────────────
 
-router.get('/zonal/routes', featureEndpoint('zonal-routes', queries.zonalRoutes, 'zonal routes', 600));
 // 30-minute cache for the two large zonal payloads (stops + stop-route mappings).
 router.get('/zonal/stops', featureEndpoint('zonal-stops', queries.zonalStops, 'zonal stops', 1800));
 router.get('/zonal/stop-routes', featureEndpoint('zonal-stop-routes', queries.zonalStopRoutes, 'zonal stop routes', 1800));

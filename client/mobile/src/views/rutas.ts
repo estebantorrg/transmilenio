@@ -1,6 +1,6 @@
 /** Rutas tab — searchable, filterable browser for routes AND places. */
 
-import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS, STATION_COLOR, PARADERO_COLOR } from '@shared/utils/routeColors';
+import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS, STATION_COLOR } from '@shared/utils/routeColors';
 import {
   countPointMatches,
   emptyPointMatches,
@@ -17,7 +17,6 @@ import type { RouteListItem } from '@shared/types/transmilenio';
 import { h } from '../lib/dom';
 import { de } from '@shared/utils/text';
 import { needsDarkText } from '../lib/format';
-import { getZonalAreas } from '../data';
 import { allPoints, bus, state, type StationRecord } from '../state';
 import { getFavorites } from '../lib/storage';
 import { openRouteSheet } from '../ui/detailSheets';
@@ -125,14 +124,11 @@ export function createRutasView(): View {
     });
   }
 
-  // Active area context: a troncal corridor line (A–P) OR a SITP numeric zone
-  // (1–13) — mutually exclusive, both shown via the same banner.
+  // Active area context: a troncal corridor line (A–P), shown in a banner.
   let lineFilter: string | null = null;
-  let zoneFilter: number | null = null;
   const lineBanner = h('div', { class: 'line-banner hidden' });
   const clearArea = (): void => {
     lineFilter = null;
-    zoneFilter = null;
     lineBanner.classList.add('hidden');
   };
 
@@ -168,11 +164,6 @@ export function createRutasView(): View {
       if (lineFilter) {
         // Troncal corridor line (A–P) — TransMilenio only.
         if (r.type !== 'troncal' || !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
-      } else if (zoneFilter != null) {
-        // SITP numeric zone (ArcGIS feed). Strict: only genuine zonal routes —
-        // alimentadores (troncal feeders) and troncales never belong to a zone.
-        if (r.type !== 'zonal' || isAlimentadorRoute(r)) return false;
-        if (!getZonalAreas(r.code).includes(zoneFilter)) return false;
       }
       if (!matchesFilter(r, activeFilter, favorites)) return false;
       if (!q) return true;
@@ -280,7 +271,7 @@ export function createRutasView(): View {
     const placesOnly = scope !== 'all' && scope !== 'routes';
     chipRow.classList.toggle('hidden', placesOnly);
     if (placesOnly) lineBanner.classList.add('hidden');
-    else if (lineFilter || zoneFilter != null) lineBanner.classList.remove('hidden');
+    else if (lineFilter) lineBanner.classList.remove('hidden');
 
     list.replaceChildren();
 
@@ -352,11 +343,9 @@ export function createRutasView(): View {
       if (preview.length === 0) {
         // Name the narrowing in effect and offer to lift it — "prueba otro
         // código" was the same sentence whether the rider had a typo or a line
-        // /zone/type filter silently swallowing every result.
+        // /type filter silently swallowing every result.
         const narrowing = lineFilter
           ? { label: `la línea ${lineFilter}`, clear: () => clearArea() }
-          : zoneFilter != null
-          ? { label: `la zona ${zoneFilter}`, clear: () => clearArea() }
           : activeFilter !== 'all' && activeFilter !== 'fav'
           ? {
               label: `el filtro ${filters.find((f) => f.id === activeFilter)?.label ?? activeFilter}`,
@@ -458,19 +447,5 @@ export function createRutasView(): View {
       showAreaBanner(letter, `Línea ${letter} · TransMilenio troncal`, TRONCAL_COLORS[letter] || STATION_COLOR);
       render();
     },
-    setZone: (zone: number) => {
-      clearArea();
-      zoneFilter = zone;
-      activeFilter = 'all';
-      scope = 'all';
-      syncTypeChips();
-      query = '';
-      input.value = '';
-      shownRoutes = PAGE_SIZE;
-      shownPlaces = PLACE_LIMIT;
-      const label = state.zoneLabels.get(zone);
-      showAreaBanner(String(zone), label ? `Zona ${zone} · ${label}` : `Zona SITP ${zone}`, PARADERO_COLOR);
-      render();
-    },
-  } as View & { setLine: (letter: string) => void; setZone: (zone: number) => void };
+  } as View & { setLine: (letter: string) => void };
 }

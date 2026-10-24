@@ -84,7 +84,7 @@ async function main(): Promise<void> {
   if (state.native) document.body.classList.add('native-app');
 
   // Build views.
-  type RutasView = View & { setLine: (letter: string) => void; setZone: (zone: number) => void };
+  type RutasView = View & { setLine: (letter: string) => void };
   const inicio = createInicioView();
   const rutas = createRutasView() as RutasView;
   const planner: PlannerView = createPlannerView();
@@ -219,10 +219,6 @@ async function main(): Promise<void> {
     openLine: (letter: string) => {
       navigate('rutas');
       rutas.setLine(letter);
-    },
-    openZone: (zone: number) => {
-      navigate('rutas');
-      rutas.setZone(zone);
     },
     dismissMapRoute: () => mapa.dismissRoute(),
     pickPointOnMap: (prompt: string) => {

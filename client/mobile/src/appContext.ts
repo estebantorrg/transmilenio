@@ -31,8 +31,6 @@ export interface AppContext {
   }) => void;
   /** Jump to the Rutas tab filtered to a troncal line (Explora por línea). */
   openLine: (letter: string) => void;
-  /** Jump to the Rutas tab filtered to a SITP numeric zone (1–13). */
-  openZone: (zone: number) => void;
   /** Clear the map's active route/banner if one is showing. Returns true if it did. */
   dismissMapRoute: () => boolean;
   /**

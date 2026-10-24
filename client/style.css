@@ -1098,7 +1098,6 @@ body.sidebar-collapsed .sidebar-fab {
    chrome — hide them instead of leaving switches that do nothing. */
 .explore-panel.scope-places #filter-chips,
 .explore-panel.scope-places #line-chips,
-.explore-panel.scope-places #zone-chips,
 .explore-panel.scope-places .route-list-views {
   display: none;
 }

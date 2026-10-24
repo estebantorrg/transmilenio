@@ -17,7 +17,7 @@
  */
 
 import { haversineMeters, walkMinutes } from '../utils/geo';
-import { variantBase } from '../data/zones';
+import { normalizeRouteCodeForMatch } from '../layers/routes';
 import { checkRouteService, type RouteServiceState } from './routeEta';
 import { nameTokens } from './voiceSpanish';
 import type { PlanTime } from './schedule';
@@ -198,7 +198,7 @@ export function describeStopRoutes(
 
   // One per variant family: "F405" and "F405-2" are the same service to someone
   // standing at the kerb, and spending two of four spoken slots on them wastes the
-  // answer.
+  // answer (`variantBase`, below).
   const highlights: string[] = [];
   const families = new Set<string>();
   for (const code of running) {
@@ -221,4 +221,20 @@ export function describeStopRoutes(
     here: meters !== null && meters <= HERE_RADIUS_M,
     named,
   };
+}
+
+/**
+ * A route code without its variant: the trailing direction/variant letter, a
+ * lettered code's `-<n>` suffix, and the catalog's zero-padding after the zone
+ * letter (`F019` → `F19`), so a family's spellings collapse to one key.
+ */
+function variantBase(code: string): string {
+  let s = String(code || '').trim().toUpperCase().replace(/\s+/g, '');
+  s = s.replace(/[A-Z]$/, ''); // trailing variant letter (…E / …A / …C)
+  // Direction suffix "-<n>" only for LETTERED codes (F405-2 → F405). For numeric
+  // codes the hyphen is structural (10-12, 6-2) — keep it, or we'd collide route
+  // 10-12 onto route 10 and tag the wrong buses.
+  if (/^[A-Z]/.test(s)) s = s.replace(/-\d+$/, '');
+  s = s.replace(/^([A-Z]+)0+(\d)/, '$1$2'); // drop catalog zero-padding F019 → F19
+  return normalizeRouteCodeForMatch(s);
 }

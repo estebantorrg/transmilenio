@@ -376,11 +376,6 @@ export const api = {
       ? officialApi.getTroncalCorridors()
       : fetchJson<ApiResponse<TroncalCorridorFeature>>('/troncal/corridors', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
-  getZonalRoutes: () =>
-    isNativeLiveAvailable()
-      ? officialApi.getZonalRoutes()
-      : fetchJson<ApiResponse<any>>('/zonal/routes', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
-
   getZonalStops: () =>
     isNativeLiveAvailable()
       ? officialApi.getZonalStops()
