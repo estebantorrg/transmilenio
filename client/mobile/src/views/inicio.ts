@@ -13,14 +13,14 @@ import { ICONS, routeBadge } from '../ui/components';
 import { canInstallInApp, dismissUpdate, findUpdate, installUpdate } from '../services/appUpdate';
 import { refreshNovedades, type Novedad } from '../services/novedades';
 import { openSheet } from '../ui/sheet';
-import { SEEN_STORAGE_KEY, ago, bannerPost, clock, headline, postText } from '../../../../shared/novedades.js';
+import { PROFILE_URL, SEEN_STORAGE_KEY, ago, bannerPost, clock, headline, postText } from '../../../../shared/novedades.js';
 import type { View } from './types';
 
 const NOVEDADES_REFRESH_MS = 3 * 60_000;
 
 /** The day's #TMAhora posts as TransMilenio wrote them, each with its link (spec §5.5.9). */
 function openNovedadesSheet(items: Novedad[]): void {
-  const sheet = openSheet({ title: 'Novedades de la operación', full: true, accent: 'var(--amber)' });
+  const sheet = openSheet({ title: 'Novedades de la operación', full: items.length > 0, accent: 'var(--amber)' });
   sheet.body.append(
     h('p', {
       class: 'novedades-intro',
@@ -34,6 +34,14 @@ function openNovedadesSheet(items: Novedad[]): void {
       ])
     )
   );
+  // Empty is a quiet day or a read that failed — the app cannot tell which, so
+  // it hands the rider the source itself.
+  if (items.length === 0) {
+    sheet.body.append(
+      h('p', { class: 'novedades-text', text: 'No hay novedades para mostrar ahora.' }),
+      h('a', { class: 'novedades-link', href: PROFILE_URL, target: '_blank', rel: 'noopener', text: 'Ver @TransMilenio en X ↗' })
+    );
+  }
 }
 
 export function createInicioView(): View {
@@ -41,13 +49,17 @@ export function createInicioView(): View {
 
   // ── Hero ──
   const clock = h('span', { class: 'hero-clock', text: formatClock() });
+  const novedadesBell = h('button', { class: 'novedades-bell', type: 'button', html: ICONS.bell });
   const hero = h('div', { class: 'hero' }, [
     h('div', { class: 'hero-row' }, [
       h('div', {}, [
         h('div', { class: 'hero-greeting', text: greeting() }),
         h('div', { class: 'hero-brand', html: '<img src="/wordmark.svg" alt="MiTrasto" width="145" height="28">' }),
       ]),
-      h('div', { class: 'hero-clock-wrap' }, [h('span', { class: 'hero-clock-icon', html: ICONS.clock }), clock]),
+      h('div', { class: 'hero-tools' }, [
+        h('div', { class: 'hero-clock-wrap' }, [h('span', { class: 'hero-clock-icon', html: ICONS.clock }), clock]),
+        novedadesBell,
+      ]),
     ]),
   ]);
 
@@ -85,51 +97,26 @@ export function createInicioView(): View {
   renderStatus();
 
   // ── Novedades (spec §5.5.9) ──
-  // Only while the newest post is recent: an old detour shown as current is
-  // worse than none. The whole day's posts stay a tap away in the sheet.
-  // Shown like an unread notice (`bannerPost`): TransMilenio posts most hours, so
-  // "recent" alone kept it up all day. Opening the list or closing the card marks
-  // the newest post seen, and the card stays down until a newer one.
-  const novedadesOpen = h('button', { class: 'novedades-open', type: 'button' });
-  const novedadesClose = h('button', {
-    class: 'novedades-close',
-    type: 'button',
-    'aria-label': 'Ocultar hasta la próxima novedad',
-    text: '×',
-  });
-  const novedadesCard = h('div', { class: 'novedades-card hidden' }, [novedadesOpen, novedadesClose]);
+  // The bell in the hero opens the day's posts. Its dot shows only while the
+  // newest post is recent — an old detour flagged as new is worse than none — and
+  // like an unread notice (`bannerPost`): TransMilenio posts most hours, so
+  // "recent" alone kept it lit all day. Opening the list marks the newest post
+  // seen, and the dot stays off until a newer one.
   let novedades: Novedad[] = [];
   function renderNovedades(): void {
     const newest = bannerPost(novedades, loadJSON<number>(SEEN_STORAGE_KEY) ?? 0);
-    novedadesCard.classList.toggle('hidden', !newest);
-    if (!newest) return;
-    const count = novedades.length;
-    // The bare count on screen needs its words for a screen reader.
-    novedadesOpen.setAttribute(
+    novedadesBell.classList.toggle('unread', !!newest);
+    novedadesBell.setAttribute(
       'aria-label',
-      `TransMilenio, ${ago(newest.at)}: ${headline(newest.text)}. Ver ${count === 1 ? 'la novedad' : `las ${count} novedades`} de hoy`
-    );
-    novedadesOpen.replaceChildren(
-      h('span', { class: 'status-dot warn' }),
-      h('span', { class: 'novedades-card-text' }, [
-        h('span', { class: 'novedades-meta', text: `TransMilenio · ${ago(newest.at)}` }),
-        h('span', { class: 'novedades-headline', text: headline(newest.text) }),
-      ]),
-      h('span', { class: 'novedades-more', 'aria-hidden': 'true', text: `${count} ›` })
+      newest ? `Novedades de la operación. Nueva, ${ago(newest.at)}: ${headline(newest.text)}` : 'Novedades de la operación'
     );
   }
-  const markNovedadesSeen = (): void => {
-    if (novedades[0]) saveJSON(SEEN_STORAGE_KEY, novedades[0].at);
-    renderNovedades();
-  };
-  novedadesOpen.addEventListener('click', () => {
+  renderNovedades();
+  novedadesBell.addEventListener('click', () => {
     haptic('light');
     openNovedadesSheet(novedades);
-    markNovedadesSeen();
-  });
-  novedadesClose.addEventListener('click', () => {
-    haptic('light');
-    markNovedadesSeen();
+    if (novedades[0]) saveJSON(SEEN_STORAGE_KEY, novedades[0].at);
+    renderNovedades();
   });
   const loadNovedades = (): void => {
     void refreshNovedades().then((items) => {
@@ -307,7 +294,7 @@ export function createInicioView(): View {
   // of the website (and a mailto), so Capacitor hands them to the browser / mail app.
   const legal = h('footer', { class: 'home-legal', html: legalLinksHtml(WEB_ORIGIN) });
 
-  el.append(hero, statusCard, novedadesCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
+  el.append(hero, statusCard, updateCard, actions, favSection, recentSection, lineSection, zoneSection, legal);
 
   bus.on('health', renderStatus);
   bus.on('routes:ready', () => {
