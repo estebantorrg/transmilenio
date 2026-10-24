@@ -1,186 +1,49 @@
-# MiTrasto 🚌
+<div align="center">
 
-## Overview
-**MiTrasto** is a high-performance, premium web application designed to visualize and explore the TransMilenio and SITP transit network in Bogotá, Colombia. It provides a real-time-like experience for checking routes, station layouts, and wagon distributions using an interactive map interface.
+<img src="client/public/icon-192.png" alt="" width="96" height="96" />
 
-This project is built with a modern tech stack (Vite + Node.js) and features a robust proxy system to interface with transit data while maintaining high performance and data integrity.
+# MiTrasto
 
----
+**TransMilenio and SITP routes, live buses and trip planning for Bogotá**
 
-## ⚡ Key Features
+<br />
 
-- **Interactive Transit Map**: Full visualization of Bogotá's transit arteries using high-fidelity map layers.
-- **Route Tracking**: Real-time path highlighting for Troncal (Red) and Zonal (Blue) services.
-- **Station & Wagon Intelligence**: Deep-dive into station layouts, identifying which services stop at specific wagons (vagones).
-- **Advanced Search**: Instant filtering of routes by code (e.g., G47, B12, 661).
-- **Catalog Synchronization**: A sophisticated backend scraper that caches and organizes official data into a searchable master catalog.
-- **Premium UI**: Dark-mode primary interface with glassmorphism effects and smooth micro-animations.
+[![Release](https://img.shields.io/github/v/release/estebantorrg/transmilenio?style=for-the-badge&label=release&color=0a7bbd)](https://github.com/estebantorrg/transmilenio/releases/latest) &nbsp; [![License](https://img.shields.io/badge/license-MIT-e8713a?style=for-the-badge)](LICENSE.md)
 
----
+[![Website](https://img.shields.io/badge/mitrasto.app-D8102D?style=for-the-badge&logo=googlechrome&logoColor=white)](https://mitrasto.app) &nbsp; [![Android](https://img.shields.io/badge/Android_APK-202329?style=for-the-badge&logo=android&logoColor=3DDC84)](https://github.com/estebantorrg/transmilenio/releases/latest)
 
-## 🛠️ Architecture & Tech Stack
+<br />
 
-### Frontend (Client)
-- **Framework**: [Vite](https://vitejs.dev/) + TypeScript
-- **Styling**: Vanilla CSS (Premium custom design system)
-- **Mapping Engine**: MapLibre GL JS (+ three.js for the 3D bus layer)
-- **State Management**: Reactive UI with TypeScript services
+[Website](https://mitrasto.app) · [Download](https://github.com/estebantorrg/transmilenio/releases/latest) · [Features](#features) · [Report a bug](https://github.com/estebantorrg/transmilenio/issues) · [Privacy](https://mitrasto.app/privacidad/)
 
-### Backend (Server)
-- **Runtime**: [Node.js](https://nodejs.org/) + Express + TypeScript
-- **Data Layers**: Custom scraping services for `api.buscador-rutas.transmilenio.gov.co`.
-- **Caching**: Committed JSON master catalog (Git LFS), served read-only. It is refreshed offline with `npm --prefix server run sync` and deployed; the server does not sync on its own (opt in with `TM_ENABLE_AUTO_SYNC=1` only on a host with ≥1 GB of headroom).
-
-### Live Tracking From Colombia
-
-The official live-bus endpoint is **CO-IP geofenced** and serves **no CORS**, so a
-normal web page cannot read it and a non-Colombian server is rejected by the
-geofence.
-
-
-#### Cross-platform: browser-direct Colombia relay (PC + mobile, no install)
-
-Run the relay on a **Colombian-egress** host and let the browser call it
-directly. Works on every device with no per-user setup; the main server drops
-out of the live path. Recommended free host: an **Oracle Cloud Always Free** VM
-in the **Bogotá** region (datacenter uptime, $0 forever).
-
-The relay must be served over **HTTPS** — the app is https and browsers block an
-https page from calling an http relay (mixed content). **Tailscale Funnel** gives
-a free, stable `https://<machine>.<tailnet>.ts.net` URL with no domain to buy.
-
-**On the CO host (Oracle VM):**
-
-```bash
-# 1. Run the relay, allow-listing your web app's origin so it serves CORS.
-RELAY_CLIENT_ORIGINS=https://mitrasto.app npm --prefix server run relay:co
-# (defaults to port 8787)
-
-# 2. Expose it over HTTPS with a stable free URL.
-tailscale funnel 8787
-# → https://<machine>.<tailnet>.ts.net
-```
-
-**On the client** (`client/.env`), point at that HTTPS URL:
-
-```bash
-VITE_LIVE_RELAY_URL=https://<machine>.<tailnet>.ts.net
-```
-
-The relay verifies its own egress country before every live request window and
-returns HTTP `451` if egress is not `CO`. Requests to the official live API are
-made by the Colombian relay/browser — never by Render, Google Apps Script, or
-Cloudflare Workers (all non-CO).
-
-> Have an always-on machine in Bogotá instead of a cloud VM? Run the exact same
-> two commands on it — Oracle is only for guaranteed uptime.
-
-#### Fallback: server-side relay
-
-The main server can also forward to the relay (instead of the browser calling it
-directly). Set on the main server:
-
-```bash
-TRANSMILENIO_COLOMBIA_RELAY_URL=https://<machine>.<tailnet>.ts.net
-TRANSMILENIO_COLOMBIA_RELAY_SECRET=change-me
-```
-
-#### Zero-setup fallback: public Colombian proxies
-
-No card, host, device, or install? Let the main server reach the live API through
-free public Colombian proxies:
-
-```bash
-TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY=1
-```
-
-The server scrapes several free proxy sources, **verifies each against the live
-API** (only Colombian exits return data — the geofence is the filter), keeps a
-scored pool while someone is tracking a bus, and **races the fastest few** proxies
-per request. Verification costs one live-host request per candidate, so nothing
-is probed with nobody watching, nor outside the live host's 05:00–23:00 window. A
-**last-known-position cache** serves the most recent fix (tagged "datos de HH:MM")
-whenever every proxy is momentarily down, so the map never blanks. Pool health is
-visible at `GET /api/health` → `proxyPool`.
-
-> **Honest limitation:** free proxies are best-effort — live tracking will be
-> **intermittent**, not solid. There is no free way to make it reliable without a
-> card (cloud), a Colombian device, or a per-user install. This is the floor of
-> what's achievable with none of those.
-
-Tunables: `LIVE_PROXY_TIMEOUT_MS` (default `14000`), `CO_PROXY_RACE_WIDTH`
-(default `5`).
-
-Card balance reads use the same pool by default. To keep card numbers off the
-public proxies while live tracking keeps using them:
-
-```bash
-TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY_CARD=0
-```
-
-Unset, it follows `TRANSMILENIO_ALLOW_PUBLIC_CO_PROXY`.
+</div>
 
 ---
 
-## 🚀 Getting Started
+## Features
 
-### Prerequisites
-- [Node.js](https://nodejs.org/) (v18+)
-- [npm](https://www.npmjs.com/)
+- **Every route on one map** — all TransMilenio troncal, zonal, alimentador and TransMiCable routes, each with its real trace, stops and service hours.
+- **Estaciones down to the vagón** — which service stops at which wagon, so you know where to stand before you get there.
+- **Trip planner** — door-to-door plans with real walking, built on the operator's own measured speeds and frequencies.
+- **Live buses** — where your bus is now and when it reaches your stop, wherever the live feed is available.
+- **Cerca** — paraderos, estaciones, recharge points and bike parking around you.
+- **Card balance** — check your tu llave balance; on Android, just tap the card (NFC).
+- **Novedades** — TransMilenio's `#TMAhora` operational notices: closures, detours and protests as they happen.
+- **Android app** — voice search and step-by-step guidance while you ride.
 
-### Installation
+## Download
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/estebantorrg/transmilenio.git
-   cd transmilenio
-   ```
+- **Web:** [mitrasto.app](https://mitrasto.app) — works on any phone or computer, no install.
+- **Android:** the latest APK is on the [releases page](https://github.com/estebantorrg/transmilenio/releases/latest).
 
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
+Built with TypeScript, Vite, MapLibre GL and Node.js.
 
-3. **Configure environment:**
-   - Create `.env` files in both `client/` and `server/` using the provided `.env.example` templates.
+## Disclaimer
 
-4. **Run in development:**
-   ```bash
-   npm run dev
-   ```
+MiTrasto is an **independent, unofficial project**. It is not affiliated with, endorsed by, or connected to **TransMilenio S.A.** or the Alcaldía de Bogotá. Transit data comes from publicly accessible official sources and may be incomplete or out of date. For official information use [transmilenio.gov.co](https://www.transmilenio.gov.co) and TransmiApp. "TransMilenio" and its logos are trademarks of TransMilenio S.A.
 
----
+## License
 
-## ⚖️ Legal Disclaimer & Data Notice
+The source code is released under the [MIT License](LICENSE.md). Data, maps, fonts and other third-party material keep their own terms; see [NOTICE.md](NOTICE.md).
 
-> [!IMPORTANT]
-> **READ CAREFULLY:** This project is provided "as is" and is intended for **educational and informational purposes only**.
-
-### 1. Ownership & Affiliation
-This application is an **independent, non-official project** developed by **Esteban**. It is **not** affiliated, associated, authorized, endorsed by, or in any way officially connected with **TransMilenio S.A.**, the Mayor's Office of Bogotá, or any of their subsidiaries or affiliates.
-
-### 2. Data Source & Trademarks
-- **Data**: All transit data, including route names, station codes, and geographic coordinates, is fetched from publicly accessible endpoints of the official TransMilenio mobile application infrastructure.
-- **Intellectual Property**: The name "TransMilenio", as well as all logos and related branding, are registered trademarks of TransMilenio S.A. No claim is made to the ownership of any transit data or official trademarks.
-- **Scrubbing & Proxying**: This tool uses a proxy-based approach to fetch data. The developer is not responsible for any misuse of the data or for any actions taken by the data provider in response to the use of this software.
-
-### 3. Liability
-The developer assumes no responsibility for:
-- Accuracy or availability of transit data.
-- Disruptions in service.
-- Any legal implications arising from the scraping or redistribution of the transit data.
-
-Users are encouraged to use the [official TransMilenio website](https://www.transmilenio.gov.co) for official travel planning and the TransmiApp.
-
----
-
-## 📄 License
-
-This project's code is licensed under the **MIT License**. See the [LICENSE.md](LICENSE.md) file for the full text.
-
-**Copyright (c) 2026 Esteban.**
-
----
-
-## 🤝 Credits
-Developed with ❤️ for the city of Bogotá by **Esteban**.
+Made for Bogotá by **Esteban**.
