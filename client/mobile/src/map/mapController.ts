@@ -648,8 +648,18 @@ export class MapController {
       liveNames,
       color,
       stops.map((s) => ({ nombre: s.nombre, coordinate: s.coordinate })),
-      (count, status, asOf) => onLive?.(count, status, asOf)
+      (count, status, asOf) => {
+        // The bus models' layer is created with the first positions, on top.
+        this.raiseUser();
+        onLive?.(count, status, asOf);
+      }
     );
+  }
+
+  /** The rider's dot over what a route or a trip adds later (bus models, journey
+   *  legs): a rider on the bus they track would otherwise be under its model. */
+  private raiseUser(): void {
+    for (const id of ['tm-user-halo', 'tm-user-dot']) if (this.map.getLayer(id)) this.map.moveLayer(id);
   }
 
   async clearRoute(): Promise<void> {
@@ -682,6 +692,7 @@ export class MapController {
     await this.clearRoute();
     const journey = await loadJourneyLayer();
     journey.drawJourneyPath(this.map, plan);
+    this.raiseUser();
     this.journeyActive = true;
 
     const bounds = new maplibregl.LngLatBounds();
