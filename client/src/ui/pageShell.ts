@@ -28,6 +28,8 @@ const CHROME_IDS = ['map', 'sidebar', 'sidebar-fab'];
 /** A stable asset name CI publishes beside the versioned one (`android-apk.yml`). */
 const APP_DOWNLOAD_URL = 'https://github.com/estebantorrg/transmilenio/releases/latest/download/mitrasto.apk';
 const APP_DISMISSED_KEY = 'tm.appPromo.dismissed';
+/** `YYYY-MM-DD /path/` of the page that carried the card most recently. */
+const APP_SHOWN_KEY = 'tm.appPromo.shownOn';
 
 export interface OverlayPage {
   /** DOM id of the page element. Stable per kind of page, not per subject. */
@@ -359,10 +361,18 @@ export function factsHtml(items: Array<{ label: string; value: string | null | u
  */
 export function appPromoHtml(): string {
   if (!/Android/i.test(navigator.userAgent)) return '';
+  // One page a day: the first route or estación page opened today carries it —
+  // and keeps it through the re-renders its data arrives with — the rest go
+  // without, so a regular is asked daily rather than on every page.
+  const day = new Date().toLocaleDateString('en-CA');
+  const mark = `${day} ${location.pathname}`;
   try {
     if (localStorage.getItem(APP_DISMISSED_KEY)) return '';
+    const shown = localStorage.getItem(APP_SHOWN_KEY);
+    if (shown?.startsWith(`${day} `) && shown !== mark) return '';
+    localStorage.setItem(APP_SHOWN_KEY, mark);
   } catch {
-    // Unreadable storage: offer it; closing it is what that would remember.
+    // Unreadable storage: offer it; closing it and the daily limit are what that would remember.
   }
   return `
     <aside class="page-app" aria-labelledby="page-app-h">

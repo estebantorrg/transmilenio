@@ -41,6 +41,24 @@ test.describe('on Android', () => {
     await open(page, '/estacion/calle-146-tm0025/');
     await expect(page.locator('#station-page section[aria-labelledby="llegadas-h"] .page-app')).toBeVisible();
   });
+
+  test('it is offered on one page a day: the first one opened', async ({ page }) => {
+    await open(page, '/ruta/g47/');
+    await expect(page.locator('#route-page .page-app')).toBeVisible();
+
+    await open(page, '/estacion/calle-146-tm0025/');
+    await expect(page.locator('#station-page .station-arrivals')).toBeVisible();
+    await expect(page.locator('.page-app')).toHaveCount(0);
+
+    // The page that had it today keeps it.
+    await open(page, '/ruta/g47/');
+    await expect(page.locator('#route-page .page-app')).toBeVisible();
+
+    // Tomorrow, whichever page comes first gets it.
+    await page.evaluate(() => localStorage.setItem('tm.appPromo.shownOn', '2000-01-01 /ruta/g47/'));
+    await open(page, '/estacion/calle-146-tm0025/');
+    await expect(page.locator('#station-page .page-app')).toBeVisible();
+  });
 });
 
 test('a desktop visitor is not offered an APK', async ({ page }) => {
