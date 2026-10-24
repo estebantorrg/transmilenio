@@ -10,7 +10,8 @@
 
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { getRouteAccentColor, STATION_COLOR, PARADERO_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
+import { getRouteAccentColor, PARADERO_COLOR, CABLE_COLOR } from '@shared/utils/routeColors';
+import { initMapImages } from '@shared/map';
 import type { RouteListItem } from '@shared/types/transmilenio';
 import { prefetchLiveBuses } from '@shared/services/api';
 import { liveNameCandidates } from '../live/liveStatus';
@@ -149,16 +150,21 @@ export class MapController {
       },
     });
 
+    // Estaciones are the website's pin (`initMapImages`, `@shared/map`), not a
+    // dot: one look in both clients, and a pin reads as a place, not a stop.
+    void initMapImages(map);
     map.addSource('tm-stations', { type: 'geojson', data: EMPTY_FC });
     map.addLayer({
       id: 'tm-stations-layer',
-      type: 'circle',
+      type: 'symbol',
       source: 'tm-stations',
-      paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 3.2, 14, 5.5, 17, 9],
-        'circle-color': STATION_COLOR,
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': ['interpolate', ['linear'], ['zoom'], 11, 1, 16, 2.4],
+      layout: {
+        'icon-image': 'stop-red',
+        'icon-size': ['interpolate', ['linear'], ['zoom'], 10, 0.5, 14, 0.65, 17, 0.85],
+        'icon-allow-overlap': true,
+        // The circles never hid a name; neither may the pins.
+        'icon-ignore-placement': true,
+        'icon-anchor': 'bottom',
       },
     });
     // Labels from the default open zoom (map starts at 12) — at 13.5 the map
@@ -173,7 +179,7 @@ export class MapController {
         'text-size': 11,
         'text-offset': [0, 1.2],
         'text-anchor': 'top',
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-font': ['Open Sans Bold'],
         'text-max-width': 8,
       },
       paint: {
@@ -213,7 +219,7 @@ export class MapController {
         'text-size': 10,
         'text-offset': [0, 1],
         'text-anchor': 'top',
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-font': ['Open Sans Bold'],
         'text-max-width': 8,
         'text-optional': true,
       },
@@ -293,7 +299,7 @@ export class MapController {
         'text-size': 11,
         'text-offset': [0, 1.2],
         'text-anchor': 'top',
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-font': ['Open Sans Bold'],
         'text-max-width': 8,
       },
       paint: {
@@ -343,7 +349,7 @@ export class MapController {
         'text-size': 13,
         'text-offset': [0, 1.4],
         'text-anchor': 'top',
-        'text-font': ['Open Sans Semibold', 'Arial Unicode MS Bold'],
+        'text-font': ['Open Sans Bold'],
         'text-max-width': 10,
         // The one label the rider asked for: it is not dropped for a neighbour's.
         'text-allow-overlap': true,

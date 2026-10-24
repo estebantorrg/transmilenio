@@ -59,9 +59,9 @@ let lastDepartAt: PlanTime | null = null;
 // read off the live feed (§5.6.6) — and the watch that keeps them on it.
 let lastDepartNow = false;
 let stopLiveBoarding: (() => void) | null = null;
-// Schedule filter (§5.6.2). Off by default: horarios always shape the itinerary
-// (clock times, waits, tags, the long-service ranking), but they only DELETE
-// connections when the rider explicitly asks for "solo en servicio".
+// Schedule filter (§5.6.2). On by default: horarios always shape the itinerary
+// (clock times, waits, tags, the long-service ranking), and they also DELETE the
+// connections not running at that hour unless the rider picks «Todas».
 let enforceSchedules = true;
 let plannerRequestSeq = 0;
 let originAutocompleteSeq = 0;

@@ -6,6 +6,7 @@ import type { JourneyPlan } from '@shared/services/router';
 import type { LiveBusResult } from '@shared/services/api';
 import { h, haptic, toast } from '../lib/dom';
 import { setSessionExactLocation } from '@shared/utils/sessionLocation';
+import { isAppActive, onAppActiveChange } from '@shared/utils/appActive';
 import { locationFailureMessage } from '@shared/utils/locationError';
 import { bus, state, type StationRecord } from '../state';
 import { MapController, MAP_STYLE_URL, preloadMapAssets } from '../map/mapController';
@@ -283,6 +284,32 @@ export function createMapaView(): MapaView {
     }
   }
 
+  // The rider's dot follows them whenever the map is on screen and the app in
+  // front, not only after a tap on the locate button. A watch, not a timer
+  // (`services/guidance.ts`): the OS paces the fixes, and one up to 3 s old is
+  // reused rather than waking the GPS again. It stops the moment the map is left.
+  let mapShown = false;
+  let watchId: number | null = null;
+  function startWatch(): void {
+    if (watchId !== null || !mapShown || !isAppActive() || !('geolocation' in navigator)) return;
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        const coord: [number, number] = [pos.coords.longitude, pos.coords.latitude];
+        setSessionExactLocation(coord[0], coord[1], 'gps');
+        setUser(coord);
+      },
+      // Denied or no fix yet: the dot stays where it was; the locate button names the cause.
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 3_000, timeout: 20_000 }
+    );
+  }
+  function stopWatch(): void {
+    if (watchId === null) return;
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  onAppActiveChange((active) => (active ? startWatch() : stopWatch()));
+
   bus.on('routes:ready', () => {
     controller?.setStations(state.stations);
     controller?.setParaderos(state.zonalStops);
@@ -322,6 +349,12 @@ export function createMapaView(): MapaView {
       if (state.demand.length) c.setDemand(state.demand);
       if (state.cableStations.length) c.setCable(state.cableStations, state.cableTraces);
       requestAnimationFrame(() => c.resize());
+      mapShown = true;
+      startWatch();
+    },
+    onHide: () => {
+      mapShown = false;
+      stopWatch();
     },
   };
 }

@@ -476,16 +476,16 @@ export function createPlannerView(): PlannerView {
   timeInput.addEventListener('change', refreshDepartHint);
   refreshDepartHint();
 
-  // Schedule filter (§5.6.2). Off by default: horarios always time and rank the
-  // itinerary (long-running services win ties), but they only hide connections
-  // when the rider asks for "solo en servicio".
-  let enforceSchedules = false;
+  // Schedule filter (§5.6.2). On by default, as on the website: a route that does
+  // not run at that hour is no answer. «Todas» keeps the closed ones, and an
+  // empty result offers to switch to it.
+  let enforceSchedules = true;
   const schedChips = chipGroup(
     [
       { id: 'all', label: 'Todas' },
       { id: 'strict', label: 'Solo en servicio' },
     ],
-    'all',
+    'strict',
     (id) => {
       enforceSchedules = id === 'strict';
       syncOptionsSummary();
