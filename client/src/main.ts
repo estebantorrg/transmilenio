@@ -312,7 +312,7 @@ initRoutePage({
 // the page now rather than when the network data arrives (spec §5.5.7).
 initLegalPages();
 
-// TransMilenio's #TMAhora posts: a banner under the tabs and `/novedades/`
+// TransMilenio's #TMAhora posts: a bell with a popup over the map and `/novedades/`
 // (spec §5.5.9). Before the 404 check below, which asks whether a page opened.
 initNovedades();
 

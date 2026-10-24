@@ -2,8 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 
 /**
  * Novedades on the website (`client/src/ui/novedadesPage.ts`, spec §5.5.9): a
- * banner at the top of Explorar while the newest #TMAhora post is recent and
- * unseen, and the `/novedades/` page with the last day's posts. The API is stubbed, so the
+ * bell over the map, marked while the newest #TMAhora post is recent and
+ * unseen, that opens the last day's posts in a popup, and the `/novedades/`
+ * page with the same list. The API is stubbed, so the
  * test does not depend on what TransMilenio posted today or on X answering.
  */
 
@@ -28,19 +29,19 @@ async function boot(page: Page, items: ReturnType<typeof post>[], path = '/'): P
   await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });
 }
 
-test('a recent post shows in the banner, and the banner opens the page', async ({ page }) => {
+test('a recent post marks the bell, and the bell opens the posts in a popup', async ({ page }) => {
   await boot(page, [post(12, 1), post(40, 2)]);
 
-  const banner = page.locator('#novedades-banner');
-  await expect(banner).toBeVisible();
-  await expect(banner).toContainText('hace 12 min');
-  await expect(banner).toContainText('Manifestación número 1');
-  const link = banner.locator('.novedades-banner-link');
-  await expect(link).toHaveAttribute('aria-label', /Manifestación número 1.*las 2 novedades de hoy/);
+  const bell = page.locator('#novedades-bell');
+  await expect(bell).toBeVisible();
+  await expect(bell).toHaveClass(/unread/);
+  await expect(bell).toHaveAttribute('aria-label', /hace 12 min: ⚠️ Manifestación número 1/);
 
-  await link.click();
-  await expect(page).toHaveURL(/\/novedades\/$/);
-  const items = page.locator('#novedades-page .novedades-lista > li');
+  await bell.click();
+  const pop = page.locator('#novedades-pop');
+  await expect(pop).toBeVisible();
+  await expect(bell).toHaveAttribute('aria-expanded', 'true');
+  const items = pop.locator('.novedades-lista > li');
   await expect(items).toHaveCount(2);
   // As written, minus the link to its own photo.
   await expect(items.first()).toContainText('Avenida Circunvalar con calle 10');
@@ -49,11 +50,28 @@ test('a recent post shows in the banner, and the banner opens the page', async (
     'href',
     'https://x.com/TransMilenio/status/211000000000000001'
   );
+  // Opened is read.
+  await expect(bell).not.toHaveClass(/unread/);
+
+  await page.keyboard.press('Escape');
+  await expect(pop).toBeHidden();
+  await expect(bell).toBeFocused();
 });
 
-test('an old post stays on the page but not in the banner', async ({ page }) => {
+test('an old post is in the popup but does not mark the bell', async ({ page }) => {
   await boot(page, [post(4 * 60, 1)]);
-  await expect(page.locator('#novedades-banner')).toBeHidden();
+  const bell = page.locator('#novedades-bell');
+  await expect(bell).not.toHaveClass(/unread/);
+  await bell.click();
+  await expect(page.locator('#novedades-pop .novedades-lista > li')).toHaveCount(1);
+});
+
+test('a click outside closes the popup', async ({ page }) => {
+  await boot(page, [post(12, 1)]);
+  await page.locator('#novedades-bell').click();
+  await expect(page.locator('#novedades-pop')).toBeVisible();
+  await page.locator('#search-input').click();
+  await expect(page.locator('#novedades-pop')).toBeHidden();
 });
 
 test('/novedades/ opens straight on the page', async ({ page }) => {
@@ -62,35 +80,26 @@ test('/novedades/ opens straight on the page', async ({ page }) => {
   await expect(page.locator('#novedades-page .novedades-lista > li')).toHaveCount(1);
 });
 
-test('the banner is part of Explorar, not of Cerca or Planear', async ({ page }) => {
-  await boot(page, [post(12, 1)]);
-  await expect(page.locator('#novedades-banner')).toBeVisible();
-  await page.locator('#tab-planner').click();
-  await expect(page.locator('#novedades-banner')).toBeHidden();
-  await page.locator('#tab-explore').click();
-  await expect(page.locator('#novedades-banner')).toBeVisible();
-});
-
-test('closing the banner keeps it down until TransMilenio posts again', async ({ page }) => {
+test('a seen post keeps the bell unmarked until TransMilenio posts again', async ({ page }) => {
   // ONE post, served on every boot: `post()` stamps `Date.now()`, so building it
-  // again seconds later made a newer post than the one closed — which the banner
-  // rightly showed as unseen, and the test failed on every run.
-  const closed = post(12, 1);
-  await boot(page, [closed]);
-  await page.locator('#novedades-banner .novedades-banner-close').click();
-  await expect(page.locator('#novedades-banner')).toBeHidden();
+  // again seconds later made a newer post than the one seen — which the bell
+  // rightly marked as unseen, and the test failed on every run.
+  const seen = post(12, 1);
+  await boot(page, [seen]);
+  await page.locator('#novedades-bell').click();
+  await expect(page.locator('#novedades-bell')).not.toHaveClass(/unread/);
 
-  await boot(page, [closed]);
-  await expect(page.locator('#novedades-banner')).toBeHidden();
+  await boot(page, [seen]);
+  await expect(page.locator('#novedades-bell')).not.toHaveClass(/unread/);
 
-  await boot(page, [post(1, 2), closed]);
-  await expect(page.locator('#novedades-banner')).toContainText('Manifestación número 2');
+  await boot(page, [post(1, 2), seen]);
+  await expect(page.locator('#novedades-bell')).toHaveAttribute('aria-label', /Manifestación número 2/);
 });
 
-test('reading the page counts as seeing the banner', async ({ page }) => {
+test('reading the page counts as seeing the posts', async ({ page }) => {
   await boot(page, [post(5, 1)], '/novedades/');
   await expect(page.locator('#novedades-page .novedades-lista > li')).toHaveCount(1);
   await page.keyboard.press('Escape');
-  await expect(page.locator('#novedades-banner')).toBeHidden();
+  await expect(page.locator('#novedades-bell')).not.toHaveClass(/unread/);
 });
 

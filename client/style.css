@@ -6296,80 +6296,77 @@ body.native-app .route-detail-close:active {
 .station-avisos { margin-top: 18px; }
 
 /* Novedades (`ui/novedadesPage.ts`, spec §5.5.9): TransMilenio's #TMAhora
-   posts. The banner — a link to the page and a close button — is in the search
-   bar's own card so it sits in the sidebar; only its dot carries the notices'
-   yellow. */
-.novedades-banner {
+   posts. A bell at the map's top right, the sidebar FAB's twin, opens them in
+   a popup; only its unread dot carries the notices' yellow. MapLibre's zoom
+   and compass move down to make room. */
+.novedades-bell {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 99;
+  width: 44px;
+  height: 44px;
   display: flex;
-  margin: 10px 16px 0;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-card);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-}
-
-.novedades-banner[hidden] { display: none; }
-
-.novedades-banner-link {
-  flex: 1;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 7px 4px 7px 12px;
+  justify-content: center;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
   color: var(--text-primary);
-  text-decoration: none;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
 }
 
-.novedades-banner-link::before {
+.novedades-bell:hover,
+.novedades-bell[aria-expanded='true'] {
+  background: var(--bg-hover);
+  border-color: var(--tm-yellow);
+}
+
+.novedades-bell.unread::after {
   content: '';
-  width: 8px;
-  height: 8px;
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   background: var(--tm-yellow);
+  box-shadow: 0 0 0 2px var(--bg-secondary);
 }
 
-.novedades-banner-link:hover,
-.novedades-banner-link:focus-visible,
-.novedades-banner-close:hover,
-.novedades-banner-close:focus-visible {
-  background: var(--bg-hover);
+#map .maplibregl-ctrl-top-right {
+  top: 62px;
+  right: 6px;
 }
 
-.novedades-banner-close {
-  flex: none;
-  width: 34px;
-  border: 0;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
+.novedades-pop {
+  position: fixed;
+  top: 68px;
+  right: 16px;
+  z-index: 150;
+  width: min(380px, calc(100vw - 32px));
+  max-height: min(70vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px 16px 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
-.novedades-banner-close:hover { color: var(--text-primary); }
+.novedades-pop[hidden] { display: none; }
 
-.novedades-banner-meta {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--text-tertiary);
+.novedades-pop-title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  font-weight: 700;
 }
 
-.novedades-banner-title {
-  display: block;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.novedades-banner-more {
-  font-size: var(--font-size-xs);
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
+.novedades-pop .novedades-lista { margin: 14px 0 12px; }
 
 .novedades-title {
   margin: 18px 0 0;
