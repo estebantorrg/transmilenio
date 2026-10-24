@@ -180,7 +180,7 @@ function sendGzipJson(req: Request, res: Response, gzip: Buffer): void {
   }
   const inflate = zlib.createGunzip();
   pipeline(inflate, res, (error) => {
-    if (error) console.warn(`[api] identity body for ${req.originalUrl} cut short:`, error.message);
+    if (error) console.warn('[api] identity body for %s cut short:', req.originalUrl, error.message);
   });
   inflate.end(gzip);
 }
