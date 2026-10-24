@@ -28,7 +28,6 @@
  */
 
 import { Resvg } from '@resvg/resvg-js';
-import { nombreVagon } from '../../shared/plano.js';
 import wawoff from 'wawoff2';
 import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -44,8 +43,14 @@ const DIM = '#9AA1AC';
  *  where a subtler grey disappears), dim enough not to compete with the route. */
 const BACKDROP = '#27323F';
 
-/** The map panel both card types share. */
-const MAP = { x: 620, y: 58, w: 540, h: 514 };
+/** Map first: the map is the card's top 450 px, edge to edge, and the identity
+ *  sits in the band below it in sizes that survive a ~300 px chat preview. */
+const MAP = { x: 0, y: 0, w: WIDTH, h: 450 };
+const BAND_Y = MAP.h;
+const MAP_FILL = '#10151D';
+/** Edge for lines and pills: black is a route colour (the 4, rutas fáciles), and
+ *  a black casing or band would swallow it. */
+const OUTLINE = '#3A414D';
 
 /** Inter's average advance is ~0.52em; resvg gives us no measuring API, so
  *  wrapping and chip widths are estimated. Deliberately generous. */
@@ -84,6 +89,9 @@ export interface OgStation {
   feeders: Array<{ codigo: string; color?: string }>;
   /** Where the pin goes. */
   point: LonLat | null;
+  /** The troncal services' traces, in their colours: what stops here, drawn
+   *  through the pin rather than a lone dot on the grey spine. */
+  lines: Array<{ color?: string; paths: LonLat[][] }>;
   backdrop: LonLat[][];
 }
 
@@ -156,9 +164,10 @@ type Project = (p: LonLat) => [number, number];
  * Fits `focus` into the map panel, preserving aspect and flipping latitude.
  * `pad` (>1) zooms out so the surrounding network shows around the subject —
  * a route drawn edge-to-edge has no context, which is the whole point of the
- * backdrop.
+ * backdrop. `minSpan` (degrees) is the smallest window: an estación is one
+ * point, and it is shown as the neighbourhood around it, centred.
  */
-function makeProjector(focus: LonLat[], pad: number): Project | null {
+function makeProjector(focus: LonLat[], pad: number, minSpan = 0.02): Project | null {
   const pts = focus.filter((p) => Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]));
   if (pts.length === 0) return null;
 
@@ -166,9 +175,8 @@ function makeProjector(focus: LonLat[], pad: number): Project | null {
   const lats = pts.map((p) => p[1]);
   const midLon = (Math.min(...lons) + Math.max(...lons)) / 2;
   const midLat = (Math.min(...lats) + Math.max(...lats)) / 2;
-  // A degenerate span (single point, or a station) still needs a sane window.
-  const spanLon = Math.max((Math.max(...lons) - Math.min(...lons)) * pad, 0.02);
-  const spanLat = Math.max((Math.max(...lats) - Math.min(...lats)) * pad, 0.02);
+  const spanLon = Math.max((Math.max(...lons) - Math.min(...lons)) * pad, minSpan);
+  const spanLat = Math.max((Math.max(...lats) - Math.min(...lats)) * pad, minSpan);
   const scale = Math.min(MAP.w / spanLon, MAP.h / spanLat);
 
   return ([lon, lat]: LonLat) => [
@@ -190,7 +198,7 @@ function backdropSvg(paths: LonLat[][], project: Project): string {
   return `<g clip-path="url(#mapclip)" fill="none" stroke="${BACKDROP}" stroke-width="3" stroke-linecap="round">${lines}</g>`;
 }
 
-const mapClip = `<defs><clipPath id="mapclip"><rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="18"/></clipPath></defs>`;
+const mapClip = `<defs><clipPath id="mapclip"><rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}"/></clipPath></defs>`;
 
 // ─── Shared chrome ────────────────────────────────────────
 function markSvg(x: number, y: number, size: number): string {
@@ -205,39 +213,42 @@ function markSvg(x: number, y: number, size: number): string {
   </g>`;
 }
 
-/** Arrow drawn as geometry — the font subset has no U+2192 (see file header). */
-function arrowSvg(x: number, y: number, w: number, color: string): string {
-  return `<g stroke="${color}" stroke-width="3" fill="none">
-    <path d="M${x} ${y} L${x + w - 8} ${y}"/>
-    <path d="M${x + w - 13} ${y - 6} L${x + w} ${y} L${x + w - 13} ${y + 6}" stroke-linejoin="round"/>
-  </g>`;
-}
-
-/** The mark and, beside it, the name — as the same outlines the pages show. */
-const header = () => {
+/** The mark and the name, as the same outlines the pages show, on a dark pill in
+ *  the map's top-left corner — over the map, so the band keeps its whole width
+ *  for the subject. */
+const brand = () => {
   if (!wordmark) throw new Error('prepareWordmark() must run before rendering cards.');
-  const height = 26;
-  return `${markSvg(64, 56, 44)}
-  <path transform="translate(124 ${56 + (44 - height) / 2}) scale(${height / wordmark.h})" fill="${DIM}" d="${wordmark.d}"/>`;
+  const height = 24;
+  const width = (wordmark.w * height) / wordmark.h;
+  return `<rect x="28" y="26" width="${(84 + width).toFixed(0)}" height="60" rx="30" fill="${FIELD}" opacity="0.88"/>
+  ${markSvg(36, 34, 44)}
+  <path transform="translate(90 ${34 + (44 - height) / 2}) scale(${height / wordmark.h})" fill="#FFFFFF" d="${wordmark.d}"/>`;
 };
 
-const footer = () =>
-  `<text x="64" y="${HEIGHT - 44}" font-family="Inter" font-size="22" fill="#6B7280">mitrasto.app</text>`;
+/** A pill: the badges round fully, at every size, on the card and the band. */
+function pill(x: number, y: number, h: number, label: string, fill: string, size: number): { svg: string; w: number } {
+  const w = Math.max(h * 1.6, textWidth(label, size) + h * 0.8);
+  return {
+    w,
+    svg:
+      `<rect x="${x.toFixed(0)}" y="${y}" width="${w.toFixed(0)}" height="${h}" rx="${h / 2}" fill="${fill}" stroke="${OUTLINE}" stroke-width="2"/>` +
+      `<text x="${(x + w / 2).toFixed(0)}" y="${(y + h / 2 + size * 0.36).toFixed(0)}" font-family="Inter" font-size="${size}" fill="${readableOn(fill)}" text-anchor="middle">${esc(label)}</text>`,
+  };
+}
 
-/** Panel fill, so the map reads as a surface rather than floating strokes. */
-const mapPanel = () =>
-  `<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="18" fill="#10151D"/>`;
+const mapBase = (backdrop: LonLat[][], project: Project) =>
+  `<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" fill="${MAP_FILL}"/>${backdropSvg(backdrop, project)}`;
 
 // ─── Route card ───────────────────────────────────────────
-function routeCardSvg(route: OgRoute): string {
+export function routeCardSvg(route: OgRoute): string {
   const color = safeColor(route.color);
-  const badgeW = Math.max(96, textWidth(route.codigo, 40) + 44);
-  const textMax = 500;
 
+  // Fitted to the route itself, with room around it for the network to say
+  // where in the city it runs.
   const focus = route.paths.flat().concat(route.stops);
-  const project = makeProjector(focus, 1.45);
+  const project = makeProjector(focus, 1.3);
 
-  let mapSvg = '';
+  let mapSvg = `<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" fill="${MAP_FILL}"/>`;
   if (project) {
     const trace = route.paths
       .filter((p) => p.length > 1)
@@ -247,7 +258,7 @@ function routeCardSvg(route: OgRoute): string {
     // back on itself.
     const beads = route.stops
       .map(project)
-      .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4.5" fill="#FFFFFF" stroke="${FIELD}" stroke-width="1.5"/>`)
+      .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="#FFFFFF" stroke="${FIELD}" stroke-width="2"/>`)
       .join('');
     // Terminals mark the origin and destination **stops** — the two places the
     // card's text names — not the ends of the drawn trace. Capping the trace
@@ -259,163 +270,116 @@ function routeCardSvg(route: OgRoute): string {
     const ends = [route.stops[0], route.stops[route.stops.length - 1]]
       .filter((p): p is LonLat => Array.isArray(p))
       .map(project)
-      .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="9" fill="#FFFFFF" stroke="${color}" stroke-width="3"/>`)
+      .map(([x, y]) => `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="14" fill="#FFFFFF" stroke="${color}" stroke-width="6"/>`)
       .join('');
 
-    mapSvg = `${mapPanel()}
-      ${backdropSvg(route.backdrop, project)}
+    // A casing under the line keeps every route colour readable on the map.
+    mapSvg = `${mapBase(route.backdrop, project)}
       <g clip-path="url(#mapclip)">
-        <g fill="none" stroke="${color}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">${trace}</g>
+        <g fill="none" stroke="${OUTLINE}" stroke-width="18" stroke-linecap="round" stroke-linejoin="round">${trace}</g>
+        <g fill="none" stroke="${color}" stroke-width="11" stroke-linecap="round" stroke-linejoin="round">${trace}</g>
         ${beads}${ends}
       </g>`;
   }
 
-  const nameLines = wrap(route.nombre, 50, textMax, 2);
-  const nameSvg = nameLines
-    .map((line, i) => `<text x="64" y="${296 + i * 60}" font-family="Inter" font-size="50" fill="#FFFFFF">${esc(line)}</text>`)
-    .join('');
-  const afterName = 296 + nameLines.length * 60;
-
-  const origin = wrap(route.origin || '', 25, textMax, 1)[0] ?? '';
-  const destination = wrap(route.destination || '', 25, textMax - 46, 1)[0] ?? '';
-  const endpoints = origin && destination
-    ? `<text x="64" y="${afterName + 4}" font-family="Inter" font-size="25" fill="${DIM}">${esc(origin)}</text>
-       ${arrowSvg(64, afterName + 38, 34, DIM)}
-       <text x="110" y="${afterName + 46}" font-family="Inter" font-size="25" fill="${DIM}">${esc(destination)}</text>`
-    : '';
-
-  const meta = [`${route.stopCount} paradas`, route.horarios].filter(Boolean).join('  ·  ');
+  const plate = pill(56, BAND_Y + 34, 112, route.codigo, color, 64);
+  const textX = 56 + plate.w + 32;
+  const textMax = WIDTH - textX - 56;
+  const name = wrap(route.nombre, 62, textMax, 1)[0] ?? '';
+  const sub = [route.origin ? `desde ${route.origin}` : null, `${route.stopCount} paradas`, route.horarios]
+    .filter(Boolean)
+    .join('  ·  ');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}">
   <rect width="${WIDTH}" height="${HEIGHT}" fill="${FIELD}"/>
   ${mapClip}
   ${mapSvg}
-  ${header()}
-  <rect x="64" y="158" width="${badgeW.toFixed(0)}" height="64" rx="14" fill="${color}"/>
-  <text x="${(64 + badgeW / 2).toFixed(0)}" y="203" font-family="Inter" font-size="40" fill="${readableOn(color)}" text-anchor="middle">${esc(route.codigo)}</text>
-  ${nameSvg}
-  ${endpoints}
-  <text x="64" y="${HEIGHT - 96}" font-family="Inter" font-size="24" fill="${BLUE}">${esc(wrap(meta, 24, textMax, 1)[0] ?? '')}</text>
-  ${footer()}
+  ${brand()}
+  ${plate.svg}
+  <text x="${textX.toFixed(0)}" y="${BAND_Y + 92}" font-family="Inter" font-size="62" fill="#FFFFFF">${esc(name)}</text>
+  <text x="${textX.toFixed(0)}" y="${BAND_Y + 140}" font-family="Inter" font-size="28" fill="${DIM}">${esc(wrap(sub, 28, textMax, 1)[0] ?? '')}</text>
 </svg>`;
 }
 
 // ─── Estación card ────────────────────────────────────────
-function stationCardSvg(station: OgStation): string {
-  const textMax = 500;
 
-  // Focus on the station but keep the whole network in frame, so the pin reads
-  // as "here, in Bogotá" rather than as an unplaceable dot.
-  const project = makeProjector(station.backdrop.flat(), 1.05);
+/** The estación's pin: the same teardrop the website and the app draw, tip on
+ *  the spot (`createMarkerIcon`, client/src/map.ts). */
+function pinSvg(x: number, y: number): string {
+  const r = 26;
+  const cy = y - r * 1.55;
+  return `<path d="M${(x - r * 0.81).toFixed(1)} ${(cy + r * 0.59).toFixed(1)} A${r} ${r} 0 1 1 ${(x + r * 0.81).toFixed(1)} ${(cy + r * 0.59).toFixed(1)} L${x.toFixed(1)} ${y.toFixed(1)} Z" fill="${RED}" stroke="${FIELD}" stroke-width="3" stroke-linejoin="round"/>
+  <circle cx="${x.toFixed(1)}" cy="${cy.toFixed(1)}" r="${(r * 0.45).toFixed(1)}" fill="#FFFFFF"/>`;
+}
 
-  let mapSvg = '';
+/** Window around an estación: ~15 km of network across, ~5.5 km top to bottom.
+ *  The backdrop is troncales only, so a tighter window was one line on an empty
+ *  field around most estaciones. */
+const STATION_SPAN = 0.05;
+
+export function stationCardSvg(station: OgStation): string {
+  // Centred on the estación — the map answers "where is it" — and wide enough
+  // that the corridors around it say which part of the city. Without a point,
+  // the whole network.
+  const project = station.point
+    ? makeProjector([station.point], 1, STATION_SPAN)
+    : makeProjector(station.backdrop.flat(), 1.05);
+
+  let mapSvg = `<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" fill="${MAP_FILL}"/>`;
   if (project) {
-    let pin = '';
-    if (station.point) {
-      const [x, y] = project(station.point);
-      pin = `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="22" fill="${BLUE}" opacity="0.22"/>
-        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="11" fill="${BLUE}" stroke="#FFFFFF" stroke-width="3.5"/>`;
-    }
-    mapSvg = `${mapPanel()}${backdropSvg(station.backdrop, project)}<g clip-path="url(#mapclip)">${pin}</g>`;
+    const pin = station.point ? pinSvg(...project(station.point)) : '';
+    const lines = station.lines.map((line) => ({
+      color: safeColor(line.color),
+      svg: line.paths.filter((p) => p.length > 1).map((p) => `<polyline points="${poly(p, project)}"/>`).join(''),
+    }));
+    // Reversed, so the first-listed service (vagón 1) is the one on top where
+    // several share a corridor.
+    const coloured = [...lines]
+      .reverse()
+      .map((l) => `<g stroke="${l.color}">${l.svg}</g>`)
+      .join('');
+    mapSvg = `${mapBase(station.backdrop, project)}
+      <g clip-path="url(#mapclip)" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <g stroke="${OUTLINE}" stroke-width="13">${lines.map((l) => l.svg).join('')}</g>
+        <g stroke-width="8">${coloured}</g>
+        ${pin}
+      </g>`;
   }
 
-  const nameLines = wrap(station.nombre, 50, textMax, 2);
-  const nameSvg = nameLines
-    .map((line, i) => `<text x="64" y="${232 + i * 58}" font-family="Inter" font-size="50" fill="#FFFFFF">${esc(line)}</text>`)
-    .join('');
-  const afterName = 232 + nameLines.length * 58;
+  const eyebrow = ['Estación', station.direccion].filter(Boolean).join('  ·  ');
+  const name = wrap(station.nombre, 58, WIDTH - 112, 1)[0] ?? '';
 
-  const address = wrap(station.direccion || 'Bogotá, Colombia', 25, textMax, 1)[0] ?? '';
-
-  // Grouped by vagón rather than one undifferentiated grid: "which platform do I
-  // stand on" is the question the station page exists to answer, and a flat pile
-  // of codes doesn't answer it.
+  // One row of services, in platform order (the page has them vagón by vagón);
+  // what does not fit becomes a "+N" pill rather than being dropped silently.
+  const seen = new Set<string>();
+  const services = [...station.vagones.flatMap((v) => v.codigos), ...station.unassigned, ...station.feeders].filter(
+    (s) => !seen.has(s.codigo) && seen.add(s.codigo)
+  );
+  const H = 48;
+  const SIZE = 28;
+  const RIGHT = WIDTH - 56;
   const chips: string[] = [];
-  let cy = afterName + 44;
-  const BOTTOM = HEIGHT - 96;
-  let omitted = 0;
-
-  const chipRow = (
-    items: Array<{ codigo: string; color?: string }>,
-    startX: number,
-    y: number
-  ): { svg: string; endY: number; overflow: number } => {
-    let x = startX;
-    let row = y;
-    let drawn = 0;
-    const out: string[] = [];
-    for (const item of items) {
-      const w = Math.max(58, textWidth(item.codigo, 21) + 24);
-      if (x + w > 64 + textMax) {
-        x = startX;
-        row += 46;
-        if (row > BOTTOM) break;
-      }
-      const fill = safeColor(item.color);
-      out.push(
-        `<rect x="${x.toFixed(0)}" y="${row}" width="${w.toFixed(0)}" height="36" rx="9" fill="${fill}"/>` +
-        `<text x="${(x + w / 2).toFixed(0)}" y="${row + 25}" font-family="Inter" font-size="21" fill="${readableOn(fill)}" text-anchor="middle">${esc(item.codigo)}</text>`
-      );
-      x += w + 9;
-      drawn++;
-    }
-    return { svg: out.join(''), endY: row, overflow: items.length - drawn };
-  };
-
-  station.vagones.forEach((vagon, i) => {
-    if (cy > BOTTOM) {
-      omitted += vagon.codigos.length;
-      return;
-    }
-    const name = vagon.label ? nombreVagon(vagon.label) : `Plataforma ${i + 1}`;
-    const heading = vagon.sentido ? `${name} · sentido ${vagon.sentido}` : name;
-    chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="21" fill="${BLUE}">${esc(heading)}</text>`);
-    const row = chipRow(vagon.codigos, 64, cy + 10);
-    chips.push(row.svg);
-    omitted += row.overflow;
-    cy = row.endY + 62;
-  });
-
-  if (station.unassigned.length) {
-    if (cy > BOTTOM) {
-      omitted += station.unassigned.length;
-    } else {
-      chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="21" fill="${BLUE}">Otros servicios troncales</text>`);
-      const row = chipRow(station.unassigned, 64, cy + 10);
-      chips.push(row.svg);
-      omitted += row.overflow;
-      cy = row.endY + 62;
-    }
+  let x = 56;
+  let shown = 0;
+  for (const service of services) {
+    const rest = services.length - shown - 1;
+    const next = pill(x, BAND_Y + 118, H, service.codigo, safeColor(service.color), SIZE);
+    const room = rest > 0 ? pill(0, 0, H, `+${rest}`, '#2A303A', SIZE).w + 10 : 0;
+    if (x + next.w + room > RIGHT) break;
+    chips.push(next.svg);
+    x += next.w + 10;
+    shown++;
   }
-
-  if (station.feeders.length) {
-    if (cy > BOTTOM) {
-      omitted += station.feeders.length;
-    } else {
-      chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="21" fill="${DIM}">Alimentadores y zonales</text>`);
-      const row = chipRow(station.feeders, 64, cy + 10);
-      chips.push(row.svg);
-      omitted += row.overflow;
-      cy = row.endY + 62;
-    }
-  }
-
-  // Never drop services silently — the header promises a count, so say what the
-  // card could not fit rather than quietly contradicting it.
-  if (omitted > 0 && cy <= HEIGHT - 70) {
-    chips.push(`<text x="64" y="${cy}" font-family="Inter" font-size="20" fill="${DIM}">+${omitted} servicios más</text>`);
-  }
+  if (shown < services.length) chips.push(pill(x, BAND_Y + 118, H, `+${services.length - shown}`, '#2A303A', SIZE).svg);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${WIDTH} ${HEIGHT}" width="${WIDTH}" height="${HEIGHT}">
   <rect width="${WIDTH}" height="${HEIGHT}" fill="${FIELD}"/>
   ${mapClip}
   ${mapSvg}
-  ${header()}
-  <text x="64" y="172" font-family="Inter" font-size="26" fill="${BLUE}">Estación</text>
-  ${nameSvg}
-  <text x="64" y="${afterName + 6}" font-family="Inter" font-size="25" fill="${DIM}">${esc(address)}  ·  ${station.serviceCount} servicios</text>
+  ${brand()}
+  <text x="56" y="${BAND_Y + 40}" font-family="Inter" font-size="26" fill="${BLUE}">${esc(wrap(eyebrow, 26, WIDTH - 112, 1)[0] ?? '')}</text>
+  <text x="56" y="${BAND_Y + 100}" font-family="Inter" font-size="58" fill="#FFFFFF">${esc(name)}</text>
   ${chips.join('')}
-  ${footer()}
 </svg>`;
 }
 
@@ -431,16 +395,16 @@ export async function prepareFont(publicFontPath: string): Promise<void> {
   await writeFile(fontFile, ttf);
 }
 
-let wordmark: { h: number; d: string } | null = null;
+let wordmark: { w: number; h: number; d: string } | null = null;
 
 /** Reads the name's outlines from the file the pages show (`/wordmark.svg`),
  *  so a card and the page it previews never carry two different logos. */
 export async function prepareWordmark(publicSvgPath: string): Promise<void> {
   const svg = await readFile(publicSvgPath, 'utf8');
-  const height = /viewBox="0 0 [\d.]+ ([\d.]+)"/.exec(svg);
+  const box = /viewBox="0 0 ([\d.]+) ([\d.]+)"/.exec(svg);
   const d = / d="([^"]+)"/.exec(svg);
-  if (!height || !d) throw new Error(`${publicSvgPath} has no viewBox or path to draw.`);
-  wordmark = { h: Number(height[1]), d: d[1] };
+  if (!box || !d) throw new Error(`${publicSvgPath} has no viewBox or path to draw.`);
+  wordmark = { w: Number(box[1]), h: Number(box[2]), d: d[1] };
 }
 
 function rasterize(svg: string): Buffer {

@@ -1419,6 +1419,8 @@ async function main(): Promise<void> {
     }
   }
   console.log(`[seo] backdrop     — ${backdrop.length} troncal traces`);
+  // An estación card draws its own services' traces (`OgStation.lines`).
+  const variantsByCodigo = new Map(routeCodes);
 
   const impresos = JSON.parse(
     await readFile(path.resolve(__dirname, 'data', 'ruteros_tradicionales.json'), 'utf-8')
@@ -1512,6 +1514,13 @@ async function main(): Promise<void> {
         point: (() => {
           const c = parseCoordinate(station.coordenada);
           return c ? ([c.lon, c.lat] as LonLat) : null;
+        })(),
+        lines: (() => {
+          const seen = new Set<string>();
+          return [...vagones.flatMap((v) => v.directions.flatMap((d) => d.services)), ...unassignedServices]
+            .filter((s) => !seen.has(s.codigo) && seen.add(s.codigo))
+            .map((s) => ({ color: cardChip(s).color, paths: toPaths(variantsByCodigo.get(s.codigo)?.[0]?.trazado) }))
+            .filter((line) => line.paths.length > 0);
         })(),
         backdrop,
       })
