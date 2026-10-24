@@ -26,6 +26,8 @@ test.describe('on Android', () => {
     const card = page.locator('#route-page section[aria-labelledby="live-h"] .page-app');
     await expect(card).toBeVisible();
     await expect(card.getByRole('link', { name: 'Descargar para Android' })).toHaveAttribute('href', DOWNLOAD);
+    // Play Protect's dialog is named before the rider meets it, with the button to tap.
+    await expect(card).toContainText('«Se recomienda analizar la app», toca Analizar app');
 
     await card.getByRole('button', { name: 'No volver a mostrar' }).click();
     await expect(page.locator('.page-app')).toHaveCount(0);

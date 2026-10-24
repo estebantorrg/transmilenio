@@ -5897,6 +5897,18 @@ body.native-app .route-detail-close:active {
   line-height: 1.4;
 }
 
+.page-app-steps {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.page-app-steps li + li { margin-top: 3px; }
+
+.page-app-steps strong { color: var(--text-primary); }
+
 .page-app-close {
   position: absolute;
   top: 4px;

@@ -351,6 +351,11 @@ export function factsHtml(items: Array<{ label: string; value: string | null | u
  * desktop cannot install an APK), inline and closable for good — never an
  * interstitial: these readers come from search, and a page whose content is
  * covered on a phone ranks lower.
+ *
+ * Installed outside Play, the APK meets Play Protect's "Se recomienda analizar
+ * la app" dialog. A warning the rider was told about reads as a step, one sprung
+ * on them reads as a virus — so the card names it, in Google's own es-419 words,
+ * and says which button to tap.
  */
 export function appPromoHtml(): string {
   if (!/Android/i.test(navigator.userAgent)) return '';
@@ -366,7 +371,11 @@ export function appPromoHtml(): string {
         <h3 class="page-app-title" id="page-app-h">Más rápido en la app</h3>
         <p class="page-app-body">Con MiTrasto para Android ves los buses en vivo directo desde tu celular, consultas el saldo de tu tarjeta acercándola al teléfono y te guía mientras viajas.</p>
         <a class="page-app-get" href="${APP_DOWNLOAD_URL}">Descargar para Android</a>
-        <p class="page-app-hint">Gratis. Se descarga como APK: Android te pedirá permitir la instalación desde el navegador.</p>
+        <p class="page-app-hint">Gratis y de código abierto. Como no viene de Play Store, Android te pedirá dos confirmaciones:</p>
+        <ol class="page-app-steps">
+          <li>Permitir que tu navegador instale apps.</li>
+          <li>Si aparece «Se recomienda analizar la app», toca <strong>Analizar app</strong>: Google la revisa y te deja instalarla.</li>
+        </ol>
       </div>
       <button class="page-app-close" type="button" aria-label="No volver a mostrar" title="No volver a mostrar">×</button>
     </aside>`;
