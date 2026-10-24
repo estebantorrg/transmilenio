@@ -79,16 +79,13 @@ function corridorsToGeoJSON(features: TroncalCorridorFeature[]): GeoJSON.Feature
     features: features
       .filter((f) => Array.isArray(f.geometry?.paths) && f.geometry.paths.length > 0)
       .map((f) => {
-        const letter = getTroncalLetter(f.attributes.letra_trazado_troncal);
+        const letter = getTroncalLetter(f.attributes.le_troncal);
         return {
           type: 'Feature' as const,
           properties: {
             id: f.attributes.objectid,
             letter,
             color: letter ? getTroncalColor(letter) : DEFAULT_TRONCAL_COLOR,
-            troncal: f.attributes.troncal,
-            start: f.attributes.inicio_trazado,
-            end: f.attributes.fin_trazado,
           },
           geometry: {
             type: 'MultiLineString' as const,
@@ -135,12 +132,8 @@ export function catalogCorridorsToFeatures(troncalRoutes: RouteListItem[]): Tron
     attributes: {
       objectid: objectid++,
       id_trazado: `catalog-${letter}`,
-      inicio_trazado: '',
-      fin_trazado: '',
-      tipo_trazado: 'catalog',
-      letra_trazado_troncal: letter,
-      troncal: `Troncal ${letter}`,
-      fase_trazado_troncal: '',
+      le_troncal: letter,
+      nom_tronc: `Troncal ${letter}`,
     },
     geometry: { paths },
   }));
@@ -214,9 +207,9 @@ function metersToSegment(point: number[], a: number[], b: number[]): number {
 /**
  * Trunk corridor that exists on the street but not in the ArcGIS survey.
  *
- * `consulta_trazados_troncales` publishes 20 centrelines over 12 corridors, and a
- * new trunk arrives there **late**: TransMi opened the Bosa–Tibanica stretch with
- * its stations filed under `TZ022`, a corridor that layer has never heard of. The
+ * ArcGIS surveys a new trunk **late**: TransMi opened the Bosa–Tibanica stretch
+ * with its stations filed under `TZ022`, a corridor `Troncal/consulta_trazados_troncales`
+ * never heard of (the planning layer we read now has it, since July 2026). The
  * result on screen is a Troncales layer that simply stops mid-city — the corridor
  * the rider is standing on is missing, not drawn faintly.
  *
@@ -400,30 +393,23 @@ export function corridorGapFeatures(
   // the Américas red on top of the amber and makes a brand-new trunk look like an
   // extension of one it never touches. The letter with **no surveyed corridor of
   // its own** is the one that names this stretch: it is new for the same reason
-  // the corridor is.
+  // the corridor is. A surveyed letter is never patched — once ArcGIS filed Z,
+  // what was left were the portals, 120–260 m off their centrelines, and every
+  // route that loops into them (C alone drew 173 km).
   const surveyedLetters = new Set(
     surveyed
-      .map((corridor) => getTroncalLetter(corridor.attributes.letra_trazado_troncal))
+      .map((corridor) => getTroncalLetter(corridor.attributes.le_troncal))
       .filter((letter): letter is string => Boolean(letter))
   );
-  const unsurveyed = Array.from(gapsByLetter.keys()).filter((letter) => !surveyedLetters.has(letter));
-  if (unsurveyed.length > 0) {
-    for (const letter of gapsByLetter.keys()) {
-      if (!unsurveyed.includes(letter)) gapsByLetter.delete(letter);
-    }
-  }
+  for (const letter of surveyedLetters) gapsByLetter.delete(letter);
 
   let objectid = 10_000; // well clear of the ArcGIS ids this is appended to
   const features = Array.from(gapsByLetter, ([letter, paths]) => ({
     attributes: {
       objectid: objectid++,
       id_trazado: `gap-${letter}`,
-      inicio_trazado: '',
-      fin_trazado: '',
-      tipo_trazado: 'catalog-gap',
-      letra_trazado_troncal: letter,
-      troncal: `Troncal ${letter}`,
-      fase_trazado_troncal: '',
+      le_troncal: letter,
+      nom_tronc: `Troncal ${letter}`,
     },
     geometry: { paths },
   }));

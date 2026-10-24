@@ -899,7 +899,7 @@ async function main(): Promise<void> {
       if (patch.features.length > 0) {
         surveyedCorridors = corridorFeatures;
         corridorFeatures = [...corridorFeatures, ...patch.features];
-        const patched = patch.features.map((gap) => gap.attributes.letra_trazado_troncal).join(', ');
+        const patched = patch.features.map((gap) => gap.attributes.le_troncal).join(', ');
         console.log(`🧩 Trunk corridors patched from catalog traces: ${patched}`);
         // Drawn now from the light catalog's simplified trace, then settled onto
         // the road with the full one — two requests the boot path must not wait

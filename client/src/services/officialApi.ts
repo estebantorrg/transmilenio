@@ -101,7 +101,7 @@ async function arcgisResponse(cfg: ArcgisConfig): Promise<ApiResponse<any>> {
 
 // Layer configs mirror `queries` in server/src/services/arcgis.ts — keep in sync.
 const ARCGIS_LAYERS = {
-  troncalCorridors: { folder: 'Troncal', service: 'consulta_trazados_troncales' },
+  troncalCorridors: { folder: 'ConsultaSubgerenciaPlanificacionSITP', service: 'Consulta_Planificacion_SITP', layerIndex: 5 },
   zonalRoutes: {
     folder: 'Zonal',
     service: 'consulta_rutas_zonales',

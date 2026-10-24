@@ -166,10 +166,13 @@ export const queries = {
       service: 'consulta_estaciones_troncales',
     }),
 
+  // The planning service's trazados (layer 5), not `Troncal/consulta_trazados_troncales`:
+  // only this one is kept current (TZ022/TZ022A, Av. Ciudad de Cali, July 2026).
   troncalCorridors: () =>
     queryFeatureLayer({
-      folder: 'Troncal',
-      service: 'consulta_trazados_troncales',
+      folder: 'ConsultaSubgerenciaPlanificacionSITP',
+      service: 'Consulta_Planificacion_SITP',
+      layerIndex: 5,
     }),
 
   // Attributes only (no geometry): the huge zonal route geometries are never

@@ -44,15 +44,19 @@ export interface TroncalWagonFeature {
   };
 }
 
+/** A trazado of ArcGIS `Consulta_Planificacion_SITP` layer 5; only the letter is
+ *  read, and the catalog-built stand-ins (`routes.ts`) fill no more than that. */
 export interface TroncalCorridor {
   objectid: number;
   id_trazado: string;
-  inicio_trazado: string;
-  fin_trazado: string;
-  tipo_trazado: string;
-  letra_trazado_troncal: string;
-  troncal: string;
-  fase_trazado_troncal: string;
+  le_troncal: string;
+  nom_tronc: string;
+  nom_traz?: string;
+  ori_traz?: string;
+  fin_traz?: string;
+  fase_tronc?: string;
+  /** 1 exclusivo, 2 mixto. */
+  tipo_tra?: number;
   Shape__Length?: number;
 }
 
