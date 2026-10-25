@@ -5,6 +5,7 @@ import apiRoutes, { prewarmArcgisLayers } from './routes/api.js';
 import { getCatalog, loadCatalogFromDisk, isCatalogStale, syncMasterCatalog, startLiveWarmup } from './services/tm_api.js';
 import { retiredHostRedirect } from './retired_host.js';
 import { isKnownPage } from './known_page.js';
+import { movedPagePath, readPrerenderedPages } from './page_redirect.js';
 import { startNovedadesPoller } from './services/novedades.js';
 
 const app = express();
@@ -168,9 +169,18 @@ app.use('/api', (_req, res) => {
 // and a 200 handed HTML to a tab asking for the previous deploy's
 // `/assets/*.js`, and the service worker cached that HTML under the script's
 // URL (`cacheFirst` keeps any `ok` response).
+const prerenderedPages = readPrerenderedPages(clientDist);
+
 app.get('*', (req, res) => {
   if (path.extname(req.path)) {
     res.sendStatus(404);
+    return;
+  }
+  // A renamed, mistyped or uppercase address of a page that exists elsewhere.
+  const moved = movedPagePath(req.path, prerenderedPages);
+  if (moved) {
+    const query = req.originalUrl.indexOf('?');
+    res.redirect(301, moved + (query >= 0 ? req.originalUrl.slice(query) : ''));
     return;
   }
   // An address that names no page gets the shell with the 404 it is (the app

@@ -16,6 +16,7 @@ import { bogotaNow, describeServiceSpans, serviceStatus } from '../services/sche
 import { isAlimentadorRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import type { RouteStopFacts } from '../layers/stations';
 import { vagonTexto } from '../../../shared/route_stop.js';
+import { slugify as slugifyRoute } from '../../../shared/slug.js';
 /** Estación test — the server's stamp, `TM…` code shape as fallback (§5.5.6). */
 import { isStationStopCode } from '../data/routeCatalog';
 
@@ -28,15 +29,8 @@ export function tidy(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
-/** Diacritic-free, lowercase, hyphenated. Mirrors `slugify` in the prerender. */
-export function slugifyRoute(value: string): string {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/\p{M}/gu, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+// The one slug rule the prerender and the server redirects use too.
+export { slugifyRoute };
 
 /** The estación page path for a catalog stop — the URL the prerender publishes
  *  and the one the interactive page keeps (spec §5.5.4, §5.5.6). */
