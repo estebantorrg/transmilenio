@@ -1081,9 +1081,35 @@ export function getStationDisplayPoints(): StationDisplayPoint[] {
  * points. Shared by the initial render and by {@link updateStationsLayer}, so a
  * recovered ArcGIS payload lands on exactly the same pipeline (spec §1.1 R2).
  */
+/**
+ * Served estaciones in the catalog that no register station resolved to, as
+ * catalog-built features (spec §4.2). The register files a station after it
+ * opens: Calle 53 – Universidad Manuela Beltrán (TM90012) opened on 2026-10-24
+ * with no entry in `consulta_estaciones_troncales`, and an estación is never
+ * drawn as a paradero, so the map had no pin for it at all. None once the
+ * register catches up.
+ */
+function unfiledStations(claimedBy: Record<string, ResolvedCatalogStation>): TroncalStationFeature[] {
+  const claimed = new Set(Object.values(claimedBy).flatMap((station) => station.sourceStops.map((stop) => stop.codigo)));
+  return catalogStationsToFeatures(_catalog).filter((feature) => {
+    const code = String(feature.attributes.numero_estacion);
+    return !claimed.has(code) && Object.values(_catalog.stations[code]?.wagons ?? {}).some((routes) => routes.length > 0);
+  });
+}
+
 function prepareStations(stations: TroncalStationFeature[]): GeoJSON.FeatureCollection {
-  globalStations = stations;
   const resolution = resolveStationCatalog(stations, _catalog);
+  const unfiled = unfiledStations(resolution.stationsByKey);
+  if (unfiled.length > 0) {
+    // Resolved on their own and merged: they are unclaimed by definition, and a
+    // second pass over the whole register would double the boot's resolve.
+    const extra = resolveStationCatalog(unfiled, _catalog);
+    Object.assign(resolution.stationsByKey, extra.stationsByKey);
+    resolution.audit.push(...extra.audit);
+    stations = [...stations, ...unfiled];
+    console.log(`🆕 ${unfiled.length} estación(es) aún sin registro en ArcGIS, dibujadas desde el catálogo`);
+  }
+  globalStations = stations;
   _resolvedStations = resolution.stationsByKey;
   _stationAudit = resolution.audit;
   publishStationAudit();

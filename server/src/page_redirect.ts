@@ -10,9 +10,9 @@ import { slugify } from '../../shared/slug.js';
  *
  * Without it, such an address got the app shell with a 200 and the shell's
  * canonical (`/`): Google read it as a copy of the home page and dropped it. That
- * was every renamed estación (TM0006 Marly → Calle 53 – UMB keeps its código and
- * changes its slug), every uppercase link (`/ruta/G47/`), and every slug that was
- * never right (`/estacion/calle-100-tm0025/` is Calle 146).
+ * was every renamed estación (same código, new slug), every uppercase link
+ * (`/ruta/G47/`), every slug that was never right (`/estacion/calle-100-tm0025/`
+ * is Calle 146), and every estación that closed for one opened in its place.
  *
  * The truth is what the prerender wrote, not a recomputed name: the folders under
  * `client/dist/ruta` and `client/dist/estacion` are exactly the pages that exist,
@@ -24,6 +24,15 @@ export interface PrerenderedPages {
   /** Estación código (lowercase, the slug's last segment) → its page's slug. */
   stationByCode: Map<string, string>;
 }
+
+/**
+ * Estación código → the código of the station that replaced it. Filed by hand
+ * from the operator's notice: the catalog only drops the closed one.
+ */
+const REPLACED_STATIONS: Record<string, string> = {
+  // Temporal Marly closed for the Metro works when Calle 53 – UMB opened, 2026-10-24.
+  tm0006: 'tm90012',
+};
 
 /** Read once at startup; an absent build (a dev server) just redirects nothing. */
 export function readPrerenderedPages(clientDist: string): PrerenderedPages {
@@ -60,7 +69,8 @@ export function movedPagePath(pathname: string, pages: PrerenderedPages): string
   // The código is whatever follows the last hyphen, as `isKnownPage` reads it.
   const estacion = /^\/estacion\/(?:.+-)?([^/-]+)\/?$/.exec(pathname);
   if (estacion) {
-    const slug = pages.stationByCode.get(slugify(estacion[1]));
+    const code = slugify(estacion[1]);
+    const slug = pages.stationByCode.get(code) ?? pages.stationByCode.get(REPLACED_STATIONS[code] ?? '');
     if (slug) target = `/estacion/${slug}/`;
   }
 

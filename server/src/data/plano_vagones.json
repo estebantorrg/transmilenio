@@ -38,7 +38,8 @@
     "rows_wagones": "A layout row may name the catalog wagons it IS. Only the two stations the catalog files as one stop while the map resolves them as two need it — Ricaurte (NQS = A,B,C; Calle 13 = D,E,F) and Av. Jimenez (Caracas = A,B,C; Calle 13 = D,E), matching the verified splits in stationCatalogResolver. A popup opened on one platform then draws only that platform. Knowing which codigos resolve is NOT enough to decide it: route 5 terminates at Av. Jimenez, the catalog files it under a Caracas wagon, and the Calle 13 sheet also prints it on Vagon 5, so the Caracas half drew a stray Vagon 5 belonging to the platform across the tunnel. The estacion page holds every wagon of the stop and so still shows both halves, each under its own troncal label.",
     "detalle_what": "The station as its plano de ubicacion actually draws it: not only the platforms and their services, but the furniture around them — vestibules, torniquetes, taquillas, salidas with the street they come out on, pedestrian bridges, ramps and stairs. Used ONLY by the estacion page. The popup keeps the compact drawing, because a popup is a glance and a page is the thing you study before you travel.",
     "detalle_why": "Because the furniture answers questions the platforms cannot. Guatoque is the case that makes it plain: a cano separates its two platforms, and drawing only the platforms and the cano tells a rider there is no way across. There is — the sheet draws the cano starting AFTER a vestibule that spans both rows, and that vestibule, with its torniquetes and its Carrera 27 exit, is exactly how you get from Vagon 4 to Vagon 2. Leaving it out did not simplify the drawing, it made it say something false.",
-    "detalle_shape": "A drawing is a sequence of COLUMNS, left to right as the sheet draws them, not two independent rows: only columns can express a vestibule that spans both platforms while the cano between them does not. Column kinds: \"vestibulo\" (a full-height access block, carrying salidas and icons per fila), \"vagones\" (a platform column, naming the vagon ABOVE and the one BELOW), \"paso\" (the crossing between adjacent vagones), \"puente\" (a pedestrian bridge). A vagones column names its vagones by NUMBER and the services come from `layouts` — the services are stated once, in one place, so the two drawings cannot drift apart."
+    "detalle_shape": "A drawing is a sequence of COLUMNS, left to right as the sheet draws them, not two independent rows: only columns can express a vestibule that spans both platforms while the cano between them does not. Column kinds: \"vestibulo\" (a full-height access block, carrying salidas and icons per fila), \"vagones\" (a platform column, naming the vagon ABOVE and the one BELOW), \"paso\" (the crossing between adjacent vagones), \"puente\" (a pedestrian bridge). A vagones column names its vagones by NUMBER and the services come from `layouts` — the services are stated once, in one place, so the two drawings cannot drift apart.",
+    "calle_53_umb": "2026-10-24. Calle 53 - Universidad Manuela Beltrán (TM90012) opened on the Caracas and the temporary Marly (TM0006) closed for the Metro works; Marly's count, layout and drawing are removed with it. No plano is published for the new station. Its count of 3 comes from the operator's opening flier (TRANSMILENIO and Metro de Bogotá), which lists three vagones north to south — Vagón 3 (acceso norte, Calle 53): C15 D20 D24 8 J24 K23; Vagón 2: 8 B18 B27 F60 Z61 L18; Vagón 1 (acceso sur, Calle 49): A60 A61 B23 H15 H20 H27 — and the first catalog after the opening files exactly those eighteen as wagons A (Vagón 1), B (Vagón 2) and C (Vagón 3), member for member. So the lettered bar is right as it stands and no layout is filed: the flier prints each vagón's services as a grid, not along the platform's two edges, so which edge a service boards from is not known. Replace with the plano when one is published."
   },
   "counts": {
     "TM0001": 3,
@@ -46,7 +47,6 @@
     "TM0003": 2,
     "TM0004": 0,
     "TM0005": 2,
-    "TM0006": 2,
     "TM0007": 2,
     "TM0008": 3,
     "TM0009": 2,
@@ -196,7 +196,8 @@
     "TM90008": 2,
     "TM90009": 2,
     "TM90010": 2,
-    "TM90011": 2
+    "TM90011": 2,
+    "TM90012": 3
   },
   "wagons": {
     "TM0046": {
@@ -1840,7 +1841,7 @@
     },
     "TM0085": {
       "source": "Plano de ubicacion, Estacion Biblioteca Tintal, version agosto de 2026.",
-      "why": "ONE platform, two vagones, services on both edges — and numbered the other way round from most of the network: Vagon 1 is the WESTERN half and Vagon 2 the eastern, so the numbers rise left to right rather than falling. The catalog's two letters map cleanly onto that (A is Vagon 1, B is Vagon 2) and every service it lists is drawn. Route 5 boards both edges of Vagon 1. TEMPORARY, from 2026-10-15: the sheet also prints F26 and F51 above Vagon 2 and M51 below it, but while works on the station's vagones last those three call at Patio Bonito instead (their official recorridos list TM0086 where they listed TM0085, checked again 2026-10-16), so they are off the drawing. Put them back as printed once the vagones are fully operative and the recorridos list Biblioteca Tintal again (maintainer, 2026-10-16).",
+      "why": "ONE platform, two vagones, services on both edges — and numbered the other way round from most of the network: Vagon 1 is the WESTERN half and Vagon 2 the eastern, so the numbers rise left to right rather than falling. The catalog's two letters map cleanly onto that (A is Vagon 1, B is Vagon 2) and every service it lists is drawn. Route 5 boards both edges of Vagon 1. TEMPORARY, from 2026-10-15: the sheet also prints F26 and F51 above Vagon 2 and M51 below it, but while works on the station's vagones last those three call at Patio Bonito instead (their official recorridos list TM0086 where they listed TM0085, checked again 2026-10-16), so they are off the drawing. B26, printed below Vagon 1, followed on 2026-10-24: its Alcalá recorrido now lists TM0086 where it listed TM0085, so it is off the drawing too. Put all four back as printed once the vagones are fully operative and the recorridos list Biblioteca Tintal again (maintainer, 2026-10-16).",
       "rows": [
         {
           "offset": 0,
@@ -1854,7 +1855,6 @@
               ],
               "abajo": [
                 "5",
-                "B26",
                 "B28"
               ]
             },
@@ -3789,43 +3789,6 @@
               ],
               "abajo": [
                 "H72"
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    "TM0006": {
-      "source": "Plano de ubicacion, Estacion Temporal Marly, version septiembre de 2025.",
-      "why": "ONE platform, two vagones, and the two catalog letters cover them exactly: A is Vagon 1 (8, A60, B23, B75, H15, H75), B is Vagon 2 (8, C15, D24, F60, J24, K23). So the numbering is right. The sheet also prints route 6 on both edges of Vagon 2, and it is not drawn: the catalog runs neither of its variants past Calle 72, so 6 no longer reaches Marly and this September 2025 sheet is out of date on that one chip.",
-      "rows": [
-        {
-          "offset": 0,
-          "vagones": [
-            {
-              "vagon": "2",
-              "arriba": [
-                "8",
-                "C15",
-                "D24"
-              ],
-              "abajo": [
-                "F60",
-                "J24",
-                "K23"
-              ]
-            },
-            {
-              "vagon": "1",
-              "arriba": [
-                "A60",
-                "B23",
-                "B75"
-              ],
-              "abajo": [
-                "8",
-                "H15",
-                "H75"
               ]
             }
           ]
@@ -10474,54 +10437,6 @@
         }
       ]
     },
-    "TM0006": {
-      "source": "Plano de ubicacion, Estacion Temporal Marly, version septiembre de 2025.",
-      "why": "An access block at each end, both with the exit at the top and the taquilla at the foot — Calle 50 north, Calle 48 south. They differ in one thing: the northern block has its torniquetes on the channel against the deck and the southern one has no channel and no torniquetes at all, its block drawn flush against the Vagon 1 deck. Two vagones between them with a crossing, and no bridge.",
-      "columnas": [
-        {
-          "t": "vestibulo",
-          "salidas": [
-            {
-              "calle": "Calle 50",
-              "hacia": "izq",
-              "fila": "arriba"
-            }
-          ],
-          "centro": [
-            "torniquete"
-          ],
-          "abajo": [
-            "taquilla"
-          ]
-        },
-        {
-          "t": "vagones",
-          "arriba": "2"
-        },
-        {
-          "t": "paso"
-        },
-        {
-          "t": "vagones",
-          "arriba": "1"
-        },
-        {
-          "t": "vestibulo",
-          "lado": "der",
-          "paso": false,
-          "salidas": [
-            {
-              "calle": "Calle 48",
-              "hacia": "der",
-              "fila": "arriba"
-            }
-          ],
-          "abajo": [
-            "taquilla"
-          ]
-        }
-      ]
-    },
     "TM90008": {
       "source": "Plano de ubicacion, Estacion Danubio, version marzo de 2025.",
       "why": "An access block at each end, mirrored: the northern one has its taquilla at the top and the Cra 5D-01 exit at the foot, the southern one the Cra 5A - 84 exit at the top and its taquilla at the foot. Both keep their torniquetes on the channel against the deck. Two vagones between them with a crossing, and no bridge.",
@@ -14660,6 +14575,7 @@
     }
   },
   "sinDetalle": {
-    "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone."
+    "TM0002": "The only sheet published for Calle 72 is a CLOSURE notice — \"Cierre de estacion Calle 72 debido a las obras de construccion del Metro de Bogota\" — with all three vagones plated NO OPERATIVO in red and both exits struck through. The catalog says otherwise: fifteen routes call here and route 6 terminates here, so the station is open and the notice is out of date. Its chips are stale too — B13, C19, C17, F19 and F61 are drawn on it and the catalog runs none of them here. Nothing on that sheet can be trusted, so the station is left undrawn and its services come from the catalog alone.",
+    "TM90012": "No plano de ubicación is published for Calle 53 - Universidad Manuela Beltrán (opened 2026-10-24). The opening flier draws only the vagones and their services, not the accesses, torniquetes or taquillas, so there is nothing to draw the station from."
   }
 }

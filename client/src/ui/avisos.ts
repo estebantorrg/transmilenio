@@ -9,7 +9,7 @@
  * as open sends a rider to a door that is shut, so the plan has to change with
  * the banner and not only sit under it.
  *
- * "In force" is Bogotá time and changes by the hour — Marly's vagón 2 closes
+ * "In force" is Bogotá time and changes by the hour — Marly's vagón 2 closed
  * every weeknight at 22:00 — so a surface that stays open re-reads it every
  * minute ({@link watchAvisos}) rather than trusting the moment it was drawn.
  * Every mark is undone before the next pass, so a notice that ends mid-visit

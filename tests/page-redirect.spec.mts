@@ -15,7 +15,8 @@ const pages = {
   routes: new Set(['g47', 'h439', 'f439', 'b23']),
   stationByCode: new Map([
     ['tm0025', 'calle-146-tm0025'],
-    ['tm0006', 'calle-53-umb-tm0006'],
+    ['tm0002', 'calle-72-areandina-tm0002'],
+    ['tm90012', 'calle-53-universidad-manuela-beltran-tm90012'],
     ['tm0069nqs', 'ricaurte-nqs-tm0069nqs'],
   ]),
 };
@@ -27,9 +28,16 @@ test.describe('a page that moved', () => {
   });
 
   test('a renamed or misspelt estación goes to its current name, by código', () => {
-    expect(movedPagePath('/estacion/marly-tm0006/', pages)).toBe('/estacion/calle-53-umb-tm0006/');
+    expect(movedPagePath('/estacion/calle-72-tm0002/', pages)).toBe('/estacion/calle-72-areandina-tm0002/');
     expect(movedPagePath('/estacion/calle-100-tm0025/', pages)).toBe('/estacion/calle-146-tm0025/');
     expect(movedPagePath('/estacion/RICAURTE-TM0069NQS', pages)).toBe('/estacion/ricaurte-nqs-tm0069nqs/');
+  });
+
+  test('a closed estación goes to the one that replaced it', () => {
+    expect(movedPagePath('/estacion/marly-tm0006/', pages)).toBe('/estacion/calle-53-universidad-manuela-beltran-tm90012/');
+    // While the closed station still has a page of its own, that page wins.
+    const both = { ...pages, stationByCode: new Map([...pages.stationByCode, ['tm0006', 'marly-tm0006']]) };
+    expect(movedPagePath('/estacion/marly-tm0006/', both)).toBeNull();
   });
 
   test('a retired código goes to its replacement only when there is just one', () => {

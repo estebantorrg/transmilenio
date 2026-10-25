@@ -4,8 +4,9 @@
  *
  * The windows are the risky part. They are Bogotá time read from wherever the
  * browser happens to be, and Marly's weeknight closure crosses midnight — so
- * the edges are pinned here minute by minute: on the notice the file still
- * carries, and on a fixture for the weekend one it has outlived.
+ * the edges are pinned here minute by minute, on Marly's two notices kept as
+ * fixtures. Both left the file when the temporary station closed on 2026-10-24
+ * (Calle 53 – UMB replaced it), and the drawn plan they mark is Calle 57's now.
  */
 
 import { readFileSync } from 'node:fs';
@@ -19,8 +20,16 @@ const root = (p: string) => resolve(HERE, '..', p);
 const { avisos } = JSON.parse(readFileSync(root('server/src/data/avisos.json'), 'utf8'));
 const planos = JSON.parse(readFileSync(root('server/src/data/plano_vagones.json'), 'utf8'));
 
-const byId = (id: string) => avisos.find((a: { id: string }) => a.id === id);
-const NOCTURNO = byId('marly-cierre-nocturno');
+/** Marly's weeknight closure, in force from 21 September 2026 until the station closed. */
+const NOCTURNO = {
+  id: 'marly-cierre-nocturno',
+  desde: '2026-09-21T04:00:00-05:00',
+  franja: { dias: [1, 2, 3, 4, 5], desde: '22:00', hasta: '04:00' },
+  cierra: { vagones: ['2'] },
+  trasladan: { 2: '1' },
+  titulo: 'Cierre nocturno del vagón 2',
+  detalle: 'De lunes a viernes, de 10:00 p. m. a 4:00 a. m., los servicios del vagón 2 paran en el vagón 1.',
+};
 /**
  * The weekend closure Marly ran from 18 to 21 September 2026, kept here as a
  * fixture rather than read from the file.
@@ -43,6 +52,14 @@ const FIN_DE_SEMANA = {
   titulo: 'Cierre del vagón 2 y del acceso norte (Calle 50)',
   detalle: 'Por las obras del Metro de Bogotá, hasta el lunes 21 de septiembre a las 4:00 a. m.',
 };
+const MARLY = [NOCTURNO, FIN_DE_SEMANA];
+/**
+ * The weekend notice as Calle 57 (TM0005), next door, would carry it — what is
+ * under test on screen is the marking, and Marly has no page to mark any more.
+ * Same shape: vagones 2 and 1, D24/J24 on vagón 2 and B23/K23 on vagón 1, its
+ * north access on Calle 59, F19 boarding vagón 2.
+ */
+const EN_CALLE_57 = { ...FIN_DE_SEMANA, cierra: { vagones: ['2'], accesos: ['Calle 59'] } };
 /** A Bogotá wall-clock time as an instant. */
 const bog = (local: string) => new Date(`${local}:00-05:00`);
 
@@ -88,19 +105,19 @@ test.describe('when a notice is in force', () => {
   });
 
   test('merges what the notices in force close, skip and move', () => {
-    const weekend = estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-19T10:00'));
+    const weekend = estadoAvisos(MARLY, bog('2026-09-19T10:00'));
     expect(weekend.vigentes.map((a) => a.id)).toEqual([FIN_DE_SEMANA.id]);
     expect(weekend.vagones).toEqual(['2']);
     expect(weekend.accesos).toEqual(['Calle 50']);
     expect(weekend.omiten.sort()).toEqual(['B23', 'D24', 'J24', 'K23']);
     expect(weekend.traslados).toEqual({ 2: '1' });
 
-    const night = estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-22T23:00'));
+    const night = estadoAvisos(MARLY, bog('2026-09-22T23:00'));
     expect(night.vigentes.map((a) => a.id)).toEqual([NOCTURNO.id]);
     expect(night.accesos).toEqual([]);
     expect(night.omiten).toEqual([]);
 
-    expect(estadoAvisos([...avisos, FIN_DE_SEMANA], bog('2026-09-22T12:00')).vigentes).toEqual([]);
+    expect(estadoAvisos(MARLY, bog('2026-09-22T12:00')).vigentes).toEqual([]);
   });
 });
 
@@ -138,8 +155,8 @@ test('every notice names things its station actually has', () => {
 
 const BOOT_TIMEOUT_MS = 90_000;
 
-async function openMarly(page: Page): Promise<void> {
-  await page.goto('/estacion/marly-tm0006/');
+async function openCalle57(page: Page): Promise<void> {
+  await page.goto('/estacion/calle-57-tm0005/');
   await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });
   await page.locator('#station-page .popup-plano').waitFor({ state: 'visible', timeout: 20_000 });
 }
@@ -148,16 +165,19 @@ test.describe('the notice on screen', () => {
   test.describe.configure({ timeout: 240_000 });
 
   test('in force: the notice over the plan, and the plan marked to match', async ({ page }) => {
-    await openMarly(page);
+    await openCalle57(page);
     // The station's own page, handed the weekend notice through the same
     // function the app calls every minute. The notice is given here rather
     // than left to the catalog because it has ended and the catalog no longer
     // carries it — what is under test is the marking, not the delivery, and
-    // the delivery is covered by the test below.
+    // the delivery is covered by the test below. A station gets its notice slot
+    // only when it has a notice on file, so the slot is given the same way.
     await page.evaluate(async ({ aviso, cuando }) => {
       const mod = await import('/src/ui/avisos.ts');
-      mod.applyAvisos(document.getElementById('station-page')!, [aviso], new Date(cuando));
-    }, { aviso: FIN_DE_SEMANA, cuando: bog('2026-09-19T10:00').toISOString() });
+      const root = document.getElementById('station-page')!;
+      root.querySelector('.popup-plano')!.insertAdjacentHTML('beforebegin', mod.avisosSlotHtml([aviso], 'station-avisos'));
+      mod.applyAvisos(root, [aviso], new Date(cuando));
+    }, { aviso: EN_CALLE_57, cuando: bog('2026-09-19T10:00').toISOString() });
     const pagina = page.locator('#station-page');
 
     const banner = pagina.locator('.station-avisos');
@@ -171,26 +191,22 @@ test.describe('the notice on screen', () => {
     await expect(vagon2.locator('.aviso-nota')).toHaveText('Cerrado · use el Vagón 1');
     await expect(pagina.locator('.pvg[data-vagon="1"]')).not.toHaveClass(/aviso-cerrado/);
 
-    await expect(pagina.locator('.pdt-vestibulo[data-acceso="Calle 50"]')).toHaveClass(/aviso-cerrado/);
-    await expect(pagina.locator('.pdt-vestibulo[data-acceso="Calle 48"]')).not.toHaveClass(/aviso-cerrado/);
+    await expect(pagina.locator('.pdt-vestibulo[data-acceso="Calle 59"]')).toHaveClass(/aviso-cerrado/);
+    await expect(pagina.locator('.pdt-vestibulo[data-acceso="Calle 57"]')).not.toHaveClass(/aviso-cerrado/);
 
     const omitidos = await pagina
       .locator('.popup-plano .aviso-omite')
       .evaluateAll((els) => els.map((e) => e.getAttribute('data-route-code')).sort());
     expect(omitidos).toEqual(['B23', 'D24', 'J24', 'K23']);
     // Moved, not skipped: still boardable, next door.
-    await expect(vagon2.locator('[data-route-code="F60"]')).toHaveClass(/aviso-traslado/);
-    await expect(vagon2.locator('[data-route-code="F60"]')).toHaveAttribute('title', /para en el Vagón 1/);
+    await expect(vagon2.locator('[data-route-code="F19"]')).toHaveClass(/aviso-traslado/);
+    await expect(vagon2.locator('[data-route-code="F19"]')).toHaveAttribute('title', /para en el Vagón 1/);
   });
 
-  // Known failure, not a flake. Since 2026-09-24 TRANSMILENIO's live station
-  // register lists only "Calle 57 - Marly" (09119); the temporary Marly station
-  // (09118, TM0006) is gone from it, though the catalog and the committed
-  // registry still carry it. The map builds its stations from the live
-  // register, so it has no Marly to open a popup on, and "Ver en el mapa" only
-  // pans. Whether Marly closed is not known yet; re-enable once it is settled.
-  test.fixme('in force: the popup the page hands back to marks the same plan', async ({ page }) => {
-    await openMarly(page);
+  // Was fixme while the map, which builds its stations from the live register,
+  // had no Marly to open a popup on. Calle 57 is on the register (09119).
+  test('in force: the popup the page hands back to marks the same plan', async ({ page }) => {
+    await openCalle57(page);
     const pagina = page.locator('#station-page');
     // The popup the page hands back to marks the same plan the same way.
     await pagina.getByText('Ver en el mapa').click();
@@ -198,16 +214,21 @@ test.describe('the notice on screen', () => {
     await popup.waitFor({ state: 'visible', timeout: 20_000 });
     await page.evaluate(async ({ aviso, cuando }) => {
       const mod = await import('/src/ui/avisos.ts');
-      mod.applyAvisos(document.querySelector('.tm-popup')!, [aviso], new Date(cuando));
-    }, { aviso: FIN_DE_SEMANA, cuando: bog('2026-09-19T10:00').toISOString() });
+      const root = document.querySelector('.tm-popup')!;
+      root.querySelector('.popup-plano')!.insertAdjacentHTML('beforebegin', mod.avisosSlotHtml([aviso], 'popup-avisos'));
+      mod.applyAvisos(root, [aviso], new Date(cuando));
+    }, { aviso: EN_CALLE_57, cuando: bog('2026-09-19T10:00').toISOString() });
     await expect(popup.locator('.popup-avisos .aviso-titulo')).toHaveText(FIN_DE_SEMANA.titulo);
     await expect(popup.locator('.pvg[data-vagon="2"]')).toHaveClass(/aviso-cerrado/);
     await expect(popup.locator('.popup-plano .aviso-omite')).toHaveCount(4);
   });
 
-  test('not in force: no notice and an unmarked plan, until the minute it starts', async ({ page }) => {
+  // The delivery path — file → catalog → the page re-reading it every minute —
+  // needs a notice on file, and there is none since Marly closed (2026-10-24).
+  // Re-point this at the next notice filed, at its station and its window.
+  test.fixme('not in force: no notice and an unmarked plan, until the minute it starts', async ({ page }) => {
     await page.clock.setFixedTime(bog('2026-09-21T21:59'));
-    await openMarly(page);
+    await openCalle57(page);
     const pagina = page.locator('#station-page');
 
     await expect(pagina.locator('.station-avisos')).toBeHidden();
