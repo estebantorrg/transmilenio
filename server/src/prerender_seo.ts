@@ -35,6 +35,8 @@ import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
+import { slugify } from '../../shared/slug.js';
+import { hubHtml, withHub } from './seo_hub.js';
 import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
 import { horarioRuta, resumenEstacion, resumenRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
@@ -148,15 +150,6 @@ function tidy(value: unknown): string {
   return String(value ?? '').replace(/\s+/g, ' ').trim();
 }
 
-/** Diacritic-free, lowercase, hyphenated. Mirrors `slugifyRoute` in the client. */
-function slugify(value: string): string {
-  return String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
 
 /**
  * A `<title>` under the ~65 characters Google renders before it truncates.
@@ -1327,9 +1320,11 @@ function sitemapIndex(names: string[], lastmod: (name: string) => string): strin
 // ─── Main ─────────────────────────────────────────────────
 async function main(): Promise<void> {
   const shellPath = path.join(CLIENT_DIST, 'index.html');
-  const shell = await readFile(shellPath, 'utf-8').catch(() => {
+  const builtShell = await readFile(shellPath, 'utf-8').catch(() => {
     throw new Error(`Built shell not found at ${shellPath} — run the client build first.`);
   });
+  // Every page is built from the shell without the home page's link list.
+  const shell = withHub(builtShell);
 
   // The legal pages come first: they need no catalog, and a build whose catalog
   // step fails must not also ship a site with no privacy policy on it.
@@ -1344,7 +1339,6 @@ async function main(): Promise<void> {
   const anota = (page: { url: string; title: string; description: string; jsonLd: object[]; body: string }): void => {
     hashes.set(page.url, contentHash(page.title, page.description, page.jsonLd, page.body));
   };
-  hashes.set('/', shellHash(shell));
   for (const doc of LEGAL_DOCS) {
     const page = renderLegal(doc);
     anota(page);
@@ -1534,6 +1528,22 @@ async function main(): Promise<void> {
   // so these still answer at the site root.
   // A page keeps the day its content last changed (`LEDGER_FILE`); a new or
   // changed one is dated today.
+  // The home page links every indexable page (`seo_hub.ts`) — the same set the
+  // sitemaps and llms.txt list.
+  const home = withHub(
+    shell,
+    hubHtml(
+      llmsRoutes
+        .map((r) => ({ url: r.url, label: r.destino ? `${r.codigo} · ${r.destino}` : r.codigo }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es', { numeric: true })),
+      llmsStations
+        .map((s) => ({ url: s.url, label: s.nombre }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es'))
+    )
+  );
+  await writeFile(shellPath, home);
+  hashes.set('/', shellHash(home));
+
   const today = new Date().toISOString().slice(0, 10);
   const previo = await liveLedger(ORIGIN);
   const ledger = dateLedger(hashes, previo, today);

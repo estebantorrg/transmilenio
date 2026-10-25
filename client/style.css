@@ -3791,6 +3791,55 @@ body.sidebar-collapsed .sidebar-fab {
   text-decoration: underline;
 }
 
+/* Every ruta and estación page, on the home page only (server/src/seo_hub.ts):
+   one quiet line, and a scrolling list when opened. */
+.seo-hub summary {
+  text-align: center;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.seo-hub summary:hover { color: var(--text-secondary); }
+
+.seo-hub nav {
+  /* Low enough that the route list above keeps some rows when it is open. */
+  max-height: 24vh;
+  overflow-y: auto;
+  margin-top: 8px;
+  font-size: var(--font-size-sm);
+}
+
+.seo-hub h2 {
+  margin: 10px 0 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+}
+
+.seo-hub ul {
+  columns: 2;
+  column-gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.seo-hub li { break-inside: avoid; padding: 2px 0; }
+
+.seo-hub a {
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.seo-hub a:hover,
+.seo-hub a:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 .footer-action {
   display: flex;
   align-items: center;
