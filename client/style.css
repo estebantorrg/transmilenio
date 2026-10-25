@@ -2004,6 +2004,13 @@ body.sidebar-collapsed .sidebar-fab {
   color: var(--text-tertiary);
 }
 
+/* A zonal paradero's first and last weekday bus (shared/horario_programado.js). */
+.timeline-stop-paso {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
 .stops-empty {
   font-size: var(--font-size-sm);
   color: var(--text-tertiary);
@@ -6000,6 +6007,46 @@ body.native-app .route-detail-close:active {
 .route-cabecera-title strong {
   color: var(--text-primary);
   font-weight: 700;
+}
+
+/* How often a zonal direction comes, a column per day type
+   (shared/horario_programado.js — the prerendered page draws the same table). */
+.programado {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.programado th,
+.programado td {
+  padding: 6px 8px 6px 0;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.programado thead th {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.programado tbody th {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.programado td {
+  color: var(--text-primary);
+}
+
+.programado-nota {
+  margin: 6px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
 }
 
 /* ── Ficha técnica ────────────────────────────────────────────────────────

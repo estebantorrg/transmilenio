@@ -7,6 +7,7 @@ import type { MasterCatalogResponse } from '../types/catalog';
 import type { PlannerCalibrationData } from '../../../shared/calibration.js';
 import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import type { HorariosCabeceraData } from './cabecera';
+import type { SentidoHorario } from '../../../shared/horario_programado.js';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../../../shared/live_payload.js';
@@ -485,6 +486,8 @@ export const api = {
 
   /** First/last scheduled bus from each route's own cabecera (`services/cabecera.ts`). */
   getHorariosCabecera: () => fetchJson<HorariosCabeceraResponse>('/horarios-cabecera', 15_000, undefined, 1),
+  getHorarioProgramado: (codigo: string) =>
+    fetchJson<HorarioProgramadoResponse>(`/horario-programado/${encodeURIComponent(codigo)}`, 15_000, undefined, 1),
 
   /** The official app's own arrivals board at a paradero (spec §5.8), asked from
    *  the phone — app-only, hence no server branch: the website shows
@@ -653,6 +656,14 @@ export interface CardBalanceResponse {
 /** `/api/horarios-cabecera`. */
 export interface HorariosCabeceraResponse extends HorariosCabeceraData {
   success: boolean;
+}
+
+/** `/api/horario-programado/:codigo` — mirrors `server/src/services/horario_programado.ts`. */
+export interface HorarioProgramadoResponse {
+  success: boolean;
+  feed: string | null;
+  credit: string;
+  sentidos: SentidoHorario[];
 }
 
 /** `/api/ruteros-tradicionales`. */

@@ -23,6 +23,7 @@ import {
   normalizeLiveText,
 } from '../services/live_payload.js';
 import { isTrustedLiveAnswer, keepKnownLiveNames } from '../services/live_request.js';
+import { horarioProgramado } from '../services/horario_programado.js';
 
 const router = Router();
 const gzipAsync = promisify(zlib.gzip);
@@ -372,6 +373,18 @@ router.get('/ruteros-tradicionales', dataFileEndpoint<object>(
 router.get('/horarios-cabecera', dataFileEndpoint<object>(
   'horarios_cabecera.json', 'horarios por cabecera', (horarios) => horarios
 ));
+// A zonal código's scheduled service from TRANSMILENIO's GTFS — how often, first
+// and last bus, and the pass at each paradero, per direction (spec §5.5.10).
+// Per código: the whole file is ~2 MB, a route page needs a few KB of it.
+router.get('/horario-programado/:codigo', (req: Request, res: Response) => {
+  const horario = horarioProgramado(String(req.params.codigo ?? ''));
+  if (!horario) {
+    res.status(404).json({ success: false, error: 'No scheduled service for this código' });
+    return;
+  }
+  res.setHeader('Cache-Control', 'public, max-age=86400');
+  res.json({ success: true, ...horario });
+});
 
 // ─── Cable Endpoints ──────────────────────────────────────
 

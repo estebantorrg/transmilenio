@@ -230,6 +230,8 @@ export function renderStopsTimeline(
     /** What the route page says about each stop beyond its name: the vagón it
      *  boards and the lines it meets there (`routeStopFacts`, spec §5.5.5). */
     facts?: (stop: { codigo: string }) => RouteStopFacts | null;
+    /** The stop's first and last scheduled bus, as text (`shared/horario_programado.js`). */
+    paso?: (stop: { codigo: string }) => string | null;
   } = {}
 ): string {
   const stops = route.stops;
@@ -252,6 +254,7 @@ export function renderStopsTimeline(
     // stands; a paradero's code IS on its sign, so it stays.
     const sub = stop.direccion || (stop.codigo && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : '');
     const vagon = facts?.vagon ? vagonTexto(facts.vagon) : '';
+    const paso = options.paso?.(stop) ?? null;
     const lineas = facts && (facts.lineas.length || facts.alimentadores)
       ? `<div class="timeline-stop-lines" aria-label="${escapeHTML(['Conexiones', ...facts.lineas, ...(facts.alimentadores ? ['alimentadores'] : [])].join(' '))}">` +
         facts.lineas.map((l) => `<span class="timeline-line-tile" style="background:${TRONCAL_COLORS[l]}">${escapeHTML(l)}</span>`).join('') +
@@ -272,6 +275,7 @@ export function renderStopsTimeline(
           </div>
           ${label ? `<div class="timeline-stop-label">${label}</div>` : ''}
           ${sub ? `<div class="timeline-stop-code">${escapeHTML(sub)}</div>` : ''}
+          ${paso ? `<div class="timeline-stop-paso">${escapeHTML(paso)}</div>` : ''}
           ${lineas}
         </div>
       </div>

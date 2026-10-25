@@ -46,6 +46,9 @@ import { isTroncalStationCode } from './services/station_registry.js';
 import { LEDGER_FILE, contentHash, dateLedger, liveLedger, shellHash } from './seo_lastmod.js';
 import { renderLlmsTxt, type LlmsInput, type LlmsRoute, type LlmsStation } from './llms_txt.js';
 import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../shared/legal.js';
+import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../shared/horario_programado.js';
+import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
+import { ZONAL_PAGES } from './seo_zonal.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -621,6 +624,25 @@ background:#202329;border:1px solid #4D5059;border-radius:12px;padding:8px 13px;
 ${TABLA_RUTERO_CSS}
 </style>`;
 
+/**
+ * The scheduled-service table and the per-paradero pass, carried only by the
+ * pages that show them (zonal routes, spec §5.5.10). Not in PRERENDER_STYLE: a
+ * page's lastmod is the hash of its body (`seo_lastmod.ts`), and a rule added
+ * there re-dates all ~370 other pages that did not change.
+ */
+const PROGRAMADO_STYLE = `<style>
+#seo-prerender ol.stops .paso{margin-left:6px;font-size:.78rem;color:rgba(255,255,255,.6);
+font-variant-numeric:tabular-nums;white-space:nowrap}
+#seo-prerender table.programado{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:.85rem;
+font-variant-numeric:tabular-nums}
+#seo-prerender .programado th,#seo-prerender .programado td{padding:6px 8px 6px 0;text-align:left;vertical-align:top;
+border-bottom:1px solid rgba(255,255,255,.08)}
+#seo-prerender .programado thead th{font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+color:rgba(255,255,255,.6)}
+#seo-prerender .programado tbody th{font-weight:600;color:rgba(255,255,255,.6)}
+#seo-prerender .programado-nota{color:rgba(255,255,255,.38);font-size:.8rem;margin:6px 0 0}
+</style>`;
+
 function breadcrumb(trail: Array<{ name: string; url: string }>): object {
   return {
     '@context': 'https://schema.org',
@@ -720,7 +742,9 @@ function renderRoute(
   codigo: string,
   variants: LightRoute[],
   stationByCode: Map<string, LightStation>,
-  impreso: RuteroTradicional | undefined
+  impreso: RuteroTradicional | undefined,
+  // A zonal código's scheduled service from the GTFS (spec §5.5.10), or null.
+  programado: HorarioProgramado | null = null
 ) {
   const primary = variants[0];
   const url = routeUrl(codigo);
@@ -729,12 +753,19 @@ function renderRoute(
   const destination = tidy(primary.destination);
   const stopCount = Math.max(...variants.map((v) => v.stops?.length ?? 0));
   const horarios = horariosText(primary);
+  // Every direction's rush hour: the page is about the código, both ways.
+  const pico = cadaPico(programado?.sentidos);
 
   const title = pageTitle(`Ruta ${codigo} ${name}`, ' — paradas, recorrido y horarios', ' — paradas y horarios');
+  // A zonal page leads with how often the bus comes — the one thing on it no
+  // other result shows — before the stop count the clamp would cut it behind.
   const description = clamp(
-    `Recorrido completo de la ruta ${codigo} (${name}) de TransMilenio en Bogotá: ` +
-      `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}.` +
-      (horarios ? ` Horarios ${horarios}.` : '')
+    pico
+      ? `Ruta ${codigo} (${name}) del SITP en Bogotá: pasa ${pico} en hora pico. ` +
+          `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}, con el primer y último bus de cada una.`
+      : `Recorrido completo de la ruta ${codigo} (${name}) de TransMilenio en Bogotá: ` +
+          `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}.` +
+          (horarios ? ` Horarios ${horarios}.` : '')
   );
 
   const trail = [
@@ -749,6 +780,10 @@ function renderRoute(
     .map((variant) => {
       const stops = variant.stops ?? [];
       const schedule = horariosText(variant);
+      // The GTFS direction this variant runs: how often, and when each paradero sees its first and last bus.
+      const sentido = sentidoDe(programado?.sentidos, variant.nombre);
+      const nombreDe = (code: string) => tidy(stops.find((s) => s.codigo === code)?.nombre ?? '');
+      const tabla = sentido ? programadoHtml(sentido, nombreDe) : '';
       const items = stops
         .map((stop) => {
           const station = stationByCode.get(String(stop.codigo).toUpperCase());
@@ -760,13 +795,17 @@ function renderRoute(
           const target = (abordaje?.platform && stationByCode.get(abordaje.platform.codigo)) || station;
           const linked = target ? `<a href="${stationUrl(target)}">${label}</a>` : label;
           const vagon = abordaje?.vagon ? ` <span class="vag">${escapeHtml(vagonTexto(abordaje.vagon))}</span>` : '';
-          return `<li>${linked}${vagon}${distance ? ` <span class="meta">${distance}</span>` : ''}</li>`;
+          const paso = sentido ? pasoTexto(sentido, stop.codigo) : null;
+          return `<li>${linked}${vagon}${distance ? ` <span class="meta">${distance}</span>` : ''}${paso ? ` <span class="paso">${escapeHtml(paso)}</span>` : ''}</li>`;
         })
         .join('\n');
 
       return `<section class="sec">
 <h2>Hacia ${escapeHtml(tidy(variant.destination) || '?')}${stops.length ? ` <span class="count">${stops.length}</span>` : ''}</h2>
-<p class="sub">Desde ${escapeHtml(tidy(variant.origin) || '?')}${schedule ? ` · ${escapeHtml(schedule)}` : ''}</p>
+<p class="sub">Desde ${escapeHtml(tidy(variant.origin) || '?')}${schedule ? ` · ${escapeHtml(schedule)}` : ''}</p>${
+        // Inline, not on a line of its own: an empty line would re-date every other route page.
+        tabla ? `\n${tabla}\n<p class="meta">${escapeHtml(PASO_NOTA)}</p>` : ''
+      }
 <ol class="stops">
 ${items}
 </ol>
@@ -832,12 +871,15 @@ ${items}
   // The schedule in the form the bundle reads it (`formatScheduleText`,
   // client/src/data/routeCatalog.ts), so both pages word the hours alike.
   const horario = (primary.horarios?.data ?? []).map((r) => `${r.convencion} ${r.hora_inicio}-${r.hora_fin}`).join(' / ');
-  const resumen = [
-    resumenRuta(codigo, (primary.stops ?? []).map((stop) => tidy(stop.nombre))),
-    horarioRuta(codigo, horario),
-  ].map(resumenHtml).join('\n');
+  // The frequency question only where there is an answer: an empty entry still
+  // adds a line break, and that alone re-dates every other route page (`seo_lastmod.ts`).
+  const frecuencia = resumenFrecuencia(codigo, programado?.sentidos);
+  const resumen =
+    [resumenRuta(codigo, (primary.stops ?? []).map((stop) => tidy(stop.nombre))), horarioRuta(codigo, horario)]
+      .map(resumenHtml)
+      .join('\n') + (frecuencia ? `\n${resumenHtml(frecuencia)}` : '');
 
-  const body = `${PRERENDER_STYLE}
+  const body = `${PRERENDER_STYLE}${programado ? PROGRAMADO_STYLE : ''}
 <main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
 ${breadcrumbHtml(trail)}
 <header class="hero">
@@ -852,7 +894,7 @@ ${ruteros ? `<p class="meta">El letrero LED sobre el parabrisas del bus, un sent
 ${tablas}
 ${facts}
 ${resumen}
-${directions}
+${directions}${programado ? `\n<p class="meta">${escapeHtml(programado.credit)} Es el horario planeado: la operación del día puede variar.</p>` : ''}
 </div></main>`;
 
   const jsonLd: object[] = [
@@ -1381,8 +1423,9 @@ async function main(): Promise<void> {
     if (derived) stations.push(derived);
   }
 
-  const routeCodes = Object.entries(catalog.routes).filter(([, variants]) =>
-    variants.some((v) => v.sistema === 'TransMilenio')
+  // Every TransMilenio código, and the zonal ones released so far (`seo_zonal.ts`).
+  const routeCodes = Object.entries(catalog.routes).filter(
+    ([codigo, variants]) => variants.some((v) => v.sistema === 'TransMilenio') || ZONAL_PAGES.has(codigo)
   );
 
   // Cross-link indexes: a route page links its stops, a station page links its
@@ -1421,12 +1464,14 @@ async function main(): Promise<void> {
   ) as RuterosTradicionales;
 
   const routeUrls: string[] = [];
+  const zonalUrls: string[] = [];
   for (const [codigo, variants] of routeCodes) {
-    const page = renderRoute(codigo, variants, stationByCode, impresos.rutas[codigo]);
+    const zonal = ZONAL_PAGES.has(codigo);
+    const page = renderRoute(codigo, variants, stationByCode, impresos.rutas[codigo], zonal ? horarioProgramado(codigo) : null);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
-    routeUrls.push(page.url);
+    (zonal ? zonalUrls : routeUrls).push(page.url);
     anota(page);
 
     const primary = variants[0];
@@ -1552,6 +1597,8 @@ async function main(): Promise<void> {
     'sitemap-paginas.xml': ['/', ...legalUrls],
     'sitemap-rutas.xml': routeUrls,
     'sitemap-estaciones.xml': stationUrls,
+    // Its own set, so Search Console says how much of the zonal batch is indexed (spec §5.5.10).
+    'sitemap-zonales.xml': zonalUrls,
   };
   for (const [name, urls] of Object.entries(sets)) {
     await writeFile(path.join(CLIENT_DIST, name), sitemapUrlset(urls, lastmod));
@@ -1572,11 +1619,12 @@ async function main(): Promise<void> {
   );
   const cambiadas = Object.values(ledger).filter(([, date]) => date === today).length;
 
-  console.log(`[seo] /ruta/*      — ${routeUrls.length} pages`);
+  const urlCount = Object.values(sets).reduce((n, urls) => n + urls.length, 0);
+  console.log(`[seo] /ruta/*      — ${routeUrls.length} pages, plus ${zonalUrls.length} zonal`);
   console.log(`[seo] /estacion/*  — ${stationUrls.length} pages, plus ${stations.length - stationUrls.length} chooser (noindex)`);
   console.log(`[seo] legal       — ${legalPages.join(', ')}`);
-  console.log(`[seo] /og/*.png    — ${routeUrls.length + stationUrls.length} social cards`);
-  console.log(`[seo] sitemap.xml  — index + 3 urlsets (${routeUrls.length + stationUrls.length + legalUrls.length + 1} URLs)`);
+  console.log(`[seo] /og/*.png    — ${routeUrls.length + zonalUrls.length + stationUrls.length} social cards`);
+  console.log(`[seo] sitemap.xml  — index + ${Object.keys(sets).length} urlsets (${urlCount} URLs)`);
   console.log(`[seo] lastmod      — ${cambiadas} of ${Object.keys(ledger).length} pages dated ${today}${previo ? '' : ' (no ledger: all)'}`);
 }
 

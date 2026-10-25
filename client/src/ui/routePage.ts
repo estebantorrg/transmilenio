@@ -29,7 +29,8 @@ import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
-import { api } from '../services/api';
+import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
+import { api, type HorarioProgramadoResponse } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
 import type { ServiceSpan } from '../services/schedule';
 import {
@@ -189,6 +190,27 @@ function cabeceraBlock(route: RouteListItem, bajoElGeneral: boolean): { html: st
   return { html, spans };
 }
 
+/** A zonal código's scheduled service (GTFS, spec §5.5.10), by código; `null` = the feed has none. */
+const programados = new Map<string, HorarioProgramadoResponse | null>();
+
+/**
+ * Fetched per código, a few KB, the first time its page opens. A 404 is the
+ * answer ("no schedule") and is kept; a failed request is not, so the next
+ * visit asks again.
+ */
+function loadProgramado(codigo: string): Promise<HorarioProgramadoResponse | null> {
+  const key = codigo.toUpperCase();
+  if (programados.has(key)) return Promise.resolve(programados.get(key) ?? null);
+  return api
+    .getHorarioProgramado(codigo)
+    .then((res): HorarioProgramadoResponse | null => (res.success ? res : null))
+    .catch((error: { status?: number }) => (error?.status === 404 ? null : undefined))
+    .then((loaded) => {
+      if (loaded !== undefined) programados.set(key, loaded);
+      return loaded ?? null;
+    });
+}
+
 let ruterosPromise: Promise<RuterosTradicionales | null> | null = null;
 let ruteros: RuterosTradicionales | null = null;
 
@@ -266,10 +288,15 @@ function render(route: RouteListItem): string {
   const statusRoute = cabeceraSpans ? { ...route, serviceSpans: cabeceraSpans } : route;
   const rutero = hasRutero(route) ? ruteroBlock(route) : '';
   const stopCount = route.stops?.length ?? 0;
+  // The direction on screen in TRANSMILENIO's GTFS: how often, and each paradero's first and last bus.
+  const programado = programados.get(route.code.toUpperCase()) ?? null;
+  const sentido = sentidoDe(programado?.sentidos, route.name);
+  const nombreDe = (codigo: string) => tidy(route.stops?.find((stop) => stop.codigo === codigo)?.nombre ?? '');
   // The same questions the prerendered page answers (`shared/resumen.js`).
   const resumenes = resumenesHtml([
     resumenRuta(route.code, (route.stops ?? []).map((stop) => tidy(stop.nombre))),
     horarioRuta(route.code, route.schedule),
+    resumenFrecuencia(route.code, programado?.sentidos),
   ]);
 
   const facts = factsHtml([
@@ -328,9 +355,21 @@ function render(route: RouteListItem): string {
         ${cabecera}
       </section>` : ''}
 
+      ${sentido && programado ? `
+      <section class="page-section" aria-labelledby="frecuencia-h">
+        <h2 class="page-section-title" id="frecuencia-h">Cada cuánto pasa</h2>
+        ${programadoHtml(sentido, nombreDe)}
+        <p class="page-note">${escapeHTML(programado.credit)} Es el horario planeado: la operación del día puede variar.</p>
+      </section>` : ''}
+
       <section class="page-section page-section-stops" aria-labelledby="paradas-h">
         <h2 class="page-section-title" id="paradas-h">Paradas${stopCount ? ` <span class="page-count">${stopCount}</span>` : ''}</h2>
-        ${renderStopsTimeline(route, { linkStations: true, facts: (stop) => routeStopFacts(stop.codigo, route) })}
+        ${sentido ? `<p class="page-note">${escapeHTML(PASO_NOTA)}</p>` : ''}
+        ${renderStopsTimeline(route, {
+          linkStations: true,
+          facts: (stop) => routeStopFacts(stop.codigo, route),
+          paso: sentido ? (stop) => pasoTexto(sentido, stop.codigo) : undefined,
+        })}
       </section>
     </div>
   `;
@@ -397,6 +436,14 @@ function wire(el: HTMLElement, route: RouteListItem): void {
       if (loaded && openRoute === route && isRoutePageOpen() && (cabeceraDe(loaded, route) || esCircular(loaded, route))) {
         refreshOverlayPage(descriptor(route));
       }
+    });
+  }
+
+  // A zonal route's scheduled service lands in two places (its own section and
+  // the paradas list), so its arrival re-renders the page in place.
+  if (route.type === 'zonal' && !programados.has(route.code.toUpperCase())) {
+    void loadProgramado(route.code).then((loaded) => {
+      if (loaded && openRoute === route && isRoutePageOpen()) refreshOverlayPage(descriptor(route));
     });
   }
 
