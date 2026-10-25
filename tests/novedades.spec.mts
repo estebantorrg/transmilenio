@@ -64,7 +64,7 @@ test.describe('reading #TMAhora off the profile page', () => {
   test('a page with no posts in it is a failed read, not a quiet city', async () => {
     const answer = (body: string, status = 200) => async () => new Response(body, { status });
     await pollNovedades(answer('<html>Inicia sesión</html>') as typeof fetch, 1791998000000);
-    expect(getNovedades().status.lastError).toBe('no #TMAhora posts in the page');
+    expect(getNovedades().status.lastError).toBe('no posts in the page');
 
     await pollNovedades(answer('', 429) as typeof fetch, 1791998100000);
     expect(getNovedades().status.lastError).toBe('HTTP 429');
@@ -73,6 +73,18 @@ test.describe('reading #TMAhora off the profile page', () => {
     const { items, status } = getNovedades();
     expect(status).toEqual({ lastAttemptAt: 1791998200000, lastOkAt: 1791998200000, lastError: null });
     expect(items.map((p) => p.id)).toEqual(['2110418282796748857', '2110407543243546651']);
+  });
+
+  test('posts with no #TMAhora among them are a quiet stretch, and a good read', async () => {
+    // 24 October 2026: the five newest were an opening, a campaign and a good-morning.
+    const quiet = pageOf([
+      post({ id: '2110000000000000003', at: 1791998300000, text: '🎉🚉 ¡Ya está en operación la nueva estación Calle 53!' }),
+      post({ id: '2110000000000000004', at: 1791998250000, text: '¡Arrancamos! Bogotá ya se mueve' }),
+    ]);
+    await pollNovedades((async () => new Response(quiet)) as typeof fetch, 1791998400000);
+    const { status } = getNovedades();
+    expect(status.lastOkAt).toBe(1791998400000);
+    expect(status.lastError).toBeNull();
   });
 
   test('a post reads as written, without its photo link or blank lines; its headline is what happened', () => {

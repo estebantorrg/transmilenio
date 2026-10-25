@@ -11,7 +11,7 @@
  * stops matching rather than serving an empty list as if the system were quiet.
  */
 
-import { KEEP_MS, PROFILE_HEADERS, PROFILE_URL, extractPosts, type Novedad } from '../../../shared/novedades.js';
+import { KEEP_MS, PROFILE_HEADERS, PROFILE_URL, readTimeline, type Novedad } from '../../../shared/novedades.js';
 
 export type { Novedad };
 
@@ -38,11 +38,11 @@ export async function pollNovedades(fetchImpl: typeof fetch = fetch, now = Date.
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const posts = extractPosts(await res.text());
-    // The page always carries the latest posts, and the latest are always
-    // #TMAhora on a working day — none at all means the page changed shape (or
-    // a login wall came back), not that the city is quiet.
-    if (posts.length === 0) throw new Error('no #TMAhora posts in the page');
+    const { posts, seen } = readTimeline(await res.text());
+    // The page always carries the account's newest posts, so none at all means
+    // it changed shape (or a login wall came back). Posts with no #TMAhora
+    // among them is a quiet stretch, and a good read.
+    if (seen === 0) throw new Error('no posts in the page');
     for (const post of posts) store.set(post.id, post);
     status.lastOkAt = now;
     status.lastError = null;

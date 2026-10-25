@@ -47,7 +47,11 @@ function unescapeLiteral(raw) {
 }
 
 /**
- * The `#TMAhora` posts embedded in the profile page, newest first.
+ * The `#TMAhora` posts embedded in the profile page, newest first, and how many
+ * posts of any kind it carried (`seen`). None at all means the page changed
+ * shape or a login wall came back; posts with no #TMAhora among them are only a
+ * quiet stretch — the account posts other things too, and on a calm weekend its
+ * five newest can all be those.
  *
  * The page carries the timeline as a GraphQL answer serialised into a string
  * (`result:…={kind:"Result.Ok",value:"{\"data\":…}"}`). Every post in it is an
@@ -56,17 +60,21 @@ function unescapeLiteral(raw) {
  * cut. A retweet is someone else's post and is left out.
  *
  * @param {string} html
- * @returns {Array<{ id: string, at: number, text: string, url: string }>}
+ * @returns {{ posts: Array<{ id: string, at: number, text: string, url: string }>, seen: number }}
  */
-export function extractPosts(html) {
+export function readTimeline(html) {
   const posts = new Map();
+  const seen = new Set();
   const visit = (node) => {
     if (!node || typeof node !== 'object') return;
     const at = node.details?.created_at_ms;
     const id = node.edit_control?.edit_tweet_ids?.[0] ?? node.rest_id;
     const text = node.note_tweet?.note_tweet_results?.result?.text ?? node.details?.full_text;
-    if (Number.isFinite(at) && typeof id === 'string' && typeof text === 'string' && !text.startsWith('RT @') && /#TMAhora\b/i.test(text)) {
-      posts.set(id, { id, at, text: text.trim(), url: `${PROFILE_URL}/status/${id}` });
+    if (Number.isFinite(at) && typeof id === 'string' && typeof text === 'string') {
+      seen.add(id);
+      if (!text.startsWith('RT @') && /#TMAhora\b/i.test(text)) {
+        posts.set(id, { id, at, text: text.trim(), url: `${PROFILE_URL}/status/${id}` });
+      }
     }
     for (const child of Object.values(node)) visit(child);
   };
@@ -77,7 +85,12 @@ export function extractPosts(html) {
       // Not every `value:` string is JSON; the timeline is the one that is.
     }
   }
-  return [...posts.values()].sort((a, b) => b.at - a.at);
+  return { posts: [...posts.values()].sort((a, b) => b.at - a.at), seen: seen.size };
+}
+
+/** Just the `#TMAhora` posts of {@link readTimeline}. */
+export function extractPosts(html) {
+  return readTimeline(html).posts;
 }
 
 /** The post as written, minus the `t.co` links to its own photos (the X link

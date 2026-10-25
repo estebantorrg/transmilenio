@@ -21,6 +21,7 @@ export declare const SEEN_STORAGE_KEY: string;
 
 export declare function bannerPost(items: Novedad[] | undefined, seenAt?: number, now?: number): Novedad | null;
 
+export declare function readTimeline(html: string): { posts: Novedad[]; seen: number };
 export declare function extractPosts(html: string): Novedad[];
 export declare function postText(text: string): string;
 export declare function headline(text: string): string;
