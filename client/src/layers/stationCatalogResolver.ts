@@ -579,8 +579,9 @@ function resolveByExactAppStopId(
   return null;
 }
 
-function baseName(value: string): string {
-  return normalizeStationName(value.split('-')[0].replace(/^ESTACION\s+/i, ''));
+function baseName(value: string | undefined): string {
+  // The catalog ships no `direccion` for a station whose address is its own name.
+  return normalizeStationName((value ?? '').split('-')[0].replace(/^ESTACION\s+/i, ''));
 }
 
 function resolveByNameAndDistance(
