@@ -60,7 +60,7 @@ export type LiveBus = {
   posicion?: number;
   angulo?: number;
   nombre_sistema?: string;
-  /** How full it is, as the feed reports it; null = no reading (`shared/ocupacion.js`). */
+  /** How full it is, as the feed reports it; null = no reading, shown as nothing (`shared/ocupacion.js`). */
   ocupacion: Ocupacion | null;
 };
 
@@ -419,14 +419,15 @@ function tintFromColor(hex: string, alpha: number): string {
 // ─── Popup ───────────────────────────────────────────────
 
 /**
- * The level as the feed reports it, marked by colour as well as named. A bus
- * that sent none says so — a third of the fleet never does, and leaving the row
- * out would let a rider read the silence as "room on board".
+ * The Ocupación row: the level as the feed reports it, named and marked by
+ * colour. Only when there is one — a bus that sent none (a third of the fleet)
+ * gets no row at all, the same as a row on the arrivals board.
  */
-function ocupacionHtml(nivel: Ocupacion | null): string {
-  return nivel
-    ? `<strong class="ocupacion ocupacion-${nivel.toLowerCase()}">${escapeHTML(ocupacionTexto(nivel) ?? '')}</strong>`
-    : '<strong class="ocupacion ocupacion-none">Sin dato</strong>';
+function ocupacionRow(nivel: Ocupacion | null): string {
+  const texto = ocupacionTexto(nivel);
+  return nivel && texto
+    ? `<div class="bus-popup-row bus-popup-ocupacion"><span>Ocupación</span><strong class="ocupacion ocupacion-${nivel.toLowerCase()}">${escapeHTML(texto)}</strong></div>`
+    : '';
 }
 
 /** Exported for its spec (`tests/ocupacion-ui.spec.ts`); the map is the only caller. */
@@ -456,7 +457,7 @@ export function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'):
       </div>
       <div class="bus-popup-rows">
         ${nextRow}
-        <div class="bus-popup-row bus-popup-ocupacion"><span>Ocupación</span>${ocupacionHtml(bus.ocupacion)}</div>
+        ${ocupacionRow(bus.ocupacion)}
         <div class="bus-popup-row"><span>Sistema</span><strong>${escapeHTML(sysLabel)}</strong></div>
         <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(formatLastSignal(bus.lasttime))}</strong></div>
         ${km ? `<div class="bus-popup-row"><span>Recorrido</span><strong>${km}</strong></div>` : ''}

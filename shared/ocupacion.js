@@ -5,8 +5,10 @@
  * Measured 2026-10-24: 0 % of buses filled it that morning, 70 % that evening —
  * every bus with a five-digit number (T, K, U, A, S, M fleets) and none with a
  * four-digit one (E, D, N), which send an empty string. So a missing reading is
- * the norm for a third of the fleet and means "no reading", never "empty": every
- * surface either says "sin dato" or says nothing.
+ * the norm for a third of the fleet and means "no reading", never "empty": where
+ * there is a level it is shown, and where there is none nothing is. The feed
+ * dropping the field, sending it empty, or sending a value not listed here all
+ * read as none — nothing downstream depends on it being there.
  */
 
 const NIVELES = { VACIO: 'Vacío', MEDIO: 'Medio lleno', LLENO: 'Lleno' };

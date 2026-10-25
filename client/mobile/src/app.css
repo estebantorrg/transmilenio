@@ -776,7 +776,6 @@ input { font-family: inherit; }
 .ocupacion-vacio { --ocupacion-color: #3FB950; }
 .ocupacion-medio { --ocupacion-color: #F5B700; }
 .ocupacion-lleno { --ocupacion-color: #F85149; }
-.ocupacion-none { color: var(--muted-2); font-weight: 500; }
 
 /* MapLibre attribution — keep it unobtrusive on dark UI. */
 .maplibregl-ctrl-attrib { background: rgba(9, 13, 22, 0.7) !important; }

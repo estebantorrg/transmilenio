@@ -41,7 +41,7 @@ test('the board names how full the nearest bus is, and says nothing for one that
   await expect(rows.nth(1).locator('.arr-ocupacion')).toHaveCount(0);
 });
 
-test('the bus popup has an Ocupación row, and "Sin dato" when the bus sent none', async ({ page }) => {
+test('the bus popup has an Ocupación row, and none at all when the bus sent no reading', async ({ page }) => {
   await open(page, '/');
   const rows = await page.evaluate(async () => {
     const mod = await import('/src/layers/buses.ts');
@@ -50,7 +50,7 @@ test('the bus popup has an Ocupación row, and "Sin dato" when the bus sent none
       const el = document.createElement('div');
       el.innerHTML = html;
       const r = el.querySelector('.bus-popup-ocupacion strong');
-      return { text: r?.textContent, cls: r?.className };
+      return r ? { text: r.textContent, cls: r.className } : null;
     };
     return {
       lleno: row(mod.buildBusPopupHTML({ ...bus, ocupacion: 'LLENO' }, 'troncal')),
@@ -58,5 +58,6 @@ test('the bus popup has an Ocupación row, and "Sin dato" when the bus sent none
     };
   });
   expect(rows.lleno).toEqual({ text: 'Lleno', cls: 'ocupacion ocupacion-lleno' });
-  expect(rows.none).toEqual({ text: 'Sin dato', cls: 'ocupacion ocupacion-none' });
+  // Shown when it is there, left out when it is not.
+  expect(rows.none).toBeNull();
 });
