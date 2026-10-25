@@ -13,6 +13,7 @@ import { isStationStopCode } from '../data/routeCatalog';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getStopTagColor, normalizeRouteCodeForMatch } from '../utils/routeColors';
 import { closedWindowNotice } from '../services/liveWindow';
+import { ocupacionTexto } from '../../../shared/ocupacion.js';
 
 /**
  * The empty board, outside the hours live tracking runs. "Sin buses en
@@ -85,12 +86,17 @@ export async function renderStopArrivals(code: string, allowedCodes?: Iterable<s
           // service and not to the troncal ruta fácil.
           const color = safeColor(getStopTagColor(a.codigo, a.color, network), '#00608B');
           const dest = a.destino ? `→ ${escapeHTML(a.destino)}` : '';
+          // How full the nearest bus is, when it says: a third of the fleet never does.
+          const nivel = ocupacionTexto(a.ocupacion);
+          const ocupacion = a.ocupacion && nivel
+            ? ` <span class="arr-ocupacion ocupacion ocupacion-${a.ocupacion.toLowerCase()}">${escapeHTML(nivel)}</span>`
+            : '';
           return `
         <div class="arr-row">
           <span class="arr-badge" style="background:${color}">${escapeHTML(a.codigo)}</span>
           <div class="arr-body">
             ${dest ? `<div class="arr-dest">${dest}</div>` : ''}
-            <div class="arr-eta">${escapeHTML(etaText(a.etaMinutes, a.distanceMeters))}</div>
+            <div class="arr-eta">${escapeHTML(etaText(a.etaMinutes, a.distanceMeters))}${ocupacion}</div>
           </div>
         </div>`;
         })

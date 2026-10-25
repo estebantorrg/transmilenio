@@ -1289,6 +1289,29 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 700;
   color: var(--text-primary);
 }
+/* How full a live bus is (shared/ocupacion.js): named, and marked by a dot in the
+   level's colour so it reads at a glance without leaning on colour alone. */
+.ocupacion::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 5px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--ocupacion-color, transparent);
+  box-shadow: inset 0 0 0 1px var(--ocupacion-color, var(--text-tertiary));
+}
+.ocupacion-vacio { --ocupacion-color: #3FB950; }
+.ocupacion-medio { --ocupacion-color: #F5B700; }
+.ocupacion-lleno { --ocupacion-color: #F85149; }
+.ocupacion-none { color: var(--text-tertiary); font-weight: 500; }
+.arr-ocupacion {
+  margin-left: 6px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
 /* A place row's distance and walk, where the Cerca tab has a fix. */
 .place-far {
   flex: 0 0 auto;

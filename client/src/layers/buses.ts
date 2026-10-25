@@ -11,6 +11,7 @@ import maplibregl from 'maplibre-gl';
 import { api, type LiveStatus } from '../services/api';
 import { escapeHTML, safeColor } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../../../shared/live_payload.js';
+import { ocupacionDe, ocupacionTexto, type Ocupacion } from '../../../shared/ocupacion.js';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
 // One distance formatter for the whole app: this module had its own copy, so a
 // bus popup and a Cerca row could word the same distance differently (§1.1 R2).
@@ -47,7 +48,7 @@ let pollNow: ((fresh?: boolean) => void) | null = null;
 
 type PopupStop = { nombre: string; coordinate: [number, number] };
 
-type LiveBus = {
+export type LiveBus = {
   id: string;
   route_id?: number | string;
   latitude: number;
@@ -59,6 +60,8 @@ type LiveBus = {
   posicion?: number;
   angulo?: number;
   nombre_sistema?: string;
+  /** How full it is, as the feed reports it; null = no reading (`shared/ocupacion.js`). */
+  ocupacion: Ocupacion | null;
 };
 
 function normalizeLiveBus(rawBus: unknown, index: number, routeCode: string): LiveBus | null {
@@ -86,6 +89,7 @@ function normalizeLiveBus(rawBus: unknown, index: number, routeCode: string): Li
     ruta_extraida: typeof raw.ruta_extraida === 'string' ? raw.ruta_extraida : undefined,
     destino_limpio: typeof raw.destino_limpio === 'string' ? raw.destino_limpio : undefined,
     nombre_sistema: typeof raw.nombre_sistema === 'string' ? raw.nombre_sistema : undefined,
+    ocupacion: ocupacionDe(raw),
     ...(angulo !== null ? { angulo } : {}),
     ...(posicion !== null ? { posicion } : {}),
   };
@@ -414,7 +418,19 @@ function tintFromColor(hex: string, alpha: number): string {
 
 // ─── Popup ───────────────────────────────────────────────
 
-function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
+/**
+ * The level as the feed reports it, marked by colour as well as named. A bus
+ * that sent none says so — a third of the fleet never does, and leaving the row
+ * out would let a rider read the silence as "room on board".
+ */
+function ocupacionHtml(nivel: Ocupacion | null): string {
+  return nivel
+    ? `<strong class="ocupacion ocupacion-${nivel.toLowerCase()}">${escapeHTML(ocupacionTexto(nivel) ?? '')}</strong>`
+    : '<strong class="ocupacion ocupacion-none">Sin dato</strong>';
+}
+
+/** Exported for its spec (`tests/ocupacion-ui.spec.ts`); the map is the only caller. */
+export function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string {
   const sysClass = routeType === 'troncal' ? 'troncal' : 'zonal';
   const sysLabel = bus.nombre_sistema || (routeType === 'troncal' ? 'TransMilenio' : 'SITP Zonal');
   const code = bus.ruta_extraida ? escapeHTML(bus.ruta_extraida) : '•';
@@ -440,6 +456,7 @@ function buildBusPopupHTML(bus: LiveBus, routeType: 'troncal' | 'zonal'): string
       </div>
       <div class="bus-popup-rows">
         ${nextRow}
+        <div class="bus-popup-row bus-popup-ocupacion"><span>Ocupación</span>${ocupacionHtml(bus.ocupacion)}</div>
         <div class="bus-popup-row"><span>Sistema</span><strong>${escapeHTML(sysLabel)}</strong></div>
         <div class="bus-popup-row"><span>Última señal</span><strong>${escapeHTML(formatLastSignal(bus.lasttime))}</strong></div>
         ${km ? `<div class="bus-popup-row"><span>Recorrido</span><strong>${km}</strong></div>` : ''}

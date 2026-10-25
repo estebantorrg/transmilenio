@@ -8,6 +8,7 @@ import type { PlannerCalibrationData } from '../../../shared/calibration.js';
 import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import type { HorariosCabeceraData } from './cabecera';
 import type { SentidoHorario } from '../../../shared/horario_programado.js';
+import type { Ocupacion } from '../../../shared/ocupacion.js';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../../../shared/live_payload.js';
@@ -516,6 +517,8 @@ export interface StopArrival {
   etaMinutes: number;
   distanceMeters: number;
   busCount: number;
+  /** The nearest bus's level; absent when it sent no reading. */
+  ocupacion?: Ocupacion;
 }
 export interface StopArrivalsResponse {
   success: boolean;

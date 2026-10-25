@@ -35,6 +35,7 @@ import {
 import type { PreparedCalibration } from '../../../shared/calibration.js';
 import { isFestivo } from '../../../shared/festivos.js';
 import { bogotaClock } from '../../../shared/bogota_clock.js';
+import { ocupacionDe, type Ocupacion } from '../../../shared/ocupacion.js';
 
 export interface StopArrival {
   codigo: string;
@@ -45,6 +46,8 @@ export interface StopArrival {
   distanceMeters: number;
   /** Buses of this route currently approaching the stop (before it, on-route). */
   busCount: number;
+  /** How full the nearest of them is; absent when it sent no reading (`shared/ocupacion.js`). */
+  ocupacion?: Ocupacion;
 }
 
 export interface StopArrivalsResult {
@@ -199,6 +202,7 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
   if (!Array.isArray(buses) || buses.length === 0) return null;
 
   let bestRemaining = Infinity;
+  let bestBus: unknown = null;
   let approaching = 0;
 
   for (const bus of buses) {
@@ -213,7 +217,10 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
     if (remaining < -PASSED_STOP_EPSILON_M) continue; // already passed the stop
     approaching++;
     const clamped = Math.max(0, remaining);
-    if (clamped < bestRemaining) bestRemaining = clamped;
+    if (clamped < bestRemaining) {
+      bestRemaining = clamped;
+      bestBus = bus;
+    }
   }
 
   if (!Number.isFinite(bestRemaining) || approaching === 0) return null;
@@ -223,6 +230,7 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
     ? TRONCAL_SPEED_M_PER_MIN
     : rideSpeedMpm(calibration(), sv.stopCodes, slot.dayType, slot.hour, ZONAL_SPEED_M_PER_MIN);
   const etaMinutes = Math.round(bestRemaining / speed);
+  const ocupacion = ocupacionDe(bestBus);
 
   return {
     codigo: sv.routeCode,
@@ -232,6 +240,7 @@ function etaFromBuses(sv: ServingVariant, buses: any[]): StopArrival | null {
     etaMinutes,
     distanceMeters: Math.round(bestRemaining),
     busCount: approaching,
+    ...(ocupacion ? { ocupacion } : {}),
   };
 }
 
