@@ -28,6 +28,15 @@ test('master-catalog ships 6-decimal points and 5-decimal traces', async ({ requ
   expect(tracePoints.filter((n) => decimals(n) > 5)).toEqual([]);
 });
 
+test('an estación never ships its own name as its address', async ({ request }) => {
+  // Upstream files the newest estaciones that way (Laureles, Islandia, Danubio,
+  // Calle 53 – UMB), and every surface printed it as an address: "X queda en X".
+  const res = await request.get('/api/troncal/master-catalog', { timeout: 90_000 });
+  const { data } = await res.json();
+  const echoes = Object.values<any>(data.stations).filter((s) => s.estacion && s.direccion === s.nombre);
+  expect(echoes.map((s) => s.codigo)).toEqual([]);
+});
+
 test('master-catalog names its own content, in the body and in the ETag', async ({ request }) => {
   // The app has no ETag to read — it ships this body in the APK — so the hash
   // travels in the body too, and is how it tells a new catalog from its cached

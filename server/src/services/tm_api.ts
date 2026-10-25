@@ -648,7 +648,10 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         id: station.id,
         codigo: station.codigo,
         nombre: station.nombre,
-        direccion: station.direccion,
+        // Upstream files some stations' address as their name (Calle 53 – UMB,
+        // 2026-10): read as an address, every surface printed the name twice and
+        // the estación page answered "¿Dónde queda X?" with "X queda en X".
+        ...(station.direccion !== station.nombre ? { direccion: station.direccion } : {}),
         coordenada: lightCoordenada(station.coordenada),
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
