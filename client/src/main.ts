@@ -90,6 +90,11 @@ function showBootRetry(): void {
   (btn as HTMLButtonElement).focus();
 }
 
+/** The slow-map hint's button, once the map has loaded after all. */
+function hideBootRetry(): void {
+  document.getElementById('loading-retry')?.classList.add('hidden');
+}
+
 function hideLoading(): void {
   const overlay = document.getElementById('loading-overlay');
   if (overlay) {
@@ -653,6 +658,22 @@ async function main(): Promise<void> {
   // covers the map entirely, so they were made to wait for a style they cannot
   // see before the download they need was even issued (spec §1 priority 2).
   const catalogPromise = api.getMasterCatalog();
+  // The map's four layers too, for the same reason and one more: a page opened
+  // in a background tab cannot draw the map (MapLibre renders on
+  // requestAnimationFrame, which the browser freezes there) but it can download.
+  // Asked only after the map's `load`, they were the second or two of loading
+  // screen a reader came back to. The side `catch` only keeps a failure that
+  // lands before boot reads it from being reported as unhandled; boot still sees it.
+  const early = <T>(request: Promise<T>): Promise<T> => {
+    request.catch(() => undefined);
+    return request;
+  };
+  const layerRequests = {
+    corridors: early(api.getTroncalCorridors()),
+    stations: early(api.getTroncalStations()),
+    cableStations: early(api.getCableStations()),
+    cableTraces: early(api.getCableTrazado()),
+  };
 
   // 1. Initialize map
   updateProgress(5, 'Cargando mapa...');
@@ -744,26 +765,34 @@ async function main(): Promise<void> {
 
   // Wait for map to load (handle case where it might already be loaded).
   //
-  // Boot is gated on this event, and it can legitimately never arrive: MapLibre
-  // renders on requestAnimationFrame, which the browser freezes in a background
-  // tab, so a page opened in a background tab (or restored from one) sat on the
-  // loading overlay forever with no explanation. The wait itself is unchanged —
-  // the style genuinely does finish once the tab is shown — but after a grace
-  // period we say WHY nothing is happening instead of implying a hang.
+  // Boot is gated on this event, and in a background tab it does not arrive:
+  // MapLibre renders on requestAnimationFrame, which the browser freezes there.
+  // The style finishes as soon as the tab is shown, so that wait is not a fault.
+  // The "taking too long" hint therefore counts visible time only — it used to
+  // fire 12 s after opening whatever the tab was doing, so a reader who opened
+  // the site and switched away came back to a Reintentar button over a map that
+  // was about to appear. Rearmed with the full grace each time the tab is shown,
+  // and taken down the moment the map loads.
   const MAP_LOAD_HINT_MS = 12_000;
   if (!map.loaded()) {
-    let hintTimer: number | undefined = window.setTimeout(() => {
-      setLoadingStatus(
-        document.visibilityState === 'hidden'
-          ? 'Esperando a que la pestaña esté visible para dibujar el mapa…'
-          : 'El mapa está tardando más de lo normal…'
-      );
-      showBootRetry();
-    }, MAP_LOAD_HINT_MS);
+    let hintTimer: number | undefined;
+    const armHint = (): void => {
+      window.clearTimeout(hintTimer);
+      hintTimer =
+        document.visibilityState === 'visible'
+          ? window.setTimeout(() => {
+              setLoadingStatus('El mapa está tardando más de lo normal…');
+              showBootRetry();
+            }, MAP_LOAD_HINT_MS)
+          : undefined;
+    };
+    armHint();
+    document.addEventListener('visibilitychange', armHint);
     await new Promise<void>((resolve) => {
       map.once('load', async () => {
         window.clearTimeout(hintTimer);
-        hintTimer = undefined;
+        document.removeEventListener('visibilitychange', armHint);
+        hideBootRetry();
         await initMapImages(map);
         resolve();
       });
@@ -826,10 +855,10 @@ async function main(): Promise<void> {
       cableTracesResult,
       catalogResult,
     ] = await Promise.allSettled([
-      inBudget(api.getTroncalCorridors()).then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
-      inBudget(api.getTroncalStations()).then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
-      inBudget(api.getCableStations()).then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
-      inBudget(api.getCableTrazado()).then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
+      inBudget(layerRequests.corridors).then((res) => { incrementProgress(5, 'Descargando corredores...'); return res; }),
+      inBudget(layerRequests.stations).then((res) => { incrementProgress(5, 'Descargando estaciones...'); return res; }),
+      inBudget(layerRequests.cableStations).then((res) => { incrementProgress(5, 'Descargando estaciones TransMiCable...'); return res; }),
+      inBudget(layerRequests.cableTraces).then((res) => { incrementProgress(5, 'Descargando trazado TransMiCable...'); return res; }),
       catalogPromise.then((res) => { incrementProgress(40, 'Descargando catálogo maestro...'); return res; }),
     ]);
 
