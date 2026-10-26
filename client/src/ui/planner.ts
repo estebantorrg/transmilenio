@@ -1881,7 +1881,8 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
     const state = serializePlannerState(true);
     if (!state) return;
     const destino = destSelectionText && destSelectionText !== GPS_LABEL ? destSelectionText : '';
-    void shareLink(`${location.origin}/#/plan?${state}`, destino ? `Cómo llegar a ${destino}` : 'Cómo llegar');
+    // `/viaje?…`, not `#/plan?…`: the server previews it (shared/viaje_link.js).
+    void shareLink(`${location.origin}/viaje?${state}`, destino ? `Cómo llegar a ${destino}` : 'Cómo llegar');
   });
 
   container.querySelector<HTMLButtonElement>('.planner-notice-action')?.addEventListener('click', (event) => {

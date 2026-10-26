@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { cercaDe, planIndexForVia, redondear, viaKey, viajeParams, viajeUrl } from '../shared/viaje_link.js';
+import { cercaDe, planIndexForVia, redondear, viaKey, viajeParams, viajePreview, viajeUrl } from '../shared/viaje_link.js';
 
 /**
  * A planned trip as a link (`shared/viaje_link.js`, spec §5.6.7): the same
@@ -64,7 +64,25 @@ test.describe('a trip as a link', () => {
     expect(sp.get('ol')).toBe('Cra 15 # 100-20');
   });
 
-  test('the whole link opens on the website', () => {
-    expect(viajeUrl({ origin: { coord: [-74.05, 4.6] }, plan: h15 })).toBe('https://mitrasto.app/#/plan?o=4.600000%2C-74.050000&v=H15');
+  test('the whole link opens on the website, at an address the server can preview', () => {
+    expect(viajeUrl({ origin: { coord: [-74.05, 4.6] }, plan: h15 })).toBe('https://mitrasto.app/viaje?o=4.600000%2C-74.050000&v=H15');
+  });
+});
+
+test.describe('what a preview of the link says', () => {
+  test('where to, from where, on what, and when — from the link alone', () => {
+    const p = viajePreview('o=1%2C2&ol=Calle+100&d=3%2C4&dl=Portal+Tunal&v=D10.H13&t=2026-10-27T07:05');
+    expect(p.title).toBe('Cómo llegar a Portal Tunal');
+    expect(p.description).toBe('Desde Calle 100 · En D10 › H13 · Salida el 27/10 a las 07:05. El viaje en MiTrasto: rutas, horarios y buses en vivo.');
+  });
+
+  test('a bare or odd link still reads as a sentence', () => {
+    expect(viajePreview('')).toEqual({
+      title: 'Cómo llegar en TransMilenio y SITP',
+      description: 'El viaje en MiTrasto: rutas, horarios y buses en vivo.',
+    });
+    // A label is whatever the link says: one line, cut short. Escaping is the page's job.
+    expect(viajePreview(`dl=${'x'.repeat(300)}`).title).toHaveLength('Cómo llegar a '.length + 80);
+    expect(viajePreview('t=mañana').description).not.toContain('Salida');
   });
 });

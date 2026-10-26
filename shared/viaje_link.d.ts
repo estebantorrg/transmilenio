@@ -30,3 +30,4 @@ export declare function planIndexForVia(plans: ViajePlan[], via: string | null |
 export declare function cercaDe(plan: ViajePlan | null | undefined, end: 'o' | 'd'): string;
 export declare function viajeParams(trip: Viaje): string;
 export declare function viajeUrl(trip: Viaje): string;
+export declare function viajePreview(query: string): { title: string; description: string };

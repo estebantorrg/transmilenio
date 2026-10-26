@@ -312,6 +312,13 @@ initRoutePage({
   onLiveRefresh: refreshLiveNow,
 });
 
+// A shared trip (`/viaje?…`, spec §5.6.7) is the planner's own `#/plan?…` link
+// under an address the server can preview. Turned back into it before anything
+// below reads the address — the 404 check, the planner's restore.
+if (/^\/viaje\/?$/.test(location.pathname)) {
+  history.replaceState(null, '', `/#/plan?${location.search.slice(1)}`);
+}
+
 // The legal pages need no catalog, so a visitor landing on `/privacidad/` gets
 // the page now rather than when the network data arrives (spec §5.5.7).
 initLegalPages();

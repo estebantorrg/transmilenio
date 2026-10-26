@@ -49,8 +49,14 @@ test('the link reopens the option that was picked, not the first one', async ({ 
 
   // Shared from there, the link names that option.
   await page.locator('#planner-results .planner-share-btn').click();
-  await expect.poll(() => copied(page)).toContain('/#/plan?');
-  expect(new URLSearchParams((await copied(page)).split('#/plan?')[1]).get('v')).toBe(second);
+  await expect.poll(() => copied(page)).toContain('/viaje?');
+  const link = new URL(await copied(page));
+  expect(link.searchParams.get('v')).toBe(second);
+
+  // Opened as shared — `/viaje?…`, the address the server previews — it is the planner, on that option.
+  await open(page, `${link.pathname}${link.search}`);
+  await expect(page).toHaveURL(/\/#\/plan\?/);
+  await expect.poll(() => viaOf(page, '#planner-results .journey-option-card.active'), { timeout: 30_000 }).toBe(second);
 });
 
 test('an option that is gone is said, and the best one shown', async ({ page }) => {
@@ -69,8 +75,8 @@ test("a GPS origin travels rounded and named after the nearest stop, never as th
   await page.locator('#planner-results .journey-option-card').first().waitFor({ state: 'visible', timeout: 60_000 });
 
   await page.locator('#planner-results .planner-share-btn').click();
-  await expect.poll(() => copied(page)).toContain('/#/plan?');
-  const sp = new URLSearchParams((await copied(page)).split('#/plan?')[1]);
+  await expect.poll(() => copied(page)).toContain('/viaje?');
+  const sp = new URL(await copied(page)).searchParams;
   expect(sp.get('o')).toBe('4.684000,-74.058000');
   expect(sp.get('ol')).toMatch(/^Cerca de |^Punto cercano$/);
   expect(sp.get('ol')).not.toContain('Mi ubicación');

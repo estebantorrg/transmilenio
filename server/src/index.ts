@@ -7,6 +7,9 @@ import { retiredHostRedirect } from './retired_host.js';
 import { isKnownPage } from './known_page.js';
 import { movedPagePath, readPrerenderedPages } from './page_redirect.js';
 import { startNovedadesPoller } from './services/novedades.js';
+import { readFileSync } from 'node:fs';
+import { withHead } from './seo_head.js';
+import { viajePreview } from '../../shared/viaje_link.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -170,6 +173,25 @@ app.use('/api', (_req, res) => {
 // `/assets/*.js`, and the service worker cached that HTML under the script's
 // URL (`cacheFirst` keeps any `ok` response).
 const prerenderedPages = readPrerenderedPages(clientDist);
+
+// A planned trip shared as a link (`/viaje?…`, spec §5.6.7): the app shell with
+// a preview that names the trip, which `#/plan?…` could never get — a fragment
+// never reaches the server. noindex: one address per trip anyone plans is not a
+// page for search. The shell is read once; it only changes with a deploy.
+const shell = (() => {
+  try {
+    return readFileSync(path.resolve(clientDist, 'index.html'), 'utf-8');
+  } catch {
+    return null; // a dev server without a build: the catch-all below answers instead
+  }
+})();
+app.get(['/viaje', '/viaje/'], (req, res, next) => {
+  if (!shell) return next();
+  const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?') + 1) : '';
+  const { title, description } = viajePreview(query);
+  res.setHeader('Cache-Control', 'no-cache');
+  res.type('html').send(withHead(shell, { url: `/viaje${query ? `?${query}` : ''}`, title, description, noindex: true }));
+});
 
 app.get('*', (req, res) => {
   if (path.extname(req.path)) {

@@ -1,7 +1,8 @@
 /**
  * A planned trip as a link anyone can open (spec §5.6.7): the website planner's
- * own `#/plan?…` address, built here once so the website and the app share the
- * same link, and with it the chosen itinerary, not just the two ends.
+ * own `#/plan?…` parameters — shared as `/viaje?…` so the server can preview it
+ * — built here once so the website and the app share the same link, and with it
+ * the chosen itinerary, not just the two ends.
  *
  *   o / d    "lat,lng" of the two ends;  ol / dl  their labels;  oc / dc  stop codes
  *   m / p    transport mode and ranking, only when not the default ('mix', 'transfers')
@@ -79,7 +80,36 @@ export function viajeParams(trip) {
   return sp.toString();
 }
 
-/** The whole link. */
+/**
+ * The whole link. `/viaje?…`, not the planner's `#/plan?…`: a fragment never
+ * reaches the server, so every trip previewed in WhatsApp as the home page. The
+ * server answers this address with a preview naming the trip (`viajePreview`),
+ * and the page turns it back into `#/plan?…` before anything reads it.
+ */
 export function viajeUrl(trip) {
-  return `${WEB_ORIGIN}/#/plan?${viajeParams(trip)}`;
+  return `${WEB_ORIGIN}/viaje?${viajeParams(trip)}`;
+}
+
+/**
+ * What a link preview says about a shared trip — from the link alone: the
+ * server cannot plan, so no minutes, only what the sharer chose. Plain text;
+ * the caller escapes it.
+ */
+export function viajePreview(query) {
+  const sp = new URLSearchParams(query);
+  // The labels are whatever the link says; a preview line is not the place for a paragraph.
+  const clip = (value) => String(value ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+  const desde = clip(sp.get('ol'));
+  const hasta = clip(sp.get('dl'));
+  const via = clip(sp.get('v')).split('.').filter(Boolean).join(' › ');
+  const t = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(sp.get('t') ?? '');
+  const partes = [
+    desde && `Desde ${desde}`,
+    via && `En ${via}`,
+    t && `Salida el ${Number(t[3])}/${Number(t[2])} a las ${t[4]}:${t[5]}`,
+  ].filter(Boolean);
+  return {
+    title: hasta ? `Cómo llegar a ${hasta}` : 'Cómo llegar en TransMilenio y SITP',
+    description: `${partes.length ? `${partes.join(' · ')}. ` : ''}El viaje en MiTrasto: rutas, horarios y buses en vivo.`,
+  };
 }

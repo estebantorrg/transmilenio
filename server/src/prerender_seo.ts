@@ -49,12 +49,12 @@ import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } fr
 import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../shared/horario_programado.js';
 import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
 import { ZONAL_PAGES } from './seo_zonal.js';
+import { ORIGIN, escapeHtml, withHead } from './seo_head.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
 
-/** Canonical origin. Changing the domain means changing `seo/README.md`'s checklist too. */
-const ORIGIN = 'https://mitrasto.app';
+// Canonical origin (`seo_head.ts`). Changing the domain means changing `seo/README.md`'s checklist too.
 
 
 // ─── Types (the light catalog is untyped JSON by the time it reaches us) ───
@@ -138,15 +138,6 @@ interface LightStation {
 
 
 // ─── Text helpers ─────────────────────────────────────────
-function escapeHtml(value: unknown): string {
-  return String(value ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
 /** Catalog names carry upstream double spaces ("Portal 20  de Julio") that would
  *  otherwise land in a <title>. Collapse runs of whitespace for display only. */
 function tidy(value: unknown): string {
@@ -223,50 +214,8 @@ function renderPage(
   shell: string,
   page: { url: string; title: string; description: string; jsonLd: object[]; body: string; ogImage?: string; noindex?: boolean }
 ): string {
-  const absolute = `${ORIGIN}${page.url}`;
-  const title = escapeHtml(page.title);
-  const description = escapeHtml(page.description);
-
-  let html = shell;
-  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`);
-  if (page.noindex) {
-    html = html.replace(/<meta name="robots" content="[^"]*"\s*\/?>/, '<meta name="robots" content="noindex, follow" />');
-  }
-  html = html.replace(
-    /<meta name="description" content="[^"]*"\s*\/?>/,
-    `<meta name="description" content="${description}" />`
-  );
-  html = html.replace(
-    /<link rel="canonical" href="[^"]*"\s*\/?>/,
-    `<link rel="canonical" href="${absolute}" />`
-  );
-  html = html.replace(
-    /<meta property="og:url" content="[^"]*"\s*\/?>/,
-    `<meta property="og:url" content="${absolute}" />`
-  );
-  for (const [attr, key] of [['property', 'og:title'], ['name', 'twitter:title']] as const) {
-    html = html.replace(
-      new RegExp(`<meta ${attr}="${key}" content="[^"]*"\\s*/?>`),
-      `<meta ${attr}="${key}" content="${title}" />`
-    );
-  }
-  for (const [attr, key] of [['property', 'og:description'], ['name', 'twitter:description']] as const) {
-    html = html.replace(
-      new RegExp(`<meta ${attr}="${key}" content="[^"]*"\\s*/?>`),
-      `<meta ${attr}="${key}" content="${description}" />`
-    );
-  }
-  // Per-page social card. A WhatsApp forward is how these pages actually spread
-  // (spec §5.5.4), and every page sharing one generic logo reads as spam.
-  if (page.ogImage) {
-    const card = `${ORIGIN}${page.ogImage}`;
-    html = html.replace(/<meta property="og:image" content="[^"]*"\s*\/?>/, `<meta property="og:image" content="${card}" />`);
-    html = html.replace(/<meta name="twitter:image" content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${card}" />`);
-    html = html.replace(
-      /<meta property="og:image:alt" content="[^"]*"\s*\/?>/,
-      `<meta property="og:image:alt" content="${escapeHtml(page.title)}" />`
-    );
-  }
+  // Title, description, canonical, robots and the preview tags (`seo_head.ts`).
+  let html = withHead(shell, page);
 
   // Replace the shell's site-wide WebApplication block with this page's graph.
   html = html.replace(
