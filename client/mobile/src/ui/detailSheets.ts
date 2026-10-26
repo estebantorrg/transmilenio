@@ -47,22 +47,38 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
 }
 
 /** Canonical public origin (spec §5.5.4) — a shared route has to be openable by
- *  someone who doesn't have the app. */
-export const WEB_ORIGIN = 'https://mitrasto.app';
+ *  someone who doesn't have the app. One definition, with the trip links'. */
+export { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
+import { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
 
 /** Share a route via the native share sheet, Web Share, or clipboard fallback. */
 async function shareRoute(route: RouteListItem): Promise<void> {
-  const title = `${route.code} · ${route.name}`;
   // The shared message used to be prose with no link: the recipient got a route
   // code and nothing to tap. `#/r/<code>` is the website's own deep link.
   const url = `${WEB_ORIGIN}/#/r/${encodeURIComponent(route.code)}`;
-  const text = `${route.code} · ${route.origin} → ${route.destination}\n${url}`;
+  await shareContent({
+    title: `${route.code} · ${route.name}`,
+    text: `${route.code} · ${route.origin} → ${route.destination}\n${url}`,
+    url,
+    dialogTitle: 'Compartir ruta',
+    copied: 'Ruta copiada al portapapeles',
+  });
+}
+
+/** A link through the native share sheet, Web Share, or the clipboard — for a route or a planned trip. */
+export async function shareContent({ title, text, url, dialogTitle, copied }: {
+  title: string;
+  text: string;
+  url: string;
+  dialogTitle: string;
+  copied: string;
+}): Promise<void> {
   const cap = (window as any).Capacitor;
   const sharePlugin = cap?.Plugins?.Share;
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   try {
     if (cap?.isNativePlatform?.() && sharePlugin?.share) {
-      await sharePlugin.share({ title, text, url, dialogTitle: 'Compartir ruta' });
+      await sharePlugin.share({ title, text, url, dialogTitle });
       return;
     }
     if (typeof nav.share === 'function') {
@@ -71,7 +87,7 @@ async function shareRoute(route: RouteListItem): Promise<void> {
     }
     if (nav.clipboard?.writeText) {
       await nav.clipboard.writeText(text);
-      toast('Ruta copiada al portapapeles', 'ok');
+      toast(copied, 'ok');
       return;
     }
     toast('Compartir no disponible', 'warn');

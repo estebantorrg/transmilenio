@@ -38,6 +38,11 @@ import { ICONS } from '../ui/components';
 import { getSessionExactLocation, setSessionExactLocation } from '@shared/utils/sessionLocation';
 import type { View } from './types';
 import { FOOT_CREDIT_HTML } from '../../../../shared/osrm_foot.js';
+import { viaKey, viajeUrl, type Viaje } from '../../../../shared/viaje_link.js';
+import { shareContent } from '../ui/detailSheets';
+
+/** An end set from the phone's own position — the one a shared link must not carry exactly. */
+const GPS_NAME = 'Mi ubicación';
 
 interface Endpoint {
   coord: [number, number];
@@ -271,7 +276,7 @@ export function createPlannerView(): PlannerView {
         });
         const coord: [number, number] = [pos.coords.longitude, pos.coords.latitude];
         setSessionExactLocation(coord[0], coord[1], 'gps');
-        set({ coord, name: 'Mi ubicación' });
+        set({ coord, name: GPS_NAME });
         toast('Ubicación fijada', 'ok');
       } catch (err) {
         // Don't dead-end on a denied/failed GPS — name the cause and offer the
@@ -652,6 +657,15 @@ export function createPlannerView(): PlannerView {
         };
         // Snapshot of what constrained THIS search, so an empty result can name
         // the constraint and offer to lift it.
+        // The trip as asked, for the share link (shared/viaje_link.js — the website builds the same).
+        const trip: Viaje = {
+          origin: { coord: origin!.coord, label: origin!.name, code: origin!.code, gps: origin!.name === GPS_NAME },
+          destination: { coord: destination!.coord, label: destination!.name, code: destination!.code, gps: destination!.name === GPS_NAME },
+          mode,
+          sortBy,
+          depart: departMode === 'custom' && dateInput.value && timeInput.value ? `${dateInput.value}T${timeInput.value}` : null,
+          enforceSchedules,
+        };
         const constraints: SearchConstraints = {
           mode,
           enforceSchedules,
@@ -659,6 +673,18 @@ export function createPlannerView(): PlannerView {
             if (which === 'mix') modeChips.select('mix');
             else schedChips.select('all');
             calc.click();
+          },
+          share: (plan) => {
+            const url = viajeUrl({ ...trip, plan });
+            const destino = trip.destination?.gps ? '' : trip.destination?.label ?? '';
+            const titulo = destino ? `Cómo llegar a ${destino}` : 'Cómo llegar';
+            void shareContent({
+              title: titulo,
+              text: `${titulo} · ${viaKey(plan).split('.').join(' › ')}\n${url}`,
+              url,
+              dialogTitle: 'Compartir viaje',
+              copied: 'Viaje copiado al portapapeles',
+            });
           },
         };
         const seq = ++searchSeq;
@@ -825,6 +851,8 @@ interface SearchConstraints {
   enforceSchedules: boolean;
   /** Lifts the named constraint and re-runs the search. */
   relax: (which: 'mix' | 'schedules') => void;
+  /** Shares one of THIS search's itineraries as a website link — the fields may have changed since. */
+  share: (plan: JourneyPlan) => void;
 }
 
 /**
@@ -1040,6 +1068,16 @@ function renderPlans(
       startGuidance(plan); // the banner says what happened, success or not
     });
     card.append(guideBtn);
+
+    // This itinerary as a link anyone can open, app or not (spec §5.6.7).
+    if (constraints) {
+      const shareBtn = h('button', { class: 'btn btn-ghost plan-map-btn', type: 'button', html: `${ICONS.share}<span>Compartir</span>` });
+      shareBtn.addEventListener('click', () => {
+        haptic('light');
+        constraints.share(plan);
+      });
+      card.append(shareBtn);
+    }
     host.append(card);
   });
   host.append(h('p', { class: 'pl-credit', html: FOOT_CREDIT_HTML }));

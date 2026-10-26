@@ -35,6 +35,11 @@ import { getSessionExactLocation, setSessionExactLocation } from '../utils/sessi
 import { haversineMeters, isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 import { FOOT_CREDIT_HTML } from '../../../shared/osrm_foot.js';
+import { planIndexForVia, viajeParams } from '../../../shared/viaje_link.js';
+import { shareLink } from './sidebar';
+
+/** An end set from the device's own position — the one a shared link must not carry exactly. */
+const GPS_LABEL = 'Mi ubicación actual';
 
 let mapInstance: maplibregl.Map;
 
@@ -49,6 +54,10 @@ let destSelectionText = '';
 
 let mapPickMode: 'origin' | 'destination' | null = null;
 let activePlanIndex: number | null = null;
+// The option a shared link named (`v`, shared/viaje_link.js): selected on every
+// render that has it — the list re-ranks after the walking pass and every live
+// refresh — until the reader picks another card.
+let pendingVia: string | null = null;
 let calculatedPlans: JourneyPlan[] = [];
 let lastSortBy: 'transfers' | 'time' | 'walk' = 'transfers';
 // Departure moment of the itineraries currently on screen (§5.6.2) — kept so the
@@ -718,10 +727,6 @@ function initScheduleControls(): void {
 // `#/r/<code>` route links owned by the sidebar are left untouched because we
 // only ever write while the planner panel is visible.
 
-function fmtLatLng(coord: [number, number]): string {
-  return `${coord[1].toFixed(6)},${coord[0].toFixed(6)}`;
-}
-
 function parseLatLng(value: string | null): [number, number] | null {
   if (!value) return null;
   const [lat, lng] = value.split(',').map(Number);
@@ -732,32 +737,34 @@ function pointLabel(coord: [number, number]): string {
   return `Punto en el mapa · ${coord[1].toFixed(4)}, ${coord[0].toFixed(4)}`;
 }
 
-function serializePlannerState(): string | null {
+/**
+ * The trip as link parameters (`shared/viaje_link.js`, the app builds the same).
+ * `share` is the Compartir button's link, which travels to other people: a GPS
+ * end in it is rounded and renamed. The address bar keeps the exact point — it
+ * is the reader's own reload.
+ */
+function serializePlannerState(share = false): string | null {
   if (!originCoord && !destCoord) return null;
-  const sp = new URLSearchParams();
-  if (originCoord) {
-    sp.set('o', fmtLatLng(originCoord));
-    if (originSelectionText) sp.set('ol', originSelectionText);
-    if (originStopCode) sp.set('oc', originStopCode);
-  }
-  if (destCoord) {
-    sp.set('d', fmtLatLng(destCoord));
-    if (destSelectionText) sp.set('dl', destSelectionText);
-    if (destStopCode) sp.set('dc', destStopCode);
-  }
-  const mode = (document.getElementById('plan-transport-mode') as HTMLInputElement | null)?.value;
-  const pref = (document.getElementById('plan-preference') as HTMLInputElement | null)?.value;
-  if (mode && mode !== 'mix') sp.set('m', mode);
-  if (pref && pref !== 'transfers') sp.set('p', pref);
   // A shared trip planned for a specific moment must reopen at that moment;
   // "Ahora" stays out of the URL so a shared link is always current.
+  let depart: string | null = null;
   if (departMode === 'custom') {
     const { date, time } = getDepartInputs();
-    if (date?.value && time?.value) sp.set('t', `${date.value}T${time.value}`);
+    if (date?.value && time?.value) depart = `${date.value}T${time.value}`;
   }
-  // Only the non-default (unfiltered) mode travels in the link.
-  if (!enforceSchedules) sp.set('s', '0');
-  return sp.toString();
+  return viajeParams({
+    origin: originCoord
+      ? { coord: originCoord, label: originSelectionText, code: originStopCode, gps: share && originSelectionText === GPS_LABEL }
+      : null,
+    destination: destCoord
+      ? { coord: destCoord, label: destSelectionText, code: destStopCode, gps: share && destSelectionText === GPS_LABEL }
+      : null,
+    mode: (document.getElementById('plan-transport-mode') as HTMLInputElement | null)?.value,
+    sortBy: (document.getElementById('plan-preference') as HTMLInputElement | null)?.value,
+    depart,
+    enforceSchedules,
+    plan: activePlanIndex !== null ? calculatedPlans[activePlanIndex] : null,
+  });
 }
 
 function syncPlannerHash(): void {
@@ -811,6 +818,7 @@ function restorePlannerFromHash(): void {
   const dest = parseLatLng(sp.get('d'));
   if (origin) setEndpointSelection('origin', sp.get('ol') || pointLabel(origin), origin, sp.get('oc') || undefined);
   if (dest) setEndpointSelection('destination', sp.get('dl') || pointLabel(dest), dest, sp.get('dc') || undefined);
+  pendingVia = sp.get('v');
   if (origin && dest) calculateRoute();
 }
 
@@ -1346,7 +1354,7 @@ function initInputHandlers(): void {
 
     try {
       const coord = await resolveLocation();
-      setEndpointSelection(endpoint, 'Mi ubicación actual', [coord.longitude, coord.latitude]);
+      setEndpointSelection(endpoint, GPS_LABEL, [coord.longitude, coord.latitude]);
     } catch (err) {
       console.warn('[GPS] Failed to get user location:', err);
       // Name the cause and point at the two alternatives this panel actually
@@ -1847,8 +1855,34 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
     })
     .join('');
 
+  // A shared link's option (`v`), when this moment's list still has it; said
+  // plainly when it does not, rather than silently showing another trip.
+  const viaIndex = pendingVia ? planIndexForVia(plans, pendingVia) : -1;
+  const viaNotice = pendingVia && viaIndex < 0
+    ? `<div class="planner-notice" role="status">
+        <div class="planner-notice-title">La opción compartida no aparece ahora</div>
+        <div class="planner-notice-text">${escapeHTML(pendingVia.split('.').join(' › '))} no está entre las opciones para este momento; estas son las mejores ahora.</div>
+      </div>`
+    : '';
+  const shareBar = `
+    <div class="planner-share">
+      <button type="button" class="planner-share-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+        <span>Compartir viaje</span>
+      </button>
+    </div>`;
+
   container.innerHTML =
-    renderOutOfServiceNotice(plans) + container.innerHTML + `<p class="planner-credit">${FOOT_CREDIT_HTML}</p>`;
+    renderOutOfServiceNotice(plans) + viaNotice + shareBar + container.innerHTML + `<p class="planner-credit">${FOOT_CREDIT_HTML}</p>`;
+
+  // The selected option, as a link someone else can open (spec §5.6.7).
+  container.querySelector<HTMLButtonElement>('.planner-share-btn')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    const state = serializePlannerState(true);
+    if (!state) return;
+    const destino = destSelectionText && destSelectionText !== GPS_LABEL ? destSelectionText : '';
+    void shareLink(`${location.origin}/#/plan?${state}`, destino ? `Cómo llegar a ${destino}` : 'Cómo llegar');
+  });
 
   container.querySelector<HTMLButtonElement>('.planner-notice-action')?.addEventListener('click', (event) => {
     event.stopPropagation();
@@ -1869,7 +1903,9 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
 
       const idx = Number((card as HTMLElement).dataset.index);
       if (!Number.isInteger(idx) || idx < 0 || idx >= calculatedPlans.length) return;
-      
+      // The reader's own pick now outranks the one the link came with.
+      pendingVia = null;
+
       // If clicking already active, just expand/collapse it
       if (activePlanIndex === idx) {
         const stepsContainer = card.querySelector<HTMLElement>('.journey-steps-list');
@@ -1882,9 +1918,11 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
     });
   });
 
-  const selectIndex = (preserveSelection && activePlanIndex !== null && activePlanIndex < plans.length)
-    ? activePlanIndex
-    : 0;
+  const selectIndex = viaIndex >= 0
+    ? viaIndex
+    : (preserveSelection && activePlanIndex !== null && activePlanIndex < plans.length)
+      ? activePlanIndex
+      : 0;
 
   selectPlan(selectIndex, cards, updateMap && isPlannerVisible());
 }
@@ -1998,6 +2036,8 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
       stepsContainer.classList.add('hidden');
     }
   });
+  // The address names the option on screen (`v`), so a reload keeps it.
+  syncPlannerHash();
 }
 
 // Zonal rides stop at paraderos; troncal/cable rides at estaciones. The step

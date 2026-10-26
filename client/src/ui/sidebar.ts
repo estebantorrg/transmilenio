@@ -306,8 +306,19 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 /** Copy a link to the clipboard and say whether it worked. Shared with the
- *  route page's own share button, so both report the outcome the same way. */
-export async function shareLink(url: string): Promise<void> {
+ *  route page's own share button, so both report the outcome the same way.
+ *  Given a `title`, a phone opens its share sheet instead (WhatsApp, Telegram…):
+ *  a copied link still has to be pasted somewhere, and 95 % of readers are on one. */
+export async function shareLink(url: string, title?: string): Promise<void> {
+  if (title && typeof navigator.share === 'function' && window.matchMedia('(pointer: coarse)').matches) {
+    try {
+      await navigator.share({ title, url });
+      return;
+    } catch (error) {
+      // Closing the sheet is a choice, not a failure; anything else falls back to copying.
+      if ((error as DOMException)?.name === 'AbortError') return;
+    }
+  }
   showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
 }
 
