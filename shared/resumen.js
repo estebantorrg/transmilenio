@@ -116,6 +116,39 @@ export function ubicacionEstacion(nombre, direccion, troncal) {
   };
 }
 
+/**
+ * A station name without its sponsor, for a title that has to fit:
+ * "Portal Sur - JFK Coop. Financiera" → "Portal Sur".
+ * shortcut: cuts at the first " - ", so a name whose second half is the real
+ * place loses it; fine for titles, never for page text.
+ */
+const corto = (nombre) => String(nombre ?? '').split(/\s[-–—]\s/)[0].trim();
+
+/** First option under the ~65 characters Google shows of a title, else the last. */
+const primero = (...opciones) => opciones.find((t) => t.length <= 65) ?? opciones[opciones.length - 1];
+
+/**
+ * The route page's <title>, worded as the search: "Ruta B16: paradas de Portal
+ * Suba a Terminal y horario". Both ends tell a rider at a glance it is the bus
+ * they mean; the old "Ruta B16 Terminal — paradas, recorrido y horarios" named
+ * one end and got 0.1 % of clicks at position 7.8 (Search Console, Oct 2026).
+ * Shorter forms take over for long names.
+ */
+export function tituloRuta(codigo, nombre, origen, destino) {
+  const [de, a] = [corto(origen), corto(destino)];
+  const ruta = nombre && nombre !== codigo ? `Ruta ${codigo} ${nombre}` : `Ruta ${codigo}`;
+  return primero(
+    ...(de && a && de !== a ? [`Ruta ${codigo}: paradas de ${de} a ${a} y horario`, `Ruta ${codigo}: paradas de ${de} a ${a}`] : []),
+    `${ruta}: paradas y horario`,
+    ruta
+  );
+}
+
+/** The station page's <title>, in the words riders search with ("qué buses paran"). */
+export function tituloEstacion(nombre) {
+  return primero(`Estación ${nombre}: qué buses paran y en qué vagón`, `Estación ${nombre}: qué buses paran`, `Estación ${nombre}`);
+}
+
 /** Each código once, in reading order: B10 before B12, 2-2 before 2-10. */
 function ordenar(codigos) {
   return [...new Set(codigos.map((c) => String(c ?? '').trim()).filter(Boolean))].sort((a, b) =>

@@ -38,7 +38,7 @@ import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/st
 import { slugify } from '../../shared/slug.js';
 import { hubHtml, withHub } from './seo_hub.js';
 import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
-import { horarioRuta, resumenEstacion, resumenRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
+import { horarioRuta, resumenEstacion, resumenRuta, tituloEstacion, tituloRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
@@ -705,16 +705,22 @@ function renderRoute(
   // Every direction's rush hour: the page is about the código, both ways.
   const pico = cadaPico(programado?.sentidos);
 
-  const title = pageTitle(`Ruta ${codigo} ${name}`, ' — paradas, recorrido y horarios', ' — paradas y horarios');
+  // The schedule in the form the bundle reads it (`formatScheduleText`,
+  // client/src/data/routeCatalog.ts), so both pages word the hours alike.
+  const horario = (primary.horarios?.data ?? []).map((r) => `${r.convencion} ${r.hora_inicio}-${r.hora_fin}`).join(' / ');
+  const ruta = resumenRuta(codigo, (primary.stops ?? []).map((stop) => tidy(stop.nombre)));
+  const hora = horarioRuta(codigo, horario);
+
+  const title = tituloRuta(codigo, name, origin, destination);
   // A zonal page leads with how often the bus comes — the one thing on it no
   // other result shows — before the stop count the clamp would cut it behind.
+  // A troncal page leads with the answer itself, in the page's own sentences:
+  // the stops and the hours, so the result is worth the click on its own.
   const description = clamp(
     pico
       ? `Ruta ${codigo} (${name}) del SITP en Bogotá: pasa ${pico} en hora pico. ` +
           `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}, con el primer y último bus de cada una.`
-      : `Recorrido completo de la ruta ${codigo} (${name}) de TransMilenio en Bogotá: ` +
-          `${stopCount} paradas${origin && destination ? ` entre ${origin} y ${destination}` : ''}.` +
-          (horarios ? ` Horarios ${horarios}.` : '')
+      : [`Ruta ${codigo} de TransMilenio en Bogotá.`, ruta?.respuesta, hora?.respuesta].filter(Boolean).join(' ')
   );
 
   const trail = [
@@ -817,16 +823,11 @@ ${items}
     { label: 'Horario', value: horarios.split(' · ')[0] || null },
   ]);
 
-  // The schedule in the form the bundle reads it (`formatScheduleText`,
-  // client/src/data/routeCatalog.ts), so both pages word the hours alike.
-  const horario = (primary.horarios?.data ?? []).map((r) => `${r.convencion} ${r.hora_inicio}-${r.hora_fin}`).join(' / ');
   // The frequency question only where there is an answer: an empty entry still
   // adds a line break, and that alone re-dates every other route page (`seo_lastmod.ts`).
   const frecuencia = resumenFrecuencia(codigo, programado?.sentidos);
   const resumen =
-    [resumenRuta(codigo, (primary.stops ?? []).map((stop) => tidy(stop.nombre))), horarioRuta(codigo, horario)]
-      .map(resumenHtml)
-      .join('\n') + (frecuencia ? `\n${resumenHtml(frecuencia)}` : '');
+    [ruta, hora].map(resumenHtml).join('\n') + (frecuencia ? `\n${resumenHtml(frecuencia)}` : '');
 
   const body = `${PRERENDER_STYLE}${programado ? PROGRAMADO_STYLE : ''}
 <main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
@@ -993,11 +994,17 @@ function renderStation(
     countServices(platform.unassigned) +
     platform.feeders.length;
 
-  const title = pageTitle(`Estación ${nombre}`, ' — qué rutas pasan y en qué vagón', ' — rutas y vagones');
+  const buses = resumenEstacionDe(nombre, Object.values(station.wagons ?? {}).flat());
+  const lugar = ubicacionEstacion(nombre, direccion, station.corridor?.nombre);
+
+  const title = tituloEstacion(nombre);
+  // The buses first: a código is what most station searches carry ("b16 portal norte").
   const description = clamp(
-    `Rutas que paran en la estación ${nombre} de TransMilenio` +
-      `${direccion ? ` (${direccion})` : ''}, Bogotá: ` +
-      `${serviceCount} servicios agrupados por vagón, con recorrido y horarios.`
+    buses
+      ? [buses.respuesta, lugar?.respuesta].filter(Boolean).join(' ')
+      : `Rutas que paran en la estación ${nombre} de TransMilenio` +
+          `${direccion ? ` (${direccion})` : ''}, Bogotá: ` +
+          `${serviceCount} servicios agrupados por vagón, con recorrido y horarios.`
   );
 
   const trail = [
@@ -1170,8 +1177,8 @@ ${breadcrumbHtml(trail)}
     <ul class="chips">${chips.map((chip) => `<li>${escapeHtml(chip)}</li>`).join('')}</ul>
   </div>
 </header>
-${resumenHtml(resumenEstacionDe(nombre, Object.values(station.wagons ?? {}).flat()))}
-${resumenHtml(ubicacionEstacion(nombre, direccion, station.corridor?.nombre))}
+${resumenHtml(buses)}
+${resumenHtml(lugar)}
 ${wagonSections || '<section class="sec"><p class="meta">El catálogo oficial no asigna vagones a esta estación.</p></section>'}
 </div></main>`;
 

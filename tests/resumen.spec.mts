@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { horarioRuta, resumenEstacion, resumenRuta, ubicacionEstacion } from '../shared/resumen.js';
+import { horarioRuta, resumenEstacion, resumenRuta, tituloEstacion, tituloRuta, ubicacionEstacion } from '../shared/resumen.js';
 
 /**
  * The search question each route and station page answers in a sentence
@@ -99,5 +99,42 @@ test.describe('resumen de una estación', () => {
   test('one route reads in the singular; none says nothing', () => {
     expect(resumenEstacion('Guatoque', ['G43'])!.respuesta).toBe('En Guatoque para el G43.');
     expect(resumenEstacion('Guatoque', [], [])).toBeNull();
+  });
+});
+
+test.describe('títulos de página', () => {
+  test('a route title names both ends without their sponsors, and the hours', () => {
+    expect(tituloRuta('B16', 'Terminal', 'Portal Suba - Unicervantes', 'Terminal')).toBe(
+      'Ruta B16: paradas de Portal Suba a Terminal y horario'
+    );
+  });
+
+  test('a sponsor after a long dash is trimmed too', () => {
+    // B16's catalog origin is written with an en dash; trimming only " - " left it too long for any full form.
+    expect(tituloRuta('B16', 'Terminal', 'Portal El Dorado – C.C Nuestro Bogotá', 'Terminal')).toBe(
+      'Ruta B16: paradas de Portal El Dorado a Terminal y horario'
+    );
+  });
+
+  test('long ends drop the hours, then the ends; nothing goes past 65 characters while a short form exists', () => {
+    const largo = 'Universidades - CityU Sede Centro Histórico Las Aguas';
+    expect(tituloRuta('B16', 'Terminal', 'Portal Américas - Biblioteca Tintal', largo)).toBe(
+      'Ruta B16: paradas de Portal Américas a Universidades y horario'
+    );
+    expect(tituloRuta('B16', 'Terminal', 'Centro Comercial Paseo Villa del Río Madelena', 'Escuela General Santander Sur')).toBe(
+      'Ruta B16 Terminal: paradas y horario'
+    );
+  });
+
+  test('a circular route or one without ends falls back to its name', () => {
+    expect(tituloRuta('8', 'Circular Suba', 'Portal Suba', 'Portal Suba')).toBe('Ruta 8 Circular Suba: paradas y horario');
+    expect(tituloRuta('G47', 'G47', '', '')).toBe('Ruta G47: paradas y horario');
+  });
+
+  test('a station title says which buses stop there, shortening for long names', () => {
+    expect(tituloEstacion('Calle 100')).toBe('Estación Calle 100: qué buses paran y en qué vagón');
+    // The full name stays: the sponsor-less "Av. Jiménez" would give both halves one title.
+    expect(tituloEstacion('Portal Norte - Unicervantes')).toBe('Estación Portal Norte - Unicervantes: qué buses paran');
+    expect(tituloEstacion('El Tiempo - Cámara De Comercio De Bogotá')).toBe('Estación El Tiempo - Cámara De Comercio De Bogotá');
   });
 });

@@ -12,6 +12,12 @@ export interface Resumen {
 
 export function resumenRuta(codigo: string, paradas: string[]): Resumen | null;
 
+/** A route page's <title>, both ends named when they fit in ~65 characters. */
+export function tituloRuta(codigo: string, nombre: string, origen?: string, destino?: string): string;
+
+/** A station page's <title>. */
+export function tituloEstacion(nombre: string): string;
+
 /** `horario`: the catalog schedule as printed, `L-V 5:00 AM-9:00 PM / S …`. */
 export function horarioRuta(codigo: string, horario: string | undefined): Resumen | null;
 
