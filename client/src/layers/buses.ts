@@ -13,6 +13,8 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { findBusPayloadArray, toFiniteNumber } from '../../../shared/live_payload.js';
 import { ocupacionDe, ocupacionTexto, type Ocupacion } from '../../../shared/ocupacion.js';
 import { isAppActive, onAppActiveChange } from '../utils/appActive';
+import { fixAgeMinutes } from '../services/liveWait';
+import { formatClockMinute } from '../services/schedule';
 // One distance formatter for the whole app: this module had its own copy, so a
 // bus popup and a Cerca row could word the same distance differently (§1.1 R2).
 import { formatDistance, haversineMeters } from '../utils/geo';
@@ -392,16 +394,26 @@ function computeNextStop(bus: LiveBus, stops: PopupStop[]): { stop: PopupStop; m
 }
 
 /**
- * Human "última señal" label. The telemetry `lasttime` is sometimes a parseable
- * timestamp and sometimes an opaque string — when it parses to a recent moment
- * we show a relative "hace Xs/Xm", otherwise we pass the raw string through.
+ * Human "última señal" label: a relative "hace Xs/Xm" for a recent fix. The
+ * feed stamps `lasttime` as a Bogotá wall-clock ("06:59:24 AM"), which
+ * `Date.parse` cannot read — so every popup used to print that English string —
+ * and is read with `fixAgeMinutes`, the live wait's own parser. A full
+ * timestamp still parses the old way; a fix too old to be "recent" is shown as
+ * the clock time, in Spanish.
  */
 function formatLastSignal(lasttime: string | undefined): string {
   if (!lasttime) return 'Reciente';
-  const t = Date.parse(lasttime);
-  if (!Number.isFinite(t)) return lasttime;
-  const secs = Math.round((Date.now() - t) / 1000);
-  if (secs < 0 || secs > 6 * 3600) return lasttime; // implausible → show raw
+  const ageMin = fixAgeMinutes(lasttime, Date.now());
+  const parsed = Date.parse(lasttime);
+  const secs = ageMin !== null
+    ? Math.round(ageMin * 60)
+    : Number.isFinite(parsed) ? Math.round((Date.now() - parsed) / 1000) : NaN;
+  if (!Number.isFinite(secs) || secs < 0 || secs > 6 * 3600) {
+    const clock = /^(\d{1,2}):(\d{2}):\d{2}\s*([AP])M$/i.exec(lasttime.trim());
+    return clock
+      ? formatClockMinute((Number(clock[1]) % 12 + (clock[3].toUpperCase() === 'P' ? 12 : 0)) * 60 + Number(clock[2]))
+      : lasttime;
+  }
   if (secs < 10) return 'Ahora';
   if (secs < 60) return `hace ${secs} s`;
   const mins = Math.round(secs / 60);

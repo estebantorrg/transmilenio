@@ -61,3 +61,21 @@ test('the bus popup has an Ocupación row, and none at all when the bus sent no 
   // Shown when it is there, left out when it is not.
   expect(rows.none).toBeNull();
 });
+
+test('the last signal reads in Spanish: how long ago, or the time when it is old', async ({ page }) => {
+  // The clock is fixed at 12:00 in Bogotá (`open`); the feed stamps fixes as Bogotá wall-clock.
+  await open(page, '/');
+  const last = await page.evaluate(async () => {
+    const mod = await import('/src/layers/buses.ts');
+    const bus = { id: 'K10660', label: 'K10660', latitude: 4.6, longitude: -74.06, ocupacion: null };
+    const row = (lasttime: string) => {
+      const el = document.createElement('div');
+      el.innerHTML = mod.buildBusPopupHTML({ ...bus, lasttime }, 'troncal');
+      const r = [...el.querySelectorAll('.bus-popup-row')].find((x) => x.textContent?.includes('Última señal'));
+      return r?.querySelector('strong')?.textContent;
+    };
+    return { recent: row('11:59:30 AM'), old: row('04:15:00 AM') };
+  });
+  expect(last.recent).toBe('hace 30 s');
+  expect(last.old).toBe('4:15 a.m.');
+});
