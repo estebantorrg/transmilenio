@@ -322,9 +322,10 @@ export async function shareLink(url: string, title?: string): Promise<void> {
   showToast((await copyText(url)) ? 'Enlace copiado al portapapeles' : 'No se pudo copiar el enlace');
 }
 
-/** Copy a deep link to the given route to the clipboard. */
+/** Copy a link to the route's own page: its preview is the route's card, where
+ *  a `#/r/` link reached the server as `/` and previewed the home page. */
 async function shareRoute(route: RouteListItem): Promise<void> {
-  await shareLink(`${location.origin}${location.pathname}${routeHashFor(route)}`);
+  await shareLink(`${location.origin}${routePagePath(route.code)}`);
 }
 
 /** Apply a route filter and reflect it across both control surfaces. */

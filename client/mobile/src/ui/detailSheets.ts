@@ -50,12 +50,13 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
  *  someone who doesn't have the app. One definition, with the trip links'. */
 export { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
 import { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
+import { slugify } from '../../../../shared/slug.js';
 
 /** Share a route via the native share sheet, Web Share, or clipboard fallback. */
 async function shareRoute(route: RouteListItem): Promise<void> {
-  // The shared message used to be prose with no link: the recipient got a route
-  // code and nothing to tap. `#/r/<code>` is the website's own deep link.
-  const url = `${WEB_ORIGIN}/#/r/${encodeURIComponent(route.code)}`;
+  // The route's own page, not the `#/r/<code>` deep link: a fragment never reaches
+  // the server, so that link previewed the home page instead of the route's card.
+  const url = `${WEB_ORIGIN}/ruta/${encodeURIComponent(slugify(route.code))}/`;
   await shareContent({
     title: `${route.code} · ${route.name}`,
     text: `${route.code} · ${route.origin} → ${route.destination}\n${url}`,
