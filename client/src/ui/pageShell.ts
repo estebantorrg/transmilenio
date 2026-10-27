@@ -23,10 +23,9 @@
 
 import { escapeHTML } from '../utils/html';
 import type { Resumen } from '../../../shared/resumen.js';
+import { APP_DOWNLOAD_PATH, APP_PATH, pasosConfirmacionHtml } from '../../../shared/app_descarga.js';
 
 const CHROME_IDS = ['map', 'sidebar', 'sidebar-fab'];
-/** A stable asset name CI publishes beside the versioned one (`android-apk.yml`). */
-const APP_DOWNLOAD_URL = 'https://github.com/estebantorrg/transmilenio/releases/latest/download/mitrasto.apk';
 const APP_DISMISSED_KEY = 'tm.appPromo.dismissed';
 /** `YYYY-MM-DD /path/` of the page that carried the card most recently. */
 const APP_SHOWN_KEY = 'tm.appPromo.shownOn';
@@ -380,12 +379,9 @@ export function appPromoHtml(): string {
       <div class="page-app-text">
         <h3 class="page-app-title" id="page-app-h">Más rápido en la app</h3>
         <p class="page-app-body">Con MiTrasto para Android ves los buses en vivo directo desde tu celular, consultas el saldo de tu tarjeta acercándola al teléfono y te guía mientras viajas.</p>
-        <a class="page-app-get" href="${APP_DOWNLOAD_URL}">Descargar para Android</a>
-        <p class="page-app-hint">Gratis y de código abierto. Como no viene de Play Store, Android te pedirá dos confirmaciones:</p>
-        <ol class="page-app-steps">
-          <li>Permitir que tu navegador instale apps.</li>
-          <li>Si aparece «Se recomienda analizar la app», toca <strong>Analizar app</strong>: Google la revisa y te deja instalarla.</li>
-        </ol>
+        <a class="page-app-get" href="${APP_DOWNLOAD_PATH}">Descargar para Android</a>
+        <p class="page-app-hint">Gratis y de código abierto. Como no viene de Play Store, Android te pedirá dos confirmaciones (<a href="${APP_PATH}">cómo instalarla</a>):</p>
+        <ol class="page-app-steps">${pasosConfirmacionHtml()}</ol>
       </div>
       <button class="page-app-close" type="button" aria-label="No volver a mostrar" title="No volver a mostrar">×</button>
     </aside>`;

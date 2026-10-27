@@ -49,6 +49,7 @@ import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sent
 import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
 import { ZONAL_PAGES } from './seo_zonal.js';
 import { ORIGIN, escapeHtml, swap, withHead } from './seo_head.js';
+import { APP_DESCARGA_CSS, APP_DESCRIPTION, APP_DOWNLOAD_PATH, APP_PATH, APP_TITLE, appPageHtml } from '../../shared/app_descarga.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -642,6 +643,36 @@ ${legalDocHtml(doc)}
     },
   ];
   return { url, title: doc.titulo, description: clamp(doc.descripcion), jsonLd, body, noindex: Boolean(doc.noindex) };
+}
+
+/** The app's download page — the shared text in the static page's chrome, as `renderLegal` does. */
+function renderAppDescarga() {
+  const url = APP_PATH;
+  const trail = [
+    { name: 'Inicio', url: '/' },
+    { name: 'App Android', url },
+  ];
+  const body = `${PRERENDER_STYLE}
+<style>${APP_DESCARGA_CSS}</style>
+<main id="seo-prerender"><div class="rail"></div><div class="wrap">
+${breadcrumbHtml(trail)}
+${appPageHtml()}
+</div></main>`;
+  const jsonLd: object[] = [
+    breadcrumb(trail),
+    {
+      '@context': 'https://schema.org',
+      '@type': 'SoftwareApplication',
+      name: 'MiTrasto',
+      operatingSystem: 'Android 5.1 o superior',
+      applicationCategory: 'TravelApplication',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'COP' },
+      downloadUrl: `${ORIGIN}${APP_DOWNLOAD_PATH}`,
+      url: `${ORIGIN}${url}`,
+      inLanguage: 'es-CO',
+    },
+  ];
+  return { url, title: APP_TITLE, description: clamp(APP_DESCRIPTION), jsonLd, body };
 }
 
 /** The search question the page answers, as its own section (`shared/resumen.js`). */
@@ -1335,6 +1366,14 @@ async function main(): Promise<void> {
     if (!page.noindex) llmsExtra.push({ url: page.url, titulo: doc.titulo });
   }
 
+  // The app's download page (`shared/app_descarga.js`, spec §5.5.11): the address
+  // to give someone instead of GitHub, with a preview that says what it is.
+  const appPage = renderAppDescarga();
+  anota(appPage);
+  await mkdir(path.join(CLIENT_DIST, appPage.url.replace(/^\/|\/$/g, '')), { recursive: true });
+  await writeFile(path.join(CLIENT_DIST, appPage.url.replace(/^\/|\/$/g, ''), 'index.html'), renderPage(shell, appPage));
+  llmsExtra.push({ url: appPage.url, titulo: APP_TITLE });
+
   // Imported here, not at the top: a CJS spec loads tm_api, and the page builders' ESM spec must not.
   const { loadCatalogFromDisk, getCatalogLightGzip } = await import('./services/tm_api.js');
   await loadCatalogFromDisk();
@@ -1535,7 +1574,7 @@ async function main(): Promise<void> {
   const ledger = dateLedger(hashes, previo, today);
   const lastmod = (url: string): string => ledger[url]?.[1] ?? today;
   const sets: Record<string, string[]> = {
-    'sitemap-paginas.xml': ['/', ...legalUrls],
+    'sitemap-paginas.xml': ['/', ...legalUrls, appPage.url],
     'sitemap-rutas.xml': routeUrls,
     'sitemap-estaciones.xml': stationUrls,
     // Its own set, so Search Console says how much of the zonal batch is indexed (spec §5.5.10).

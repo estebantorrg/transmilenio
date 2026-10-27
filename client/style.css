@@ -3820,6 +3820,25 @@ body.sidebar-collapsed .sidebar-fab {
   text-decoration: underline;
 }
 
+/* The app's download page (shared/app_descarga.js), above the legal links. */
+.sidebar-footer .app-link {
+  margin: 0;
+  text-align: center;
+  font-size: var(--font-size-xs);
+}
+
+.sidebar-footer .app-link a {
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.sidebar-footer .app-link a:hover,
+.sidebar-footer .app-link a:focus-visible {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
 /* Every ruta and estación page, on the home page only (server/src/seo_hub.ts):
    one quiet line, and a scrolling list when opened. */
 .seo-hub summary {

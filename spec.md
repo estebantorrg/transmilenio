@@ -675,6 +675,16 @@ TRANSMILENIO publishes the static **GTFS** of the whole SITP — a zip every two
 * **The next batch** waits for this one to show in Search Console — about 60 % of `sitemap-zonales.xml` indexed, the troncal pages not losing ground, its click rate no worse than theirs — checked at 2, 4 and 6 weeks. Then the remaining zonal códigos, then paradero pages (`/paradero/<nombre>-<cenefa>/`), which first need the inline stylesheet moved out of every page (~33 KB of the ~73 KB a page weighs).
 * **The app** (`client/mobile/`) does not show it yet.
 
+#### 5.5.11 The app's download page (`/app/`, `/app/descargar`)
+
+The APK is not on Play Store, and until October 2026 the only way to it was the GitHub release page — a developer's site, which a rider sent a link (a parent, say) could not find their way through. **`mitrasto.app/app`** is the address to give instead.
+
+* **`/app/descargar` is the download** (`index.ts`): a `302` to GitHub's `releases/latest/download/mitrasto.apk`, which always names the newest tagged release (the `vX.Y.Z` tag's build, `android-apk.yml`), so no deploy is needed per release and the site never stores the APK. A `302`, not a `301`: a browser would cache a permanent redirect, and the target is ours to move. Each hit is logged as `[app] descarga`, the only count of installs there is.
+* **`/app/` is the page** — prerendered (`renderAppDescarga`, `prerender_seo.ts`; indexed, in `sitemap-paginas.xml`, `SoftwareApplication` JSON-LD) and an overlay page in the shell once the bundle runs (`ui/appDescargaPage.ts`), like the legal pages (§5.5.7): no catalog, opened at module scope. One copy of the text, `shared/app_descarga.js`: what the app does, the button, and the install steps Android will ask for — allow the browser to install apps, then Play Protect's «Se recomienda analizar la app», whose button (**Analizar app**) is named before the rider meets it. `known_page.ts` answers it 200 (§5.5.8).
+* **Where it is linked:** the website sidebar's foot, above the legal links (on every screen, unlike the card); the app card on route and estación pages (§5.5.5 / §5.5.6, Android visitors only), which now downloads from `/app/descargar` and links `/app/` for the steps, sharing the same step list. No page links GitHub for the download.
+* **iPhone** is told the app is Android-only and pointed at the website in Safari.
+* Covered by `tests/app-descarga.spec.ts` (the page, the sidebar link), `tests/app-promo.spec.ts` (the card's href) and `tests/known_page.spec.mts`.
+
 ---
 
 ### 5.6 Data Models & Journey Planner

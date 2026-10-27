@@ -10,6 +10,7 @@ import { startNovedadesPoller } from './services/novedades.js';
 import { readFileSync } from 'node:fs';
 import { withHead } from './seo_head.js';
 import { viajePreview } from '../../shared/viaje_link.js';
+import { APP_APK_URL } from '../../shared/app_descarga.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -185,6 +186,14 @@ const shell = (() => {
     return null; // a dev server without a build: the catch-all below answers instead
   }
 })();
+// The app's download button (`shared/app_descarga.js`): mitrasto.app, not GitHub,
+// is the address a rider sees and shares; the file itself is the newest release's.
+// One line per download in the log, nothing about who — the only count we have.
+app.get('/app/descargar', (_req, res) => {
+  console.log('[app] descarga');
+  res.redirect(302, APP_APK_URL);
+});
+
 app.get(['/viaje', '/viaje/'], (req, res, next) => {
   if (!shell) return next();
   const query = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?') + 1) : '';

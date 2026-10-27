@@ -32,6 +32,7 @@ import { initSidebar, setRoutes, updateCounts, refreshRouteDetail, selectRouteBy
 import { adoptRoutePage, initRoutePage, isRoutePageOpen, openRoutePage, refreshRoutePage } from './ui/routePage';
 import { initStationPage, openStationPage, refreshStationPage } from './ui/stationPage';
 import { initLegalPages } from './ui/legalPage';
+import { initAppDescargaPage } from './ui/appDescargaPage';
 import { openNotFoundPage } from './ui/notFoundPage';
 import { initNovedades } from './ui/novedadesPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed } from './ui/pageShell';
@@ -323,6 +324,9 @@ if (/^\/viaje\/?$/.test(location.pathname)) {
 // The legal pages need no catalog, so a visitor landing on `/privacidad/` gets
 // the page now rather than when the network data arrives (spec §5.5.7).
 initLegalPages();
+
+// The app's download page, `/app/` (spec §5.5.11): the address to give someone instead of GitHub.
+initAppDescargaPage();
 
 // TransMilenio's #TMAhora posts: a bell with a popup over the map and `/novedades/`
 // (spec §5.5.9). Before the 404 check below, which asks whether a page opened.

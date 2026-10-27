@@ -1,0 +1,10 @@
+export declare const APP_PATH: string;
+export declare const APP_DOWNLOAD_PATH: string;
+export declare const APP_APK_URL: string;
+export declare const APP_TITLE: string;
+export declare const APP_DESCRIPTION: string;
+export declare const APP_DESCARGA_CSS: string;
+export declare function pasosConfirmacionHtml(): string;
+export declare function appPageHtml(): string;
+export declare function ensureAppDescargaStyle(): void;
+export declare function isAppPath(pathname: string): boolean;

@@ -21,6 +21,10 @@ test.describe('which addresses are pages', () => {
     expect(known('/privacidad/')).toBe(true);
     expect(known('/terminos')).toBe(true);
     expect(known('/novedades/')).toBe(true);
+    // The app's download page, with or without the slash; the download itself is the server's redirect.
+    expect(known('/app/')).toBe(true);
+    expect(known('/APP')).toBe(true);
+    expect(known('/app/otra')).toBe(false);
   });
 
   test('a route the catalog has, however its código is cased', () => {

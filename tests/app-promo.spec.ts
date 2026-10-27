@@ -11,7 +11,8 @@ test.describe.configure({ timeout: 240_000 });
 const BOOT_TIMEOUT_MS = 180_000;
 const ANDROID_UA =
   'Mozilla/5.0 (Linux; Android 14; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0 Mobile Safari/537.36';
-const DOWNLOAD = 'https://github.com/estebantorrg/transmilenio/releases/latest/download/mitrasto.apk';
+// The site's own address, which the server redirects to the newest release (`shared/app_descarga.js`).
+const DOWNLOAD = '/app/descargar';
 
 async function open(page: Page, path: string): Promise<void> {
   await page.goto(path);

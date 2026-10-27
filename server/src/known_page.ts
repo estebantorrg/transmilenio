@@ -1,4 +1,5 @@
 import { legalDocForPath } from '../../shared/legal.js';
+import { isAppPath } from '../../shared/app_descarga.js';
 import { codigosActuales } from '../../shared/renumeraciones.js';
 import { stationPlatform } from '../../shared/station_platforms.js';
 
@@ -17,6 +18,8 @@ export function isKnownPage(pathname: string, catalog: { routes?: object; statio
   if (pathname === '/' || legalDocForPath(pathname)) return true;
   // Drawn by the bundle alone, from `/api/novedades` (`ui/novedadesPage.ts`).
   if (/^\/novedades\/?$/.test(pathname)) return true;
+  // The app's download page (`shared/app_descarga.js`); prerendered, but a dev server has no build.
+  if (isAppPath(pathname)) return true;
 
   // Códigos are letters, digits and hyphens, so a slug is its código lowercased.
   const ruta = pathname.match(/^\/ruta\/([^/]+)\/?$/);
