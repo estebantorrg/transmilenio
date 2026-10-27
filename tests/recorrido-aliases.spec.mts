@@ -15,9 +15,15 @@ test('an aliased stop is filed under its station, and keeps its own vagón and p
     { codigo: 'TM0115', vagon: '' },
   ]);
   expect(stops).toEqual([
-    { codigo: 'TM0118', vagon: 'T3A', coordenada: '4.53172,-74.11936' },
+    // Upstream sends the stop with no name; it takes the station's, or B72's list opens on a blank "Origen".
+    { codigo: 'TM0118', vagon: 'T3A', coordenada: '4.53172,-74.11936', nombre: 'Portal Usme' },
     { codigo: 'TM0115', vagon: '' },
   ]);
+});
+
+test("an aliased stop that does come with a name keeps it", () => {
+  const [stop] = correctRecorrido('B72', [{ codigo: 'Portal Usme T3A', nombre: 'Portal Usme - Plataforma 2' }]);
+  expect(stop).toEqual({ codigo: 'TM0118', nombre: 'Portal Usme - Plataforma 2' });
 });
 
 test('a catalog on disk folds the stand-in station into the real one', () => {
@@ -35,6 +41,13 @@ test('a catalog on disk folds the stand-in station into the real one', () => {
     T3A: [{ id: '338', codigo: 'B72' }],
   });
   expect(catalog.routes.B72[0].stops.map((s: any) => s.codigo)).toEqual(['TM0118', 'TM0115']);
+  expect(catalog.routes.B72[0].stops[0].nombre).toBe('Portal Usme');
   // Twice is once: nothing left to fold.
   expect(applyStopAliases(catalog)).toBe(0);
+});
+
+test('a catalog an earlier prune re-coded, but left blank, gets the name', () => {
+  const catalog: any = { stations: {}, routes: { B72: [{ stops: [{ codigo: 'TM0118', nombre: '' }, { codigo: 'TM0115', nombre: '' }] }] } };
+  expect(applyStopAliases(catalog)).toBe(1);
+  expect(catalog.routes.B72[0].stops.map((s: any) => s.nombre)).toEqual(['Portal Usme', '']);
 });

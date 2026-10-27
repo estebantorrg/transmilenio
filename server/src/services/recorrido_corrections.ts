@@ -41,6 +41,8 @@ interface RetiredVariant {
 interface StopAlias {
   stop: string;
   station: string;
+  /** The station's name, for a stop upstream sends without one ("Portal Usme T3A" has none). */
+  nombre?: string;
   note?: string;
 }
 
@@ -72,12 +74,25 @@ const ALIASES = new Map(CORRECTIONS.stopAliases.map((entry) => [String(entry.sto
 /** Corrections that fired at least once this run — the rest are candidates for deletion. */
 const used = new Set<string>();
 
+const ALIAS_NAMES = new Map(
+  CORRECTIONS.stopAliases.filter((entry) => entry.nombre).map((entry) => [String(entry.stop).trim().toUpperCase(), String(entry.nombre).trim()])
+);
+
 /** The station a stop code names: itself, or the station an alias files it as. */
 function aliasedCode(code: unknown): string | undefined {
   const upper = String(code ?? '').trim().toUpperCase();
   const station = ALIASES.get(upper);
   if (station) used.add(`alias|${upper}`);
   return station;
+}
+
+/**
+ * The name an aliased stop should carry: its own, or the alias's when upstream
+ * sent it blank — which drew B72's first stop as an unnamed "Origen".
+ */
+function aliasedName(code: unknown, nombre: unknown): string | undefined {
+  const own = String(nombre ?? '').trim();
+  return own ? undefined : ALIAS_NAMES.get(String(code ?? '').trim().toUpperCase());
 }
 
 /**
@@ -97,13 +112,15 @@ export function correctRecorrido<T extends { codigo?: string }>(codigo: string, 
     })
     .map((stop) => {
       const station = aliasedCode(stop?.codigo);
-      return station ? { ...stop, codigo: station } : stop;
+      if (!station) return stop;
+      const nombre = aliasedName(stop?.codigo, (stop as { nombre?: unknown }).nombre);
+      return { ...stop, codigo: station, ...(nombre ? { nombre } : {}) };
     });
 }
 
 interface AliasableCatalog {
   stations: Record<string, { wagons: Record<string, Array<{ id?: string; codigo?: string }>> }>;
-  routes: Record<string, Array<{ stops?: Array<{ codigo?: string }> }>>;
+  routes: Record<string, Array<{ stops?: Array<{ codigo?: string; nombre?: string }> }>>;
 }
 
 /**
@@ -120,7 +137,17 @@ export function applyStopAliases(catalog: AliasableCatalog): number {
       for (const stop of variant.stops ?? []) {
         const station = aliasedCode(stop.codigo);
         if (!station) continue;
+        const nombre = aliasedName(stop.codigo, stop.nombre);
+        if (nombre) stop.nombre = nombre;
         stop.codigo = station;
+        moved++;
+      }
+      // Re-coded by an earlier prune, but still blank: the name comes by the station's own code.
+      for (const stop of variant.stops ?? []) {
+        if (String(stop.nombre ?? '').trim()) continue;
+        const entry = CORRECTIONS.stopAliases.find((a) => a.nombre && a.station.trim() === stop.codigo);
+        if (!entry?.nombre) continue;
+        stop.nombre = entry.nombre;
         moved++;
       }
     }

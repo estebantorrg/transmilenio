@@ -12,6 +12,7 @@
     {
       "stop": "Portal Usme T3A",
       "station": "TM0118",
+      "nombre": "Portal Usme",
       "added": "2026-10-16",
       "note": "Since the 2026-10-15 sync the official recorrido of B72 (#338 Toberín, checked again on the route finder on 2026-10-16) opens at a stop coded 'Portal Usme T3A' with no name, where every earlier sync filed TM0118 Portal Usme. Its coordinate (4.53172,-74.11936) is 17 m from TM0118's, its vagón T3A is one of Portal Usme's boarding zones (the catalog names them T1 to T6 with A/B halves), and TRANSMILENIO's notice of the 19 September 2026 redistribution puts B72 on Portal Usme's Plataforma 2. Read as a code, it made a stand-in station and the prune step took B72 off the portal. Filed as TM0118 on the maintainer's answer of 2026-10-16."
     }
