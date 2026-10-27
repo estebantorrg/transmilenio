@@ -28,11 +28,6 @@ const page: OverlayPage = {
 
 /** Registers the page and, when the address bar already names it, opens it. Called once from `main.ts`. */
 export function initAppDescargaPage(): void {
-  // On the map's own screen too, not only in the card route and estación pages carry (Android only, once a day).
-  document
-    .querySelector('.sidebar-footer .legal-links')
-    ?.insertAdjacentHTML('beforebegin', `<p class="app-link"><a href="${APP_PATH}">Descarga la app para Android</a></p>`);
-
   registerPageResolver((pathname) => {
     if (!isAppPath(pathname)) return null;
     ensureAppDescargaStyle();

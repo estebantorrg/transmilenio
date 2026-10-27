@@ -410,13 +410,22 @@
 
     <!-- Footer actions -->
     <div class="sidebar-footer">
-      <button id="card-balance-open" class="footer-action" type="button">
-        <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
-        </svg>
-        <span class="footer-action-label">Consultar saldo</span>
-        <span class="footer-action-spinner" aria-hidden="true"></span>
-      </button>
+      <div class="footer-actions">
+        <button id="card-balance-open" class="footer-action" type="button">
+          <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M7 15h2"/>
+          </svg>
+          <span class="footer-action-label">Consultar saldo</span>
+          <span class="footer-action-spinner" aria-hidden="true"></span>
+        </button>
+        <!-- The app's download page (spec §5.5.11), an overlay page in the shell. -->
+        <a id="app-download-link" class="footer-action footer-action-app" href="/app/" title="Descarga la app para Android">
+          <svg class="footer-action-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="6" y="2" width="12" height="20" rx="2"/><path d="M12 7v7"/><path d="M9.5 11.5 12 14l2.5-2.5"/><path d="M11 18h2"/>
+          </svg>
+          <span class="footer-action-label">App Android</span>
+        </a>
+      </div>
       <!-- Every ruta and estación page, as links: filled on the home page by the
            prerender (server/src/seo_hub.ts), empty on every other page. -->
       <!--seo-hub--><!--/seo-hub-->

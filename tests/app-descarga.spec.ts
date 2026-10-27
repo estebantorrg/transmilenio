@@ -20,10 +20,10 @@ test('the page offers the download at the site’s own address, with the install
   await expect(page.locator('a[href*="github.com"]')).toHaveCount(0);
 });
 
-test('the map’s sidebar links to it, and the link opens it in place', async ({ page }) => {
+test('the map’s sidebar offers it beside Consultar saldo, and opens it in place', async ({ page }) => {
   await page.goto('/');
   await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: 180_000 });
-  await page.locator('.sidebar-footer .app-link a').click();
+  await page.locator('.sidebar-footer').getByRole('link', { name: 'App Android' }).click();
   await expect(page).toHaveURL(/\/app\/$/);
   await expect(page.locator('.app-descarga-page h1')).toHaveText('MiTrasto para Android');
 });

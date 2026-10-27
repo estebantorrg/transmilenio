@@ -3820,23 +3820,17 @@ body.sidebar-collapsed .sidebar-fab {
   text-decoration: underline;
 }
 
-/* The app's download page (shared/app_descarga.js), above the legal links. */
-.sidebar-footer .app-link {
-  margin: 0;
-  text-align: center;
-  font-size: var(--font-size-xs);
+/* Consultar saldo and the app's download page (spec §5.5.11) side by side:
+   the app as a third line of small text made the foot read as a wall of links. */
+.footer-actions {
+  display: flex;
+  gap: 8px;
 }
 
-.sidebar-footer .app-link a {
-  color: var(--text-secondary);
-  font-weight: 600;
+.footer-actions .footer-action-app {
+  width: auto;
+  flex: none;
   text-decoration: none;
-}
-
-.sidebar-footer .app-link a:hover,
-.sidebar-footer .app-link a:focus-visible {
-  color: var(--text-primary);
-  text-decoration: underline;
 }
 
 /* Every ruta and estación page, on the home page only (server/src/seo_hub.ts):
