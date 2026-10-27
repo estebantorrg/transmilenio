@@ -567,6 +567,7 @@ export function bringTroncalLayersToFront(map: maplibregl.Map): void {
     'highlight-route-casing',
     'highlight-route-glow',
     'highlight-route',
+    'compare-routes-label',
     'troncal-corridors-labels',
   ];
   layers.forEach((id) => {

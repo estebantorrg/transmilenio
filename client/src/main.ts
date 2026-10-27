@@ -6,12 +6,12 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { createMap, initMapImages } from './map';
+import { createMap, initMapImages, mapFitPadding } from './map';
 import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
-import { removeCompared, toggleCompared } from './layers/compare';
+import { comparedRoutes, toggleCompared } from './layers/compare';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
 import { addDemandLayer, toggleDemandLayer, bringDemandLayerToFront } from './layers/demandLayer';
 import {
@@ -356,17 +356,6 @@ function getRouterModule(): Promise<RouterModule> {
     throw error;
   });
   return routerModulePromise;
-}
-
-function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
-  const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-  const sidebarWidth = sidebarCollapsed ? 0 : Math.min(360, window.innerWidth - 24);
-  return {
-    top: 60,
-    bottom: 60,
-    left: sidebarCollapsed ? 28 : Math.min(sidebarWidth + 40, window.innerWidth - 60),
-    right: 60,
-  };
 }
 
 // ─── Nearby Stations (geolocation) ────────────────────────
@@ -1145,12 +1134,15 @@ async function main(): Promise<void> {
 
       if (route.geometry && route.geometry.paths) {
         const bounds = new maplibregl.LngLatBounds();
-        route.geometry.paths.forEach((path) => {
-          path.forEach(([lng, lat]) => {
-            bounds.extend([lng, lat]);
+        // The compared routes too (`layers/compare.ts`): comparing is reading them together.
+        [route.geometry.paths, ...comparedRoutes().map((r) => r.paths)].forEach((paths) => {
+          paths.forEach((path) => {
+            path.forEach(([lng, lat]) => {
+              bounds.extend([lng, lat]);
+            });
           });
         });
-        map.fitBounds(bounds, { padding: getMapFitPadding(), maxZoom: 15 });
+        map.fitBounds(bounds, { padding: mapFitPadding(), maxZoom: 15 });
       }
     },
     onRouteDeselect: () => {
@@ -1175,7 +1167,6 @@ async function main(): Promise<void> {
     onPointSelect: focusNearbyPoint,
     onRouteOpenPage: (route: RouteListItem) => openRoutePage(route),
     onCompareToggle: (route: RouteListItem) => toggleCompared(map, route),
-    onCompareRemove: (id: string) => removeCompared(map, id),
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
         case 'troncal':

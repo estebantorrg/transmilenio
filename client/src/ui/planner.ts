@@ -28,6 +28,7 @@ import {
   planDayDelta,
 } from '../services/departure';
 import { drawJourneyPath, clearJourneyPath, drawJourneyEndpoints, assignSegmentColors } from '../layers/journeyLayer';
+import { mapFitPadding } from '../map';
 import { initChipRowScroll } from './chipRow';
 import { escapeHTML, safeColor } from '../utils/html';
 import { LOCATION_FAILURE_MESSAGE, classifyLocationFailure } from '../utils/locationError';
@@ -1928,17 +1929,6 @@ function renderResults(plans: JourneyPlan[], preserveSelection = false, updateMa
   selectPlan(selectIndex, cards, updateMap && isPlannerVisible());
 }
 
-function getMapFitPadding(): { top: number; bottom: number; left: number; right: number } {
-  const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
-  const sidebarWidth = sidebarCollapsed ? 0 : Math.min(360, window.innerWidth - 24);
-  return {
-    top: 60,
-    bottom: 60,
-    left: sidebarCollapsed ? 28 : Math.min(sidebarWidth + 40, window.innerWidth - 60),
-    right: 60,
-  };
-}
-
 /**
  * Keeps the itineraries on screen on the live wait at their first boarding
  * (§5.6.6): which bus the rider really boards, re-ranked over everything the
@@ -2016,7 +2006,7 @@ function selectPlan(index: number, cards: NodeListOf<Element>, updateMap = true)
 
       if (hasBounds) {
         mapInstance.fitBounds(bounds, {
-          padding: getMapFitPadding(),
+          padding: mapFitPadding(),
           maxZoom: 15,
         });
       }

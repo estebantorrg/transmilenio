@@ -15,7 +15,10 @@ export function createMap(container: string): maplibregl.Map {
     style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
     center: [-74.1071, 4.6486], // Bogotá center
     zoom: 12,
-    minZoom: 11, // Restrict zoom out to prevent viewport exceeding maxBounds (avoids jitter bugs)
+    // Restrict zoom out to prevent viewport exceeding maxBounds (avoids jitter bugs). A phone
+    // (≤ 768 px) still fits inside them at 10, and needs it: a cross-city trip or three compared
+    // routes in the half of the map the sheet leaves clear fit only there (`mapFitPadding`).
+    minZoom: window.matchMedia('(max-width: 768px)').matches ? 10 : 11,
     maxZoom: 18,
     pitch: 0,
     bearing: 0,
@@ -47,6 +50,24 @@ export function createMap(container: string): maplibregl.Map {
   map.on('zoom', updateScale);
 
   return map;
+}
+
+/** Padding for a camera fit (route, itinerary), so it lands in the part of the map the sidebar leaves clear. */
+export function mapFitPadding(): { top: number; bottom: number; left: number; right: number } {
+  // Phone: the sidebar is a bottom sheet, not a left column — a 330 px left inset
+  // on a 390 px map left no room, and every fit threw "Invalid LngLat". Fit the
+  // top half, which the sheet's half detent leaves clear.
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    return { top: 72, bottom: Math.round(window.innerHeight / 2) + 16, left: 28, right: 28 };
+  }
+  const sidebarCollapsed = document.body.classList.contains('sidebar-collapsed');
+  const sidebarWidth = sidebarCollapsed ? 0 : Math.min(360, window.innerWidth - 24);
+  return {
+    top: 60,
+    bottom: 60,
+    left: sidebarCollapsed ? 28 : Math.min(sidebarWidth + 40, window.innerWidth - 60),
+    right: 60,
+  };
 }
 
 /**

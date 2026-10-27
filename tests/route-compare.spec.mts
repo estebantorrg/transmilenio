@@ -32,19 +32,27 @@ test.describe('the compared list', () => {
   });
 });
 
-test('a route kept for comparison stays listed while another is selected', async ({ page }) => {
+test('a kept route is named in the legend on the map, while others are picked, and taken off from there', async ({ page }) => {
   await page.goto('/#/r/B11');
   await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: 180_000 });
   const compare = page.locator('#route-detail-compare');
   await expect(compare).toBeEnabled({ timeout: 60_000 });
+  await expect(compare).toHaveText('Comparar con otra ruta');
   await compare.click();
-  await expect(compare).toHaveAttribute('aria-pressed', 'true');
+  // Kept, and back to the list, where the other route is picked.
+  await expect(page.locator('#route-detail')).toBeHidden();
+  const legend = page.getByRole('list', { name: 'Rutas en comparación' });
+  await expect(legend.getByRole('listitem')).toHaveText(['B11×']);
 
   await page.goto('/#/r/B16');
   await expect(page.locator('.detail-badge')).toHaveText('B16', { timeout: 60_000 });
-  await expect(page.locator('.detail-compare-list li')).toHaveText(['B11×']);
-  await expect(page.locator('#route-detail-compare')).toHaveAttribute('aria-pressed', 'false');
+  await expect(legend.getByRole('listitem')).toHaveText(['B11×']);
+  await expect(compare).toHaveText('Comparar con otra ruta');
 
-  await page.getByRole('button', { name: 'Quitar B11 de la comparación' }).click();
-  await expect(page.locator('.detail-compare-list')).toHaveCount(0);
+  await page.goto('/#/r/B11');
+  await expect(compare).toHaveText('Quitar de la comparación', { timeout: 60_000 });
+  await legend.getByRole('button', { name: 'Quitar B11 de la comparación' }).click();
+  await expect(legend).toHaveCount(0);
+  // The open panel follows the legend.
+  await expect(compare).toHaveText('Comparar con otra ruta');
 });

@@ -5,7 +5,7 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
-import { COMPARE_MAX, comparedRoutes, isCompared } from '../layers/compare';
+import { COMPARE_MAX, comparedRoutes, isCompared, onComparedChange } from '../layers/compare';
 import { de } from '../utils/text';
 import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
@@ -70,7 +70,6 @@ let selectedRouteId: string | null = null;
 let onRouteSelect: ((route: RouteListItem) => void) | null = null;
 let onRouteDeselect: (() => void) | null = null;
 let onCompareToggle: ((route: RouteListItem) => void) | null = null;
-let onCompareRemove: ((id: string) => void) | null = null;
 let onLayerToggle: ((layer: string, visible: boolean) => void) | null = null;
 let onStopSelect: ((stop: any, routeType: 'troncal' | 'zonal') => void) | null = null;
 let onPointSelect: ((point: NearbyPoint) => void) | null = null;
@@ -669,10 +668,13 @@ export function initSidebar(options: {
   onPointSelect?: (point: NearbyPoint) => void;
   onRouteOpenPage?: (route: RouteListItem) => void;
   onCompareToggle?: (route: RouteListItem) => void;
-  onCompareRemove?: (id: string) => void;
 }): void {
   onCompareToggle = options.onCompareToggle || null;
-  onCompareRemove = options.onCompareRemove || null;
+  // The legend on the map can take the open route off too.
+  onComparedChange(() => {
+    const route = allRoutes.find((r) => r.id === selectedRouteId);
+    if (route) syncCompareButton(route);
+  });
   onRouteSelect = options.onRouteSelect;
   onRouteDeselect = options.onRouteDeselect;
   onLayerToggle = options.onLayerToggle;
@@ -1524,6 +1526,24 @@ function selectRoute(route: RouteListItem): void {
   });
 }
 
+const COMPARE_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+
+/** The panel's "Comparar" button for `route`, kept in step with the compared list (`layers/compare.ts`). */
+function syncCompareButton(route: RouteListItem): void {
+  const btn = document.getElementById('route-detail-compare') as HTMLButtonElement | null;
+  if (!btn) return;
+  const kept = comparedRoutes().find((r) => r.id === route.id);
+  const full = comparedRoutes().length >= COMPARE_MAX;
+  // Disabled until the trace has loaded — there is nothing to keep before that.
+  btn.disabled = !kept && (full || !route.geometry?.paths?.length);
+  btn.title = btn.disabled ? (full ? `Hasta ${COMPARE_MAX} rutas a la vez` : 'Cargando el recorrido…') : '';
+  btn.classList.toggle('active', Boolean(kept));
+  // A kept route shows the colour it has on the map.
+  btn.innerHTML = kept
+    ? `<span class="detail-compare-dot" style="background:${safeColor(kept.color)}"></span><span>Quitar de la comparación</span>`
+    : `${COMPARE_ICON}<span>Comparar con otra ruta</span>`;
+}
+
 function showRouteDetail(route: RouteListItem): void {
   const panel = document.getElementById('route-detail')!;
   const content = document.getElementById('route-detail-content')!;
@@ -1536,20 +1556,6 @@ function showRouteDetail(route: RouteListItem): void {
   const routeKindLabel = routeSystemLabel(route);
   const badgeColor = safeColor(getRouteAccentColor(route));
   const scheduleHtml = formatSchedule(route);
-  // "Comparar": keep this route drawn while another is picked (`layers/compare.ts`).
-  // Disabled until the trace has loaded — there is nothing to keep before that.
-  const enComparacion = comparedRoutes();
-  const comparing = isCompared(route.id);
-  const canCompare = comparing || (Boolean(route.geometry?.paths?.length) && enComparacion.length < COMPARE_MAX);
-  const compareHtml = `
-      <div class="detail-compare">
-        <button id="route-detail-compare" class="detail-compare-btn${comparing ? ' active' : ''}" type="button" aria-pressed="${comparing}"${canCompare ? '' : ` disabled title="${enComparacion.length >= COMPARE_MAX ? `Hasta ${COMPARE_MAX} rutas a la vez` : 'Cargando el recorrido…'}"`}>
-          ${comparing ? 'Quitar de la comparación' : 'Comparar en el mapa'}
-        </button>
-        ${enComparacion.length ? `<ul class="detail-compare-list" aria-label="Rutas en el mapa para comparar">${enComparacion
-          .map((r) => `<li><span class="detail-compare-dot" style="background:${safeColor(r.color)}"></span>${escapeHTML(r.code)}<button type="button" class="detail-compare-remove" data-id="${escapeHTML(r.id)}" aria-label="Quitar ${escapeHTML(r.code)} de la comparación">×</button></li>`)
-          .join('')}</ul>` : ''}
-      </div>`;
 
   content.innerHTML = `
     <div class="detail-header">
@@ -1566,11 +1572,14 @@ function showRouteDetail(route: RouteListItem): void {
            route itself — the rutero, both sentidos and every parada (spec
            §5.5.5). A real <a href> so it can be middle-clicked, copied and
            crawled; the click is intercepted for a pushState navigation. -->
-      <a id="route-detail-page" class="detail-page-link" href="${routePagePath(route.code)}">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h7"/><path d="M7 16.5h4"/></svg>
-        <span>Ver página de la ruta</span>
-      </a>
-      ${compareHtml}
+      <div class="detail-actions">
+        <a id="route-detail-page" class="detail-page-link" href="${routePagePath(route.code)}">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/><path d="M7 13h7"/><path d="M7 16.5h4"/></svg>
+          <span>Ver página de la ruta</span>
+        </a>
+        <!-- "Comparar": keep this route drawn while another is picked (layers/compare.ts); state set by syncCompareButton. -->
+        <button id="route-detail-compare" class="detail-compare-btn" type="button"></button>
+      </div>
       ${renderLiveCard()}
     </div>
 
@@ -1609,17 +1618,14 @@ function showRouteDetail(route: RouteListItem): void {
     void shareRoute(route);
   });
 
+  syncCompareButton(route);
   content.querySelector('#route-detail-compare')?.addEventListener('click', () => {
+    const adding = !isCompared(route.id);
     onCompareToggle?.(route);
-    showRouteDetail(route);
-    (document.getElementById('route-detail-compare') as HTMLButtonElement | null)?.focus();
-  });
-  content.querySelectorAll<HTMLButtonElement>('.detail-compare-remove').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      onCompareRemove?.(btn.dataset.id ?? '');
-      showRouteDetail(route);
-      (document.getElementById('route-detail-compare') as HTMLButtonElement | null)?.focus();
-    });
+    if (!adding) return;
+    // Kept on the map: back to the list, where the route to compare it with is picked.
+    closeRouteDetailFromUser();
+    showToast(`${route.code} queda en el mapa. Elige otra ruta para compararla.`);
   });
 
   content.querySelector('#route-detail-page')?.addEventListener('click', (event) => {

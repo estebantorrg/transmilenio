@@ -7114,31 +7114,35 @@ body.overlay-page-open {
   outline-offset: 2px;
 }
 
-/* "Comparar": keep this route on the map while another is picked (layers/compare.ts). */
-.detail-compare {
+/* The panel's two actions on one row: the route's page, and "Comparar" (layers/compare.ts). */
+.detail-actions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
   gap: 8px;
-  margin: 0 0 12px;
+  margin: 10px 0 12px;
+}
+
+.detail-actions .detail-page-link {
+  margin: 0;
 }
 
 .detail-compare-btn {
-  padding: 6px 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
   background: var(--bg-hover);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border-medium);
   border-radius: 999px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   font-family: var(--font-family);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: color var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast);
 }
 
-.detail-compare-btn:hover:not(:disabled),
-.detail-compare-btn.active {
-  color: var(--text-primary);
+.detail-compare-btn:hover:not(:disabled) {
   background: var(--bg-active);
   border-color: var(--border-accent);
 }
@@ -7149,52 +7153,66 @@ body.overlay-page-open {
 }
 
 .detail-compare-btn:focus-visible,
-.detail-compare-remove:focus-visible {
+.compare-legend button:focus-visible {
   outline: 2px solid var(--tm-blue-light);
   outline-offset: 2px;
 }
 
-.detail-compare-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.detail-compare-list li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 4px 2px 9px;
-  border: 1px solid var(--border-subtle);
-  border-radius: 999px;
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  color: var(--text-primary);
-}
-
-.detail-compare-dot {
+.detail-compare-dot,
+.compare-legend-dot {
   width: 10px;
   height: 10px;
   border-radius: 50%;
   flex: none;
 }
 
-.detail-compare-remove {
-  width: 24px;
-  height: 24px;
+/* The compared routes' key, on the map left of the Novedades bell: the lines'
+   colours and códigos, each with its ×. */
+.compare-legend {
+  position: fixed;
+  top: 16px;
+  right: 72px;
+  z-index: 99;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  max-width: calc(100vw - 88px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.compare-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 44px;
+  padding: 0 4px 0 13px;
+  background: var(--bg-card);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  color: var(--text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+}
+
+.compare-legend button {
+  width: 32px;
+  height: 32px;
   border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: 18px;
   line-height: 1;
   cursor: pointer;
 }
 
-.detail-compare-remove:hover {
+.compare-legend button:hover {
   background: var(--bg-active);
   color: var(--text-primary);
 }
