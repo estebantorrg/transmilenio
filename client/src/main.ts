@@ -6,12 +6,12 @@
  */
 
 import maplibregl from 'maplibre-gl';
-import { createMap, initMapImages, mapFitPadding } from './map';
+import { createMap, fitToTraces, initMapImages } from './map';
 import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/api';
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
-import { comparedRoutes, toggleCompared } from './layers/compare';
+import { comparedRoutes, isCompared, toggleCompared } from './layers/compare';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
 import { addDemandLayer, toggleDemandLayer, bringDemandLayerToFront } from './layers/demandLayer';
 import {
@@ -1133,16 +1133,8 @@ async function main(): Promise<void> {
       );
 
       if (route.geometry && route.geometry.paths) {
-        const bounds = new maplibregl.LngLatBounds();
         // The compared routes too (`layers/compare.ts`): comparing is reading them together.
-        [route.geometry.paths, ...comparedRoutes().map((r) => r.paths)].forEach((paths) => {
-          paths.forEach((path) => {
-            path.forEach(([lng, lat]) => {
-              bounds.extend([lng, lat]);
-            });
-          });
-        });
-        map.fitBounds(bounds, { padding: mapFitPadding(), maxZoom: 15 });
+        fitToTraces(map, [route.geometry.paths, ...comparedRoutes().map((r) => r.paths)]);
       }
     },
     onRouteDeselect: () => {
@@ -1166,7 +1158,11 @@ async function main(): Promise<void> {
     },
     onPointSelect: focusNearbyPoint,
     onRouteOpenPage: (route: RouteListItem) => openRoutePage(route),
-    onCompareToggle: (route: RouteListItem) => toggleCompared(map, route),
+    onCompareToggle: (route: RouteListItem) => {
+      toggleCompared(map, route);
+      // Added from the list, with nothing selected: show what is being compared.
+      if (!activeRouteId && isCompared(route.id)) fitToTraces(map, comparedRoutes().map((r) => r.paths));
+    },
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
         case 'troncal':

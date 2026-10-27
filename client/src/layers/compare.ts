@@ -1,10 +1,12 @@
 import type { GeoJSONSource, Map as MapLibreMap } from 'maplibre-gl';
 import { escapeHTML } from '../utils/html';
+import { fadeBackground, NETWORK_FADES, restoreBackground } from './backgroundDim';
 
 /**
- * Routes kept on the map beside the selected one — "Comparar con otra ruta" in
- * the route panel (spec §5.4.2b). The selected route keeps its own highlight;
- * each compared route stays drawn underneath it, labelled with its código, and
+ * Routes kept on the map beside the selected one — the compare button on each
+ * route row and "Comparar con otra ruta" in the route panel (spec §5.4.2b). The
+ * selected route keeps its own highlight; each compared route stays drawn
+ * underneath it, labelled with its código, with the network faded behind, and
  * listed in a legend at the map's top right, from which it is taken off again.
  *
  * Website only: the live buses stay on the selected route, so comparing never
@@ -19,9 +21,11 @@ export interface ComparedRoute {
 
 export const COMPARE_MAX = 3;
 
-// Colours no troncal uses: B11 and B16 are both Autonorte green, and two
-// greens side by side compare nothing.
-export const COMPARE_PALETTE = ['#F97316', '#A855F7', '#06B6D4'];
+// Not the routes' own colours — B11 and B16 are both Autonorte green — and not
+// near any troncal's either: the 13 of them cover the wheel, and an orange,
+// purple and cyan read as H, D and L. Neon magenta, neon lime and white, each
+// drawn with a casing no corridor has (white, dark for the white line).
+export const COMPARE_PALETTE = ['#FF2BD6', '#A3FF12', '#FFFFFF'];
 
 const SOURCE = 'compare-routes';
 const LAYERS = ['compare-routes-casing', 'compare-routes-line', 'compare-routes-label'];
@@ -73,13 +77,17 @@ function render(map: MapLibreMap): void {
     type: 'FeatureCollection',
     features: compared.map((route) => ({
       type: 'Feature',
-      properties: { code: route.code, color: route.color },
+      properties: { code: route.code, color: route.color, casing: route.color === '#FFFFFF' ? '#050812' : '#FFFFFF' },
       geometry: { type: 'MultiLineString', coordinates: route.paths },
     })),
   };
   const source = map.getSource(SOURCE) as GeoJSONSource | undefined;
   if (source) source.setData(data);
   else addLayers(map, data);
+  // The same fade a selected route gets: with every corridor in full colour, a
+  // compared line is one more coloured line. A selected route's highlight owns it otherwise.
+  if (compared.length) fadeBackground(map, NETWORK_FADES);
+  else if (!map.getLayer('highlight-route')) restoreBackground(map);
   changeListener?.();
 }
 
@@ -120,9 +128,9 @@ function addLayers(map: MapLibreMap, data: GeoJSON.FeatureCollection): void {
     source: SOURCE,
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#000000',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 5, 14, 8, 17, 11] as any,
-      'line-opacity': 0.8,
+      'line-color': ['get', 'casing'] as any,
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 9, 17, 12] as any,
+      'line-opacity': 0.9,
     },
   }, beforeId);
   map.addLayer({
@@ -145,12 +153,14 @@ function addLayers(map: MapLibreMap, data: GeoJSON.FeatureCollection): void {
       'symbol-spacing': 280,
       'text-field': ['get', 'code'] as any,
       'text-font': ['Open Sans Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 11, 16, 14] as any,
+      'text-size': ['interpolate', ['linear'], ['zoom'], 10, 12, 16, 14] as any,
+      'text-padding': 6,
     },
+    // A pill in the line's colour, dark text: a código, not a street name.
     paint: {
-      'text-color': ['get', 'color'] as any,
-      'text-halo-color': '#050812',
-      'text-halo-width': 1.6,
+      'text-color': '#050812',
+      'text-halo-color': ['get', 'color'] as any,
+      'text-halo-width': 3,
     },
   });
 }

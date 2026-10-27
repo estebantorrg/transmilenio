@@ -950,7 +950,9 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 500;
 }
 
-.route-item-fav {
+/* The star and, beside it, "Comparar en el mapa" (layers/compare.ts): both shown on hover. */
+.route-item-fav,
+.route-item-compare {
   flex-shrink: 0;
   width: 30px;
   height: 30px;
@@ -968,8 +970,23 @@ body.sidebar-collapsed .sidebar-fab {
 
 .route-item:hover .route-item-fav,
 .route-item-fav.active,
-.route-item-fav:focus-visible {
+.route-item-fav:focus-visible,
+.route-item:hover .route-item-compare,
+.route-item-compare.active,
+.route-item-compare:focus-visible {
   opacity: 1;
+}
+
+.route-item-compare:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.route-item-compare-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7);
 }
 
 .route-item-fav:hover {
@@ -3479,13 +3496,15 @@ body.sidebar-collapsed .sidebar-fab {
     padding: 12px;
   }
 
-  .route-item-fav {
+  .route-item-fav,
+  .route-item-compare {
     width: 36px;
     height: 36px;
   }
 
   /* No hover on touch: keep inactive stars faint, active ones bright. */
-  .route-item-fav:not(.active) {
+  .route-item-fav:not(.active),
+  .route-item-compare:not(.active) {
     opacity: 0.3;
   }
 

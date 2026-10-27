@@ -70,6 +70,13 @@ export function mapFitPadding(): { top: number; bottom: number; left: number; ri
   };
 }
 
+/** Moves the camera onto every trace in `traces` (each a MultiLineString's coordinates). */
+export function fitToTraces(map: maplibregl.Map, traces: number[][][][]): void {
+  const bounds = new maplibregl.LngLatBounds();
+  for (const paths of traces) for (const path of paths) for (const [lng, lat] of path) bounds.extend([lng, lat]);
+  if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: mapFitPadding(), maxZoom: 15 });
+}
+
 /**
  * Creates a high-fidelity pin marker icon using HTML5 Canvas.
  */

@@ -670,10 +670,14 @@ export function initSidebar(options: {
   onCompareToggle?: (route: RouteListItem) => void;
 }): void {
   onCompareToggle = options.onCompareToggle || null;
-  // The legend on the map can take the open route off too.
+  // Every button showing a route's place in the comparison follows any change, the legend's × included.
   onComparedChange(() => {
     const route = allRoutes.find((r) => r.id === selectedRouteId);
     if (route) syncCompareButton(route);
+    document.querySelectorAll<HTMLButtonElement>('.route-item-compare').forEach((btn) => {
+      btn.innerHTML = compareRowInner(btn.dataset.compareId ?? '');
+      syncCompareRow(btn);
+    });
   });
   onRouteSelect = options.onRouteSelect;
   onRouteDeselect = options.onRouteDeselect;
@@ -1457,6 +1461,8 @@ function renderRouteList(
               <span class="route-item-endpoints">${escapeHTML(endpointText)}</span>
             </div>
           </div>
+          <button class="route-item-compare" type="button" data-compare-id="${escapeHTML(route.id)}"
+                  aria-label="Comparar ${escapeHTML(route.code)} en el mapa">${compareRowInner(route.id)}</button>
           <button class="route-item-fav ${isFav ? 'active' : ''}" type="button"
                   data-fav-id="${escapeHTML(route.id)}"
                   aria-pressed="${isFav}"
@@ -1483,10 +1489,28 @@ function renderRouteList(
     };
     el.addEventListener('click', open);
     el.addEventListener('keydown', (e) => {
+      // The row's own key only: Enter on its star or compare button is that button's.
+      if (e.target !== el) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         open();
       }
+    });
+  });
+
+  container.querySelectorAll<HTMLButtonElement>('.route-item-compare').forEach((btn) => {
+    syncCompareRow(btn);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const route = allRoutes.find((item) => item.id === btn.dataset.compareId);
+      if (!route) return;
+      const adding = !isCompared(route.id);
+      if (adding && comparedRoutes().length >= COMPARE_MAX) {
+        showToast(`Hasta ${COMPARE_MAX} rutas a la vez. Quita una con la × de arriba.`);
+        return;
+      }
+      onCompareToggle?.(route);
+      if (adding && !isCompared(route.id)) showToast(`El recorrido de la ${route.code} todavía no ha cargado.`);
     });
   });
 
@@ -1527,6 +1551,19 @@ function selectRoute(route: RouteListItem): void {
 }
 
 const COMPARE_ICON = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>';
+
+/** A route row's compare button: the layers icon, or the colour the route has on the map. */
+function compareRowInner(id: string): string {
+  const kept = comparedRoutes().find((r) => r.id === id);
+  return kept ? `<span class="route-item-compare-dot" style="background:${safeColor(kept.color)}"></span>` : COMPARE_ICON;
+}
+
+function syncCompareRow(btn: HTMLButtonElement): void {
+  const kept = isCompared(btn.dataset.compareId ?? '');
+  btn.classList.toggle('active', kept);
+  btn.setAttribute('aria-pressed', String(kept));
+  btn.title = kept ? 'Quitar de la comparación' : 'Comparar en el mapa';
+}
 
 /** The panel's "Comparar" button for `route`, kept in step with the compared list (`layers/compare.ts`). */
 function syncCompareButton(route: RouteListItem): void {

@@ -11,6 +11,23 @@ import type maplibregl from 'maplibre-gl';
  */
 export type Fade = [layerId: string, property: string, value: number];
 
+/** The network behind a selected route or the compared ones (`routes.ts`, `compare.ts`). */
+export const NETWORK_FADES: Fade[] = [
+  ['troncal-corridors-line', 'line-opacity', 0.1],
+  ['troncal-corridors-casing', 'line-opacity', 0.05],
+  ['troncal-corridors-labels', 'text-opacity', 0.1],
+  ['zonal-routes-line', 'line-opacity', 0.02],
+  ['zonal-routes-casing', 'line-opacity', 0.01],
+  ['zonal-routes-glow', 'line-opacity', 0],
+  ['stations-circle', 'icon-opacity', 0.25],
+  ['stations-labels', 'text-opacity', 0.2],
+  ['stops-circle', 'icon-opacity', 0.25],
+  ['stops-labels', 'text-opacity', 0.2],
+  ['cable-traces-line', 'line-opacity', 0.1],
+  ['cable-stations-circle', 'icon-opacity', 0.25],
+  ['cable-stations-labels', 'text-opacity', 0.2],
+];
+
 /** `layer|property` → the value it had before anything faded it. */
 const saved = new Map<string, unknown>();
 

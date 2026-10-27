@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { COMPARE_MAX, COMPARE_PALETTE, toggledCompared } from '../client/src/layers/compare.ts';
 
 /**
- * "Comparar en el mapa" (`client/src/layers/compare.ts`, the route panel in
- * `ui/sidebar.ts`): a route can be kept on the map, in a colour of its own,
- * while another one is selected, so two routes to the same place read side by
- * side. Up to three at a time; each can be taken off again.
+ * "Comparar en el mapa" (`client/src/layers/compare.ts`; the route rows and the
+ * route panel in `ui/sidebar.ts`): a route can be kept on the map, in a colour
+ * of its own, while another one is selected, so two routes to the same place
+ * read side by side. Up to three at a time; each can be taken off again.
  */
 
 test.describe.configure({ timeout: 240_000 });
@@ -55,4 +55,28 @@ test('a kept route is named in the legend on the map, while others are picked, a
   await expect(legend).toHaveCount(0);
   // The open panel follows the legend.
   await expect(compare).toHaveText('Comparar con otra ruta');
+});
+
+test('a route row adds it to the comparison without opening it, and fades the network', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: 180_000 });
+  await page.getByPlaceholder(/Rutas, estaciones/).fill('K54');
+  const row = page.locator('.route-item:not(.place-item)').filter({ has: page.locator('.route-item-badge', { hasText: /^K54$/ }) }).first();
+  const button = row.getByRole('button', { name: 'Comparar K54 en el mapa' });
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#route-detail')).toBeHidden();
+  const legend = page.getByRole('list', { name: 'Rutas en comparación' });
+  await expect(legend.getByRole('listitem')).toHaveText(['K54×']);
+  // Among full-colour corridors a compared line is one more coloured line.
+  const corridorOpacity = () => page.evaluate(() => (window as any).__tmMap.getPaintProperty('troncal-corridors-line', 'line-opacity'));
+  await expect.poll(corridorOpacity).toBe(0.1);
+
+  // Enter on the button is the button's, not the row's: it takes K54 off and opens nothing.
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await expect(legend).toHaveCount(0);
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#route-detail')).toBeHidden();
+  await expect.poll(corridorOpacity).not.toBe(0.1);
 });
