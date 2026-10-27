@@ -11,6 +11,7 @@ import { api, prefetchLiveBuses, type RechargePointsResponse } from './services/
 import { addStationsLayer, bringStationsLayerToFront, catalogStationsToFeatures, getStationDisplayPoints, setCatalog, toggleStationsLayer, showStationPopupByCode } from './layers/stations';
 import { addStopsLayer, bringStopsLayerToFront, toggleStopsLayer, buildStopRoutesMap, updateSelectedRouteStops, updateStopsLayer, showStopPopupByCode } from './layers/stops';
 import { showPopup } from './layers/popup';
+import { removeCompared, toggleCompared } from './layers/compare';
 import { addCableLayers, toggleCableLayers, toggleCableStationsLayer, bringCableLayersToFront, showCableStationPopup } from './layers/cable';
 import { addDemandLayer, toggleDemandLayer, bringDemandLayerToFront } from './layers/demandLayer';
 import {
@@ -1169,6 +1170,8 @@ async function main(): Promise<void> {
     },
     onPointSelect: focusNearbyPoint,
     onRouteOpenPage: (route: RouteListItem) => openRoutePage(route),
+    onCompareToggle: (route: RouteListItem) => toggleCompared(map, route),
+    onCompareRemove: (id: string) => removeCompared(map, id),
     onLayerToggle: (layer: string, visible: boolean) => {
       switch (layer) {
         case 'troncal':

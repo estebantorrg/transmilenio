@@ -562,6 +562,8 @@ export function bringTroncalLayersToFront(map: maplibregl.Map): void {
   const layers = [
     'troncal-corridors-casing',
     'troncal-corridors-line',
+    'compare-routes-casing',
+    'compare-routes-line',
     'highlight-route-casing',
     'highlight-route-glow',
     'highlight-route',
