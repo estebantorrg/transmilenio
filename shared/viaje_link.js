@@ -12,7 +12,8 @@
  *   v        the chosen option, as the códigos it rides in order: "B23.G47"
  */
 
-/** Where a shared link opens. */
+/** The site's canonical origin: where a shared link opens, and what the server's
+ *  canonicals, sitemaps and old-host redirects name (`server/src/seo_head.ts`). */
 export const WEB_ORIGIN = 'https://mitrasto.app';
 
 /**

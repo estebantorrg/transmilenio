@@ -75,6 +75,10 @@ test.describe('ubicación de una estación', () => {
     );
     expect(ubicacionEstacion('Ricaurte', 'AV NQS - CL 13')!.respuesta).toBe('La estación Ricaurte queda en AV NQS - CL 13.');
     expect(ubicacionEstacion('Ricaurte', '')).toBeNull();
+    // No address on file: the troncal still says where it is, so the page is not left at one line.
+    expect(ubicacionEstacion('Islandia', '', 'Av. Ciudad de Cali')!.respuesta).toBe(
+      'La estación Islandia queda sobre la troncal Av. Ciudad de Cali.'
+    );
   });
 });
 

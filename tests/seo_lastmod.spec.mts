@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { contentHash, dateLedger, shellHash } from '../server/src/seo_lastmod.ts';
+import { contentHash, dateLedger, pageContent, shellHash } from '../server/src/seo_lastmod.ts';
 
 /**
  * A sitemap page's `lastmod` is the day its content last changed
@@ -39,5 +39,11 @@ test.describe('sitemap lastmod', () => {
       `<script type="module" src="/assets/index-${h}.js"></script><link rel="stylesheet" href="/assets/index-${h}.css">`;
     expect(shellHash(shell('Bx9f3kQa'))).toBe(shellHash(shell('C7tZ01pe')));
     expect(shellHash(shell('Bx9f3kQa'))).not.toBe(shellHash(shell('Bx9f3kQa') + '<h1>nuevo</h1>'));
+  });
+
+  test('a template edit to the styles or the line breaks re-dates no page', () => {
+    const body = '<style>#a{color:red}</style>\n<main>\n<p>Portal Suba</p>\n</main>';
+    expect(pageContent(body)).toBe(pageContent('<style>#a{color:red}#b{margin:0}</style><main> <p>Portal Suba</p>\n\n</main>'));
+    expect(pageContent(body)).not.toBe(pageContent(body.replace('Suba', 'Norte')));
   });
 });

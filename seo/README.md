@@ -11,16 +11,17 @@ build output. Single source of truth; nothing here is copied or generated.
 ## The sitemaps are **not** here
 
 They used to be — a single hand-written `/` entry, back when hash routing made `/`
-the only indexable URL. `server/src/prerender_seo.ts` now emits 352 real pages
-(`/ruta/<code>/`, `/estacion/<slug>-<codigo>/`, spec §5.5.4), so the sitemaps are
-build output and are written into **`client/dist`**:
+the only indexable URL. `server/src/prerender_seo.ts` now emits a real page per
+route and estación (`/ruta/<code>/`, `/estacion/<slug>-<codigo>/`, spec §5.5.4),
+so the sitemaps are build output and are written into **`client/dist`**:
 
 | Generated file | Public URL |
 |---|---|
-| `sitemap.xml` | index over the three below |
-| `sitemap-paginas.xml` | `/` |
-| `sitemap-rutas.xml` | 213 troncal route pages |
-| `sitemap-estaciones.xml` | 139 troncal estación pages |
+| `sitemap.xml` | index over the four below |
+| `sitemap-paginas.xml` | `/` and the indexable legal pages |
+| `sitemap-rutas.xml` | TransMilenio route pages |
+| `sitemap-estaciones.xml` | troncal estación pages (the noindex choosers left out) |
+| `sitemap-zonales.xml` | the zonal route pages released so far (`server/src/seo_zonal.ts`) |
 | `sitemap-lastmod.json` | `/sitemap-lastmod.json` — URL → content hash + the day it last changed; the next build reads it to keep each page's `lastmod` (`server/src/seo_lastmod.ts`) |
 | `llms.txt` | `/llms.txt` — the site described for language models (llmstxt.org), listing the same pages as the sitemaps (`server/src/llms_txt.ts`) |
 
@@ -40,10 +41,10 @@ the built server (`npm run build && npm start`) or production.
 
 ## Canonical origin
 
-`https://mitrasto.app` — hardcoded in `robots.txt` here, in the
-`ORIGIN` constant of `server/src/prerender_seo.ts`, in the `canonical`/`og:url`
-tags in `client/index.html`, and in `RELAY_CLIENT_ORIGINS` (README). Changing the
-domain means changing all of them.
+`https://mitrasto.app` — in code once, as `WEB_ORIGIN` in `shared/viaje_link.js`
+(the server's `ORIGIN` and `CANONICAL_HOST` are derived from it). The static files
+hardcode it: `robots.txt` here and `client/index.html`. So does the
+`RELAY_CLIENT_ORIGINS` setting (README). Changing the domain means changing all of them.
 
 Until 2026-10 it was `https://transmilenio.onrender.com`. Pages there answer
 `301` to this origin (`server/src/retired_host.ts`); `/api` and files, this
@@ -51,12 +52,11 @@ folder's included, still answer in place.
 
 ## Checklist when the domain changes
 
-1. `server/src/prerender_seo.ts` → the `ORIGIN` constant. It stamps every
-   canonical, `og:url`, JSON-LD `url` and sitemap `<loc>` across all 352 pages.
+1. `shared/viaje_link.js` → `WEB_ORIGIN`. It stamps every canonical, `og:url`,
+   JSON-LD `url`, sitemap `<loc>` and `llms.txt` link, the old-host redirect
+   target, and the links the website and the app share (the app's ship with the
+   next APK tag).
 2. `robots.txt` → `Sitemap:` line + header comment.
 3. `client/index.html` → `canonical`, `og:url`, `og:image`, JSON-LD `url`.
-4. `server/src/seo_og.ts` → the host printed in each share card's footer.
-5. `client/mobile/src/ui/detailSheets.ts` → `WEB_ORIGIN` (ships with the next APK tag).
-6. `server/src/retired_host.ts` → `CANONICAL_HOST`, and add the host being left
-   to `RETIRED_HOSTS`.
-7. Re-verify the property in Search Console and resubmit the sitemap.
+4. `server/src/retired_host.ts` → add the host being left to `RETIRED_HOSTS`.
+5. Re-verify the property in Search Console and resubmit the sitemap.

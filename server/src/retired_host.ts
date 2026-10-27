@@ -1,7 +1,8 @@
 import path from 'node:path';
+import { WEB_ORIGIN } from '../../shared/viaje_link.js';
 
 /** Where the site lives now (spec §5.5.4). */
-export const CANONICAL_HOST = 'mitrasto.app';
+export const CANONICAL_HOST = new URL(WEB_ORIGIN).host;
 
 /** Hosts the site used to be published on. */
 const RETIRED_HOSTS = new Set(['transmilenio.onrender.com']);

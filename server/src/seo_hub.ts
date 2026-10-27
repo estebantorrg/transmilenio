@@ -1,4 +1,4 @@
-import { escapeHtml } from '../../shared/plano.js';
+import { escapeHtml } from './seo_head.js';
 
 /**
  * The home page's links to every ruta and estación page (spec §5.5.4).

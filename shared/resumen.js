@@ -101,7 +101,8 @@ export function horarioRuta(codigo, horario) {
 
 /**
  * "¿Dónde queda la estación Portal Norte?" → "La estación Portal Norte queda en
- * Autopista Norte - CL 172A, sobre la troncal Autonorte." Null without an address.
+ * Autopista Norte - CL 172A, sobre la troncal Autonorte." Without an address the
+ * troncal alone answers it (Islandia, Laureles); null with neither.
  * @param {string} nombre
  * @param {string} [direccion]
  * @param {string} [troncal] the corridor's name, without "Troncal"
@@ -109,10 +110,11 @@ export function horarioRuta(codigo, horario) {
 export function ubicacionEstacion(nombre, direccion, troncal) {
   const lugar = String(direccion ?? '').trim();
   const via = String(troncal ?? '').trim().replace(/^troncal\s+/i, '');
-  if (!nombre || !lugar) return null;
+  if (!nombre || (!lugar && !via)) return null;
+  const sobre = via ? `sobre la troncal ${via}` : '';
   return {
     pregunta: `¿Dónde queda la estación ${nombre}?`,
-    respuesta: punto(`La estación ${nombre} queda en ${lugar}${via ? `, sobre la troncal ${via}` : ''}`),
+    respuesta: punto(`La estación ${nombre} queda ${lugar ? `en ${lugar}${sobre ? `, ${sobre}` : ''}` : sobre}`),
   };
 }
 
@@ -125,7 +127,7 @@ export function ubicacionEstacion(nombre, direccion, troncal) {
 const corto = (nombre) => String(nombre ?? '').split(/\s[-–—]\s/)[0].trim();
 
 /** First option under the ~65 characters Google shows of a title, else the last. */
-const primero = (...opciones) => opciones.find((t) => t.length <= 65) ?? opciones[opciones.length - 1];
+export const primero = (...opciones) => opciones.find((t) => t.length <= 65) ?? opciones[opciones.length - 1];
 
 /**
  * The route page's <title>, worded as the search: "Ruta B16: paradas de Portal

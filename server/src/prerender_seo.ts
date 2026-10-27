@@ -29,7 +29,6 @@ import zlib from 'node:zlib';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { loadCatalogFromDisk, getCatalogLightGzip } from './services/tm_api.js';
 import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
@@ -38,18 +37,18 @@ import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/st
 import { slugify } from '../../shared/slug.js';
 import { hubHtml, withHub } from './seo_hub.js';
 import { abordajeEn, vagonTexto } from '../../shared/route_stop.js';
-import { horarioRuta, resumenEstacion, resumenRuta, tituloEstacion, tituloRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
+import { horarioRuta, primero, resumenEstacion, resumenRuta, tituloEstacion, tituloRuta, ubicacionEstacion, type Resumen } from '../../shared/resumen.js';
 import { buildSheetPlano, nombreVagon } from '../../shared/plano.js';
 import type { PlanGroup } from './services/station_plan.js';
 import { isZonalService } from './services/route_type.js';
 import { isTroncalStationCode } from './services/station_registry.js';
-import { LEDGER_FILE, contentHash, dateLedger, liveLedger, shellHash } from './seo_lastmod.js';
+import { LEDGER_FILE, contentHash, dateLedger, liveLedger, pageContent, shellHash } from './seo_lastmod.js';
 import { renderLlmsTxt, type LlmsInput, type LlmsRoute, type LlmsStation } from './llms_txt.js';
 import { LEGAL_CSS, LEGAL_DOCS, legalDocHtml, legalLinksHtml, type LegalDoc } from '../../shared/legal.js';
 import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../shared/horario_programado.js';
 import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
 import { ZONAL_PAGES } from './seo_zonal.js';
-import { ORIGIN, escapeHtml, withHead } from './seo_head.js';
+import { ORIGIN, escapeHtml, swap, withHead } from './seo_head.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIST = path.resolve(__dirname, '..', '..', 'client', 'dist');
@@ -145,23 +144,6 @@ function tidy(value: unknown): string {
 }
 
 
-/**
- * A `<title>` under the ~65 characters Google renders before it truncates.
- *
- * The subject of these pages is a name the rider searched for, so the name is
- * the one part that may never be cut — which means the *suffix* has to give. It
- * is not decoration either: "qué rutas pasan y en qué vagón" is the phrasing of
- * the query the page answers, and a truncated title drops exactly that tail,
- * off the longest names — Estación El Tiempo - Cámara De Comercio De Bogotá ran
- * to 82 characters, so everything after the station name was lost. Long names
- * therefore get a shorter suffix rather than a cut one: 16 estación titles and
- * 1 ruta title were over the limit, and all of them fit with the short form.
- */
-function pageTitle(subject: string, suffix: string, shortSuffix: string, max = 65): string {
-  const full = `${subject}${suffix}`;
-  return full.length <= max ? full : `${subject}${shortSuffix}`;
-}
-
 /** Meta descriptions are truncated by search engines past ~160 chars; do it ourselves so we control where. */
 function clamp(text: string, max = 158): string {
   const clean = text.replace(/\s+/g, ' ').trim();
@@ -218,7 +200,8 @@ function renderPage(
   let html = withHead(shell, page);
 
   // Replace the shell's site-wide WebApplication block with this page's graph.
-  html = html.replace(
+  html = swap(
+    html,
     /<script type="application\/ld\+json">[\s\S]*?<\/script>/,
     // `<` escaped: the names in this graph are upstream text, and `</script>` in
     // one of them would end the block and put what follows it into the page.
@@ -228,11 +211,11 @@ function renderPage(
   // The prerendered body is the page until the bundle boots; `hideLoading()`
   // removes it once the map is live (client/src/main.ts). The body class is what
   // suppresses the boot overlay above it (PRERENDER_STYLE).
-  html = html.replace('<body>', '<body class="seo-static">');
+  html = swap(html, /<body>/, '<body class="seo-static">');
   // Every static page ends with the links to the legal pages, as the app's
   // sidebar does — here, for crawlers and readers without JS.
   const body = page.body.replace(/<\/div><\/main>\s*$/, `<footer class="seo-legal">${legalLinksHtml()}</footer>\n</div></main>`);
-  return html.replace('</body>', `${body}\n</body>`);
+  return swap(html, /<\/body>/, `${body}\n</body>`);
 }
 
 /**
@@ -571,15 +554,7 @@ background:#202329;border:1px solid #4D5059;border-radius:12px;padding:8px 13px;
 #seo-prerender .seo-dismiss button:focus-visible{outline:2px solid #7DD3FC;outline-offset:2px}
 #seo-prerender .tabla-ruteros{margin:22px 0 0}
 ${TABLA_RUTERO_CSS}
-</style>`;
-
-/**
- * The scheduled-service table and the per-paradero pass, carried only by the
- * pages that show them (zonal routes, spec §5.5.10). Not in PRERENDER_STYLE: a
- * page's lastmod is the hash of its body (`seo_lastmod.ts`), and a rule added
- * there re-dates all ~370 other pages that did not change.
- */
-const PROGRAMADO_STYLE = `<style>
+/* The scheduled-service table and the per-paradero pass (zonal routes, spec §5.5.10). */
 #seo-prerender ol.stops .paso{margin-left:6px;font-size:.78rem;color:rgba(255,255,255,.6);
 font-variant-numeric:tabular-nums;white-space:nowrap}
 #seo-prerender table.programado{width:100%;border-collapse:collapse;margin:10px 0 4px;font-size:.85rem;
@@ -687,7 +662,18 @@ function resumenEstacionDe(nombre: string, routes: LightWagonEntry[]): Resumen |
 }
 
 // ─── Route pages ──────────────────────────────────────────
-function renderRoute(
+/**
+ * A código's variants with its TransMilenio service first, catalog order kept
+ * otherwise. The page, its card, its hub link and llms.txt all describe
+ * `variants[0]`, and `7` and `C25` are a TransMilenio service AND a zonal one:
+ * with the catalog listing the zonal first, `/ruta/7/` was titled for the
+ * Palmitas bus and tagged SITP Zonal, on the page that exists for the ruta fácil.
+ */
+export function troncalFirst(variants: LightRoute[]): LightRoute[] {
+  return [...variants].sort((a, b) => Number(b.sistema === 'TransMilenio') - Number(a.sistema === 'TransMilenio'));
+}
+
+export function renderRoute(
   codigo: string,
   variants: LightRoute[],
   stationByCode: Map<string, LightStation>,
@@ -758,7 +744,6 @@ function renderRoute(
       return `<section class="sec">
 <h2>Hacia ${escapeHtml(tidy(variant.destination) || '?')}${stops.length ? ` <span class="count">${stops.length}</span>` : ''}</h2>
 <p class="sub">Desde ${escapeHtml(tidy(variant.origin) || '?')}${schedule ? ` · ${escapeHtml(schedule)}` : ''}</p>${
-        // Inline, not on a line of its own: an empty line would re-date every other route page.
         tabla ? `\n${tabla}\n<p class="meta">${escapeHtml(PASO_NOTA)}</p>` : ''
       }
 <ol class="stops">
@@ -823,13 +808,10 @@ ${items}
     { label: 'Horario', value: horarios.split(' · ')[0] || null },
   ]);
 
-  // The frequency question only where there is an answer: an empty entry still
-  // adds a line break, and that alone re-dates every other route page (`seo_lastmod.ts`).
   const frecuencia = resumenFrecuencia(codigo, programado?.sentidos);
-  const resumen =
-    [ruta, hora].map(resumenHtml).join('\n') + (frecuencia ? `\n${resumenHtml(frecuencia)}` : '');
+  const resumen = [ruta, hora, frecuencia].map(resumenHtml).filter(Boolean).join('\n');
 
-  const body = `${PRERENDER_STYLE}${programado ? PROGRAMADO_STYLE : ''}
+  const body = `${PRERENDER_STYLE}
 <main id="seo-prerender" style="--accent:${accent}"><div class="rail"></div><div class="wrap">
 ${breadcrumbHtml(trail)}
 <header class="hero">
@@ -977,6 +959,18 @@ function buildPlatform(
   return { vagones, unassigned, feeders };
 }
 
+const countServices = (directions: PlatformDirection[]): number =>
+  directions.reduce((n, d) => n + d.services.length, 0);
+
+/** Every service the platform model files: on a vagón, unassigned, or feeder. */
+function serviceTotal(platform: ReturnType<typeof buildPlatform>): number {
+  return (
+    platform.vagones.reduce((n, v) => n + countServices(v.directions), 0) +
+    countServices(platform.unassigned) +
+    platform.feeders.length
+  );
+}
+
 // ─── Estación pages ───────────────────────────────────────
 function renderStation(
   station: LightStation,
@@ -987,12 +981,7 @@ function renderStation(
   const direccion = tidy(station.direccion);
   const coord = parseCoordinate(station.coordenada);
   const platform = buildPlatform(station, routeIndex);
-  const countServices = (directions: PlatformDirection[]): number =>
-    directions.reduce((n, d) => n + d.services.length, 0);
-  const serviceCount =
-    platform.vagones.reduce((n, v) => n + countServices(v.directions), 0) +
-    countServices(platform.unassigned) +
-    platform.feeders.length;
+  const serviceCount = serviceTotal(platform);
 
   const buses = resumenEstacionDe(nombre, Object.values(station.wagons ?? {}).flat());
   const lugar = ubicacionEstacion(nombre, direccion, station.corridor?.nombre);
@@ -1097,7 +1086,7 @@ ${platform.vagones
     // signage — "Plataforma" is vague but true, whereas a wrong vagón number
     // sends a rider to the wrong side of the station.
     const name = v.label ? nombreVagon(escapeHtml(v.label)) : `Plataforma ${i + 1}`;
-    const count = v.directions.reduce((n, d) => n + d.services.length, 0);
+    const count = countServices(v.directions);
     const [first, ...rest] = v.directions;
     return `    <section class="vg" aria-label="${escapeHtml(name)}">
     <div class="vg-side vg-side-a">
@@ -1235,10 +1224,7 @@ function renderStationChooser(
   const cards = halves
     .map(({ station: half }) => {
       const platform = buildPlatform(half, routeIndex);
-      const services =
-        platform.vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
-        platform.unassigned.reduce((n, d) => n + d.services.length, 0) +
-        platform.feeders.length;
+      const services = serviceTotal(platform);
       const codes = new Map<string, string>();
       for (const routes of Object.values((half.wagons ?? {}) as Record<string, any[]>)) {
         for (const r of routes ?? []) {
@@ -1268,7 +1254,7 @@ function renderStationChooser(
 
   // "Estación Ricaurte — NQS o CL 13": each half by what follows its dash.
   const lados = halves.map((h) => tidy(h.station.nombre).split(' - ').pop() ?? '');
-  const title = pageTitle(`Estación ${nombre}`, ` — ${lados.join(' o ')}`, '');
+  const title = primero(`Estación ${nombre} — ${lados.join(' o ')}`, `Estación ${nombre}`);
   const description = clamp(
     `${nombre} son ${cuantas} estaciones de TransMilenio ${joined}, cada una con sus propios vagones y servicios. ` +
       `Elige la de tu ruta.`
@@ -1335,7 +1321,7 @@ async function main(): Promise<void> {
   const llmsRoutes: LlmsRoute[] = [];
   const llmsStations: LlmsStation[] = [];
   const anota = (page: { url: string; title: string; description: string; jsonLd: object[]; body: string }): void => {
-    hashes.set(page.url, contentHash(page.title, page.description, page.jsonLd, page.body));
+    hashes.set(page.url, contentHash(page.title, page.description, page.jsonLd, pageContent(page.body)));
   };
   for (const doc of LEGAL_DOCS) {
     const page = renderLegal(doc);
@@ -1349,6 +1335,8 @@ async function main(): Promise<void> {
     if (!page.noindex) llmsExtra.push({ url: page.url, titulo: doc.titulo });
   }
 
+  // Imported here, not at the top: a CJS spec loads tm_api, and the page builders' ESM spec must not.
+  const { loadCatalogFromDisk, getCatalogLightGzip } = await import('./services/tm_api.js');
   await loadCatalogFromDisk();
   const { gzip, count } = await getCatalogLightGzip();
   if (count === 0) {
@@ -1380,9 +1368,9 @@ async function main(): Promise<void> {
   }
 
   // Every TransMilenio código, and the zonal ones released so far (`seo_zonal.ts`).
-  const routeCodes = Object.entries(catalog.routes).filter(
-    ([codigo, variants]) => variants.some((v) => v.sistema === 'TransMilenio') || ZONAL_PAGES.has(codigo)
-  );
+  const routeCodes = Object.entries(catalog.routes)
+    .filter(([codigo, variants]) => variants.some((v) => v.sistema === 'TransMilenio') || ZONAL_PAGES.has(codigo))
+    .map(([codigo, variants]): [string, LightRoute[]] => [codigo, troncalFirst(variants)]);
 
   // Cross-link indexes: a route page links its stops, a station page links its
   // routes. Without both directions the pages are discovered but orphaned.
@@ -1493,10 +1481,7 @@ async function main(): Promise<void> {
       renderStationCard({
         nombre: tidy(station.nombre),
         direccion: tidy(station.direccion),
-        serviceCount:
-          vagones.reduce((n, v) => n + v.directions.reduce((m, d) => m + d.services.length, 0), 0) +
-          unassignedServices.length +
-          feeders.length,
+        serviceCount: serviceTotal(page.platform),
         vagones: vagones.map((v) => ({
           label: v.label,
           // A vagón usually serves both directions, so the card shows none rather
@@ -1584,7 +1569,10 @@ async function main(): Promise<void> {
   console.log(`[seo] lastmod      — ${cambiadas} of ${Object.keys(ledger).length} pages dated ${today}${previo ? '' : ' (no ledger: all)'}`);
 }
 
-main().catch((error) => {
-  console.error('[seo] prerender failed:', error);
-  process.exit(1);
-});
+// Run as a script only: a spec imports the page builders without rebuilding `client/dist`.
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  main().catch((error) => {
+    console.error('[seo] prerender failed:', error);
+    process.exit(1);
+  });
+}

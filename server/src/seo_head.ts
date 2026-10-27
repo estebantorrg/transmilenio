@@ -5,7 +5,10 @@
  * it answers live (`/viaje`, §5.6.7) — one rewrite, so both say the same tags.
  */
 
-export const ORIGIN = 'https://mitrasto.app';
+import { WEB_ORIGIN } from '../../shared/viaje_link.js';
+
+/** The canonical origin, the one the app's share links use. */
+export const ORIGIN = WEB_ORIGIN;
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -26,6 +29,20 @@ export interface PageHead {
   noindex?: boolean;
 }
 
+/**
+ * `html` with the one tag `pattern` finds replaced by `tag`. A shell edit that
+ * reformats a tag throws here — failing the build — instead of every page
+ * silently keeping the home page's. A function replacement, so a `$` in a title
+ * is text, not a pattern (`$'` would paste the rest of the document there).
+ */
+export function swap(html: string, pattern: RegExp, tag: string): string {
+  if (!pattern.test(html)) throw new Error(`The app shell has no ${pattern.source}`);
+  return html.replace(pattern, () => tag);
+}
+
+/** `<meta attr="key" content="…">`, as the shell writes it. */
+const meta = (attr: string, key: string) => new RegExp(`<meta ${attr}="${key}" content="[^"]*"\\s*/?>`);
+
 export function withHead(shell: string, page: PageHead): string {
   // Escaped: a `/viaje` address carries a query anyone can write. A slug has nothing to escape.
   const absolute = escapeHtml(`${ORIGIN}${page.url}`);
@@ -33,44 +50,24 @@ export function withHead(shell: string, page: PageHead): string {
   const description = escapeHtml(page.description);
 
   let html = shell;
-  html = html.replace(/<title>[\s\S]*?<\/title>/, `<title>${title}</title>`);
-  if (page.noindex) {
-    html = html.replace(/<meta name="robots" content="[^"]*"\s*\/?>/, '<meta name="robots" content="noindex, follow" />');
-  }
-  html = html.replace(
-    /<meta name="description" content="[^"]*"\s*\/?>/,
-    `<meta name="description" content="${description}" />`
-  );
-  html = html.replace(
-    /<link rel="canonical" href="[^"]*"\s*\/?>/,
-    `<link rel="canonical" href="${absolute}" />`
-  );
-  html = html.replace(
-    /<meta property="og:url" content="[^"]*"\s*\/?>/,
-    `<meta property="og:url" content="${absolute}" />`
-  );
+  html = swap(html, /<title>[\s\S]*?<\/title>/, `<title>${title}</title>`);
+  if (page.noindex) html = swap(html, meta('name', 'robots'), '<meta name="robots" content="noindex, follow" />');
+  html = swap(html, meta('name', 'description'), `<meta name="description" content="${description}" />`);
+  html = swap(html, /<link rel="canonical" href="[^"]*"\s*\/?>/, `<link rel="canonical" href="${absolute}" />`);
+  html = swap(html, meta('property', 'og:url'), `<meta property="og:url" content="${absolute}" />`);
   for (const [attr, key] of [['property', 'og:title'], ['name', 'twitter:title']] as const) {
-    html = html.replace(
-      new RegExp(`<meta ${attr}="${key}" content="[^"]*"\\s*/?>`),
-      `<meta ${attr}="${key}" content="${title}" />`
-    );
+    html = swap(html, meta(attr, key), `<meta ${attr}="${key}" content="${title}" />`);
   }
   for (const [attr, key] of [['property', 'og:description'], ['name', 'twitter:description']] as const) {
-    html = html.replace(
-      new RegExp(`<meta ${attr}="${key}" content="[^"]*"\\s*/?>`),
-      `<meta ${attr}="${key}" content="${description}" />`
-    );
+    html = swap(html, meta(attr, key), `<meta ${attr}="${key}" content="${description}" />`);
   }
   // Per-page social card. A WhatsApp forward is how these pages actually spread
   // (spec §5.5.4), and every page sharing one generic logo reads as spam.
   if (page.ogImage) {
     const card = `${ORIGIN}${page.ogImage}`;
-    html = html.replace(/<meta property="og:image" content="[^"]*"\s*\/?>/, `<meta property="og:image" content="${card}" />`);
-    html = html.replace(/<meta name="twitter:image" content="[^"]*"\s*\/?>/, `<meta name="twitter:image" content="${card}" />`);
-    html = html.replace(
-      /<meta property="og:image:alt" content="[^"]*"\s*\/?>/,
-      `<meta property="og:image:alt" content="${escapeHtml(page.title)}" />`
-    );
+    html = swap(html, meta('property', 'og:image'), `<meta property="og:image" content="${card}" />`);
+    html = swap(html, meta('name', 'twitter:image'), `<meta name="twitter:image" content="${card}" />`);
+    html = swap(html, meta('property', 'og:image:alt'), `<meta property="og:image:alt" content="${title}" />`);
   }
   return html;
 }

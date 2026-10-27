@@ -27,6 +27,12 @@ export function contentHash(...parts: unknown[]): string {
   return createHash('sha1').update(JSON.stringify(parts)).digest('hex').slice(0, 16);
 }
 
+/** A page body as it is hashed: without its stylesheets and with whitespace
+ *  collapsed, so a CSS rule or a blank line in the template re-dates no page. */
+export function pageContent(body: string): string {
+  return body.replace(/<style>[\s\S]*?<\/style>/g, '').replace(/\s+/g, ' ').trim();
+}
+
 /** The home page IS the shell: hashed without the build's hashed asset names
  *  (`index-Bx9f3kQa.js`), which change on every build whatever the page says. */
 export function shellHash(shell: string): string {

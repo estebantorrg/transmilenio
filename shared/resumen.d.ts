@@ -18,6 +18,9 @@ export function tituloRuta(codigo: string, nombre: string, origen?: string, dest
 /** A station page's <title>. */
 export function tituloEstacion(nombre: string): string;
 
+/** The first title under ~65 characters, else the last one given. */
+export function primero(...opciones: string[]): string;
+
 /** `horario`: the catalog schedule as printed, `L-V 5:00 AM-9:00 PM / S …`. */
 export function horarioRuta(codigo: string, horario: string | undefined): Resumen | null;
 
