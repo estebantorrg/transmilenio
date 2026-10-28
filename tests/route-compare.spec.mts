@@ -45,7 +45,8 @@ test('a kept route is named in the legend on the map, while others are picked, a
   await expect(legend.getByRole('listitem')).toHaveText(['B11×']);
 
   await page.goto('/#/r/B16');
-  await expect(page.locator('.detail-badge')).toHaveText('B16', { timeout: 60_000 });
+  // The route panel's badge: the card panel has a `.detail-badge` ("Saldo") too.
+  await expect(page.locator('#route-detail .detail-badge')).toHaveText('B16', { timeout: 60_000 });
   await expect(legend.getByRole('listitem')).toHaveText(['B11×']);
   await expect(compare).toHaveText('Comparar con otra ruta');
 
