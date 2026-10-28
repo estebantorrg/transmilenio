@@ -19,8 +19,6 @@
     "start": "node --max-old-space-size=460 server/dist/index.js"
   },
   "devDependencies": {
-    "@chromatic-com/playwright": "^0.14.10",
-    "@playwright/test": "^1.61.1",
-    "chromatic": "^18.0.1"
+    "@playwright/test": "^1.61.1"
   }
 }

@@ -33,7 +33,7 @@ jobs:
       - uses: actions/checkout@v4
 
       # The matching reads the catalog's zonal variants: master_catalog.json is
-      # Git LFS. Cached on the pointer's hash, as in chromatic.yml — the free LFS
+      # Git LFS. Cached on the pointer's hash, as in tests.yml — the free LFS
       # bandwidth is 1 GB/month.
       - name: Restore Git LFS cache
         uses: actions/cache@v4

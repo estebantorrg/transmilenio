@@ -1,4 +1,4 @@
-name: "Chromatic Visual Tests"
+name: "Tests"
 
 on:
   push:
@@ -6,22 +6,26 @@ on:
   pull_request:
     branches: [ main ]
 
-# Read-only token: the job checks out, caches and uploads artifacts, and
-# Chromatic reports through its own project token, so nothing here writes to
-# the repository (CodeQL actions/missing-workflow-permissions).
+# Read-only token: the job checks out, caches and uploads artifacts, so nothing
+# here writes to the repository (CodeQL actions/missing-workflow-permissions).
+#
+# This was "Chromatic Visual Tests" until 2026-10-28: a Chromatic upload ran after
+# the tests, but with --exit-zero-on-changes it could never fail a build, it
+# snapshotted one test (the home page), and nobody reviewed the diffs. Every red
+# run was the tests below.
 permissions:
   contents: read
 
 # A push train used to leave a queue of full runs racing each other. Only the tip
-# of a PR branch is worth building; every push to main still runs, because each
-# one is a Chromatic baseline.
+# of a PR branch is worth building; every push to main still runs, so a red run
+# names the commit that broke it.
 concurrency:
-  group: chromatic-${{ github.ref }}
+  group: tests-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  chromatic:
-    name: Run Chromatic
+  tests:
+    name: Run tests
     runs-on: ubuntu-latest
     # A healthy run is ~5 min. `playwright install` stalled once and sat there
     # until the 6 h default budget ran out, so cap it.
@@ -29,8 +33,6 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Required by Chromatic for git history tracking
 
       # server/src/data/master_catalog.json is Git LFS (58 MB). A plain checkout
       # leaves a 133-byte pointer, the server fails to parse it and boots with an
@@ -93,8 +95,3 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-
-      - name: Run Chromatic
-        run: npx chromatic --playwright --exit-zero-on-changes
-        env:
-          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}

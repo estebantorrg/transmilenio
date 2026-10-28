@@ -9,7 +9,7 @@
 # and let the host's normal deploy-on-push pick it up.
 #
 # The push uses the default GITHUB_TOKEN, so it does not retrigger workflows
-# (Chromatic etc.); the APK workflow is tag-only and unaffected.
+# (the tests etc.); the APK workflow is tag-only and unaffected.
 name: Sync station demand
 
 on:
