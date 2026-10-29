@@ -2,6 +2,7 @@ import maplibregl from 'maplibre-gl';
 import type { JourneyPlan } from '../services/router';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { fadeBackground, restoreBackground } from './backgroundDim';
+import { mergeStopLabels } from './stopLabels';
 import type { RouteListItem } from '../types/transmilenio';
 
 const JOURNEY_LAYERS = [
@@ -456,8 +457,9 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
     if (step.type === 'ride' && step.path && step.path.length > 0) {
       const color = segmentColors[i];
 
-      // Boarding marker at start of this ride (unless it's the very first step = origin)
-      if (i > 0) {
+      // Boarding marker at start of this ride (unless it's the very first step =
+      // origin, or straight after another ride, whose "Transferir a" already names it)
+      if (i > 0 && plan.steps[i - 1].type !== 'ride') {
         stopFeatures.push({
           type: 'Feature',
           properties: {
@@ -513,7 +515,7 @@ export function drawJourneyPath(map: maplibregl.Map, plan: JourneyPlan): void {
 
   stopsSource.setData({
     type: 'FeatureCollection',
-    features: stopFeatures,
+    features: mergeStopLabels(stopFeatures as Parameters<typeof mergeStopLabels>[0]),
   });
 
   // Make layers visible
