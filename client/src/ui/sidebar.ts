@@ -7,7 +7,7 @@ import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { COMPARE_MAX, comparedRoutes, isCompared, onComparedChange } from '../layers/compare';
 import { de } from '../utils/text';
-import { getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
+import { compareRouteListItems, getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { closedWindowNotice } from '../services/liveWindow';
 import {
@@ -981,10 +981,7 @@ function renderCardBalanceResult(data: CardBalanceRead): void {
 }
 
 export function setRoutes(routes: RouteListItem[]): void {
-  allRoutes = [...routes].sort((a, b) => {
-    if (a.type !== b.type) return a.type === 'troncal' ? -1 : 1;
-    return a.code.localeCompare(b.code, undefined, { numeric: true });
-  });
+  allRoutes = [...routes].sort(compareRouteListItems);
 
   computeAvailableLines();
   renderLineChips();

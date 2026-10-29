@@ -1,6 +1,6 @@
 /** Rutas tab — searchable, filterable browser for routes AND places. */
 
-import { getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS, STATION_COLOR } from '@shared/utils/routeColors';
+import { compareRouteListItems, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS, STATION_COLOR } from '@shared/utils/routeColors';
 import {
   countPointMatches,
   emptyPointMatches,
@@ -185,7 +185,7 @@ export function createRutasView(): View {
         const byRank = rank(a) - rank(b);
         if (byRank !== 0) return byRank;
       }
-      return a.code.localeCompare(b.code, 'es', { numeric: true });
+      return compareRouteListItems(a, b);
     });
     return matched;
   }

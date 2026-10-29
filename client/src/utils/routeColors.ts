@@ -58,6 +58,12 @@ export function getRouteColor(code: string, type: RouteNetwork): string {
   return type === 'troncal' ? getTroncalColor(code) : getZonalRouteColor(code);
 }
 
+/** Browse order of a route list, the website sidebar's and the app's Buscar alike: troncal first, then código naturally (B2 before B10). */
+export function compareRouteListItems(a: Pick<RouteListItem, 'code' | 'type'>, b: Pick<RouteListItem, 'code' | 'type'>): number {
+  if (a.type !== b.type) return a.type === 'troncal' ? -1 : 1;
+  return a.code.localeCompare(b.code, 'es', { numeric: true });
+}
+
 export function isAlimentadorRoute(route: Pick<RouteListItem, 'subType' | 'busType'>): boolean {
   const subType = normalizeRouteCode(route.subType);
   const busType = normalizeRouteCode(route.busType);

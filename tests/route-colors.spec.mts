@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stopTagColor } from '../server/src/services/route_colors.ts';
-import { getStopTagColor, TRONCAL_COLORS } from '../client/src/utils/routeColors.ts';
+import { compareRouteListItems, getStopTagColor, TRONCAL_COLORS } from '../client/src/utils/routeColors.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -40,4 +40,19 @@ test('the server keeps no palette of its own', () => {
   const server = fs.readFileSync(path.join(ROOT, 'server/src/services/route_colors.ts'), 'utf8');
   expect(server).toContain("from '../../../shared/route_colors.js'");
   expect(server).not.toMatch(/#[0-9A-F]{6}/i);
+});
+
+test('the sidebar and the app list routes in one order: troncal first, then código', () => {
+  const routes = [
+    { code: 'B10', type: 'troncal' },
+    { code: '1', type: 'zonal' },
+    { code: 'B2', type: 'troncal' },
+    { code: '12-1', type: 'zonal' },
+    { code: 'A60', type: 'troncal' },
+    { code: '2', type: 'zonal' },
+  ] as const;
+  expect([...routes].sort(compareRouteListItems).map((r) => r.code)).toEqual(['A60', 'B2', 'B10', '1', '2', '12-1']);
+  for (const file of ['client/src/ui/sidebar.ts', 'client/mobile/src/views/rutas.ts']) {
+    expect(fs.readFileSync(path.join(ROOT, file), 'utf8'), file).toContain('compareRouteListItems');
+  }
 });
