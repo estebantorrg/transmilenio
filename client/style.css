@@ -25,6 +25,9 @@
   /* Colors — sourced from transmilenio_design */
   --tm-red: #D8102D;
   --tm-red-light: #FF5A6E;
+  /* Red for small text on the dark map and cards: --tm-red-light read poorly at
+     label sizes. Same value as the map's station names (layers/stations.ts). */
+  --tm-red-label: #FF8A80;
   --tm-red-dark: #A00C22;
   --tm-blue: #38BDF8;
   --tm-blue-light: #7DD3FC;
@@ -2073,8 +2076,8 @@ body.sidebar-collapsed .sidebar-fab {
 
 .popup-eyebrow,
 .popup-station-corridor {
-  font-size: calc(11px * var(--tm-scale, 1));
-  color: var(--tm-red-light);
+  font-size: calc(12.5px * var(--tm-scale, 1));
+  color: var(--tm-red-label);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.07em;

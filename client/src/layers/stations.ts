@@ -1247,16 +1247,19 @@ export function addStationsLayer(
     layout: {
       'text-field': ['get', 'name'],
       'text-font': ['Open Sans Bold'],
-      'text-size': ['interpolate', ['linear'], ['zoom'], 14, 9, 17, 13],
+      'text-size': ['interpolate', ['linear'], ['zoom'], 14, 11, 17, 15],
       'text-offset': [0, 0.8],
       'text-anchor': 'top',
       'text-max-width': 10,
     },
+    // Still the station red, but light enough to read on the dark basemap: the
+    // pin's #FB2C17 at 9 px and 60 % opacity was hard to read (a rider's report,
+    // r/Bogota, Oct 2026). Same value as --tm-red-label in style.css.
     paint: {
-      'text-color': '#FB2C17',
+      'text-color': '#FF8A80',
       'text-halo-color': '#0A0E17',
-      'text-halo-width': 1.5,
-      'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.6, 16, 1],
+      'text-halo-width': 2,
+      'text-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0.9, 15, 1],
     },
   });
 
