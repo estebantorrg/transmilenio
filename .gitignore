@@ -46,3 +46,5 @@ playwright/.local-browsers/
 
 # WIP GTFS experiments, not part of the build
 scripts/gtfs/
+# wrangler dev local state (a Worker run locally writes it beside wrangler.toml)
+.wrangler/

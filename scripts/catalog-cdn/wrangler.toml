@@ -1,0 +1,16 @@
+# Cloudflare Worker that serves the route catalog from the edge (spec §5.1.4).
+#
+#   npx wrangler deploy            (from this folder)
+#   npx wrangler tail              (watch requests)
+name = "mitrasto-catalog"
+main = "src/index.mjs"
+compatibility_date = "2026-09-01"
+workers_dev = true
+preview_urls = false
+
+[observability]
+enabled = true
+
+[[kv_namespaces]]
+binding = "CATALOG"
+id = "71e1f03934ad41a3b392a47c799725d0"

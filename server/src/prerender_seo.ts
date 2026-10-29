@@ -1594,7 +1594,6 @@ async function main(): Promise<void> {
       routes: llmsRoutes,
       stations: llmsStations,
       extra: llmsExtra,
-      repo: 'https://github.com/estebantorrg/transmilenio',
     })
   );
   const cambiadas = Object.values(ledger).filter(([, date]) => date === today).length;

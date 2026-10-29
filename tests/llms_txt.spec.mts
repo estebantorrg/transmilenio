@@ -24,7 +24,6 @@ test.describe('llms.txt', () => {
       { url: '/estacion/calle-100-tm0018/', nombre: 'Calle 100 [Marketmedios]' },
     ],
     extra: [{ url: '/terminos/', titulo: 'Términos y condiciones de uso' }],
-    repo: 'https://github.com/estebantorrg/transmilenio',
   });
   const lines = txt.split('\n');
 
@@ -53,5 +52,11 @@ test.describe('llms.txt', () => {
     expect(txt).toContain(`- [Calle 100 Marketmedios](${O}/estacion/calle-100-tm0018/)`);
     expect(txt).toContain(`- [Términos y condiciones de uso](${O}/terminos/)`);
     for (const l of lines.filter((x) => x.startsWith('- ['))) expect(l).toMatch(/^- \[[^\]]+\]\(https:\/\/[^)]+\)/);
+  });
+
+  test('names nothing that leads to the source repository', () => {
+    // Every link stays on the site; the repository is not advertised from here.
+    for (const l of lines.filter((x) => x.startsWith('- ['))) expect(l).toContain(`](${O}/`);
+    expect(txt).not.toMatch(/github|código fuente|repositorio/i);
   });
 });

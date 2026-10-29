@@ -84,7 +84,12 @@ self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return; // only same-origin
+  // The catalog also comes from its edge cache on another origin (scripts/catalog-cdn):
+  // keep the same offline copy of it.
+  if (url.origin !== self.location.origin) {
+    if (url.pathname === '/master-catalog') event.respondWith(networkFirstFresh(req));
+    return; // otherwise only same-origin
+  }
 
   if (url.pathname.startsWith('/api/')) {
     if (url.pathname.includes('master-catalog')) event.respondWith(networkFirstFresh(req));

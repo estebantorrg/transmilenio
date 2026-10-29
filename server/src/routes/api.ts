@@ -258,6 +258,27 @@ router.get('/troncal/master-catalog', async (req: Request, res: Response) => {
   }
 });
 
+// The same gzip bytes as a file, for the edge cache that serves the catalog to
+// browsers (`scripts/catalog-cdn`, spec §5.1.4). As an encoded JSON body a Worker
+// would have to inflate all 15 MB before it could store it, and the free plan
+// allows 10 ms of CPU; as `application/gzip` it is stored and served untouched.
+router.get('/troncal/master-catalog.gz', async (req: Request, res: Response) => {
+  try {
+    const { gzip, etag } = await tmApi.getCatalogLightGzip();
+    res.setHeader('ETag', etag);
+    res.setHeader('Cache-Control', 'no-cache');
+    if (req.headers['if-none-match'] === etag) {
+      res.status(304).end();
+      return;
+    }
+    res.setHeader('Content-Type', 'application/gzip');
+    res.end(gzip);
+  } catch (error) {
+    console.error('Error fetching master catalog file:', error);
+    res.status(500).json({ success: false, error: 'Failed to load master catalog' });
+  }
+});
+
 router.get('/troncal/route/:code', async (req: Request, res: Response) => {
   try {
     const { code } = req.params;

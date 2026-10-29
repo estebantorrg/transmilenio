@@ -49,6 +49,9 @@ const LIVE_RELAY_URL = String(import.meta.env.VITE_LIVE_RELAY_URL || '').replace
 const REQUEST_TIMEOUT_MS = 60_000;
 const LIVE_TRACKING_TIMEOUT_MS = 15_000;
 const MASTER_CATALOG_TIMEOUT_MS = 300_000; // 5m for the heavy catalog
+const CATALOG_CDN_URL = 'https://mitrasto-catalog.estebantorrg-8d9.workers.dev/master-catalog';
+// Short: a slow edge is a reason to ask our own API, not to keep the map waiting.
+const CATALOG_CDN_TIMEOUT_MS = 30_000;
 
 const MAX_RETRIES = 4;
 const INITIAL_RETRY_DELAY_MS = 2_000;  // 2s, then 4s, 8s, 16s
@@ -398,8 +401,20 @@ export const api = {
       ? officialApi.getCableTrazado()
       : fetchJson<ApiResponse<any>>('/cable/trazado', REQUEST_TIMEOUT_MS, undefined, LAYER_RETRIES),
 
-  getMasterCatalog: () =>
-    fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS),
+  getMasterCatalog: async () => {
+    // On the published site, from the edge cache (`scripts/catalog-cdn`, spec
+    // §5.1.4): every first visit downloads 2.5 MB, and Render's 5 GB/month would
+    // run out in a few thousand visits. Anything but a good answer falls back.
+    if (location.hostname === 'mitrasto.app') {
+      try {
+        const res = await fetch(CATALOG_CDN_URL, { signal: AbortSignal.timeout(CATALOG_CDN_TIMEOUT_MS) });
+        if (res.ok) return (await res.json()) as MasterCatalogResponse;
+      } catch {
+        // fall through to our own API
+      }
+    }
+    return fetchJson<MasterCatalogResponse>('/troncal/master-catalog', MASTER_CATALOG_TIMEOUT_MS);
+  },
 
   getRouteDetail: (code: string) =>
     fetchJson<any>(`/troncal/route/${encodeURIComponent(code)}`),

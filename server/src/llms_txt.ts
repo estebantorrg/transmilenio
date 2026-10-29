@@ -31,7 +31,6 @@ export interface LlmsInput {
   stations: LlmsStation[];
   /** Indexable pages beyond routes and stations (`/terminos/`), with a title. */
   extra: Array<{ url: string; titulo: string }>;
-  repo: string;
 }
 
 /** Markdown link text cannot carry a bare bracket. */
@@ -87,7 +86,6 @@ export function renderLlmsTxt(input: LlmsInput): string {
     '## Optional',
     '',
     `- [Sitemap](${abs('/sitemap.xml')}): todas las páginas, con la fecha en que cambió su contenido.`,
-    `- [Código fuente](${input.repo}): el proyecto en GitHub.`,
     '',
   ].join('\n');
 }
