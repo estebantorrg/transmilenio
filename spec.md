@@ -297,6 +297,14 @@ Every live bus renders as a 3D model in a single MapLibre custom WebGL layer (th
 * **Tunables** (`busModelLayer.ts`): `MODEL_SCALE`, `SCALE_REF_ZOOM` + `MAX_ZOOM_BOOST` (stay visible zoomed out), `LOD_ZOOM`, `DECLUMP_RING`, `BASE_TILT` (glTF Y-up → mercator Z-up), `BEACON_RADIUS` / `BEACON_RING` / `BEACON_NOSE` (model metres) and `BEACON_FADE_ZOOM` / `BEACON_GONE_ZOOM`.
 * **Dependency**: `three` (client). Draco decoder files copied to `client/public/draco/`.
 
+#### 5.2.7 Bus Log
+Each fresh `/api/buses` answer adds its buses to a private log: móvil (`label`), route (`ruta_extraida`), `destino_limpio`, coordinates, `posicion` (metres along the route), the feed's `lasttime` and `seen_at` (server time, ISO UTC). `server/src/services/bus_log.ts`.
+* **Adds no upstream traffic**: it records what a rider's poll already fetched and has no poller of its own (§5.2.3). So it only covers routes someone opened on the website, and a stale cache answer is never logged.
+* **The app is not covered**: the APK reads the live host directly (§5.2.1b), so its fixes never reach the server. Adding them would mean a public write endpoint anyone could forge rows through.
+* **One row per móvil per route per 5 minutes** (`SIGHTING_INTERVAL_MS`), since every viewer polls every 15 s.
+* **Storage**: Cloudflare D1, table `sightings`, created on the first write. Render's disk is wiped by every deploy. Rows wait in memory for up to a minute and go up as one batch (`BUS_LOG_D1_URL`, `BUS_LOG_D1_TOKEN`; both unset = off); a refused batch stays queued, capped at `MAX_PENDING_SIGHTINGS`.
+* **Holds no rider data** (no IP, no id), and there is no read endpoint: read it from the D1 console in the Cloudflare dashboard. `SELECT datetime(seen_at, '-5 hours') AS hora, ruta, destino, lat, lng FROM sightings WHERE movil = 'U1535' ORDER BY seen_at DESC`.
+
 ---
 
 ### 5.3 ArcGIS FeatureServer Integration

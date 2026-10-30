@@ -24,6 +24,7 @@ import {
 } from '../services/live_payload.js';
 import { isTrustedLiveAnswer, keepKnownLiveNames } from '../services/live_request.js';
 import { horarioProgramado } from '../services/horario_programado.js';
+import { logSightings } from '../services/bus_log.js';
 
 const router = Router();
 const gzipAsync = promisify(zlib.gzip);
@@ -464,6 +465,7 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
 
     if (buses.length > 0) {
       rememberLiveBuses(cacheKey, buses);
+      logSightings(ruta, buses);
       res.json({ success: true, status: 'live', confidence: 'high', count: buses.length, data: buses, source });
       return;
     }
