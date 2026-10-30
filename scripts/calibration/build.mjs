@@ -3,16 +3,18 @@
  * journey planner's zonal cost model is calibrated against (spec §5.6.5).
  *
  * Both inputs are TRANSMILENIO S.A.'s own operating data, delivered in answer to
- * a public-information request (Ley 1712 de 2014) in September 2026. They stay
- * local-only like every other third-party source file; only the aggregate below
- * is committed.
+ * public-information requests (Ley 1712 de 2014) in September and October 2026.
+ * They stay local-only like every other third-party source file; only the
+ * aggregate below is committed.
  *
- *   --parquet     velocidad comercial por tramo, agosto 2026 — one row per
- *                 date × hour × stretch between two consecutive paraderos,
+ *   --parquet     velocidad comercial por tramo, 1 Aug – 15 Sep 2026 — one row
+ *                 per date × hour × stretch between two consecutive paraderos,
  *                 measured from the zonal fleet's GPS, dwell included.
  *   --intervalos  INTERVALOS RUTAS URBANAS.xlsx — every scheduled dispatch of
  *                 the urban zonal routes, per day type (hábil/sábado/festivo).
- *   --festivos    the holidays inside the parquet's month (default: August 2026).
+ *
+ * Holidays inside the parquet's dates come from `shared/festivos.js`, the same
+ * calendar the planner's `isFestivo` reads.
  *
  * Output, all of it small enough to ship to the phone:
  *
@@ -32,8 +34,9 @@
  */
 
 import { DuckDBInstance } from '@duckdb/node-api';
+import { festivoName } from '../../shared/festivos.js';
 import { createRequire } from 'node:module';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -47,11 +50,9 @@ const arg = (name, fallback) => {
 };
 
 const SOURCE_DIR = path.join(ROOT, 'peticiones', 'Respuesta B');
-const PARQUET = arg('parquet', path.join(SOURCE_DIR, 'vel_tramo_ago2026_UCE_r.parquet'));
+// The October answer (2026-ER-53567) re-sent the speeds at the same link, now 1 Aug – 15 Sep.
+const PARQUET = arg('parquet', path.join(ROOT, 'peticiones', 'Respuesta IDK', 'vel_tramo_ago2026_UCEr.parquet'));
 const INTERVALOS = arg('intervalos', path.join(SOURCE_DIR, 'INTERVALOS RUTAS URBANAS.xlsx'));
-// 7 Aug (Batalla de Boyacá) and 17 Aug (Asunción, moved to Monday) — the same
-// dates `isFestivo` in client/src/services/schedule.ts returns for 2026.
-const FESTIVOS = arg('festivos', '2026-08-07,2026-08-17').split(',').map((d) => d.trim()).filter(Boolean);
 const CATALOG = path.join(ROOT, 'server', 'src', 'data', 'master_catalog.json');
 const OUT = path.join(ROOT, 'server', 'src', 'data', 'planner_calibration.json');
 
@@ -85,12 +86,13 @@ const query = async (sql) => (await con.runAndReadAll(sql)).getRowObjectsJson();
 const source = `read_parquet('${sqlPath(PARQUET)}')`;
 
 const [{ first, last }] = await query(`SELECT min(fecha)::VARCHAR AS first, max(fecha)::VARCHAR AS last FROM ${source}`);
-if (first.slice(0, 7) !== last.slice(0, 7) || !FESTIVOS.every((d) => d.startsWith(first.slice(0, 7)))) {
-  throw new Error(`parquet spans ${first} → ${last}; pass --festivos for that month explicitly`);
+const FESTIVOS = [];
+for (const day = new Date(`${first}T00:00:00Z`); day <= new Date(`${last}T00:00:00Z`); day.setUTCDate(day.getUTCDate() + 1)) {
+  if (festivoName(day.getUTCFullYear(), day.getUTCMonth() + 1, day.getUTCDate())) FESTIVOS.push(day.toISOString().slice(0, 10));
 }
 
-const festivoList = FESTIVOS.map((d) => `DATE '${d}'`).join(', ');
-const dayTypeSql = `CASE WHEN fecha IN (${festivoList}) OR dayofweek(fecha) = 0 THEN 'F'
+const festivoSql = FESTIVOS.length ? `fecha IN (${FESTIVOS.map((d) => `DATE '${d}'`).join(', ')}) OR ` : '';
+const dayTypeSql = `CASE WHEN ${festivoSql}dayofweek(fecha) = 0 THEN 'F'
               WHEN dayofweek(fecha) = 6 THEN 'S' ELSE 'H' END`;
 await con.run(`
   CREATE TABLE cell AS
@@ -229,6 +231,16 @@ for (const [code, route] of perRoute) {
   }
 }
 
+// The catalog listing drifts run to run: a código missing from today's keeps
+// the headways the last build gave it (the planner never reads a retired one).
+const previous = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')).headways ?? {} : {};
+let kept = 0;
+for (const [code, table] of Object.entries(previous)) {
+  if (headways[code]) continue;
+  headways[code] = table;
+  kept++;
+}
+
 // ── Coverage report ───────────────────────────────────────────────────────────
 const coverage = {};
 for (const variants of Object.values(catalogRoutes)) {
@@ -248,7 +260,7 @@ for (const variants of Object.values(catalogRoutes)) {
 const output = {
   version: 1,
   source:
-    'TRANSMILENIO S.A., respuesta a solicitud de acceso a información pública (Ley 1712 de 2014), septiembre de 2026: ' +
+    'TRANSMILENIO S.A., respuestas a solicitudes de acceso a información pública (Ley 1712 de 2014), septiembre y octubre de 2026: ' +
     `velocidad comercial por tramo ${first} a ${last} y programación de despachos INTERVALOS RUTAS URBANAS.`,
   speeds: { factor, pairs, slow },
   headways,
@@ -257,7 +269,7 @@ writeFileSync(OUT, JSON.stringify(output) + '\n');
 
 console.log(`period ${first} → ${last} · festivos ${FESTIVOS.join(', ')}`);
 console.log(`stretches with a base speed: ${pairCount} · with a bad-day ratio: ${slowCount}`);
-console.log(`headways: ${perRoute.size} INTERVALOS routes → ${Object.keys(headways).length} catalog códigos (${unmatched} unmatched, ${conflicts} conflicts)`);
+console.log(`headways: ${perRoute.size} INTERVALOS routes → ${Object.keys(headways).length} catalog códigos (${unmatched} unmatched, ${conflicts} conflicts, ${kept} kept from the last build)`);
 console.log('factor H:', factor.H.join(' '));
 console.table(Object.fromEntries(Object.entries(coverage).map(([type, c]) => [type, {
   variants: c.variants,
