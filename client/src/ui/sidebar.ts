@@ -34,6 +34,7 @@ import {
   type PointMatches as SharedPointMatches,
 } from '../data/pointKinds';
 import { initChipRowScroll } from './chipRow';
+import { liveAppFallbackHtml } from './liveAppFallback';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 
 /** Status the live-tracking card can show: the in-flight `loading` plus the
@@ -1781,7 +1782,8 @@ function paintLiveCard(
         ? 'Rastreo en vivo fuera de servicio'
         : 'Señal de rastreo limitada';
       chipEl.textContent = closed ? closed.short : 'Señal débil';
-      if (subEl) subEl.textContent = closed ? closed.detail : 'Reintentando…';
+      // Web can't verify a fix; on Android the app reads it directly (see helper).
+      if (subEl) subEl.innerHTML = closed ? escapeHTML(closed.detail) : 'Reintentando…' + liveAppFallbackHtml();
       break;
     }
 
@@ -1812,7 +1814,7 @@ function paintLiveCard(
       } else {
         textEl.textContent = 'Rastreo en vivo no disponible';
         chipEl.textContent = 'Sin señal';
-        if (subEl) subEl.textContent = 'Reintentando…';
+        if (subEl) subEl.innerHTML = 'Reintentando…' + liveAppFallbackHtml();
       }
       break;
   }
