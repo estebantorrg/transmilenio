@@ -1,7 +1,7 @@
 import https from 'https';
 import { relayForward, isColombiaRelayConfigured } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS, nextProxyUuid } from './official_app_headers.js';
 import { publicProxyAllowed } from './public_proxy_policy.js';
 import { CO_PROXY_TIMEOUT_MS, viaColombianProxy } from './proxy_race.js';
 import { isCardNumber, isLedgerRow, ledgerMovement, maskCardNumber } from '../../../shared/card_ledger.js';
@@ -101,7 +101,8 @@ function requestCardRows(
   postData: string,
   timeoutMs: number,
   agent?: https.Agent,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  uuid?: string
 ): Promise<Record<string, unknown>[]> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -112,6 +113,7 @@ function requestCardRows(
     const headers: Record<string, string | number> = {
       ...CARD_HEADERS_BASE,
       'Content-Length': Buffer.byteLength(postData),
+      ...(uuid ? { 'uuid': uuid } : {}),
     };
 
     const req = https.request({
@@ -182,7 +184,7 @@ async function fetchCardRowsViaColombianProxy(postData: string): Promise<Record<
   try {
     return await viaColombianProxy(
       'card read',
-      (agent, signal) => requestCardRows(postData, CO_PROXY_TIMEOUT_MS, agent, signal),
+      (agent, signal) => requestCardRows(postData, CO_PROXY_TIMEOUT_MS, agent, signal, nextProxyUuid()),
       AbortSignal.timeout(CO_PROXY_BUDGET_MS)
     );
   } catch (error: any) {

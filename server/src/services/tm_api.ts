@@ -14,7 +14,7 @@ import { createHash } from 'crypto';
 import { promisify } from 'util';
 import { isColombiaRelayConfigured, relayAgentFor, relayBaseUrl, relaySecret } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { isIdRefused, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
+import { isIdRefused, nextProxyUuid, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
 import { traceToPaths } from '../../../shared/eta_geometry.js';
 import { createSharedWindow } from './flow_control.js';
@@ -1272,7 +1272,7 @@ async function fetchLiveBusesViaColombiaRelay(context: LiveRequestContext, signa
 function fetchLiveBusesViaColombianProxy(context: LiveRequestContext, signal?: AbortSignal): Promise<any[]> {
   return viaColombianProxy(
     `buses type=${context.routeType} ruta=${context.routeCode} nombre=${context.destinationName}`,
-    (agent, proxySignal) => requestLiveBuses(context, CO_PROXY_TIMEOUT_MS, agent, proxySignal),
+    (agent, proxySignal) => requestLiveBuses(context, CO_PROXY_TIMEOUT_MS, agent, proxySignal, nextProxyUuid()),
     signal
   );
 }

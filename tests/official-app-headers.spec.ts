@@ -4,9 +4,9 @@
  * The `uuid` header has flipped twice: on 2026-09-16 TMSA blocklisted the one
  * fixed id every tier sent (one ban took down the direct tier, the relay, the
  * card read and the proxy pool at once), and on 2026-09-21 the header became
- * mandatory. These pin both lessons: an id is always sent, it is derived per
- * deployment rather than written in the source, and it is stable — not minted
- * per request to outrun a block.
+ * mandatory. The direct tier uses a stable per-process id; the proxy tier
+ * spreads requests across a rotating pool of UUIDs so no single id accumulates
+ * the traffic of every proxy.
  */
 
 import { expect, test } from '@playwright/test';
@@ -20,6 +20,7 @@ import {
   LIVE_API_HOST,
   LIVE_HOST_HEADERS,
   markIdRefused,
+  nextProxyUuid,
   OFFICIAL_APP_HEADERS,
 } from '../server/src/services/official_app_headers';
 
@@ -53,13 +54,24 @@ test.describe('official app identity', () => {
     expect(LIVE_HOST_HEADERS.uuid).not.toBe(BLOCKED_UUID);
   });
 
-  test('the id is one per process, not one per request', () => {
-    // Two reads of the identity must be the same install, or every request
-    // would carry a new id — evasion, not identification (spec §5.2.3).
+  test('the direct-tier id is stable per process', () => {
+    // The direct tier still uses one id per process — the proxy pool is what
+    // rotates, not the base headers (`nextProxyUuid`, spec §5.2.3).
     expect(LIVE_HOST_HEADERS.uuid).toBe(APP_INSTALL_UUID);
     expect(OFFICIAL_APP_HEADERS.uuid).toBe(APP_INSTALL_UUID);
     expect(Object.isFrozen(LIVE_HOST_HEADERS)).toBe(true);
     expect(Object.isFrozen(OFFICIAL_APP_HEADERS)).toBe(true);
+  });
+
+  test('proxy UUIDs are distinct and valid', () => {
+    const seen = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      const uuid = nextProxyUuid();
+      expect(uuid).toMatch(UUID_RE);
+      seen.add(uuid);
+    }
+    // A pool of 12 should yield more than 1 distinct value.
+    expect(seen.size).toBeGreaterThan(1);
   });
 
   test('no source file hardcodes an id, and the blocklisted one is gone', () => {

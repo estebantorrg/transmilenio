@@ -116,7 +116,7 @@ export function keepKnownLiveNames(names: string[], variants: LiveNameSource[]):
  * identity itself lives in `official_app_headers.ts`. `Content-Type` is omitted
  * for a bodyless request (zonal `/location/ruta`).
  */
-export function buildLiveApiHeaders(postData: string): Record<string, string | number> {
+export function buildLiveApiHeaders(postData: string, uuid?: string): Record<string, string | number> {
   const headers: Record<string, string | number> = {
     'Accept-Encoding': 'identity',
     ...LIVE_HOST_HEADERS,
@@ -124,6 +124,7 @@ export function buildLiveApiHeaders(postData: string): Record<string, string | n
     'Host': LIVE_API_HOST,
     'Content-Length': Buffer.byteLength(postData),
   };
+  if (uuid) headers['uuid'] = uuid;
   if (postData) headers['Content-Type'] = 'application/json; charset=UTF-8';
   return headers;
 }
@@ -240,10 +241,11 @@ export function requestLiveBuses(
   context: LiveRequestContext,
   timeoutMs: number,
   agent?: http.Agent,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  uuid?: string
 ): Promise<any[]> {
   const url = new URL(`${LIVE_API_ORIGIN}${context.targetPath}`);
-  return requestLiveJson(url, buildLiveApiHeaders(context.postData), context.postData, timeoutMs, agent, signal);
+  return requestLiveJson(url, buildLiveApiHeaders(context.postData, uuid), context.postData, timeoutMs, agent, signal);
 }
 
 // ─── The candidate race ───────────────────────────────────

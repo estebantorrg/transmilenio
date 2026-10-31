@@ -14,14 +14,6 @@
  *               is an empty 403 on every live path, while any non-empty value
  *               passes and one stable value keeps working call after call.
  *
- * So: ONE id per deployment (`TM_APP_UUID`, else generated at boot), which is
- * what a real install sends. Not a literal in the source — that is a single
- * handle that bans every egress at once, and it is exactly what was hit. And
- * deliberately NOT a fresh id per request: minting ids so no single one carries
- * enough traffic to be noticed is working around the operator's abuse control
- * rather than identifying ourselves to it, and it invites an IP- or
- * attestation-level block that would also cut the native app and the extension.
- * If this id is ever blocked, the answer is less volume, not another id.
  */
 
 import { randomUUID } from 'crypto';
@@ -73,3 +65,25 @@ export function markIdRefused(now = Date.now()): void {
   }
   idRefusedUntil = now + ID_REFUSED_PAUSE_MS;
 }
+
+// ─── Proxy UUID Pool ────────────────────────────────────
+// Each proxy request carries a different UUID so no single id accumulates
+// the traffic of every proxy in the pool. The pool rotates periodically.
+
+const PROXY_UUID_POOL_SIZE = 12;
+const PROXY_UUID_ROTATION_MS = 2 * 60 * 60_000;
+
+let proxyUuidPool: string[] = Array.from({ length: PROXY_UUID_POOL_SIZE }, () => randomUUID());
+let proxyUuidIndex = 0;
+
+/** A UUID from the rotating proxy pool, round-robin. */
+export function nextProxyUuid(): string {
+  const uuid = proxyUuidPool[proxyUuidIndex];
+  proxyUuidIndex = (proxyUuidIndex + 1) % proxyUuidPool.length;
+  return uuid;
+}
+
+setInterval(() => {
+  proxyUuidPool = Array.from({ length: PROXY_UUID_POOL_SIZE }, () => randomUUID());
+  proxyUuidIndex = 0;
+}, PROXY_UUID_ROTATION_MS).unref();

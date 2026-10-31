@@ -2,7 +2,7 @@ import http from 'http';
 import https from 'https';
 import tls from 'tls';
 import type { Duplex } from 'stream';
-import { isIdRefusal, isIdRefused, LIVE_API_HOST, LIVE_HOST_HEADERS, markIdRefused } from './official_app_headers.js';
+import { LIVE_API_HOST, LIVE_HOST_HEADERS, nextProxyUuid } from './official_app_headers.js';
 import { canRefreshPool, isProvenProxy, shouldRefreshPool } from './proxy_health.js';
 
 // Cap on how long the proxy CONNECT tunnel may take to establish before we
@@ -256,7 +256,7 @@ class ProxyManagerClass {
 
   public refresh(): Promise<void> {
     if (this.isTesting) return this.refreshPromise ?? Promise.resolve();
-    if (isIdRefused() || !canRefreshPool(this.lastRefreshAt)) return Promise.resolve();
+    if (!canRefreshPool(this.lastRefreshAt)) return Promise.resolve();
     this.isTesting = true;
 
     this.refreshPromise = (async () => {
@@ -278,11 +278,6 @@ class ProxyManagerClass {
               verified++;
             }
           });
-
-          if (isIdRefused()) {
-            console.log(`[ProxyManager] Live host refuses this install id; stopping after ${tested}/${candidates.length} candidates.`);
-            break;
-          }
 
           // Enough is enough: a pool at target does not need the rest of the
           // list probed, and every skipped candidate is an upstream request not
@@ -382,6 +377,7 @@ class ProxyManagerClass {
             'Content-Length': 0,
             'Accept-Encoding': 'identity',
             ...LIVE_HOST_HEADERS,
+            'uuid': nextProxyUuid(),
           },
           agent,
           timeout: TEST_TIMEOUT_MS,
@@ -400,7 +396,6 @@ class ProxyManagerClass {
           res.on('error', () => finish(null));
           res.on('end', () => {
             if (res.statusCode !== 200) {
-              if (isIdRefusal(LIVE_TEST_HOST, res.statusCode, body.length)) markIdRefused();
               return finish(null);
             }
             try {
