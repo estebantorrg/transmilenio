@@ -12,6 +12,8 @@ import type { Ocupacion } from '../../../shared/ocupacion.js';
 import { isNativeLiveAvailable, fetchLiveBusesViaNative, nativeJsonRequest } from './nativeLive';
 import { officialApi } from './officialApi';
 import { findBusPayloadArray } from '../../../shared/live_payload.js';
+import { WEB_ORIGIN } from '../../../shared/viaje_link.js';
+import { sightingReport } from './sightingReport';
 import type { FootRoute } from '../../../shared/osrm_foot.js';
 
 /** Honest, mutually-exclusive live-tracking outcomes (spec §4 / §5.2.5):
@@ -217,6 +219,26 @@ async function postLiveRelayDirect(payload: unknown): Promise<any> {
   }
 }
 
+const lastSightingReport = new Map<string, number>();
+
+/**
+ * Hand the bus log (spec §5.2.7) what the app just read: the one thing the app
+ * sends a server of ours, hence the full address (no API base is baked into the
+ * APK). Best effort, since a lost report changes nothing for the rider.
+ *
+ * shortcut: a website on `VITE_LIVE_RELAY_URL` also bypasses the server and goes
+ * unlogged; report from that tier too if the relay is ever set.
+ */
+function reportSightings(ruta: string, data: unknown[]): void {
+  const body = sightingReport(ruta, data, Date.now(), lastSightingReport);
+  if (!body) return;
+  void nativeJsonRequest(`${WEB_ORIGIN}/api/sightings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  }, LIVE_TRACKING_TIMEOUT_MS).catch(() => {});
+}
+
 /**
  * Runs the tiered live-bus cascade once: native app → direct CO relay → main
  * server relay (spec §5.2.1a). NEVER throws — every
@@ -236,7 +258,9 @@ async function requestLiveBuses(
   // no relay or proxy is involved (spec §5.2.1a, mobile twin).
   if (isNativeLiveAvailable()) {
     try {
-      return wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
+      const result = wrapHighConfidence(await fetchLiveBusesViaNative(ruta, nombre, routeType, nombreCandidates), 'native');
+      reportSightings(ruta, result.data);
+      return result;
     } catch (error) {
       console.warn('[Live] Native direct failed, trying next tier:', error);
     }

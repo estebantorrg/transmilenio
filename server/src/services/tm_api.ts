@@ -14,7 +14,7 @@ import { createHash } from 'crypto';
 import { promisify } from 'util';
 import { isColombiaRelayConfigured, relayAgentFor, relayBaseUrl, relaySecret } from './co_relay.js';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { OFFICIAL_APP_HEADERS } from './official_app_headers.js';
+import { isIdRefused, OFFICIAL_APP_HEADERS } from './official_app_headers.js';
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
 import { traceToPaths } from '../../../shared/eta_geometry.js';
 import { createSharedWindow } from './flow_control.js';
@@ -1398,6 +1398,8 @@ async function runLiveCascade(
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[]
 ): Promise<LiveBusesResult> {
+  // Every tier would carry the refused id (`official_app_headers.ts`), so there is no one to ask.
+  if (isIdRefused()) throw new Error('Live host refuses this install id; live requests paused');
   const contexts = routeType === 'zonal'
     ? [createLiveRequestContext(ruta, nombre, routeType)]
     : buildLiveNameCandidates(nombre, nombreCandidates)

@@ -42,9 +42,12 @@ test.describe('what the policy says', () => {
       'identificador de instalación',
       'Voz',
       'Preferencias guardadas',
+      'Registro de buses',
     ]) {
       expect(texto, item).toContain(item);
     }
+    // The app reports to our server for the bus log, so the policy may not say it never does.
+    expect(texto).not.toContain('la app no pasa por nuestro servidor');
   });
 
   test('names every recipient that actually receives data', () => {

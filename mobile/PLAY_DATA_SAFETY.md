@@ -10,7 +10,7 @@ changes the policy and this file in the same commit.
 Play's definitions, which the answers follow:
 
 - **Collected** = sent off the device by the app, to us *or to anyone else*
-  (here it is never us: the APK does not talk to our server).
+  (here it is us in one case only: the bus log, under App interactions).
 - **Shared** = sent to a third party, *except* a transfer the user starts and
   would reasonably expect (looking up a balance, asking for a walking route,
   searching an address). Those are collected but not shared.
@@ -22,7 +22,8 @@ Checked in the build, October 2026: permissions `INTERNET`,
 from phonegap-nfc), no background location; no analytics, crash or ads SDK in
 the Gradle build; every host is HTTPS (TRANSMILENIO's app host and
 `gis.transmilenio.gov.co`, `routing.openstreetmap.de`, `photon.komoot.io`,
-`basemaps.cartocdn.com`, `api.github.com`); the catalog ships inside the APK.
+`basemaps.cartocdn.com`, `api.github.com`, `mitrasto.app`); the catalog ships inside
+the APK.
 
 **Update check — remove it from a Play build.** At launch the app asks
 `api.github.com` for the project's latest release and, if it is newer, offers
@@ -79,12 +80,14 @@ sideloaded APK and has to be switched off in any build submitted to Play.
 ### App activity → App interactions
 - **Collected:** Yes. Which route or stop the user is viewing is sent to
   TRANSMILENIO's server to get live buses and arrivals, together with the
-  install ID below.
+  install ID below. For the bus log (policy §2.8), the route's code and the bus
+  positions the app read also go to our server, without the install ID. The log
+  stores nothing about the user.
 - **Shared:** Yes — declared as shared (conservative). TRANSMILENIO is a third
   party, and the request carries an identifier the user would not expect.
 - **Processed ephemerally:** No.
 - **Required or optional:** Optional (live features are optional).
-- **Purpose:** App functionality.
+- **Purpose:** App functionality; Analytics (the bus log).
 
 ### Device or other IDs
 - **Collected:** Yes. A random install ID (`client/src/services/installId.ts`),
@@ -120,4 +123,4 @@ sideloaded APK and has to be switched off in any build submitted to Play.
 - **Location permission declaration:** foreground only, for nearby stops,
   trip planning and guidance.
 - **Two points to revisit if the app changes:** a crash/analytics SDK, or any
-  request routed through our server, would add rows above.
+  further request routed through our server, would add rows above.

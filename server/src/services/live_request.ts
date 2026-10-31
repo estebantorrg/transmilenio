@@ -12,7 +12,7 @@
 import http from 'http';
 import https from 'https';
 import { collectBody, decodeBody } from './upstream_body.js';
-import { LIVE_API_HOST, LIVE_HOST_HEADERS } from './official_app_headers.js';
+import { isIdRefusal, LIVE_API_HOST, LIVE_HOST_HEADERS, markIdRefused } from './official_app_headers.js';
 import {
   LIVE_DESTINATION_MAX_LENGTH,
   LIVE_NAME_CANDIDATE_LIMIT,
@@ -196,6 +196,7 @@ export function requestLiveJson(
         async (raw) => {
           cleanup();
           if (res.statusCode !== 200) {
+            if (isIdRefusal(url.hostname, res.statusCode, raw.length)) markIdRefused();
             reject(new Error(`${source}: Status: ${res.statusCode}`));
             return;
           }

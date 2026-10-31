@@ -25,6 +25,7 @@
  *   IP fallback        server/src/routes/api.ts `/geoip` → get.geojs.io
  *   search text        server/src/services/geocode.ts, client/src/services/officialApi.ts
  *   install id         client/src/services/installId.ts (sent by the APK only)
+ *   bus log            server/src/services/bus_log.ts, client/src/services/api.ts (`reportSightings`)
  *   voice              mobile/…/VoicePlugin.java (platform recognizer, offline preferred)
  *   analytics / map    client/index.html (Cloudflare beacon), client/src/map.ts (CARTO)
  *   app update         client/mobile/src/services/appUpdate.ts (GET api.github.com) and
@@ -79,7 +80,7 @@ export const PRIVACIDAD = {
   breadcrumb: 'Política de privacidad',
   descripcion:
     'Qué datos trata este servicio de rutas de Bogotá, para qué, quién los recibe, cuánto tiempo se guardan y cómo ejercer tus derechos (Ley 1581 de 2012).',
-  vigencia: '16 de octubre de 2026',
+  vigencia: '30 de octubre de 2026',
   resumen: `
 <p><strong>Aviso de privacidad.</strong> ${esc(RESPONSABLE.nombre)}, persona natural con domicilio en Bogotá, es el responsable del tratamiento de los datos personales que se procesan al usar este sitio web y su aplicación para Android (en adelante, «el servicio»).</p>
 <p>El servicio no tiene cuentas de usuario: no te pide nombre, cédula, correo ni teléfono. Solo trata los datos que necesita para lo que tú le pides: el número de tu tarjeta tu llave cuando consultas su saldo, tu ubicación cuando la compartes para ver estaciones cercanas o planear un viaje, lo que escribes al buscar una dirección, y los datos técnicos de la conexión (como tu dirección IP) que recibe cualquier sitio web. No vende datos ni los usa para publicidad.</p>
@@ -132,7 +133,7 @@ ${dato('2.5 Consultas de la app a TRANSMILENIO S.A. e identificador de instalaci
   ['Qué', 'La app para Android pide directamente a los servidores de TRANSMILENIO S.A. la posición de los buses, las llegadas, los saldos y las capas del mapa, y esos servidores ven la dirección IP de tu teléfono. En las consultas en vivo y de saldo, la app envía además un identificador de instalación: un código aleatorio que crea al instalarse y que no contiene ni se deriva de ningún dato tuyo o de tu teléfono.'],
   ['Para qué', 'Recibir la información del sistema. El servidor de TRANSMILENIO S.A. exige un identificador de instalación en cada consulta y no responde sin él.'],
   ['Autorización', 'Por conducta inequívoca: al usar esas funciones de la app después de haber sido informado en este aviso.'],
-  ['Quién lo recibe', 'Solo TRANSMILENIO S.A. Nosotros no recibimos ni el identificador ni tus consultas, porque la app no pasa por nuestro servidor. El sitio web también crea este código en tu navegador, pero no lo envía a ningún lado.'],
+  ['Quién lo recibe', 'Solo TRANSMILENIO S.A.: nuestro servidor no recibe el identificador. Lo único que la app le envía a nuestro servidor sobre estas consultas es la posición de los buses de la ruta que consultaste, para el registro de buses (2.8). El sitio web también crea este código en tu navegador, pero no lo envía a ningún lado.'],
   ['Cuánto tiempo', 'El identificador se guarda en tu dispositivo hasta que borres los datos del sitio o de la app, o la desinstales. Lo que haga TRANSMILENIO S.A. con él se rige por su propia política.'],
 ])}
 ${dato('2.6 Voz (app para Android)', [
@@ -148,6 +149,13 @@ ${dato('2.7 Preferencias guardadas en tu dispositivo', [
   ['Autorización', 'Por conducta inequívoca: al marcar un favorito, cambiar una capa o hacer una consulta.'],
   ['Quién las recibe', 'Nadie: se guardan en el almacenamiento local de tu navegador o de la app y no se envían. La app para Android está excluida de la copia de seguridad en la nube de Android, así que no llegan a tu cuenta de Google. Al pasar tus datos directamente de un teléfono a otro, algunos fabricantes sí pueden incluir los de la app.'],
   ['Cuánto tiempo', 'Hasta que las borres: en el navegador, borrando los datos de este sitio; en Android, desde Ajustes, Aplicaciones, Almacenamiento, Borrar datos, o desinstalando la app.'],
+])}
+${dato('2.8 Registro de buses', [
+  ['Qué', 'Cuando la app o el sitio web reciben la posición de los buses de una ruta, guardamos lo que el sistema informó de cada bus: su número de móvil, la ruta, el destino, el lugar y la hora. No guardamos nada sobre ti: ni tu dirección IP, ni tu identificador de instalación, ni tu ubicación.'],
+  ['Para qué', 'Llevar un registro de qué bus ha estado en qué ruta, dónde y cuándo.'],
+  ['Autorización', 'El registro no contiene datos personales tuyos. La conexión que la app hace para enviarlo se rige por lo que dice el punto 2.3.'],
+  ['Quién lo recibe', 'La app le envía esa información a nuestro servidor, alojado por Render Services, Inc., que registra la conexión con tu dirección IP como cualquier otra (2.3); ese registro técnico no dice qué ruta consultaste. El registro de buses se guarda en Cloudflare, Inc.'],
+  ['Cuánto tiempo', 'No tiene un plazo definido, porque no contiene datos tuyos.'],
 ])}`,
     },
     {
@@ -155,8 +163,8 @@ ${dato('2.7 Preferencias guardadas en tu dispositivo', [
       html: `
 <p>Estos son todos los terceros que reciben datos al usar el servicio. Ninguno los recibe para publicidad.</p>
 <ul class="legal-dest">
-${destinatario('Render Services, Inc.', 'Estados Unidos', 'Aloja nuestro servidor. Recibe tu dirección IP y las solicitudes que hace el sitio web, incluidos, mientras se procesan, el número de tarjeta, los puntos de los tramos a pie y las búsquedas. Actúa como encargado del tratamiento.')}
-${destinatario('Cloudflare, Inc.', 'Estados Unidos', 'Mide las visitas al sitio web, sin cookies. Recibe tu dirección IP, la página visitada, la página de la que vienes, el tipo de navegador y los tiempos de carga. Actúa como encargado del tratamiento.')}
+${destinatario('Render Services, Inc.', 'Estados Unidos', 'Aloja nuestro servidor. Recibe tu dirección IP, lo que la app envía para el registro de buses (2.8) y las solicitudes que hace el sitio web, incluidos, mientras se procesan, el número de tarjeta, los puntos de los tramos a pie y las búsquedas. Actúa como encargado del tratamiento.')}
+${destinatario('Cloudflare, Inc.', 'Estados Unidos', 'Mide las visitas al sitio web, sin cookies. Recibe tu dirección IP, la página visitada, la página de la que vienes, el tipo de navegador y los tiempos de carga. También guarda el registro de buses (2.8), que no contiene datos tuyos. Actúa como encargado del tratamiento.')}
 ${destinatario('CARTO', 'Estados Unidos y España', 'Sirve las imágenes del mapa. Recibe tu dirección IP y la zona del mapa que estás viendo.')}
 ${destinatario('TRANSMILENIO S.A.', 'Colombia', 'Recibe el número de tarjeta que consultas. Desde la app, también tu dirección IP y el identificador de instalación (2.5). Trata esos datos como responsable de su propio sistema.')}
 ${destinatario('FOSSGIS e.V.', 'Alemania', 'Calcula las rutas a pie. Recibe los puntos de inicio y llegada de cada tramo; desde la app, también tu dirección IP.')}

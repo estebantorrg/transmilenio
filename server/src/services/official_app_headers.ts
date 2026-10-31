@@ -46,3 +46,30 @@ export const LIVE_HOST_HEADERS = Object.freeze({
   'Appid': '9a2c3b48f0c24ae9bfba38e94f27c3ea',
   ...OFFICIAL_APP_HEADERS,
 });
+
+/**
+ * Once the live host refuses this id, every tier carries the same id — direct,
+ * the proxies, a pool check — so every one of them is refused too, and asking
+ * again is only load on a host that has said no ("less volume", above). All live
+ * requests pause instead, with one look per pause to notice the block lifting.
+ * Confirmed 2026-10-30: this deployment's id got an empty 403 from a Colombian
+ * IP too, while the website kept firing up to 12 doomed requests per poll.
+ */
+export const ID_REFUSED_PAUSE_MS = 30 * 60_000;
+let idRefusedUntil = 0;
+
+/** The host's answer to a refused id: an empty `403`. A geofence refusal is a `401` with a body. */
+export function isIdRefusal(hostname: string, status: number | undefined, bodyLength: number): boolean {
+  return hostname === LIVE_API_HOST && status === 403 && bodyLength === 0;
+}
+
+export function isIdRefused(now = Date.now()): boolean {
+  return now < idRefusedUntil;
+}
+
+export function markIdRefused(now = Date.now()): void {
+  if (!isIdRefused(now)) {
+    console.log(`[TM API] Live host refused this install id (empty 403); pausing live requests for ${ID_REFUSED_PAUSE_MS / 60_000} min`);
+  }
+  idRefusedUntil = now + ID_REFUSED_PAUSE_MS;
+}

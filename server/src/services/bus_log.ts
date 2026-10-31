@@ -2,12 +2,13 @@
  * The bus log (spec §5.2.7): which móvil was on which route, where and when.
  *
  * It records what a rider's poll already fetched and never asks the live host
- * itself, so it adds nothing to the upstream volume (§5.2.3). Off unless
+ * itself, so it adds nothing to the upstream volume (§5.2.3): the server's own
+ * answers, plus what the app read directly and reports back. Off unless
  * BUS_LOG_D1_URL and BUS_LOG_D1_TOKEN are set: Render's disk is wiped by every
  * deploy, so the rows live in a Cloudflare D1 database.
  */
 
-import { toFiniteNumber } from '../../../shared/live_payload.js';
+import { isBusLike, toFiniteNumber } from '../../../shared/live_payload.js';
 import {
   LIVE_DESTINATION_MAX_LENGTH,
   LIVE_ROUTE_CODE_MAX_LENGTH,
@@ -20,6 +21,12 @@ const FLUSH_DELAY_MS = 60_000;
 const D1_TIMEOUT_MS = 15_000;
 // What a D1 outage may hold in memory on the 512 MB box; the oldest rows go first.
 export const MAX_PENDING_SIGHTINGS = 5000;
+export const MAX_REPORTED_BUSES = 200;
+
+// A client report is public input. Wider than the client's BOGOTA_BOUNDS, because
+// zonal routes reach Soacha, Funza and Chía; this only has to stop junk.
+const METRO_AREA = { minLat: 4.3, maxLat: 5.0, minLng: -74.4, maxLng: -73.9 };
+const MOVIL_SHAPE = /^[A-Z0-9-]{2,12}$/i;
 
 // The primary key doubles as the lookup by móvil, and makes a retried batch harmless.
 const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS sightings (
@@ -31,12 +38,13 @@ const CREATE_TABLE = `CREATE TABLE IF NOT EXISTS sightings (
   posicion REAL,
   lasttime TEXT NOT NULL,
   seen_at TEXT NOT NULL,
+  origen TEXT NOT NULL,
   PRIMARY KEY (movil, ruta, seen_at)
 ) WITHOUT ROWID`;
 
 // One bound JSON array, because D1 allows only 100 bound values per statement.
-const INSERT_ROWS = `INSERT OR IGNORE INTO sightings (movil, ruta, destino, lat, lng, posicion, lasttime, seen_at)
-SELECT value->>'movil', value->>'ruta', value->>'destino', value->>'lat', value->>'lng', value->>'posicion', value->>'lasttime', value->>'seen_at'
+const INSERT_ROWS = `INSERT OR IGNORE INTO sightings (movil, ruta, destino, lat, lng, posicion, lasttime, seen_at, origen)
+SELECT value->>'movil', value->>'ruta', value->>'destino', value->>'lat', value->>'lng', value->>'posicion', value->>'lasttime', value->>'seen_at', value->>'origen'
 FROM json_each(?)`;
 
 export interface Sighting {
@@ -49,12 +57,20 @@ export interface Sighting {
   posicion: number | null;
   /** The fix's Bogotá clock time, as the feed writes it ("06:59:24 AM"); it can lag `seen_at`. */
   lasttime: string;
-  /** When the server read it, ISO UTC. */
+  /** When the server read or received it, ISO UTC. */
   seen_at: string;
+  /** `server` = it asked the live host itself; `client` = reported through a public endpoint, so it can be forged. */
+  origen: 'server' | 'client';
 }
 
 /** The rows a poll's answer adds to the log. `seen` remembers when each bus last went in. */
-export function pickSightings(ruta: string, buses: any[], now: number, seen: Map<string, number>): Sighting[] {
+export function pickSightings(
+  ruta: string,
+  buses: any[],
+  now: number,
+  seen: Map<string, number>,
+  origen: Sighting['origen']
+): Sighting[] {
   const rows: Sighting[] = [];
   for (const bus of buses) {
     const movil = normalizeLiveText(bus?.label ?? bus?.id, LIVE_ROUTE_CODE_MAX_LENGTH);
@@ -74,9 +90,24 @@ export function pickSightings(ruta: string, buses: any[], now: number, seen: Map
       posicion: toFiniteNumber(bus.posicion),
       lasttime: normalizeLiveText(bus.lasttime, LIVE_ROUTE_CODE_MAX_LENGTH),
       seen_at: new Date(now).toISOString(),
+      origen,
     });
   }
   return rows;
+}
+
+/** What survives of a client's report. The route is the one the endpoint checked, whatever the report claims. */
+export function pickReportedBuses(ruta: string, buses: unknown): any[] {
+  if (!Array.isArray(buses)) return [];
+  return buses
+    .slice(0, MAX_REPORTED_BUSES)
+    .filter((bus) => isBusLike(bus) && typeof bus.label === 'string' && MOVIL_SHAPE.test(bus.label))
+    .filter((bus) => {
+      const lat = Number(bus.latitude ?? bus.lat);
+      const lng = Number(bus.longitude ?? bus.lng ?? bus.lon);
+      return lat >= METRO_AREA.minLat && lat <= METRO_AREA.maxLat && lng >= METRO_AREA.minLng && lng <= METRO_AREA.maxLng;
+    })
+    .map((bus) => ({ ...bus, ruta_extraida: ruta }));
 }
 
 const lastLogged = new Map<string, number>();
@@ -101,9 +132,9 @@ async function queryD1(url: string, token: string, sql: string, params: string[]
 }
 
 /** Queue a poll's buses. Called from inside `/api/buses`, which must never fail, so it cannot throw. */
-export function logSightings(ruta: string, buses: any[]): void {
+export function logSightings(ruta: string, buses: any[], origen: Sighting['origen']): void {
   if (!process.env.BUS_LOG_D1_URL || !process.env.BUS_LOG_D1_TOKEN) return;
-  pending.push(...pickSightings(ruta, buses, Date.now(), lastLogged));
+  pending.push(...pickSightings(ruta, buses, Date.now(), lastLogged, origen));
   capPending();
   if (pending.length > 0 && !flushTimer) {
     flushTimer = setTimeout(() => void flushSightings(), FLUSH_DELAY_MS);

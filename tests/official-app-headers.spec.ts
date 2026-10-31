@@ -14,8 +14,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   APP_INSTALL_UUID,
+  ID_REFUSED_PAUSE_MS,
+  isIdRefusal,
+  isIdRefused,
   LIVE_API_HOST,
   LIVE_HOST_HEADERS,
+  markIdRefused,
   OFFICIAL_APP_HEADERS,
 } from '../server/src/services/official_app_headers';
 
@@ -79,6 +83,24 @@ test.describe('official app identity', () => {
     // a block is filed against (spec §5.5.1a).
     const card = fs.readFileSync(path.join(ROOT, 'server/src/services/card_balance.ts'), 'utf8');
     expect(card).not.toContain('requestHeaders');
+  });
+
+  test('only an empty 403 from the live host means the id is refused', () => {
+    expect(isIdRefusal(LIVE_API_HOST, 403, 0)).toBe(true);
+    expect(isIdRefusal(LIVE_API_HOST, 401, 0)).toBe(false); // the geofence
+    expect(isIdRefusal(LIVE_API_HOST, 403, 120)).toBe(false); // a 403 that says something else
+    expect(isIdRefusal('relay.example.com', 403, 0)).toBe(false); // a relay's own 403 says nothing about the id
+  });
+
+  test('a refused id pauses live requests, then lets one look through', () => {
+    // Clock values from 1970, so the pause is over in real time and cannot leak
+    // into another spec that shares this module.
+    const at = 1_000_000;
+    expect(isIdRefused(at)).toBe(false);
+    markIdRefused(at);
+    expect(isIdRefused(at + ID_REFUSED_PAUSE_MS - 1)).toBe(true);
+    expect(isIdRefused(at + ID_REFUSED_PAUSE_MS)).toBe(false);
+    expect(isIdRefused()).toBe(false);
   });
 
   test('the operator can pin the id with TM_APP_UUID', async () => {

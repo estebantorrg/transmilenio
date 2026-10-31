@@ -24,7 +24,7 @@ import {
 } from '../services/live_payload.js';
 import { isTrustedLiveAnswer, keepKnownLiveNames } from '../services/live_request.js';
 import { horarioProgramado } from '../services/horario_programado.js';
-import { logSightings } from '../services/bus_log.js';
+import { logSightings, pickReportedBuses } from '../services/bus_log.js';
 
 const router = Router();
 const gzipAsync = promisify(zlib.gzip);
@@ -104,6 +104,7 @@ const RATE_WINDOW_MS = 60_000;
 const RATE_BUDGETS = {
   buses: 90,
   'stop-arrivals': 60,
+  sightings: 60,
   card: 10,
   geoip: 60,
   geocode: 120,
@@ -465,7 +466,7 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
 
     if (buses.length > 0) {
       rememberLiveBuses(cacheKey, buses);
-      logSightings(ruta, buses);
+      logSightings(ruta, buses, 'server');
       res.json({ success: true, status: 'live', confidence: 'high', count: buses.length, data: buses, source });
       return;
     }
@@ -497,6 +498,20 @@ router.post('/buses', rateLimit('buses'), async (req: Request, res: Response) =>
     }
     res.json({ success: true, status: 'unreachable', confidence: 'low', count: 0, data: [], source: null });
   }
+});
+
+// What a client read from the live host without passing through here: the app's
+// fixes never reach `/buses` (spec §5.2.7). Not logged per request, on purpose:
+// the access log must not tie a rider's IP to the route they looked at.
+router.post('/sightings', rateLimit('sightings'), (req: Request, res: Response) => {
+  const ruta = normalizeLiveText(req.body?.ruta, LIVE_ROUTE_CODE_MAX_LENGTH);
+  // Not `isCatalogRouteCode`: with no catalog loaded it refuses nothing, and this writes.
+  if (tmApi.catalogRouteVariants(ruta).length === 0) {
+    res.status(404).json({ success: false, error: 'Route not found in catalog' });
+    return;
+  }
+  logSightings(ruta, pickReportedBuses(ruta, req.body?.buses), 'client');
+  res.json({ success: true });
 });
 
 // ─── Stop arrivals (global ETA per serving route) ─────────
