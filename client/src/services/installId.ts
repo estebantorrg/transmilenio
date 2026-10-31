@@ -5,9 +5,11 @@
  * a `uuid`, so the native app must send one. It is generated once and
  * kept: one id per install, which is what the official app sends. Never a
  * literal shared by every client — a single id carrying everyone's traffic is
- * what TMSA blocklisted on 2026-09-16 — and never a fresh one per request,
- * which would be minting ids to outrun a block rather than identifying an
- * install (see `server/src/services/official_app_headers.ts`).
+ * what TMSA blocklisted on 2026-09-16. A per-request id would not match how a
+ * real install behaves (the official app generates one and keeps it); the proxy
+ * tier rotates a pool for a different reason — spreading traffic across ids so
+ * no single one accumulates the volume of every proxy
+ * (see `server/src/services/official_app_headers.ts`).
  *
  * The store can be unavailable (private mode, blocked site data), so a failure
  * degrades to a per-session id rather than to no id at all, which would mean no
