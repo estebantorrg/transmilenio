@@ -1342,10 +1342,12 @@ async function runLiveTiers(
   signal: AbortSignal,
   onHit: (context: LiveRequestContext) => void
 ): Promise<LiveBusesResult | null> {
-  // 1. Direct (works when the backend egress is Colombian). Skipped entirely
-  // while the geofence memo is hot — the rejection is egress-wide, so paying
-  // the round-trip again would only delay the relay.
-  if (!isDirectTierGeofenced()) {
+  // 1. Direct (works when the backend egress is Colombian). Skipped while the
+  // geofence memo is hot (the rejection is egress-wide) or while the live host
+  // refuses our install id — the direct tier carries that id, so asking again is
+  // only load on a host that has said no. The relay and proxy tiers send other
+  // ids, so a direct-tier refusal does not pause them.
+  if (!isDirectTierGeofenced() && !isIdRefused()) {
     const direct = await runLiveStrategy('direct', fetchLiveBusesDirect, contexts, errors, signal, onHit);
     if (direct) return { buses: direct, source: 'direct' };
   }
@@ -1398,8 +1400,6 @@ async function runLiveCascade(
   routeType: 'troncal' | 'zonal',
   nombreCandidates: string[]
 ): Promise<LiveBusesResult> {
-  // Every tier would carry the refused id (`official_app_headers.ts`), so there is no one to ask.
-  if (isIdRefused()) throw new Error('Live host refuses this install id; live requests paused');
   const contexts = routeType === 'zonal'
     ? [createLiveRequestContext(ruta, nombre, routeType)]
     : buildLiveNameCandidates(nombre, nombreCandidates)

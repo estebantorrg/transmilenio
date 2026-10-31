@@ -104,7 +104,7 @@ test.describe('official app identity', () => {
     expect(isIdRefusal('relay.example.com', 403, 0)).toBe(false); // a relay's own 403 says nothing about the id
   });
 
-  test('a refused id pauses live requests, then lets one look through', () => {
+  test('a refused id pauses the direct tier, then lets one look through', () => {
     // Clock values from 1970, so the pause is over in real time and cannot leak
     // into another spec that shares this module.
     const at = 1_000_000;

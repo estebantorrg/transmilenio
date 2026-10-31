@@ -40,12 +40,14 @@ export const LIVE_HOST_HEADERS = Object.freeze({
 });
 
 /**
- * Once the live host refuses this id, every tier carries the same id — direct,
- * the proxies, a pool check — so every one of them is refused too, and asking
- * again is only load on a host that has said no ("less volume", above). All live
- * requests pause instead, with one look per pause to notice the block lifting.
- * Confirmed 2026-10-30: this deployment's id got an empty 403 from a Colombian
- * IP too, while the website kept firing up to 12 doomed requests per poll.
+ * Once the live host refuses this id (empty 403), the direct tier keeps carrying
+ * it, so asking again is only load on a host that has said no ("less volume",
+ * above). The direct tier is skipped while this is set (`runLiveTiers`), with one
+ * look per pause to notice the block lifting. The relay and proxy tiers send
+ * other ids — the relay its own box's, the proxy a rotating pool
+ * (`nextProxyUuid`) — so they keep running. Confirmed 2026-10-30: this
+ * deployment's id got an empty 403 from a Colombian IP too, while the website
+ * kept firing up to 12 doomed direct requests per poll.
  */
 export const ID_REFUSED_PAUSE_MS = 30 * 60_000;
 let idRefusedUntil = 0;
@@ -61,7 +63,7 @@ export function isIdRefused(now = Date.now()): boolean {
 
 export function markIdRefused(now = Date.now()): void {
   if (!isIdRefused(now)) {
-    console.log(`[TM API] Live host refused this install id (empty 403); pausing live requests for ${ID_REFUSED_PAUSE_MS / 60_000} min`);
+    console.log(`[TM API] Live host refused this install id (empty 403); skipping the direct tier for ${ID_REFUSED_PAUSE_MS / 60_000} min`);
   }
   idRefusedUntil = now + ID_REFUSED_PAUSE_MS;
 }
