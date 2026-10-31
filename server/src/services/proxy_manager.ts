@@ -38,7 +38,6 @@ const TARGET_POOL_SIZE = 12; // a pool this big is left alone
  * only filter that answers the question being asked.
  */
 const MAX_TEST_CANDIDATES = 500;
-const MAX_GLOBAL_FILL = 200; // non-CO-tagged candidates to top up with
 
 const LIVE_TEST_HOST = LIVE_API_HOST;
 // Verification probes up to MAX_TEST_CANDIDATES untrusted proxies; each body is
@@ -306,9 +305,11 @@ class ProxyManagerClass {
   }
 
   /**
-   * Gathers candidates from several free sources. CO-tagged sources go first
-   * (highest hit rate); a bounded slice of a global list tops up to catch CO
-   * proxies the tagged lists miss. The live-API test is the real CO filter.
+   * Gathers candidates from the free CO-tagged proxy lists only. A worldwide
+   * list used to top this up, but the geofence 401s almost all of it, so every
+   * probe of it delivered this deployment's id and Appid to the live host from
+   * another foreign IP for nothing — the "one install, hundreds of IPs" shape an
+   * operator reads as abuse (2026-10-29 block; spec §5.2.3). CO-tagged only.
    * Public for the station-demand sync, which verifies them against its own
    * Colombia-only host instead (`sync_demand.ts`).
    */
@@ -350,21 +351,7 @@ class ProxyManagerClass {
       console.warn(`[ProxyManager] proxy-list.download failed: ${err.message}`);
     }
 
-    // Global top-up (bounded, shuffled) — geofence test keeps only CO exits.
-    const global = new Map<string, ProxyItem>();
-    try {
-      const text = await this.fetchText('https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt');
-      for (const [ip, port] of this.parsePairs(text)) {
-        const k = keyOf(ip, port);
-        if (!tagged.has(k)) add(global, ip, port);
-      }
-    } catch (err: any) {
-      console.warn(`[ProxyManager] Global list failed: ${err.message}`);
-    }
-
-    const fill = this.shuffle([...global.values()]).slice(0, MAX_GLOBAL_FILL);
-    const all = [...tagged.values(), ...fill];
-    return all.slice(0, MAX_TEST_CANDIDATES);
+    return [...tagged.values()].slice(0, MAX_TEST_CANDIDATES);
   }
 
   /**
@@ -463,14 +450,6 @@ class ProxyManagerClass {
     if (a === 192 && b === 168) return false;                            // private
     if (a === 100 && b >= 64 && b <= 127) return false;                  // CGNAT
     return true;
-  }
-
-  private shuffle<T>(arr: T[]): T[] {
-    for (let i = arr.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-    }
-    return arr;
   }
 
   private fetchJson(url: string): Promise<any> {
