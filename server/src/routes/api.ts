@@ -396,6 +396,12 @@ router.get('/ruteros-tradicionales', dataFileEndpoint<object>(
 router.get('/horarios-cabecera', dataFileEndpoint<object>(
   'horarios_cabecera.json', 'horarios por cabecera', (horarios) => horarios
 ));
+// The bahías of each paradero múltiple, as printed on the routes' plegables, and
+// the stops whose printed módulo contradicts their código. Read off the artwork
+// by scripts/ocr/paraderos.mjs. ~25 KB, fetched once by route page or popup.
+router.get('/paraderos-plegable', dataFileEndpoint<object>(
+  'paraderos_plegable.json', 'paraderos del plegable', (paraderos) => paraderos
+));
 // A zonal código's scheduled service from TRANSMILENIO's GTFS — how often, first
 // and last bus, and the pass at each paradero, per direction (spec §5.5.10).
 // Per código: the whole file is ~2 MB, a route page needs a few KB of it.

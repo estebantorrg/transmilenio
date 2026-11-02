@@ -681,6 +681,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       cleanStations[code] = {
         codigo: station.codigo,
         nombre: station.nombre,
+        ...(station.direccion && station.direccion !== station.nombre ? { direccion: station.direccion } : {}),
         coordenada: lightCoordenada(station.coordenada),
         wagons: cleanWagons,
       };

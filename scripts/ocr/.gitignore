@@ -5,6 +5,7 @@ _planos/
 _census/
 _probe/
 _ruteros/
+_paraderos/
 _*.mjs
 _*.png
 _*.json

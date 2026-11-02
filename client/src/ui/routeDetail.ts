@@ -232,6 +232,8 @@ export function renderStopsTimeline(
     facts?: (stop: { codigo: string }) => RouteStopFacts | null;
     /** The stop's first and last scheduled bus, as text (`shared/horario_programado.js`). */
     paso?: (stop: { codigo: string }) => string | null;
+    /** The bahía this route boards at a paradero múltiple (`services/bahias.ts`). */
+    modulo?: (stop: { codigo: string }) => string | null;
   } = {}
 ): string {
   const stops = route.stops;
@@ -252,8 +254,8 @@ export function renderStopsTimeline(
     const name = escapeHTML(stop.nombre);
     // An estación's TM código is the catalog's, never printed where a rider
     // stands; a paradero's code IS on its sign, so it stays.
-    const sub = stop.direccion || (stop.codigo && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : '');
-    const vagon = facts?.vagon ? vagonTexto(facts.vagon) : '';
+    const sub = [stop.direccion, stop.codigo && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : ''].filter(Boolean).join(' · ');
+    const vagon = facts?.vagon ? vagonTexto(facts.vagon) : options.modulo?.(stop) ?? '';
     const paso = options.paso?.(stop) ?? null;
     const lineas = facts && (facts.lineas.length || facts.alimentadores)
       ? `<div class="timeline-stop-lines" aria-label="${escapeHTML(['Conexiones', ...facts.lineas, ...(facts.alimentadores ? ['alimentadores'] : [])].join(' '))}">` +

@@ -109,7 +109,7 @@ export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: Ma
     codigo: stop.codigo,
     sourceCode: stop.codigo,
     coordinate: platforms?.[0]?.coordinate ?? ([lng, lat] as [number, number]),
-    direccion: stop.direccion,
+    direccion: stop.direccion ?? catalog?.stations[stop.codigo]?.direccion,
     kind: stopKind(stop.codigo),
     ...(platforms ? { platforms } : {}),
   };

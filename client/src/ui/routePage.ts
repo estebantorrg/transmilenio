@@ -58,6 +58,7 @@ import {
 } from './pageShell';
 import { routesWithCode } from './sidebar';
 import { routeStopFacts } from '../layers/stations';
+import { bahiasListas, loadBahias, moduloTexto } from '../services/bahias';
 
 const PAGE_ID = 'route-page';
 
@@ -369,6 +370,7 @@ function render(route: RouteListItem): string {
           linkStations: true,
           facts: (stop) => routeStopFacts(stop.codigo, route),
           paso: sentido ? (stop) => pasoTexto(sentido, stop.codigo) : undefined,
+          modulo: (stop) => moduloTexto(stop.codigo),
         })}
       </section>
     </div>
@@ -444,6 +446,12 @@ function wire(el: HTMLElement, route: RouteListItem): void {
   if (route.type === 'zonal' && !programados.has(route.code.toUpperCase())) {
     void loadProgramado(route.code).then((loaded) => {
       if (loaded && openRoute === route && isRoutePageOpen()) refreshOverlayPage(descriptor(route));
+    });
+  }
+
+  if (route.type === 'zonal' && !bahiasListas()) {
+    void loadBahias().then((ok) => {
+      if (ok && openRoute === route && isRoutePageOpen()) refreshOverlayPage(descriptor(route));
     });
   }
 

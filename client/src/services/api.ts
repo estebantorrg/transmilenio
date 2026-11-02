@@ -526,6 +526,8 @@ export const api = {
 
   /** First/last scheduled bus from each route's own cabecera (`services/cabecera.ts`). */
   getHorariosCabecera: () => fetchJson<HorariosCabeceraResponse>('/horarios-cabecera', 15_000, undefined, 1),
+  /** The bahías printed on the plegables (`services/bahias.ts`). */
+  getParaderosPlegable: () => fetchJson<ParaderosPlegableResponse>('/paraderos-plegable', 15_000, undefined, 1),
   getHorarioProgramado: (codigo: string) =>
     fetchJson<HorarioProgramadoResponse>(`/horario-programado/${encodeURIComponent(codigo)}`, 15_000, undefined, 1),
 
@@ -711,6 +713,14 @@ export interface HorarioProgramadoResponse {
 /** `/api/ruteros-tradicionales`. */
 export interface RuterosTradicionalesResponse extends RuterosTradicionales {
   success: boolean;
+}
+
+/** `/api/paraderos-plegable`: bahías by paradero (`078-12`), and the stop códigos
+ *  whose printed módulo contradicts the código. */
+export interface ParaderosPlegableResponse {
+  success: boolean;
+  bahias: Record<string, string[]>;
+  dudas: string[];
 }
 
 /** `/api/planner-calibration` (spec §5.6.5). */

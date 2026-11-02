@@ -2241,6 +2241,43 @@ body.sidebar-collapsed .sidebar-fab {
   border-top: 1px solid var(--border-subtle);
 }
 
+/* A paradero múltiple's módulos: the plegable's yellow square, then its routes. */
+.popup-bahia {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.popup-bahia .popup-route-tags {
+  margin-top: 0;
+}
+
+.popup-bahia-letra {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffc83c;
+  color: #2c2e35;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.popup-bahia.is-here .popup-bahia-letra {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px #2c2e35;
+}
+
+.popup-bahia-vacia {
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  line-height: 20px;
+}
+
 /* Faded tabular count chip sitting at the right of a section label. */
 .popup-count {
   font-weight: 700;

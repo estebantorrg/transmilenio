@@ -124,4 +124,22 @@ test.describe('the stop list on a route page', () => {
       )
       .toEqual(stationPlatform('TM0069C13')?.coordinate);
   });
+
+  test('a paradero gives its address and código, and the módulo where it has several', async ({ page }) => {
+    await openRoute(page, 'f410');
+    const parque = page.locator('.route-page .timeline-stop', { hasText: 'Parque de la 93' }).first();
+    await expect(parque.locator('.timeline-stop-code')).toHaveText('AK 11 - CL 93A · # 220B00');
+    await expect(parque.locator('.timeline-vagon')).toHaveText('Módulo B');
+  });
+
+  test('a paradero múltiple lists its módulos in its popup, with the routes at each other one', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });
+    await page.locator('#search-input').fill('123B07');
+    await page.locator('#route-list .place-item').first().click();
+    const bahias = page.locator('.maplibregl-popup .popup-bahia');
+    await expect(bahias).toHaveCount(2);
+    await expect(bahias.filter({ hasText: 'Este módulo' }).locator('.popup-bahia-letra')).toHaveText('B');
+    await expect(bahias.first().locator('.route-tag').first()).toBeVisible();
+  });
 });

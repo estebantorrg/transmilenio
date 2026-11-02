@@ -14,6 +14,8 @@ import { catalogRouteNetwork, servesZonal } from '../utils/routeType';
 import { isStationStopCode } from '../data/routeCatalog';
 import { showStationPopupByCode } from './stations';
 import { arrivalsSectionHtml, renderStopArrivals } from './arrivals';
+import { bahiasImpresas, codigoEnBahia, loadBahias } from '../services/bahias';
+import { leerCodigoParadero } from '../../../shared/nomenclatura.js';
 
 export type StopRouteTag = {
   code: string;
@@ -148,6 +150,41 @@ function routeTags(routes: StopRouteTag[]): string {
     .join('');
 }
 
+/**
+ * A paradero múltiple's módulos and which routes stop at each, in the spirit of
+ * the vagón plans. A printed módulo no catalog route uses is still shown: it is
+ * there on the street, and the catalog simply files nothing at it.
+ */
+function bahiasHtml(code: string): string {
+  const actual = leerCodigoParadero(code)?.modulo;
+  if (!actual) return '';
+  const rutasEn = (letra: string) => globalStopRoutesMap?.get(codigoEnBahia(code, letra)) ?? [];
+  const letras = [...'ABCDEF'].filter((letra) => bahiasImpresas(code).includes(letra) || rutasEn(letra).length > 0);
+  if (letras.length < 2) return '';
+  return `
+    <div class="popup-routes-label">Módulos<span class="popup-count">${letras.length}</span></div>
+    ${letras.map((letra) => `
+      <div class="popup-bahia${letra === actual ? ' is-here' : ''}">
+        <span class="popup-bahia-letra" aria-label="Módulo ${letra}${letra === actual ? ', este paradero' : ''}">${letra}</span>
+        ${letra === actual
+          ? '<span class="popup-bahia-vacia">Este módulo</span>'
+          : rutasEn(letra).length ? `<div class="popup-route-tags">${routeTags(rutasEn(letra))}</div>` : globalStopRoutesMap ? '<span class="popup-bahia-vacia">Sin rutas en el catálogo</span>' : ''}
+      </div>`).join('')}
+  `;
+}
+
+const bahiasSlotHtml = (code: string): string =>
+  leerCodigoParadero(code) ? `<div class="popup-bahias" data-code="${escapeHTML(code)}">${bahiasHtml(code)}</div>` : '';
+
+/** The printed módulos land after the popup opens; the catalog's are there already. */
+function renderBahias(code: string): void {
+  void loadBahias().then(() => {
+    document.querySelectorAll<HTMLElement>('.popup-bahias').forEach((slot) => {
+      if (slot.dataset.code === code) slot.innerHTML = bahiasHtml(code);
+    });
+  });
+}
+
 function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): void {
   if (!markClickHandled(e)) return;
   const feature = e.features?.[0];
@@ -172,6 +209,7 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
         ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${bahiasSlotHtml(p.cenefa || '')}
       ${arrivalsSectionHtml(p.cenefa || '')}
       ${planActionsHtml(p.name, coords as [number, number], p.cenefa)}
     </div>
@@ -179,6 +217,7 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
 
   showPopup(map, coords as [number, number], html, { offset: 6, maxWidth: '280px' });
   if (p.cenefa) void renderStopArrivals(p.cenefa);
+  if (p.cenefa) renderBahias(p.cenefa);
 }
 
 let globalStopRoutesMap: StopRoutesMap | null = null;
@@ -443,6 +482,7 @@ export function showStopPopupByCode(
         ${address ? `<span>${escapeHTML(address)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
+      ${bahiasSlotHtml(stopCode)}
       ${arrivalsSectionHtml(stopCode)}
       ${planActionsHtml(name, coordinate, stopCode)}
     </div>
@@ -450,4 +490,5 @@ export function showStopPopupByCode(
 
   showPopup(map, coordinate, html, { offset: 6, maxWidth: '280px' });
   if (stopCode) void renderStopArrivals(stopCode);
+  if (stopCode) renderBahias(stopCode);
 }

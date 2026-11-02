@@ -31,7 +31,7 @@
 // chips are inverted first: white-on-dark is what the engine drops.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { ZONAS, leerCodigoZonal, normalizarCorredor } from '../../shared/nomenclatura.js';
@@ -57,7 +57,7 @@ const isYellow = (hex) => { const [r, g, b] = rgb(hex); return r > 220 && g > 20
 const near = (a, b, tol = 2.5) => Math.abs(a - b) <= tol;
 
 // ─── geometry ────────────────────────────────────────────────────────────────
-async function geometry(lib, page) {
+export async function geometry(lib, page) {
   const [, , W, H] = page.view;
   const ol = await page.getOperatorList();
   const NAME = Object.fromEntries(Object.entries(lib.OPS).map(([k, v]) => [v, k]));
@@ -87,7 +87,7 @@ async function geometry(lib, page) {
       const x1 = Math.max(p[0][0], p[1][0]);
       const y0 = H - Math.max(p[0][1], p[1][1]);
       const y1 = H - Math.min(p[0][1], p[1][1]);
-      fills.push({ x0, y0, x1, y1, w: x1 - x0, h: y1 - y0, fill: String(fill).toLowerCase(), rect: rect && corners <= 5 });
+      fills.push({ x0, y0, x1, y1, w: x1 - x0, h: y1 - y0, fill: String(fill).toLowerCase(), rect: rect && corners <= 5, n: path.length });
     }
   }
   return { W, H, fills };
@@ -808,6 +808,7 @@ if (!isMainThread) {
     catch (err) { results.push({ file, error: String(err?.message ?? err) }); }
   }
   parentPort.postMessage(results);
-} else {
+} else if (process.argv[1] && fileURLToPath(import.meta.url).toLowerCase() === resolve(process.argv[1]).toLowerCase()) {
+  // Only when run itself: paraderos.mjs imports geometry() from here.
   await main();
 }
