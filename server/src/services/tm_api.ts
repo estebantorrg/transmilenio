@@ -129,10 +129,10 @@ const LIGHT_TRACE_DECIMALS = 5;
  * shortcut: hand-kept, drop an entry once upstream files a real address.
  */
 const DIRECCIONES_ESTACION: Record<string, string> = {
-  TM90008: 'AV. Caracas - CL 51 Sur', // Danubio
-  TM90009: 'DG 76 Sur - KR 78B', // Tibanica - Primavera
-  TM90010: 'AC 75 Sur - KR 80P', // Laureles
-  TM90011: 'AV. C. de Cali - CL 69 Sur', // Islandia
+  TM90008: 'AV. Caracas - CL 55 Bis Sur', // Danubio
+  TM90009: 'CL 76 Sur - KR 78C', // Tibanica - Primavera
+  TM90010: 'AV. C. de Cali - KR 80M', // Laureles
+  TM90011: 'AV. C. de Cali - CL 71A Sur', // Islandia
   TM90012: 'AV. Caracas - CL 53', // Calle 53 - Universidad Manuela Beltrán
   '960V13': 'AK 10 - CL 6', // Estación Bicentenario, the same as TM0139
   // Filed with no name, and the name in the código.

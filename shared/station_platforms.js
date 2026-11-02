@@ -65,7 +65,7 @@ export const STATION_PLATFORMS = [
     parent: 'TM0013',
     nombre: 'AV. Jiménez - CL 13',
     wagones: ['D', 'E'],
-    direccion: 'AC 13 - AK 13',
+    direccion: 'AC 13 - KR 12',
     corridor: 'Américas',
     letra: 'F',
     matchMethod: 'verified-split:av-jimenez-cl13',
