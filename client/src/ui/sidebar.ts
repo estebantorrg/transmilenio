@@ -9,6 +9,7 @@ import { COMPARE_MAX, comparedRoutes, isCompared, onComparedChange } from '../la
 import { de } from '../utils/text';
 import { compareRouteListItems, getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
+import { loadHitos, rutasQuePasan } from '../services/barrios';
 import { closedWindowNotice } from '../services/liveWindow';
 import {
   formatSchedule,
@@ -20,6 +21,7 @@ import {
   routeSystemLabel,
   routeTypeLabel,
   slugifyRoute,
+  tidy,
 } from './routeDetail';
 import { closeNotFoundPage, openNotFoundPage } from './notFoundPage';
 import { placeRowHtml, type NearbyPoint } from './cerca';
@@ -103,6 +105,8 @@ let currentFilter: RouteFilter = 'all';
 // Troncal corridor-line narrowing, active only under the Troncal filter (null = all lines).
 let currentLine: string | null = null;
 let searchQuery = '';
+// Route id → the place it passes that the query names (`services/barrios.ts`).
+let lugaresPorRuta = new Map<string, string>();
 
 // ─── Search scope (what the query looks for) ──────────────
 // A query used to search routes AND places at once and dump both into one list:
@@ -1037,11 +1041,25 @@ function applyFilters(): void {
     }
   }
 
+  lugaresPorRuta = new Map();
   if (searchQuery) {
     const q = normalizeSearchText(searchQuery);
-    base = base
+    const directas = base
       .filter((r) => routeSearchHaystack(r).includes(q))
       .sort((a, b) => searchRank(a, q) - searchRank(b, q));
+    // After them, the routes that only pass there. Favoritas and Recientes stay
+    // what they are, the rider's own list searched by its names.
+    if (currentFilter !== 'fav' && currentFilter !== 'recent') {
+      loadHitos(() => {
+        if (searchQuery) applyFilters();
+      });
+      const yaEstan = new Set(directas);
+      const resto = base.filter((r) => !yaEstan.has(r));
+      lugaresPorRuta = rutasQuePasan(resto, searchQuery);
+      base = [...directas, ...resto.filter((r) => lugaresPorRuta.has(r.id))];
+    } else {
+      base = directas;
+    }
   }
 
   // Places are only searched — never browsed — so they are computed once per
@@ -1110,6 +1128,9 @@ function previousCodesMatching(route: RouteListItem, q: string, exact = false): 
 
 /** Rows of one kind shown in the mixed `Todo` view — a preview, not the set. */
 const SEARCH_POINT_PREVIEW = 6;
+/** Passing routes shown above the places in `Todo`: a barrio can list hundreds,
+ *  and the places under them would be out of reach. `Rutas` holds them all. */
+const SEARCH_PASAN_PREVIEW = 6;
 /** Rows shown when a single kind IS the scope: the user asked for these. */
 const SEARCH_POINT_LIMIT = 60;
 /** Route rows drawn per page. */
@@ -1150,7 +1171,14 @@ function overflowHtml(shown: number, total: number, kind: 'routes' | 'points'): 
 
 function wireShowMore(container: HTMLElement): void {
   container.querySelectorAll<HTMLButtonElement>('.route-list-more').forEach((btn) => {
-    btn.addEventListener('click', () => showMore(btn.dataset.more === 'points' ? 'points' : 'routes'));
+    btn.addEventListener('click', () => {
+      if (btn.dataset.more === 'pasan') {
+        searchScope = 'routes';
+        applyFilters();
+        return;
+      }
+      showMore(btn.dataset.more === 'points' ? 'points' : 'routes');
+    });
   });
 }
 
@@ -1374,7 +1402,7 @@ function emptyRouteListHtml(): string {
     : 'No hay rutas que coincidan.';
   const next = narrowing
     ? `<button class="empty-state-action" type="button">${escapeHTML(narrowing.clear)}</button>`
-    : '<div class="empty-state-text">Busca por código (B75), por estación (Calle 100) o por destino (Portal Sur).</div>';
+    : '<div class="empty-state-text">Busca por código (B75), por estación (Calle 100), por destino (Portal Sur) o por barrio (Modelia).</div>';
 
   return `
     <div class="empty-state">
@@ -1406,9 +1434,13 @@ function renderRouteList(
         ${pointMatches.map((p) => placeRowHtml(p)).join('')}
       </div>`
     : '';
-  const routesTitle = pointMatches.length && routes.length
-    ? `<div class="search-points-title">Rutas<span class="search-points-count">${routes.length}</span></div>`
+  // A list of nothing but passing routes has its own title, and a bare "Rutas"
+  // on top of it would say nothing.
+  const directas = routes.length - lugaresPorRuta.size;
+  const routesTitle = pointMatches.length && directas > 0
+    ? `<div class="search-points-title">Rutas<span class="search-points-count">${directas}</span></div>`
     : '';
+  const pasanTitle = `<div class="search-points-title">Rutas que pasan por ${escapeHTML(searchQuery)}<span class="search-points-count">${lugaresPorRuta.size}</span></div>`;
   const wirePointClicks = (): void => wirePointRows(container, pointMatches);
 
   if (routes.length === 0) {
@@ -1428,22 +1460,26 @@ function renderRouteList(
     return;
   }
 
-  const visible = routes.slice(0, ROUTE_PAGE_SIZE * routePages);
+  const tope = pointMatches.length ? directas + SEARCH_PASAN_PREVIEW : Infinity;
+  const visible = routes.slice(0, Math.min(ROUTE_PAGE_SIZE * routePages, tope));
 
   container.innerHTML = routesTitle + visible
-    .map((route) => {
+    .map((route, index) => {
       const badgeColor = safeColor(getRouteAccentColor(route));
       const badgeBorder = `color-mix(in srgb, ${badgeColor} 45%, #ffffff)`;
       const badgeStyle = `background:${badgeColor};border-color:${badgeBorder};`;
-      const endpointText = `${route.origin} → ${route.destination}`;
+      // A passing route says why it is here, where its ends would say nothing about it.
+      const lugar = lugaresPorRuta.get(route.id);
+      const endpointText = lugar ? `por ${tidy(lugar)}` : `${route.origin} → ${route.destination}`;
 
       const isFav = favorites.has(route.id);
 
       const antes = previousCodesMatching(route, searchQuery ? normalizeSearchText(searchQuery) : '');
       const antesText = antes.length ? `antes ${antes.join(', ')}` : '';
-      const ariaLabel = `${route.code}${antesText ? ` (${antesText})` : ''}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}`;
+      const ariaLabel = `${route.code}${antesText ? ` (${antesText})` : ''}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}${lugar ? `, pasa por ${tidy(lugar)}` : ''}`;
 
       return `
+        ${index === directas && lugar ? pasanTitle : ''}
         <div class="route-item ${selectedRouteId === route.id ? 'active' : ''}"
              data-type="${route.type}"
              data-id="${escapeHTML(route.id)}"
@@ -1455,8 +1491,8 @@ function renderRouteList(
             <div class="route-item-name">${escapeHTML(route.name)}</div>
             <div class="route-item-meta">
               ${antesText ? `<span class="route-item-antes">${escapeHTML(antesText)}</span>` : ''}
-              <span class="route-item-type">${escapeHTML(routeTypeLabel(route))}</span>
-              <span class="route-item-endpoints">${escapeHTML(endpointText)}</span>
+              ${lugar ? '' : `<span class="route-item-type">${escapeHTML(routeTypeLabel(route))}</span>`}
+              <span class="route-item-endpoints${lugar ? ' route-item-por' : ''}">${escapeHTML(endpointText)}</span>
             </div>
           </div>
           <button class="route-item-compare" type="button" data-compare-id="${escapeHTML(route.id)}"
@@ -1475,7 +1511,10 @@ function renderRouteList(
     })
     .join('');
 
-  container.innerHTML += overflowHtml(visible.length, routes.length, 'routes') + pointsHtml;
+  const verPasan = visible.length === tope && tope < routes.length
+    ? `<div class="route-list-overflow"><button class="route-list-more" type="button" data-more="pasan">Ver las ${lugaresPorRuta.size} rutas</button></div>`
+    : overflowHtml(visible.length, routes.length, 'routes');
+  container.innerHTML += verPasan + pointsHtml;
 
   wireShowMore(container);
   wireResultKeyboardColumn(container);

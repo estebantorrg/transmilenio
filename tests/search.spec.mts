@@ -63,4 +63,39 @@ test.describe('the Explore search', () => {
     // And the Cerca tab's framed card is not what search draws.
     expect(await page.locator('#route-list .near-row').count()).toBe(0);
   });
+
+  test('a barrio lists the routes that pass there, after the ones it names', async ({ page }) => {
+    await bootApp(page);
+    await search(page, 'Modelia');
+    const titulo = page.locator('#route-list .search-points-title', { hasText: 'Rutas que pasan por Modelia' });
+    await expect(titulo).toBeVisible();
+    // Above the places it is a preview, so the places stay within reach; one button opens them all.
+    await expect(page.locator('#route-list .place-item').first()).toBeVisible();
+    await page.locator('#route-list [data-more="pasan"]').click();
+    await expect(page.locator('#route-list .place-item')).toHaveCount(0);
+    const filas = await page.evaluate(() =>
+      [...document.querySelectorAll('#route-list .route-item:not(.place-item)')].map((el) => ({
+        code: el.querySelector('.route-item-badge')?.textContent?.trim() ?? '',
+        name: el.querySelector('.route-item-name')?.textContent?.trim() ?? '',
+        por: el.querySelector('.route-item-endpoints')?.textContent?.trim() ?? '',
+      }))
+    );
+    const pasan = filas.filter((f) => f.por.startsWith('por '));
+    expect(pasan.length).toBeGreaterThan(30);
+    // Each says the place that brought it here.
+    expect(pasan.every((f) => /modelia/i.test(f.por))).toBe(true);
+    // The ones that name it in their ends come first.
+    expect(filas.findIndex((f) => f.por.startsWith('por '))).toBe(filas.length - pasan.length);
+    // A Ciclovía variant does not double its ordinary service.
+    const ciclovia = pasan.filter((f) => /ciclov/i.test(f.name)).map((f) => f.code);
+    const ordinaria = new Set(pasan.filter((f) => !/ciclov/i.test(f.name)).map((f) => f.code));
+    expect(ciclovia.filter((c) => ordinaria.has(c))).toEqual([]);
+  });
+
+  test('a landmark is found spelled out, from the printed hito', async ({ page }) => {
+    await bootApp(page);
+    await search(page, 'hospital kennedy');
+    await expect(page.locator('#route-list .search-points-title', { hasText: 'Rutas que pasan por hospital kennedy' })).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#route-list .route-item-endpoints', { hasText: /HSP\. KENNEDY/i }).first()).toBeVisible();
+  });
 });

@@ -249,9 +249,14 @@ export function normalizarCorredor(raw) {
 
 // ─── Landmarks ───────────────────────────────────────────────────────────────
 
+// Compiled once: the barrio search expands several thousand names on its first query.
 const EXPANSIONES = [...ABREVIATURAS.hitosPropios, ...ABREVIATURAS.hitosGenericos, ...ABREVIATURAS.indicaciones]
   .filter(([full, abbr]) => full !== abbr && abbr.length > 1)
-  .sort((a, b) => b[1].length - a[1].length);
+  .sort((a, b) => b[1].length - a[1].length)
+  .map(([full, abbr]) => {
+    const esc = abbr.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
+    return [full, new RegExp(`(^|[\\s(])${esc}(?=[\\s),]|$)`, 'gi')];
+  });
 
 /**
  * A hito with its official abbreviations spelled out — for search and speech,
@@ -260,9 +265,6 @@ const EXPANSIONES = [...ABREVIATURAS.hitosPropios, ...ABREVIATURAS.hitosGenerico
  */
 export function expandirHito(text) {
   let out = ` ${String(text ?? '')} `;
-  for (const [full, abbr] of EXPANSIONES) {
-    const esc = abbr.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-    out = out.replace(new RegExp(`(^|[\\s(])${esc}(?=[\\s),]|$)`, 'gi'), `$1${full}`);
-  }
+  for (const [full, abbr] of EXPANSIONES) out = out.replace(abbr, `$1${full}`);
   return out.trim();
 }

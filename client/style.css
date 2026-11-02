@@ -953,6 +953,11 @@ body.sidebar-collapsed .sidebar-fab {
   font-weight: 500;
 }
 
+/* Why a passing route is listed: the name it matched is the point, so it wraps. */
+.route-item-por {
+  white-space: normal;
+}
+
 /* The star and, beside it, "Comparar en el mapa" (layers/compare.ts): both shown on hover. */
 .route-item-fav,
 .route-item-compare {
