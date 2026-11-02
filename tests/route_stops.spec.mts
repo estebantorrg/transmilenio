@@ -140,6 +140,16 @@ test.describe('the stop list on a route page', () => {
     await expect(parque.locator('.timeline-vagon')).toHaveText('Módulo B');
   });
 
+  test('a printed hito that names an estación opens it, and the estación lists the route back', async ({ page }) => {
+    await page.goto('/ruta/b905/');
+    await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });
+    const hito = page.locator('.route-page .tabla-rutero a', { hasText: 'PORTAL SUBA' });
+    await expect(hito).toHaveAttribute('href', /tm0045/);
+    await hito.click();
+    await expect(page.locator('.station-hero-name')).toHaveText('Portal Suba');
+    await expect(page.locator('.station-zonales-slot a.route-tag', { hasText: /^B905$/ })).toBeVisible();
+  });
+
   test('a stop filed with no name reads by the name in its código, at its crossing', async ({ page }) => {
     await openRoute(page, 'f63');
     const chicala = page.locator('.route-page .timeline-stop', { hasText: 'Br. Chicalá' }).first();

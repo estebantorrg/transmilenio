@@ -9,7 +9,7 @@
 import { coincideBarrio, palabrasBarrio, textoBarrio } from '../../../shared/barrios.js';
 import { sentidosHacia, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import type { RouteListItem } from '../types/transmilenio';
-import { api } from './api';
+import { loadRuteros } from './ruteros';
 
 interface Lugar {
   nombre: string;
@@ -17,25 +17,18 @@ interface Lugar {
 }
 
 let rutas: RuterosTradicionales['rutas'] | null = null;
-let pedidos = false;
 let lugaresPorRuta = new WeakMap<RouteListItem, Lugar[]>();
 const textos = new Map<string, string>();
 
-/** The printed hitos, once per session; a failed fetch is asked again a minute later. */
+/** Calls back once, the first time the printed hitos are in. */
 export function loadHitos(onLoaded: () => void): void {
-  if (pedidos) return;
-  pedidos = true;
-  api
-    .getRuterosTradicionales()
-    .then((res) => {
-      if (!res.success || !res.rutas) throw new Error('ruteros-tradicionales');
-      rutas = res.rutas;
-      lugaresPorRuta = new WeakMap();
-      onLoaded();
-    })
-    .catch(() => {
-      window.setTimeout(() => (pedidos = false), 60_000);
-    });
+  if (rutas) return;
+  void loadRuteros().then((loaded) => {
+    if (!loaded || rutas) return;
+    rutas = loaded.rutas;
+    lugaresPorRuta = new WeakMap();
+    onLoaded();
+  });
 }
 
 function lugar(nombre: string): Lugar {

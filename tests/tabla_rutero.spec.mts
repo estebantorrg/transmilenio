@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { agruparFilas, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
+import { HITOS_DE_ESTACION, agruparFilas, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
 
 test.describe('consecutive rows on one corredor are one cell', () => {
   test('260 prints AV. BOYACÁ once beside MODELIA and NORMANDÍA', () => {
@@ -109,5 +109,52 @@ test.describe('the drawing', () => {
     const html = tablaRuteroHtml({ codigo: '1', color: '#000000', sentido: { destino: '<b>', filas: [['KR 1', 0, 'A&B']] } });
     expect(html).toContain('&lt;b&gt;');
     expect(html).toContain('A&amp;B');
+  });
+});
+
+test.describe('a hito that names an estación', () => {
+  test('is read from what the print marks, whatever the spelling', () => {
+    expect(estacionDeHito('EST. BANDERAS')).toBe('TM0083');
+    expect(estacionDeHito('Portal de Usme')).toBe('TM0118');
+    expect(estacionDeHito('EST. CALLE 1 OO')).toBe('TM0018');
+    expect(estacionDeHito('ESTACIÓN AV. 1° DE MAYO')).toBe('TM0143');
+  });
+
+  test('a barrio, a market or the bus terminal is no estación', () => {
+    for (const hito of ['RESTREPO', 'VENECIA', 'PORTALES DEL NORTE', 'P. MERCADO QUIRIGUA', 'TERMINAL SALITRE', 'EST. PROFAMILIA']) {
+      expect(estacionDeHito(hito), hito).toBeNull();
+    }
+  });
+
+  const sentido = { destino: 'SUBA', filas: [['AV. SUBA', 0, 'PORTAL SUBA'], ['AV. BOYACÁ', 0, 'RESTREPO'], [null, 0, 'EST. BANDERAS']] } as const;
+  const estacionHref = (codigo: string) => (codigo === 'TM0045' ? '/estacion/portal-suba-tm0045/' : null);
+
+  test('links to its page in the table, and only it', () => {
+    const html = tablaRuteroHtml({ codigo: 'B905', color: '#80BA27', sentido, estacionHref });
+    expect(html).toContain('<a href="/estacion/portal-suba-tm0045/">PORTAL SUBA</a>');
+    expect(html).toContain('>RESTREPO</td>');
+    // The catalog has no page for it here, so it stays text instead of a dead link.
+    expect(html).toContain('>EST. BANDERAS</td>');
+  });
+
+  test('links in the digital format too, and not at all without a way to build the address', () => {
+    expect(tablaRuteroHtml({ codigo: 'B905', color: '#80BA27', formato: 'digital', sentido, estacionHref })).toContain('<a href="/estacion/portal-suba-tm0045/">');
+    expect(tablaRuteroHtml({ codigo: 'B905', color: '#80BA27', sentido })).not.toContain('<a ');
+  });
+
+  test('the routes that name an estación come back once each, in order', () => {
+    const fila = (hito: string) => ({ destino: 'X', filas: [['KR 1', 0, hito]] as const });
+    const rutas = {
+      B905: { formato: 'tabla', sentidos: [fila('PORTAL SUBA'), fila('Portal Suba')] },
+      A151: { formato: 'tabla', sentidos: [fila('PORTAL SUBA')] },
+      G505: { formato: 'tabla', sentidos: [fila('PORTAL SUR')] },
+    } as Record<string, RuteroTradicional>;
+    expect(rutasQueLleganA(rutas, 'TM0045')).toEqual(['A151', 'B905']);
+  });
+
+  test('every estación in the table is one the catalog has', async ({ request }) => {
+    const res = await request.get('/api/troncal/master-catalog', { timeout: 90_000 });
+    const { data } = await res.json();
+    expect(Object.keys(HITOS_DE_ESTACION).filter((codigo) => !data.stations[codigo]?.estacion)).toEqual([]);
   });
 });

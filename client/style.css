@@ -2197,6 +2197,10 @@ body.sidebar-collapsed .sidebar-fab {
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
 
+a.route-tag {
+  text-decoration: none;
+}
+
 .route-tag.muted,
 .popup-empty {
   display: inline-flex;

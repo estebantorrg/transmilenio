@@ -28,7 +28,7 @@ import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
-import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
+import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml } from '../../../shared/tabla_rutero.js';
 import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
 import { api, type HorarioProgramadoResponse } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
@@ -40,6 +40,7 @@ import {
   renderServiceStatus,
   renderStopsTimeline,
   routePagePath,
+  stationPagePath,
   routeSystemLabel,
   routeTypeLabel,
   tidy,
@@ -57,8 +58,9 @@ import {
   type OverlayPage,
 } from './pageShell';
 import { routesWithCode } from './sidebar';
-import { routeStopFacts } from '../layers/stations';
+import { getStationPageData, routeStopFacts } from '../layers/stations';
 import { bahiasListas, loadBahias, moduloTexto } from '../services/bahias';
+import { loadRuteros, ruterosCargados } from '../services/ruteros';
 
 const PAGE_ID = 'route-page';
 
@@ -212,22 +214,10 @@ function loadProgramado(codigo: string): Promise<HorarioProgramadoResponse | nul
     });
 }
 
-let ruterosPromise: Promise<RuterosTradicionales | null> | null = null;
-let ruteros: RuterosTradicionales | null = null;
-
-/** The printed ruteros, fetched once per session; `null` if the fetch fails. */
-function loadRuteros(): Promise<RuterosTradicionales | null> {
-  ruterosPromise ??= api
-    .getRuterosTradicionales()
-    .then((res) => (ruteros = res.success && res.rutas ? { fuente: res.fuente, rutas: res.rutas } : null))
-    .catch(() => null)
-    // A failed fetch is not the answer for the session: a page opened a minute
-    // later asks again (not every re-render — the live card refreshes the page).
-    .then((loaded) => {
-      if (!loaded) window.setTimeout(() => (ruterosPromise = null), 60_000);
-      return loaded;
-    });
-  return ruterosPromise;
+/** A hito's estación page, at its canonical address; null before the catalog is in. */
+function estacionHref(codigo: string): string | null {
+  const station = getStationPageData(codigo);
+  return station ? stationPagePath(station.name, station.code) : null;
 }
 
 /**
@@ -238,7 +228,7 @@ function loadRuteros(): Promise<RuterosTradicionales | null> {
  * matches the catalog's: nothing here picks a sentido by guess.
  */
 function tablaRuteroSection(route: RouteListItem): string {
-  const ruta = ruteros?.rutas[route.code];
+  const ruta = ruterosCargados()?.rutas[route.code];
   // The catalog's `nombre` is the service's destino ("Unicentro"); `destination`
   // is only the barrio of its last paradero ("Br. Bella Suiza"), the fallback.
   const byName = sentidosHacia(ruta, route.name);
@@ -249,7 +239,7 @@ function tablaRuteroSection(route: RouteListItem): string {
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
-      <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido })).join('')}</div>
+      <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido, estacionHref })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'
         : 'Como lo imprime TRANSMILENIO en el plegable de la ruta: en amarillo los corredores por los que va, en oscuro el principal, y al lado los barrios que atiende.'}</p>
@@ -455,7 +445,7 @@ function wire(el: HTMLElement, route: RouteListItem): void {
     });
   }
 
-  if (!ruteros) {
+  if (!ruterosCargados()) {
     void loadRuteros().then(() => {
       const slot = el.querySelector<HTMLElement>('.route-rutero-slot');
       if (!slot || openRoute !== route) return;

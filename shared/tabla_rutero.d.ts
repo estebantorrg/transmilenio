@@ -21,6 +21,12 @@ export interface RuterosTradicionales {
   rutas: Record<string, RuteroTradicional>;
 }
 
+export const HITOS_DE_ESTACION: Record<string, string[]>;
+/** The estación a printed hito names, or null when it names none. */
+export function estacionDeHito(hito: string): string | null;
+/** The route códigos whose printed rutero names this estación, in order. */
+export function rutasQueLleganA(rutas: Record<string, RuteroTradicional>, estacion: string): string[];
+
 export interface GrupoCorredor {
   corredor: string | null;
   destacado: boolean;
@@ -33,7 +39,7 @@ export declare function agruparFilas(filas: ReadonlyArray<FilaRutero>): GrupoCor
 /** The sentidos headed for `destino`; empty when none matches. */
 export declare function sentidosHacia(ruta: RuteroTradicional | null | undefined, destino: unknown): SentidoRutero[];
 
-export declare function tablaRuteroHtml(options: { codigo: string; color: string; formato?: 'tabla' | 'digital'; sentido: SentidoRutero }): string;
+export declare function tablaRuteroHtml(options: { codigo: string; color: string; formato?: 'tabla' | 'digital'; sentido: SentidoRutero; estacionHref?: (codigo: string) => string | null }): string;
 
 /** The table's stylesheet (inlined by the prerender). */
 export declare const TABLA_RUTERO_CSS: string;

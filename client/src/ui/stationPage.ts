@@ -33,7 +33,7 @@ import {
 } from '../layers/stations';
 import { escapeHTML, safeColor } from '../utils/html';
 import { avisosSlotHtml, watchAvisos } from './avisos';
-import { TRONCAL_COLORS } from '../utils/routeColors';
+import { getStopTagColor, TRONCAL_COLORS } from '../utils/routeColors';
 import {
   appPromoHtml,
   crumbsHtml,
@@ -46,7 +46,9 @@ import {
   resumenesHtml,
   type OverlayPage,
 } from './pageShell';
-import { parseStationPathname, stationPagePath, tidy } from './routeDetail';
+import { parseStationPathname, routePagePath, stationPagePath, tidy } from './routeDetail';
+import { loadRuteros, ruterosCargados } from '../services/ruteros';
+import { rutasQueLleganA } from '../../../shared/tabla_rutero.js';
 import { platformsOf, stationPlatform } from '../../../shared/station_platforms.js';
 import { resumenEstacion, ubicacionEstacion } from '../../../shared/resumen.js';
 import { isZonalService } from '../utils/routeType';
@@ -296,6 +298,27 @@ function renderChooser(station: StationPageData, halves: Half[]): string {
   `;
 }
 
+/**
+ * Zonal routes whose plegable names this estación but that the catalog files at
+ * none of its vagones: they stop on the street outside, so the plan above cannot
+ * show them. Empty until the ruteros are in, and for an estación none names.
+ */
+function zonalesSection(station: StationPageData): string {
+  const rutas = ruterosCargados()?.rutas;
+  if (!rutas) return '';
+  const enVagones = new Set(Object.values(station.wagons).flat().map((route) => route.codigo.toUpperCase()));
+  const codigos = rutasQueLleganA(rutas, station.code).filter((codigo) => !enVagones.has(codigo.toUpperCase()));
+  if (codigos.length === 0) return '';
+  return `
+    <section class="page-section" aria-labelledby="zonales-h">
+      <h2 class="page-section-title" id="zonales-h">Rutas zonales que llegan aquí <span class="page-count">${codigos.length}</span></h2>
+      <p class="page-note">Según el plegable de cada ruta, pasan por esta estación, pero no paran en sus vagones. No todas las rutas tienen plegable en estos datos, así que puede haber más.</p>
+      <div class="popup-route-tags">${codigos
+        .map((codigo) => `<a class="route-tag" href="${routePagePath(codigo)}" style="background:${safeColor(getStopTagColor(codigo, null, 'zonal'))}">${escapeHTML(codigo)}</a>`)
+        .join('')}</div>
+    </section>`;
+}
+
 function render(station: StationPageData): string {
   const halves = halvesOf(station.code);
   if (halves.length > 1) return renderChooser(station, halves);
@@ -366,6 +389,7 @@ function render(station: StationPageData): string {
       ${planoSection}
       ${servicesSection}
       ${empty}
+      <div class="station-zonales-slot">${zonalesSection(station)}</div>
 
       <section class="page-section" aria-labelledby="llegadas-h">
         <h2 class="page-section-title" id="llegadas-h">Próximos a llegar</h2>
@@ -497,6 +521,14 @@ function wire(el: HTMLElement, station: StationPageData): void {
   // The chooser has no plan, no board and no ridership of its own: each of
   // those belongs to one half, and its page has them.
   if (el.querySelector('.station-choices')) return;
+
+  // Into its slot rather than re-rendering: a re-render would ask the live board again.
+  if (!ruterosCargados()) {
+    void loadRuteros().then(() => {
+      const slot = el.querySelector<HTMLElement>('.station-zonales-slot');
+      if (slot && openCode === station.code) slot.innerHTML = zonalesSection(station);
+    });
+  }
 
   // Same plan, same affordance as in the popup: wheel, drag and edge fades
   // instead of a native scrollbar under the drawing (§5.5.6).

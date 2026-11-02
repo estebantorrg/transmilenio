@@ -36,6 +36,83 @@ function fold(value) {
 }
 
 /**
+ * The printed hitos that name an estación or portal, by the estación's código,
+ * folded and with the print's misreadings kept (`EST. CALLE 1 OO`).
+ *
+ * Only hitos the print marks as one (`EST.`, `PORTAL`). A bare `RESTREPO` or
+ * `VENECIA` is the barrio as often as the estación, so it stays plain text. Left
+ * out on purpose: `TERMINAL` and `TERMINAL SALITRE` (the bus terminal),
+ * `PORTALES DEL NORTE` (a barrio), `P. MERCADO QUIRIGUA` (a market), and two nobody
+ * can read for certain: `EST. PROFAMILIA`, `P. 20 DE JULIO`.
+ *
+ * Where a name fits two estaciones the corredor beside it decides: `EST. CL 100`
+ * and `EST. CALLE 1 OO` run on AUTO NORTE, so TM0018 and not Suba Calle 100;
+ * `Est. AV. 10 Mayo` runs on AK 10, so Av. Primero de Mayo.
+ */
+export const HITOS_DE_ESTACION = {
+  TM0005: ['EST CALLE 57'],
+  TM0016: ['EST CALLE 85', 'EST CL 85'],
+  TM0018: ['EST CALLE 1 OO', 'EST CALLE 100', 'EST CL 100'],
+  TM0019: ['EST CALLE 106'],
+  TM0028: ['EST TOBERIN'],
+  TM0029: ['PORTAL NORTE'],
+  TM0030: ['EST CALLE 187'],
+  TM0042: ['EST 21 ANGELES'],
+  TM0043: ['EST TV 91'],
+  TM0044: ['EST LA CAMPINA'],
+  TM0045: ['PORTAL SUBA'],
+  TM0046: ['EST POLO'],
+  TM0058: ['PORTAL 80'],
+  TM0059: ['EST CASTELLANA'],
+  TM0071: ['EST DELA SABANA', 'EST DE LA SABANA'],
+  TM0077: ['EST PUENTE ARANDA'],
+  TM0083: ['EST BANDERAS'],
+  TM0084: ['EST TV 86'],
+  TM0087: ['PORTAL AMERICAS'],
+  TM0088: ['EST COMUNEROS'],
+  TM0095: ['EST VENECIA'],
+  TM0097: ['EST MADELENA'],
+  TM0099: ['PORTAL SUR', 'PORTAL DEL SUR'],
+  TM0106: ['EST NARINO'],
+  TM0115: ['EST MOLINOS'],
+  TM0118: ['PORTAL USME', 'PORTAL DE USME'],
+  TM0119: ['PORTAL TUNAL'],
+  TM0121: ['ESTACION LAS AGUAS'],
+  TM0132: ['EST AV ROJAS'],
+  TM0133: ['EST NORMANDIA', 'EST NORMAINIA'],
+  TM0134: ['EST MODELIA'],
+  TM0135: ['PORTAL ELDORADO', 'PORTAL DORADO'],
+  TM0137: ['EST LAS NIEVES'],
+  TM0140: ['EST SAN BERNARDO'],
+  TM0142: ['EST CIUDAD JARDIN'],
+  TM0143: ['ESTACION AV 1 DE MAYO', 'EST AV 10 MAYO'],
+  TM0144: ['EST COUNTRY SUR'],
+  TM0145: ['PORTAL 20 DE JULIO', 'PORTAL 20 JULIO'],
+  TM90008: ['EST DANUBIO'],
+};
+
+const ESTACION_DE_HITO = new Map(
+  Object.entries(HITOS_DE_ESTACION).flatMap(([codigo, hitos]) => hitos.map((hito) => [hito, codigo]))
+);
+
+/** The estación a printed hito names, or null when it names none. */
+export function estacionDeHito(hito) {
+  return ESTACION_DE_HITO.get(fold(hito)) ?? null;
+}
+
+/**
+ * The route códigos whose printed rutero names this estación, in order.
+ *
+ * @param {Record<string, { sentidos: ReadonlyArray<{ filas: ReadonlyArray<readonly [string | null, number, string]> }> }>} rutas
+ * @param {string} estacion
+ */
+export function rutasQueLleganA(rutas, estacion) {
+  return Object.keys(rutas)
+    .filter((codigo) => rutas[codigo].sentidos.some((s) => s.filas.some((fila) => estacionDeHito(fila[2]) === estacion)))
+    .sort((a, b) => a.localeCompare(b, 'es', { numeric: true }));
+}
+
+/**
  * Rows grouped into runs: consecutive rows with the same corredor and the same
  * chip colour share one cell. A row without a corredor never joins a run.
  *
@@ -152,9 +229,15 @@ function corredorHtml(corredor) {
  *   color: string,
  *   formato?: 'tabla' | 'digital',
  *   sentido: { destino: string, operacion?: string, filas: ReadonlyArray<readonly [string | null, number, string]> },
+ *   estacionHref?: (codigo: string) => string | null,
  * }} options
  */
-export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido }) {
+export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, estacionHref }) {
+  const hitoHtml = (hito) => {
+    const estacion = estacionDeHito(hito);
+    const href = estacion && estacionHref?.(estacion);
+    return href ? `<a href="${esc(href)}">${esc(hito)}</a>` : esc(hito);
+  };
   const ink = inkOn(color);
   const style = `--tr-zona:${esc(color)};--tr-tinta:${ink}`;
   const label = `Rutero de la ruta ${codigo} hacia ${sentido.destino}`;
@@ -162,7 +245,7 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido }) {
 
   if (formato === 'digital') {
     const pares = sentido.filas.map(([corredor, , hito]) => (
-      `<span class="tr-par">${esc(hito)}${corredor ? `/<b>${esc(corredor)}</b>` : ''}</span>`
+      `<span class="tr-par">${hitoHtml(hito)}${corredor ? `/<b>${esc(corredor)}</b>` : ''}</span>`
     )).join('<span class="tr-guion"> - </span>');
     return `<figure class="tabla-rutero tr-digital" style="${style}" aria-label="${esc(label)}">`
       + `<div class="tr-barra"><span class="tr-codigo">${esc(codigo)}</span><span class="tr-destino tr-t${talla(sentido.destino, [12, 18, 24])}">${esc(sentido.destino)}</span></div>`
@@ -172,10 +255,10 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido }) {
   const body = agruparFilas(sentido.filas).map((run) => run.hitos.map((hito, i) => {
     // A row with no corredor runs across the whole table, as the print sets it
     // (111's ESTACIÓN AV. 1° DE MAYO, the DIRECTO rows of the express stretches).
-    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2">${esc(hito)}</td></tr>`;
+    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2">${hitoHtml(hito)}</td></tr>`;
     const corredor = i > 0 ? ''
       : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}>${corredorHtml(run.corredor)}</th>`;
-    return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}">${esc(hito)}</td></tr>`;
+    return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}">${hitoHtml(hito)}</td></tr>`;
   }).join('')).join('');
   // The tab is a trapezoid with rounded shoulders; an SVG stretched to the box
   // draws it, its outline kept at one width by non-scaling-stroke.
@@ -340,6 +423,7 @@ export const TABLA_RUTERO_CSS = `
 }
 .tabla-rutero .tr-franja b { color: #ffeb3d; font-weight: 700; }
 .tabla-rutero .tr-par { white-space: nowrap; }
+.tabla-rutero a { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
 .tabla-ruteros { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
 .tabla-ruteros > .tabla-rutero { flex: 1 1 260px; width: auto; max-width: 400px; }
 .tabla-ruteros > .tabla-rutero.tr-digital { flex-basis: 100%; max-width: 640px; }

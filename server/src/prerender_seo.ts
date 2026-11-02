@@ -32,7 +32,7 @@ import path from 'node:path';
 import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
-import { TABLA_RUTERO_CSS, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
+import { TABLA_RUTERO_CSS, rutasQueLleganA, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
 import { slugify } from '../../shared/slug.js';
 import { hubHtml, withHub } from './seo_hub.js';
@@ -827,7 +827,18 @@ ${items}
   // sentido the piece carries: this page describes the route whole.
   const tablas = impreso
     ? `<div class="tabla-ruteros">${impreso.sentidos
-        .map((sentido) => tablaRuteroHtml({ codigo, color: accent, formato: impreso.formato, sentido }))
+        .map((sentido) =>
+          tablaRuteroHtml({
+            codigo,
+            color: accent,
+            formato: impreso.formato,
+            sentido,
+            estacionHref: (estacion) => {
+              const st = stationByCode.get(estacion);
+              return st ? stationUrl(st) : null;
+            },
+          })
+        )
         .join('')}</div>
 <p class="meta">Como lo imprime TRANSMILENIO en el plegable de la ruta: los corredores por los que va y los barrios que atiende.</p>`
     : '';
@@ -1003,9 +1014,26 @@ function serviceTotal(platform: ReturnType<typeof buildPlatform>): number {
 }
 
 // ─── Estación pages ───────────────────────────────────────
+/** Zonal routes whose plegable names this estación, the same list the bundle draws
+ *  (`zonalesSection`, `ui/stationPage.ts`). A link only where the route has a page:
+ *  zonal pages are released in batches (`seo_zonal.ts`). */
+function zonalesHtml(station: LightStation, routeIndex: Map<string, string>, impresos: RuterosTradicionales): string {
+  const enVagones = new Set(Object.values(station.wagons ?? {}).flat().map((route) => String(route.codigo).toUpperCase()));
+  const codigos = rutasQueLleganA(impresos.rutas, station.codigo).filter((codigo) => !enVagones.has(codigo.toUpperCase()));
+  if (codigos.length === 0) return '';
+  const filas = codigos.map((codigo) => {
+    const href = routeIndex.get(codigo.toUpperCase());
+    return `<li>${href ? `<a href="${href}">${escapeHtml(codigo)}</a>` : escapeHtml(codigo)}</li>`;
+  });
+  return `<section class="sec"><h2>Rutas zonales que llegan aquí</h2>
+<p class="meta">Según el plegable de cada ruta, pasan por esta estación, pero no paran en sus vagones.</p>
+<ul class="svc">${filas.join('')}</ul></section>`;
+}
+
 function renderStation(
   station: LightStation,
-  routeIndex: Map<string, string>
+  routeIndex: Map<string, string>,
+  impresos: RuterosTradicionales
 ) {
   const url = stationUrl(station);
   const nombre = tidy(station.nombre);
@@ -1200,6 +1228,7 @@ ${breadcrumbHtml(trail)}
 ${resumenHtml(buses)}
 ${resumenHtml(lugar)}
 ${wagonSections || '<section class="sec"><p class="meta">El catálogo oficial no asigna vagones a esta estación.</p></section>'}
+${zonalesHtml(station, routeIndex, impresos)}
 </div></main>`;
 
   const jsonLd: object[] = [
@@ -1496,7 +1525,7 @@ async function main(): Promise<void> {
     const page =
       halves.length > 1
         ? { ...renderStationChooser(station, halves, routeIndex), platform: buildPlatform(station, routeIndex) }
-        : renderStation(station, routeIndex);
+        : renderStation(station, routeIndex, impresos);
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));
