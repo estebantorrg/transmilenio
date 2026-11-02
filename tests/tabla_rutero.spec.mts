@@ -118,10 +118,12 @@ test.describe('a hito that names an estación', () => {
     expect(estacionDeHito('Portal de Usme')).toBe('TM0118');
     expect(estacionDeHito('EST. CALLE 1 OO')).toBe('TM0018');
     expect(estacionDeHito('ESTACIÓN AV. 1° DE MAYO')).toBe('TM0143');
+    expect(estacionDeHito('P. 20 DE JULIO')).toBe('TM0145');
+    expect(estacionDeHito('TERMINAL NORTE')).toBe('TM0031');
   });
 
   test('a barrio, a market or the bus terminal is no estación', () => {
-    for (const hito of ['RESTREPO', 'VENECIA', 'PORTALES DEL NORTE', 'P. MERCADO QUIRIGUA', 'TERMINAL SALITRE', 'EST. PROFAMILIA']) {
+    for (const hito of ['RESTREPO', 'VENECIA', 'PORTALES DEL NORTE', 'P. MERCADO QUIRIGUA', 'TERMINAL', 'TERMINAL SALITRE', 'EST. PROFAMILIA']) {
       expect(estacionDeHito(hito), hito).toBeNull();
     }
   });

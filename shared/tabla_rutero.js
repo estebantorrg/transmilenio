@@ -42,8 +42,9 @@ function fold(value) {
  * Only hitos the print marks as one (`EST.`, `PORTAL`). A bare `RESTREPO` or
  * `VENECIA` is the barrio as often as the estación, so it stays plain text. Left
  * out on purpose: `TERMINAL` and `TERMINAL SALITRE` (the bus terminal),
- * `PORTALES DEL NORTE` (a barrio), `P. MERCADO QUIRIGUA` (a market), and two nobody
- * can read for certain: `EST. PROFAMILIA`, `P. 20 DE JULIO`.
+ * `PORTALES DEL NORTE` (a barrio), `P. MERCADO QUIRIGUA` (a market), and one nobody
+ * can read for certain: `EST. PROFAMILIA`. Two the print does not mark are in by
+ * the maintainer's word: `P. 20 DE JULIO` and `TERMINAL NORTE`.
  *
  * Where a name fits two estaciones the corredor beside it decides: `EST. CL 100`
  * and `EST. CALLE 1 OO` run on AUTO NORTE, so TM0018 and not Suba Calle 100;
@@ -57,6 +58,7 @@ export const HITOS_DE_ESTACION = {
   TM0028: ['EST TOBERIN'],
   TM0029: ['PORTAL NORTE'],
   TM0030: ['EST CALLE 187'],
+  TM0031: ['TERMINAL NORTE'],
   TM0042: ['EST 21 ANGELES'],
   TM0043: ['EST TV 91'],
   TM0044: ['EST LA CAMPINA'],
@@ -87,7 +89,7 @@ export const HITOS_DE_ESTACION = {
   TM0142: ['EST CIUDAD JARDIN'],
   TM0143: ['ESTACION AV 1 DE MAYO', 'EST AV 10 MAYO'],
   TM0144: ['EST COUNTRY SUR'],
-  TM0145: ['PORTAL 20 DE JULIO', 'PORTAL 20 JULIO'],
+  TM0145: ['PORTAL 20 DE JULIO', 'PORTAL 20 JULIO', 'P 20 DE JULIO'],
   TM90008: ['EST DANUBIO'],
 };
 
