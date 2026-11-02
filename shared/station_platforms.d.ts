@@ -16,6 +16,8 @@ export interface StationPlatform {
   nombre: string;
   /** The parent's wagon letters this platform holds. */
   wagones: string[];
+  /** THIS platform's crossing. The merged stop has one address for both halves. */
+  direccion: string;
   /** The troncal this platform is actually on, which is not always the
    *  parent's: Ricaurte's stop is filed under NQS Central and half of it is on
    *  Américas. */
@@ -44,6 +46,7 @@ export interface StationPlatform {
 export interface PlatformStation {
   codigo: string;
   nombre: string;
+  direccion?: string;
   corridor?: { nombre?: string; letra?: string; sentidos?: { positive: string; negative: string } };
   wagons: Record<string, unknown[]>;
   vagonLabels?: Record<string, string>;

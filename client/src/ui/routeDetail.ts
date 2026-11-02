@@ -254,7 +254,7 @@ export function renderStopsTimeline(
     const name = escapeHTML(stop.nombre);
     // An estación's TM código is the catalog's, never printed where a rider
     // stands; a paradero's code IS on its sign, so it stays.
-    const sub = [stop.direccion, stop.codigo && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : ''].filter(Boolean).join(' · ');
+    const sub = [stop.direccion, stop.codigo && stop.codigo !== stop.nombre && !isStationStopCode(stop.codigo) ? `# ${stop.codigo}` : ''].filter(Boolean).join(' · ');
     const vagon = facts?.vagon ? vagonTexto(facts.vagon) : options.modulo?.(stop) ?? '';
     const paso = options.paso?.(stop) ?? null;
     const lineas = facts && (facts.lineas.length || facts.alimentadores)

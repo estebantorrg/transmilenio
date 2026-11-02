@@ -121,6 +121,42 @@ const LIGHT_POINT_DECIMALS = 6;
 const LIGHT_TRACE_DECIMALS = 5;
 
 /** A `"lat,lon"` string with each number cut to {@link LIGHT_POINT_DECIMALS}. */
+/**
+ * The crossing of the stops upstream files no street for, from TRANSMILENIO's own
+ * paraderos beside them and the map. Upstream gives the name instead (Calle 53 –
+ * UMB, 2026-10), and read as an address every surface printed it twice and the
+ * estación page answered "¿Dónde queda X?" with "X queda en X".
+ * shortcut: hand-kept, drop an entry once upstream files a real address.
+ */
+const DIRECCIONES_ESTACION: Record<string, string> = {
+  TM90008: 'AV. Caracas - CL 51 Sur', // Danubio
+  TM90009: 'DG 76 Sur - KR 78B', // Tibanica - Primavera
+  TM90010: 'AC 75 Sur - KR 80P', // Laureles
+  TM90011: 'AV. C. de Cali - CL 69 Sur', // Islandia
+  TM90012: 'AV. Caracas - CL 53', // Calle 53 - Universidad Manuela Beltrán
+  '960V13': 'AK 10 - CL 6', // Estación Bicentenario, the same as TM0139
+  // Filed with no name, and the name in the código.
+  'Br. La Paz Bosa': 'AV. C. de Cali - CL 57B Sur',
+  'Br. Chicalá': 'AV. C. de Cali - CL 53 Sur',
+  'Br. Jorge Uribe Botero': 'AV. C. de Cali - CL 53 Sur',
+  'Br. Escocia': 'AV. C. de Cali - CL 56 Sur',
+  'Portal Tunal Alim Plat1': 'AV. Boyacá - AV. Villavicencio',
+  'Portal Tunal Alim Plat2': 'AV. Boyacá - AV. Villavicencio',
+  'Portal Norte Alimentación': 'Autopista Norte - CL 172A',
+  // Módulos filed with their name as their address; each has the crossing of a sibling.
+  '377B05': 'AC 26 - KR 103', // Aeropuerto Eldorado, as 377C05
+  '377D05': 'AC 26 - KR 103',
+  '377E05': 'AC 26 - KR 103',
+  '377F05': 'AC 26 - KR 103',
+  '008B12': 'AV. Caracas - KR 56', // Ladrillera Santafé, as 008A12
+};
+
+function direccionDe(station: { codigo: string; nombre: string; direccion?: string }): string | undefined {
+  const propia = DIRECCIONES_ESTACION[station.codigo];
+  if (propia) return propia;
+  return station.direccion && station.direccion !== station.nombre ? station.direccion : undefined;
+}
+
 function lightCoordenada<T>(coordenada: T): T {
   if (typeof coordenada !== 'string') return coordenada;
   return coordenada.replace(/-?\d+\.\d+/g, (n) => String(Number(Number(n).toFixed(LIGHT_POINT_DECIMALS)))) as T;
@@ -648,10 +684,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
         id: station.id,
         codigo: station.codigo,
         nombre: station.nombre,
-        // Upstream files some stations' address as their name (Calle 53 – UMB,
-        // 2026-10): read as an address, every surface printed the name twice and
-        // the estación page answered "¿Dónde queda X?" with "X queda en X".
-        ...(station.direccion !== station.nombre ? { direccion: station.direccion } : {}),
+        ...(direccionDe(station) ? { direccion: direccionDe(station) } : {}),
         coordenada: lightCoordenada(station.coordenada),
         sistema: station.sistema,
         tipoServicio: station.tipoServicio,
@@ -681,7 +714,7 @@ function buildCatalogLight(): { stations: Record<string, any>; routes: Record<st
       cleanStations[code] = {
         codigo: station.codigo,
         nombre: station.nombre,
-        ...(station.direccion && station.direccion !== station.nombre ? { direccion: station.direccion } : {}),
+        ...(direccionDe(station) ? { direccion: direccionDe(station) } : {}),
         coordenada: lightCoordenada(station.coordenada),
         wagons: cleanWagons,
       };

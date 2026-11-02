@@ -27,6 +27,7 @@
  * @property {string} parent      The merged catalog stop, e.g. `TM0069`.
  * @property {string} nombre      What the platform is called on the map.
  * @property {string[]} wagones   The parent's wagon letters this platform holds.
+ * @property {string} direccion   THIS platform's crossing: the merged stop has one for both.
  * @property {string} corridor    The troncal this platform is actually on.
  * @property {string} letra       That troncal's letter, the key its colour is drawn from.
  * @property {string} [matchMethod] The map resolver's id for the same platform.
@@ -48,6 +49,7 @@ export const STATION_PLATFORMS = [
     parent: 'TM0013',
     nombre: 'AV. Jiménez - Caracas',
     wagones: ['A', 'B', 'C'],
+    direccion: 'AV. Caracas - CL 11',
     corridor: 'Caracas',
     letra: 'A',
     matchMethod: 'verified-split:av-jimenez-caracas',
@@ -63,6 +65,7 @@ export const STATION_PLATFORMS = [
     parent: 'TM0013',
     nombre: 'AV. Jiménez - CL 13',
     wagones: ['D', 'E'],
+    direccion: 'AC 13 - AK 13',
     corridor: 'Américas',
     letra: 'F',
     matchMethod: 'verified-split:av-jimenez-cl13',
@@ -79,6 +82,7 @@ export const STATION_PLATFORMS = [
     parent: 'TM0069',
     nombre: 'Ricaurte - NQS',
     wagones: ['A', 'B', 'C'],
+    direccion: 'AV. NQS - CL 10',
     corridor: 'NQS Central',
     letra: 'E',
     matchMethod: 'verified-split:ricaurte-nqs',
@@ -91,6 +95,7 @@ export const STATION_PLATFORMS = [
     parent: 'TM0069',
     nombre: 'Ricaurte - CL 13',
     wagones: ['D', 'E', 'F'],
+    direccion: 'AC 13 - KR 27',
     corridor: 'Américas',
     letra: 'F',
     matchMethod: 'verified-split:ricaurte-cl13',
@@ -191,6 +196,7 @@ export function platformStation(platform, parentStation) {
     ...(geo ? { planoGeo: geo } : {}),
     codigo: platform.codigo,
     nombre: platform.nombre,
+    direccion: platform.direccion,
     // Its OWN troncal: the letter it is coloured by, and the parent's pair of
     // directions only where the parent sits on the same troncal. Copied whole,
     // Ricaurte - CL 13 read 'Américas' in NQS brown, and would have named its

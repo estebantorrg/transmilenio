@@ -16,6 +16,7 @@ import { haversineMeters } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 import type { CatalogRoute, MasterCatalog } from '../types/catalog';
 import { plataformasDe } from '../../../shared/route_stop.js';
+import { stationPlatform } from '../../../shared/station_platforms.js';
 
 export type RouteStop = NonNullable<RouteListItem['stops']>[number];
 /** A catalog route as its variant lists it: `stops` says where it starts. */
@@ -104,16 +105,16 @@ export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: Ma
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const platforms = route && catalog ? platformNodes(stop, route, catalog) : undefined;
-  const kind = stopKind(stop.codigo);
   return {
-    nombre: stop.nombre,
+    // A few stops are filed with no name and the name in the código (F63's Br. Chicalá).
+    nombre: stop.nombre || stop.codigo,
     codigo: stop.codigo,
     sourceCode: stop.codigo,
     coordinate: platforms?.[0]?.coordinate ?? ([lng, lat] as [number, number]),
-    // A paradero's address, not an estación's: the catalog files one per estación,
-    // so Ricaurte reads AV. NQS on the routes that board it on Calle 13.
-    direccion: stop.direccion ?? (kind === 'stop' ? catalog?.stations[stop.codigo]?.direccion : undefined),
-    kind,
+    // The half this route boards: the catalog files one address for the merged
+    // stop, so Ricaurte read AV. NQS on the routes that board it on Calle 13.
+    direccion: stationPlatform(platforms?.[0]?.codigo)?.direccion ?? stop.direccion ?? catalog?.stations[stop.codigo]?.direccion,
+    kind: stopKind(stop.codigo),
     ...(platforms ? { platforms } : {}),
   };
 }

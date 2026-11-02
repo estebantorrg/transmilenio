@@ -37,6 +37,14 @@ test('an estación never ships its own name as its address', async ({ request })
   expect(echoes.map((s) => s.codigo)).toEqual([]);
 });
 
+test('the estaciones upstream files no street for still have a crossing', async ({ request }) => {
+  const res = await request.get('/api/troncal/master-catalog', { timeout: 90_000 });
+  const { data } = await res.json();
+  for (const code of ['TM90008', 'TM90009', 'TM90010', 'TM90011', 'TM90012']) {
+    expect(data.stations[code]?.direccion, code).toMatch(/ - /);
+  }
+});
+
 test('master-catalog names its own content, in the body and in the ETag', async ({ request }) => {
   // The app has no ETag to read — it ships this body in the APK — so the hash
   // travels in the body too, and is how it tells a new catalog from its cached

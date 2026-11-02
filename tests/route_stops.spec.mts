@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { abordajeEn, plataformasDe, vagonTexto } from '../shared/route_stop.js';
-import { stationPlatform } from '../shared/station_platforms.js';
+import { platformStation, stationPlatform } from '../shared/station_platforms.js';
 
 /**
  * The route page's stop list (spec §5.5.5): beside each estación, the vagón the
@@ -81,6 +81,12 @@ test.describe('where a route boards at a stop', () => {
   });
 });
 
+test("a platform gives its own address, not the merged stop's", () => {
+  const ricaurte = { codigo: 'TM0069', nombre: 'Ricaurte', direccion: 'AV. NQS - CL 10', wagons: {} };
+  expect(platformStation(stationPlatform('TM0069C13'), ricaurte)?.direccion).toBe('AC 13 - KR 27');
+  expect(platformStation(stationPlatform('TM0069NQS'), ricaurte)?.direccion).toBe('AV. NQS - CL 10');
+});
+
 const BOOT_TIMEOUT_MS = 90_000;
 
 async function openRoute(page: Page, code: string): Promise<void> {
@@ -113,8 +119,8 @@ test.describe('the stop list on a route page', () => {
     expect(stops.every((s) => !s.lines.includes('F'))).toBe(true);
     // No estación prints the catalog's TM código.
     expect(stops.filter((s) => /^#\s*TM\d+/i.test(s.sub))).toEqual([]);
-    // Nor an address: the catalog files one per estación, and Ricaurte's says AV. NQS.
-    expect(stops.map((s) => s.sub).filter(Boolean)).toEqual([]);
+    // Its address is the platform it boards, not the merged stop's AV. NQS.
+    expect(ricaurte?.sub).toBe('AC 13 - KR 27');
     // Its map pin stands on that platform too, not on the NQS point the catalog files the stop at.
     await expect
       .poll(() =>
@@ -132,6 +138,13 @@ test.describe('the stop list on a route page', () => {
     const parque = page.locator('.route-page .timeline-stop', { hasText: 'Parque de la 93' }).first();
     await expect(parque.locator('.timeline-stop-code')).toHaveText('AK 11 - CL 93A · # 220B00');
     await expect(parque.locator('.timeline-vagon')).toHaveText('Módulo B');
+  });
+
+  test('a stop filed with no name reads by the name in its código, at its crossing', async ({ page }) => {
+    await openRoute(page, 'f63');
+    const chicala = page.locator('.route-page .timeline-stop', { hasText: 'Br. Chicalá' }).first();
+    await expect(chicala.locator('.timeline-stop-name')).toHaveText('Br. Chicalá');
+    await expect(chicala.locator('.timeline-stop-code')).toHaveText('AV. C. de Cali - CL 53 Sur');
   });
 
   test('a paradero múltiple lists its módulos in its popup, with the routes at each other one', async ({ page }) => {
