@@ -88,18 +88,29 @@ export function showPopup(
   // After the recenter settles, nudge the map so a tall popup (portales, big
   // interchanges) sits fully on screen instead of running off the top edge.
   const margin = 14;
-  window.setTimeout(() => {
-    if (activePopup !== popup) return;
-    const content = popup.getElement()?.querySelector('.maplibregl-popup-content') as HTMLElement | null;
-    if (!content) return;
+  const content = popup.getElement()?.querySelector('.maplibregl-popup-content') as HTMLElement | null;
+  const keepOnScreen = () => {
+    if (activePopup !== popup || !content) return;
+    // A pan in flight would be measured halfway: look again when it lands.
+    if (map.isMoving()) {
+      map.once('moveend', keepOnScreen);
+      return;
+    }
     const rect = content.getBoundingClientRect();
     let dy = 0;
     if (rect.top < margin) dy = rect.top - margin;
     else if (rect.bottom > window.innerHeight - margin) dy = rect.bottom - (window.innerHeight - margin);
     if (Math.abs(dy) > 2) map.panBy([0, dy], { duration: 220 });
+  };
+  // Not just once: arrivals and módulos land seconds later, and a card anchored
+  // at its bottom grows upward, off the top edge. Observing reports the size at once.
+  const resized = new ResizeObserver(keepOnScreen);
+  window.setTimeout(() => {
+    if (activePopup === popup && content) resized.observe(content);
   }, 440);
 
   popup.on('close', () => {
+    resized.disconnect();
     if (activePopup !== popup) return;
     activePopup = null;
     activePin?.remove();

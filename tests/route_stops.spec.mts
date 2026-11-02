@@ -113,6 +113,8 @@ test.describe('the stop list on a route page', () => {
     expect(stops.every((s) => !s.lines.includes('F'))).toBe(true);
     // No estación prints the catalog's TM código.
     expect(stops.filter((s) => /^#\s*TM\d+/i.test(s.sub))).toEqual([]);
+    // Nor an address: the catalog files one per estación, and Ricaurte's says AV. NQS.
+    expect(stops.map((s) => s.sub).filter(Boolean)).toEqual([]);
     // Its map pin stands on that platform too, not on the NQS point the catalog files the stop at.
     await expect
       .poll(() =>
@@ -141,5 +143,11 @@ test.describe('the stop list on a route page', () => {
     await expect(bahias).toHaveCount(2);
     await expect(bahias.filter({ hasText: 'Este módulo' }).locator('.popup-bahia-letra')).toHaveText('B');
     await expect(bahias.first().locator('.route-tag').first()).toBeVisible();
+    // What a rider opened it for comes first.
+    await expect(page.locator('.maplibregl-popup .popup-arrivals + .popup-bahias')).toHaveCount(1);
+    // The card grows upward as these land, and stays on screen.
+    await expect
+      .poll(async () => (await page.locator('.maplibregl-popup-content').boundingBox())?.y ?? -1, { timeout: 10_000 })
+      .toBeGreaterThanOrEqual(0);
   });
 });

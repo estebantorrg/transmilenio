@@ -104,13 +104,16 @@ export function parseCatalogStop(stop: any, route?: CatalogVariant, catalog?: Ma
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
 
   const platforms = route && catalog ? platformNodes(stop, route, catalog) : undefined;
+  const kind = stopKind(stop.codigo);
   return {
     nombre: stop.nombre,
     codigo: stop.codigo,
     sourceCode: stop.codigo,
     coordinate: platforms?.[0]?.coordinate ?? ([lng, lat] as [number, number]),
-    direccion: stop.direccion ?? catalog?.stations[stop.codigo]?.direccion,
-    kind: stopKind(stop.codigo),
+    // A paradero's address, not an estación's: the catalog files one per estación,
+    // so Ricaurte reads AV. NQS on the routes that board it on Calle 13.
+    direccion: stop.direccion ?? (kind === 'stop' ? catalog?.stations[stop.codigo]?.direccion : undefined),
+    kind,
     ...(platforms ? { platforms } : {}),
   };
 }

@@ -209,8 +209,8 @@ function showStopPopup(map: maplibregl.Map, e: maplibregl.MapLayerMouseEvent): v
         ${p.locality ? `<span>${escapeHTML(p.locality)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
-      ${bahiasSlotHtml(p.cenefa || '')}
       ${arrivalsSectionHtml(p.cenefa || '')}
+      ${bahiasSlotHtml(p.cenefa || '')}
       ${planActionsHtml(p.name, coords as [number, number], p.cenefa)}
     </div>
   `;
@@ -482,8 +482,8 @@ export function showStopPopupByCode(
         ${address ? `<span>${escapeHTML(address)}</span>` : ''}
       </div>
       ${routes.length ? `<div class="popup-routes-label">Rutas<span class="popup-count">${routes.length}</span></div><div class="popup-route-tags">${routeTags(routes)}</div>` : ''}
-      ${bahiasSlotHtml(stopCode)}
       ${arrivalsSectionHtml(stopCode)}
+      ${bahiasSlotHtml(stopCode)}
       ${planActionsHtml(name, coordinate, stopCode)}
     </div>
   `;
