@@ -98,4 +98,12 @@ test.describe('the Explore search', () => {
     await expect(page.locator('#route-list .search-points-title', { hasText: 'Rutas que pasan por hospital kennedy' })).toBeVisible({ timeout: 20_000 });
     await expect(page.locator('#route-list .route-item-endpoints', { hasText: /HSP\. KENNEDY/i }).first()).toBeVisible();
   });
+
+  test('a route with a printed rutero says the corredores it runs along, the main one first', async ({ page }) => {
+    await bootApp(page);
+    await search(page, 'A410');
+    const fila = page.locator('#route-list .route-item', { has: page.locator('.route-item-badge', { hasText: /^A410$/ }) }).first();
+    await expect(fila.locator('.route-item-via')).toHaveText(/^por AV\. ESPERANZA · /, { timeout: 20_000 });
+    await expect(fila).toHaveAttribute('aria-label', /por Avenida Esperanza/);
+  });
 });

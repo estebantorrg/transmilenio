@@ -4,7 +4,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { HITOS_DE_ESTACION, agruparFilas, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
+import { HITOS_DE_ESTACION, agruparFilas, corredoresDe, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
 
 test.describe('consecutive rows on one corredor are one cell', () => {
   test('260 prints AV. BOYACÁ once beside MODELIA and NORMANDÍA', () => {
@@ -71,6 +71,16 @@ test.describe('the sentido on screen', () => {
     const calles: RuteroTradicional = { formato: 'tabla', sentidos: [{ destino: 'CALLE 222', filas: [] }] };
     expect(sentidosHacia(calles, 'Calle 197')).toEqual([]);
   });
+
+  test('its corredores for the route list: the main one first, each once', () => {
+    const sentido = {
+      destino: 'CHICÓ NORTE',
+      filas: [['AV. C. CALI', 0, 'HAYUELOS'], ['AV. ESPERANZA', 1, 'CIUDAD SALITRE'], ['AC 63', 0, 'PQ. LOURDES'], ['AC 63', 0, 'CAMPÍN'], [null, 0, 'DIRECTO'], ['KR 15', 0, 'CHICÓ']],
+    } as const;
+    expect(corredoresDe([sentido])).toEqual(['AV. ESPERANZA', 'AV. C. CALI', 'AC 63']);
+    expect(corredoresDe([sentido], 5)).toEqual(['AV. ESPERANZA', 'AV. C. CALI', 'AC 63', 'KR 15']);
+    expect(corredoresDe([])).toEqual([]);
+  });
 });
 
 test.describe('the drawing', () => {
@@ -91,8 +101,24 @@ test.describe('the drawing', () => {
       sentido: { destino: 'BILBAO', filas: [['CL 26', 0, 'CAN'], ['KR 77A', 0, 'Villa Luz']] },
     });
     expect(html).toContain('tr-digital');
-    expect(html).toContain('CAN/<b>CL 26</b>');
+    expect(html).toContain('<span aria-hidden="true">CAN</span>');
+    expect(html).toContain('/<b title="CALLE 26"><span aria-hidden="true">CL 26</span>');
+    expect(html).toContain('Villa Luz/<b title="CARRERA 77A">');
     expect(html).not.toContain('<table');
+  });
+
+  test('an abbreviation is drawn as printed, and said and shown spelled out', () => {
+    const html = tablaRuteroHtml({
+      codigo: 'A410',
+      color: '#26358C',
+      sentido: { destino: 'CHICÓ NORTE', filas: [['AC 63', 0, 'PQ. LOURDES'], ['KR 15', 0, 'CHICÓ']] },
+    });
+    // The hito: the print's short form for the eye, the words for a screen reader and a tooltip.
+    expect(html).toContain('title="PARQUE LOURDES"><span aria-hidden="true">PQ. LOURDES</span><span class="tr-sr">PARQUE LOURDES</span>');
+    // The corredor chip too.
+    expect(html).toContain('title="AVENIDA CALLE 63"><span aria-hidden="true">');
+    // A hito with nothing to spell out is left alone.
+    expect(html).toContain('>CHICÓ</td>');
   });
 
   test('a row with no corredor runs across the whole table, as printed', () => {

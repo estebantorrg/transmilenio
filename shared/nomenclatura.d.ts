@@ -53,4 +53,10 @@ export const ABREVIATURAS: {
 
 export function normalizarCorredor(raw: string): string | null;
 
+/** `AC 13` → "Avenida Calle 13": a corredor as it is said. */
+export function expandirCorredor(corredor: string): string;
+
+/** The streets a run of stops holds three in a row, the `max` longest, in ride order. */
+export function corredoresRecorridos(direcciones: ReadonlyArray<string | null | undefined>, max?: number): string[];
+
 export function expandirHito(text: string): string;

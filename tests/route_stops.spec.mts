@@ -161,6 +161,14 @@ test.describe('the stop list on a route page', () => {
     expect(km).toBeLessThan(42);
   });
 
+  test('the printed rutero is drawn abbreviated and said spelled out', async ({ page }) => {
+    await openRoute(page, 'a410');
+    const lourdes = page.locator('.route-page .tabla-rutero td[title="PARQUE LOURDES"]');
+    await expect(lourdes.locator('[aria-hidden="true"]')).toHaveText('PQ. LOURDES');
+    await expect(lourdes.locator('.tr-sr')).toHaveText('PARQUE LOURDES');
+    await expect(page.locator('.route-page .tabla-rutero th[title="AVENIDA CALLE 63"]')).toHaveCount(1);
+  });
+
   test('a printed hito that names an estación opens it, and the estación lists the route back', async ({ page }) => {
     await page.goto('/ruta/b905/');
     await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });

@@ -9,6 +9,8 @@ import {
   ABREVIATURAS,
   MAX_CARACTERES_NOMBRE,
   ZONAS,
+  corredoresRecorridos,
+  expandirCorredor,
   expandirHito,
   leerCodigoParadero,
   leerCodigoZonal,
@@ -128,5 +130,29 @@ test.describe('abbreviations', () => {
     expect(expandirHito('Hsp. S. Bolívar')).toBe('Hospital Simón Bolívar');
     expect(expandirHito('Pq. El Virrey')).toBe('Parque El Virrey');
     expect(expandirHito('GALERÍAS')).toBe('GALERÍAS');
+  });
+
+  test('corredores expand as they are said', () => {
+    expect(expandirCorredor('AC 13')).toBe('Avenida Calle 13');
+    expect(expandirCorredor('AK 7 S')).toBe('Avenida Carrera 7 Sur');
+    expect(expandirCorredor('KR 68B BIS')).toBe('Carrera 68B Bis');
+    expect(expandirCorredor('AV. C. CALI')).toBe('Avenida Ciudad de Cali');
+    expect(expandirCorredor('AV. SUBA')).toBe('Avenida SUBA');
+    expect(expandirCorredor('DIRECTO')).toBe('DIRECTO');
+  });
+});
+
+test.describe('the streets a run of stops rides', () => {
+  const en = (corredor: string, n: number) => Array.from({ length: n }, (_, i) => `${corredor} - CL ${i + 1}`);
+
+  test('three stops in a row on one street make a corredor, in the order ridden', () => {
+    const direcciones = [...en('AV. Esperanza', 4), 'KR 81 - CL 24', ...en('AC 63', 3), ...en('KR 15', 5)];
+    expect(corredoresRecorridos(direcciones)).toEqual(['AV. ESPERANZA', 'KR 15']);
+    expect(corredoresRecorridos(direcciones, 3)).toEqual(['AV. ESPERANZA', 'AC 63', 'KR 15']);
+  });
+
+  test('a turn, a missing address or a street met twice is not counted twice', () => {
+    expect(corredoresRecorridos(['KR 81 - CL 24', 'CL 26 - KR 1', undefined, null])).toEqual([]);
+    expect(corredoresRecorridos([...en('AV. Caracas', 3), 'CL 13 – KR 16', ...en('AV. Caracas', 4)], 3)).toEqual(['AV. CARACAS']);
   });
 });

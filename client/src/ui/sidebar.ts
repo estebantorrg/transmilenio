@@ -10,6 +10,9 @@ import { de } from '../utils/text';
 import { compareRouteListItems, getRouteAccentColor, getRouteZoneLetters, isAlimentadorRoute, isRutaFacilRoute, TRONCAL_COLORS } from '../utils/routeColors';
 import { api, type CardBalanceRead, type CardBalanceMovement, type LiveStatus } from '../services/api';
 import { loadHitos, rutasQuePasan } from '../services/barrios';
+import { loadRuteros, ruterosCargados, sentidosDeRuta } from '../services/ruteros';
+import { corredoresDe } from '../../../shared/tabla_rutero.js';
+import { expandirCorredor } from '../../../shared/nomenclatura.js';
 import { closedWindowNotice } from '../services/liveWindow';
 import {
   formatSchedule,
@@ -1147,6 +1150,8 @@ let routePages = 1;
 let pointPages = 1;
 let lastRouteResults: RouteListItem[] = [];
 let lastPointResults: PointMatches | null = null;
+// The printed ruteros, asked for once for the "por …" line under each route.
+let ruterosPedidos = false;
 
 /** Re-render the current results with one more page revealed. */
 function showMore(kind: 'routes' | 'points'): void {
@@ -1462,6 +1467,13 @@ function renderRouteList(
 
   const tope = pointMatches.length ? directas + SEARCH_PASAN_PREVIEW : Infinity;
   const visible = routes.slice(0, Math.min(ROUTE_PAGE_SIZE * routePages, tope));
+  if (!ruterosCargados() && !ruterosPedidos) {
+    ruterosPedidos = true;
+    void loadRuteros().then((loaded) => {
+      ruterosPedidos = Boolean(loaded);
+      if (loaded && lastPointResults) renderResults(lastRouteResults, lastPointResults);
+    });
+  }
 
   container.innerHTML = routesTitle + visible
     .map((route, index) => {
@@ -1471,12 +1483,15 @@ function renderRouteList(
       // A passing route says why it is here, where its ends would say nothing about it.
       const lugar = lugaresPorRuta.get(route.id);
       const endpointText = lugar ? `por ${tidy(lugar)}` : `${route.origin} → ${route.destination}`;
+      // The corredores its printed rutero names, the main one first: which way it
+      // goes, where its two ends say nothing about the city between them.
+      const corredores = lugar ? [] : corredoresDe(sentidosDeRuta(route));
 
       const isFav = favorites.has(route.id);
 
       const antes = previousCodesMatching(route, searchQuery ? normalizeSearchText(searchQuery) : '');
       const antesText = antes.length ? `antes ${antes.join(', ')}` : '';
-      const ariaLabel = `${route.code}${antesText ? ` (${antesText})` : ''}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}${lugar ? `, pasa por ${tidy(lugar)}` : ''}`;
+      const ariaLabel = `${route.code}${antesText ? ` (${antesText})` : ''}, ${routeTypeLabel(route)}, ${route.origin} a ${route.destination}${lugar ? `, pasa por ${tidy(lugar)}` : ''}${corredores.length ? `, por ${corredores.map(expandirCorredor).join(', ')}` : ''}`;
 
       return `
         ${index === directas && lugar ? pasanTitle : ''}
@@ -1494,6 +1509,7 @@ function renderRouteList(
               ${lugar ? '' : `<span class="route-item-type">${escapeHTML(routeTypeLabel(route))}</span>`}
               <span class="route-item-endpoints${lugar ? ' route-item-por' : ''}">${escapeHTML(endpointText)}</span>
             </div>
+            ${corredores.length ? `<div class="route-item-via">por ${escapeHTML(corredores.join(' · '))}</div>` : ''}
           </div>
           <button class="route-item-compare" type="button" data-compare-id="${escapeHTML(route.id)}"
                   aria-label="Comparar ${escapeHTML(route.code)} en el mapa">${compareRowInner(route.id)}</button>

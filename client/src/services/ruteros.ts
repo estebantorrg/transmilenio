@@ -1,6 +1,7 @@
 /** The printed ruteros (`shared/tabla_rutero.js`), one fetch for every surface that reads them. */
 
-import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
+import { sentidosHacia, type RuterosTradicionales, type SentidoRutero } from '../../../shared/tabla_rutero.js';
+import type { RouteListItem } from '../types/transmilenio';
 import { api } from './api';
 
 let promise: Promise<RuterosTradicionales | null> | null = null;
@@ -21,4 +22,11 @@ export function loadRuteros(): Promise<RuterosTradicionales | null> {
       return loaded;
     });
   return promise;
+}
+
+/** The sentidos printed for this direction, by the rule the route page draws it by; empty until loaded. */
+export function sentidosDeRuta(route: RouteListItem): SentidoRutero[] {
+  const ruta = cargados?.rutas[route.code];
+  const byName = sentidosHacia(ruta, route.name);
+  return byName.length ? byName : sentidosHacia(ruta, route.destination);
 }

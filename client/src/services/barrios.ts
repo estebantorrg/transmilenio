@@ -7,9 +7,9 @@
  */
 
 import { coincideBarrio, palabrasBarrio, textoBarrio } from '../../../shared/barrios.js';
-import { sentidosHacia, type RuterosTradicionales } from '../../../shared/tabla_rutero.js';
+import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 import type { RouteListItem } from '../types/transmilenio';
-import { loadRuteros } from './ruteros';
+import { loadRuteros, sentidosDeRuta } from './ruteros';
 
 interface Lugar {
   nombre: string;
@@ -44,13 +44,9 @@ function lugar(nombre: string): Lugar {
 function lugaresDe(route: RouteListItem): Lugar[] {
   let lugares = lugaresPorRuta.get(route);
   if (lugares) return lugares;
-  // The sentido printed for this direction, by the rule the route page draws it by.
-  const ruta = rutas?.[route.code];
-  const byName = sentidosHacia(ruta, route.name);
-  const sentidos = byName.length ? byName : sentidosHacia(ruta, route.destination);
   lugares = [
     ...(route.stops ?? []).map((stop) => stop.nombre),
-    ...sentidos.flatMap((sentido) => sentido.filas.map((fila) => fila[2])),
+    ...sentidosDeRuta(route).flatMap((sentido) => sentido.filas.map((fila) => fila[2])),
   ]
     .filter(Boolean)
     .map(lugar);

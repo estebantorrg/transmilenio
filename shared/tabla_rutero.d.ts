@@ -36,6 +36,9 @@ export interface GrupoCorredor {
 /** Consecutive rows on the same corredor (and chip colour) as one group. */
 export declare function agruparFilas(filas: ReadonlyArray<FilaRutero>): GrupoCorredor[];
 
+/** The corredores the sentidos print, the main one first, each once, at most `max`. */
+export declare function corredoresDe(sentidos: ReadonlyArray<SentidoRutero>, max?: number): string[];
+
 /** The sentidos headed for `destino`; empty when none matches. */
 export declare function sentidosHacia(ruta: RuteroTradicional | null | undefined, destino: unknown): SentidoRutero[];
 

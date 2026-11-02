@@ -37,7 +37,8 @@ import { haversineMeters, isWithinBogota } from '../utils/geo';
 import type { RouteListItem } from '../types/transmilenio';
 import { FOOT_CREDIT_HTML } from '../../../shared/osrm_foot.js';
 import { planIndexForVia, viajeParams } from '../../../shared/viaje_link.js';
-import { shareLink } from './sidebar';
+import { routesWithCode, shareLink } from './sidebar';
+import { corredoresRecorridos } from '../../../shared/nomenclatura.js';
 
 /** An end set from the device's own position — the one a shared link must not carry exactly. */
 const GPS_LABEL = 'Mi ubicación actual';
@@ -1744,6 +1745,20 @@ function renderStepServiceLine(step: JourneyStep): string {
  * because the drawing is per leg: a ride can be part real trace, part straight
  * line (§5.6.3, spec §5.7 #8).
  */
+/**
+ * "por AV. C. DE CALI · AV. ESPERANZA": the streets this leg rides, read off the
+ * addresses of the stops it passes (`corredoresRecorridos`). The printed rutero
+ * can't say it: its hitos are landmarks, not stops, so a leg can't be placed on it.
+ */
+function renderStepViaLine(step: JourneyStep): string {
+  const route = routesWithCode(step.routeCode ?? '').find((r) => r.id === step.routeId);
+  if (!route?.stops) return '';
+  const direcciones = new Map(route.stops.map((stop) => [stop.codigo, stop.direccion]));
+  const codigos = [step.fromCode, ...(step.stopPoints ?? []).map((p) => p.code), step.toCode];
+  const corredores = corredoresRecorridos(codigos.map((codigo) => direcciones.get(codigo)));
+  return corredores.length ? `<div class="journey-step-via">por ${escapeHTML(corredores.join(' · '))}</div>` : '';
+}
+
 function renderStepTraceLine(step: JourneyStep): string {
   if (step.traceSource === 'partial') {
     return '<div class="journey-step-trace">Trazado parcial · algunos tramos se dibujan en línea recta entre paradas</div>';
@@ -2114,6 +2129,7 @@ function renderTimelineSteps(plan: JourneyPlan, container: HTMLElement): void {
                 En ${stopLabel} <strong>${escapeHTML(step.fromName)}</strong>, hasta <strong>${escapeHTML(step.toName)}</strong><br/>
                 Viajar <strong>${step.stopCount} ${rideStopsNoun(step.routeType, step.stopCount ?? 0)}</strong> (${Math.max(1, Math.round(step.time))} min) · ${systemName}
               </div>
+              ${renderStepViaLine(step)}
               ${renderStepServiceLine(step)}
               ${renderStepTraceLine(step)}
               ${stopsToggleHtml}

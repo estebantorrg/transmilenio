@@ -958,6 +958,25 @@ body.sidebar-collapsed .sidebar-fab {
   white-space: normal;
 }
 
+/* "por AV. BOYACÁ · CL 127": the corredores a route's printed rutero names (list),
+   and the streets a planner leg rides (`.journey-step-via`). */
+.route-item-via {
+  margin-top: 1px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.journey-step-via {
+  margin-top: 4px;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 /* The star and, beside it, "Comparar en el mapa" (layers/compare.ts): both shown on hover. */
 .route-item-fav,
 .route-item-compare {

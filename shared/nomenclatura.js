@@ -275,6 +275,50 @@ export function normalizarCorredor(raw) {
   return `${tipo} ${numero}${sufijo}${punto}`;
 }
 
+/** The manual's street abbreviations, written out: `AC` → Avenida Calle, `AV. C. CALI` → Avenida Ciudad de Cali. */
+const VIAS = new Map(ABREVIATURAS.vias.map(([full, abbr]) => [abbr.toUpperCase(), full]));
+
+/**
+ * A corredor as it is said, for speech and tooltips: `AC 13` → "Avenida Calle
+ * 13", `AK 7 S` → "Avenida Carrera 7 Sur". Display keeps the printed form. An
+ * avenue the list does not name keeps its name after "Avenida".
+ */
+export function expandirCorredor(corredor) {
+  const c = String(corredor ?? '').trim();
+  const nombrada = VIAS.get(c.toUpperCase());
+  if (nombrada) return nombrada;
+  const m = c.match(/^(AC|AK|CL|KR|DG|TV|AV\.|AUTO)\s+(.+)$/i);
+  if (!m) return c;
+  return `${VIAS.get(m[1].toUpperCase())} ${m[2].replace(/\bBIS\b/i, 'Bis').replace(/\sS$/, ' Sur').replace(/\sE$/, ' Este')}`;
+}
+
+/**
+ * The streets a stretch of stops runs along, from their addresses: a paradero's
+ * `direccion` names the street it stands on first (`AV. Esperanza - KR 81`).
+ * Only streets that hold three stops in a row count — a single stop on a cross
+ * street is a turn, not a corredor — and of those the `max` longest, in the
+ * order ridden. A410's stops read AV. C. DE CALI ×14, AV. ESPERANZA ×8, AC 63
+ * ×12, AK 15 ×8, as its printed rutero does.
+ *
+ * @param {ReadonlyArray<string | null | undefined>} direcciones in ride order
+ * @param {number} [max]
+ * @returns {string[]}
+ */
+export function corredoresRecorridos(direcciones, max = 2) {
+  /** @type {Array<{ corredor: string, paradas: number, orden: number }>} */
+  const tramos = [];
+  for (const direccion of direcciones) {
+    const corredor = normalizarCorredor(String(direccion ?? '').split(/\s[-–]\s/)[0]);
+    const ultimo = tramos.at(-1);
+    if (corredor && ultimo?.corredor === corredor) ultimo.paradas++;
+    else tramos.push({ corredor, paradas: 1, orden: tramos.length });
+  }
+  const largos = tramos.filter((t) => t.corredor && t.paradas >= 3).sort((a, b) => b.paradas - a.paradas);
+  const elegidos = [];
+  for (const t of largos) if (elegidos.length < max && !elegidos.some((e) => e.corredor === t.corredor)) elegidos.push(t);
+  return elegidos.sort((a, b) => a.orden - b.orden).map((t) => t.corredor);
+}
+
 // ─── Landmarks ───────────────────────────────────────────────────────────────
 
 // Compiled once: the barrio search expands several thousand names on its first query.

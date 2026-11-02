@@ -18,6 +18,8 @@
  * share one copy; types are in `tabla_rutero.d.ts`.
  */
 
+import { expandirCorredor, expandirHito } from './nomenclatura.js';
+
 /** @param {unknown} value */
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, (ch) => (
@@ -136,6 +138,20 @@ export function agruparFilas(filas) {
 }
 
 /**
+ * The corredores a printed sentido names, the main one (the dark chip) first,
+ * each once: "por AV. BOYACÁ · CL 127" under a route in the list.
+ *
+ * @param {ReadonlyArray<{ filas: ReadonlyArray<readonly [string | null, number, string]> }>} sentidos
+ * @param {number} [max]
+ * @returns {string[]}
+ */
+export function corredoresDe(sentidos, max = 3) {
+  const filas = sentidos.flatMap((s) => s.filas).filter(([corredor]) => corredor);
+  const orden = [...filas.filter(([, destacado]) => destacado), ...filas.filter(([, destacado]) => !destacado)];
+  return [...new Set(orden.map(([corredor]) => /** @type {string} */ (corredor)))].slice(0, max);
+}
+
+/**
  * The sentidos of `ruta` headed for `destino` (the catalog's destination for
  * the route on screen). Matched on the folded name, or one name containing the
  * other (`BOSA SAN JOSÉ CICLOVÍA` for `Bosa San José`). Nothing is guessed: no
@@ -201,6 +217,28 @@ function talla(text, pasos) {
 }
 
 /**
+ * Printed text with its abbreviations spelled out: a screen reader says the
+ * words (`HSP. KENNEDY` → "HOSPITAL DE KENNEDY", `AC 13` → "AVENIDA CALLE 13")
+ * and a pointer gets them as a tooltip, while the piece's short form stays what
+ * is drawn — it is what a rider matches against the paradero. Text that has
+ * nothing to spell out is returned as it was.
+ *
+ * @param {string} html the drawn form, escaped
+ * @param {string} texto the printed text
+ * @param {string} largo the same text spelled out
+ * @returns {{ title: string, html: string }} `title` is an attribute for the element that holds `html`
+ */
+function dicho(html, texto, largo) {
+  if (fold(largo) === fold(texto)) return { title: '', html };
+  // In the print's own case: the pieces set their hitos in capitals.
+  const dicha = texto === texto.toLocaleUpperCase('es') ? largo.toLocaleUpperCase('es') : largo;
+  return {
+    title: ` title="${esc(dicha)}"`,
+    html: `<span aria-hidden="true">${html}</span><span class="tr-sr">${esc(dicha)}</span>`,
+  };
+}
+
+/**
  * A corredor as the chip prints it: short ones on one line, big (`KR 15`); a
  * named avenue as `AV.` over its name when the name is long (`AV.` /
  * `ESPERANZA`), since the chip is narrow and the name is what is read.
@@ -238,17 +276,21 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
   const hitoHtml = (hito) => {
     const estacion = estacionDeHito(hito);
     const href = estacion && estacionHref?.(estacion);
-    return href ? `<a href="${esc(href)}">${esc(hito)}</a>` : esc(hito);
+    const { title, html } = dicho(esc(hito), hito, expandirHito(hito));
+    return { title, html: href ? `<a href="${esc(href)}">${html}</a>` : html };
   };
+  const corredorDicho = (corredor, html) => dicho(html, corredor, expandirCorredor(corredor));
   const ink = inkOn(color);
   const style = `--tr-zona:${esc(color)};--tr-tinta:${ink}`;
   const label = `Rutero de la ruta ${codigo} hacia ${sentido.destino}`;
   const operacion = sentido.operacion ? `<p class="tr-operacion">Operación ${esc(sentido.operacion)}</p>` : '';
 
   if (formato === 'digital') {
-    const pares = sentido.filas.map(([corredor, , hito]) => (
-      `<span class="tr-par">${hitoHtml(hito)}${corredor ? `/<b>${esc(corredor)}</b>` : ''}</span>`
-    )).join('<span class="tr-guion"> - </span>');
+    const pares = sentido.filas.map(([corredor, , hito]) => {
+      const h = hitoHtml(hito);
+      const c = corredor ? corredorDicho(corredor, esc(corredor)) : null;
+      return `<span class="tr-par">${h.title ? `<span${h.title}>${h.html}</span>` : h.html}${c ? `/<b${c.title}>${c.html}</b>` : ''}</span>`;
+    }).join('<span class="tr-guion"> - </span>');
     return `<figure class="tabla-rutero tr-digital" style="${style}" aria-label="${esc(label)}">`
       + `<div class="tr-barra"><span class="tr-codigo">${esc(codigo)}</span><span class="tr-destino tr-t${talla(sentido.destino, [12, 18, 24])}">${esc(sentido.destino)}</span></div>`
       + `<p class="tr-franja">${pares}</p>${operacion}</figure>`;
@@ -257,10 +299,12 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
   const body = agruparFilas(sentido.filas).map((run) => run.hitos.map((hito, i) => {
     // A row with no corredor runs across the whole table, as the print sets it
     // (111's ESTACIÓN AV. 1° DE MAYO, the DIRECTO rows of the express stretches).
-    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2">${hitoHtml(hito)}</td></tr>`;
-    const corredor = i > 0 ? ''
-      : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}>${corredorHtml(run.corredor)}</th>`;
-    return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}">${hitoHtml(hito)}</td></tr>`;
+    const h = hitoHtml(hito);
+    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2"${h.title}>${h.html}</td></tr>`;
+    const c = i > 0 ? null : corredorDicho(run.corredor, corredorHtml(run.corredor));
+    const corredor = !c ? ''
+      : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}${c.title}>${c.html}</th>`;
+    return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}"${h.title}>${h.html}</td></tr>`;
   }).join('')).join('');
   // The tab is a trapezoid with rounded shoulders; an SVG stretched to the box
   // draws it, its outline kept at one width by non-scaling-stroke.
@@ -425,6 +469,7 @@ export const TABLA_RUTERO_CSS = `
 }
 .tabla-rutero .tr-franja b { color: #ffeb3d; font-weight: 700; }
 .tabla-rutero .tr-par { white-space: nowrap; }
+.tabla-rutero .tr-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .tabla-rutero a { color: inherit; text-decoration: underline; text-underline-offset: 0.12em; }
 .tabla-ruteros { display: flex; flex-wrap: wrap; gap: 20px 28px; align-items: flex-start; }
 .tabla-ruteros > .tabla-rutero { flex: 1 1 260px; width: auto; max-width: 400px; }
