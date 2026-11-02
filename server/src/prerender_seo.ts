@@ -49,6 +49,7 @@ import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sent
 import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
 import { ZONAL_PAGES } from './seo_zonal.js';
 import { ORIGIN, escapeHtml, swap, withHead } from './seo_head.js';
+import { zonasDeRuta, type ZonaDeRuta } from '../../shared/nomenclatura.js';
 import { APP_DESCARGA_CSS, APP_DESCRIPTION, APP_DOWNLOAD_PATH, APP_PATH, APP_TITLE, appPageHtml } from '../../shared/app_descarga.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -281,6 +282,10 @@ font-size:.7rem;font-weight:700;letter-spacing:.08em;color:#fff}
    dark (Caracas navy, Carrera 7 purple) and would be unreadable on this page. */
 #seo-prerender .kind::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--accent);
 box-shadow:0 0 0 1px rgba(255,255,255,.18);flex:none}
+#seo-prerender .zonas{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:8px 0 0;font-size:.8rem;color:rgba(255,255,255,.6)}
+#seo-prerender .zona{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border:1px solid rgba(255,255,255,.14);
+border-radius:999px;font-weight:600;color:#fff}
+#seo-prerender .zona i{width:9px;height:9px;border-radius:50%;box-shadow:0 0 0 1px rgba(255,255,255,.18);flex:none}
 #seo-prerender .sub{margin:7px 0 0;color:rgba(255,255,255,.6)}
 #seo-prerender .chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0 0;padding:0;list-style:none}
 #seo-prerender .chips li{padding:3px 10px;border:1px solid rgba(255,255,255,.14);border-radius:999px;
@@ -704,13 +709,23 @@ export function troncalFirst(variants: LightRoute[]): LightRoute[] {
   return [...variants].sort((a, b) => Number(b.sistema === 'TransMilenio') - Number(a.sistema === 'TransMilenio'));
 }
 
+/** The zones the app's route page names under the title (client/src/ui/routePage.ts `zonasHtml`). */
+function zonasHtml(codigo: string, existe?: (codigo: string) => boolean): string {
+  const zonas = existe ? zonasDeRuta(codigo, existe) : null;
+  if (!zonas) return '';
+  const chip = (zona: ZonaDeRuta) => `<span class="zona"><i style="background:${zona.color}"></i>${escapeHtml(zona.nombre)}</span>`;
+  return `\n    <p class="zonas">${zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`}</p>`;
+}
+
 export function renderRoute(
   codigo: string,
   variants: LightRoute[],
   stationByCode: Map<string, LightStation>,
   impreso: RuteroTradicional | undefined,
   // A zonal código's scheduled service from the GTFS (spec §5.5.10), or null.
-  programado: HorarioProgramado | null = null
+  programado: HorarioProgramado | null = null,
+  // Whether the catalog has a código: how a zonal código's zones are read (`zonasDeRuta`).
+  existe?: (codigo: string) => boolean
 ) {
   const primary = variants[0];
   const url = routeUrl(codigo);
@@ -860,7 +875,7 @@ ${breadcrumbHtml(trail)}
   <span class="plate">${escapeHtml(codigo)}</span>
   <div>
     <h1>${escapeHtml(name)}</h1>
-    <p class="kind"><span class="tag">${escapeHtml(tidy(primary.tipoServicio) || 'TRONCAL')}</span><span>${escapeHtml(systemLabel(primary))}</span></p>
+    <p class="kind"><span class="tag">${escapeHtml(tidy(primary.tipoServicio) || 'TRONCAL')}</span><span>${escapeHtml(systemLabel(primary))}</span></p>${zonasHtml(codigo, existe)}
   </div>
 </header>
 ${ruteros}
@@ -1479,7 +1494,7 @@ async function main(): Promise<void> {
   const zonalUrls: string[] = [];
   for (const [codigo, variants] of routeCodes) {
     const zonal = ZONAL_PAGES.has(codigo);
-    const page = renderRoute(codigo, variants, stationByCode, impresos.rutas[codigo], zonal ? horarioProgramado(codigo) : null);
+    const page = renderRoute(codigo, variants, stationByCode, impresos.rutas[codigo], zonal ? horarioProgramado(codigo) : null, (c) => variantsByCodigo.has(c));
     const dir = path.join(CLIENT_DIST, page.url.replace(/^\/|\/$/g, ''));
     await mkdir(dir, { recursive: true });
     await writeFile(path.join(dir, 'index.html'), renderPage(shell, page));

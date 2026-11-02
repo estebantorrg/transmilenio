@@ -744,6 +744,8 @@ async function main(): Promise<void> {
         // boot, a page opened before the map could draw — a background tab, a
         // slow instance — listed bare names until it did.
         if (res.data.stations) setCatalog(res.data);
+        // And the códigos, which the hero reads a zonal route's zones from (`zonasDeRuta`).
+        setCatalogIndexes(res.data);
         const target = buildCatalogRouteList(res.data, { onlyCode: deepRouteCode })[0];
         if (target) openRoutePage(target, { push: false });
       })

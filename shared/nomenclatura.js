@@ -83,6 +83,34 @@ export function leerCodigoZonal(code) {
 }
 
 /**
+ * The two zones a zonal código runs between, for its page. The catalog files
+ * each código one way, towards its letter.
+ *
+ * The number gives the origin only where the letter names another zone (A124:
+ * Suba → Chapinero). Where the letter IS the number's zone, the código is the
+ * way back of a route numbered from that zone: C124 runs Centro → Suba, A124's
+ * return, and L800 leaves from Engativá (D800 is its pair). Its origin is then
+ * the letter of the one other código with the same number. With none, the
+ * route stays inside its zone (H729, Usme). Checked against the catalog's first
+ * and last stops in November 2026; with two such códigos, nothing is said.
+ *
+ * @param {string} code
+ * @param {(codigo: string) => boolean} existe whether the catalog has a código
+ * @returns {null | { origen: ZonaDeRuta, destino: ZonaDeRuta, dentro: boolean }}
+ */
+export function zonasDeRuta(code, existe) {
+  const servicios = leerCodigoZonal(code);
+  if (servicios?.length !== 1) return null;
+  const [{ codigo, destino, origen, origenArea }] = servicios;
+  const zona = (letra, nombre = ZONAS[letra].nombre) => ({ letra, nombre, color: ZONAS[letra].color });
+  if (origen !== destino) return { origen: zona(origen, origenArea), destino: zona(destino), dentro: false };
+  const pares = Object.keys(ZONAS).filter((letra) => letra !== destino && existe(letra + codigo.slice(1)));
+  if (pares.length > 1) return null;
+  const casa = zona(destino, origenArea);
+  return pares.length ? { origen: zona(pares[0]), destino: casa, dentro: false } : { origen: casa, destino: casa, dentro: true };
+}
+
+/**
  * A paradero's cenefa código: three digits for the paradero within its zone,
  * a letter for the módulo (A–E), two digits for the zone where it stands.
  * `078A12` → paradero 78, módulo A, zone 12. The zone here is the numeric

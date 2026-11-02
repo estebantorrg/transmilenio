@@ -6337,6 +6337,38 @@ body.native-app .route-detail-close:active {
   color: var(--text-primary);
 }
 
+/* The zones the código runs between (shared/nomenclatura.js `zonasDeRuta`),
+   each marked with its TransMiZonal colour. A dot, not a fill: C and K are
+   too pale to carry white text. */
+.route-hero-zonas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+}
+
+.route-zona {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: 1px solid var(--border-medium);
+  border-radius: 999px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.route-zona-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18);
+  flex: none;
+}
+
 /* ── Origen → destino ─────────────────────────────────────────────────────
    Drawn as the line it is, with the route's colour running between the two
    ends. The page used to set this as a sentence with an arrow in the middle,

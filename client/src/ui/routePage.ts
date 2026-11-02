@@ -27,6 +27,8 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
+import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
+import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml } from '../../../shared/tabla_rutero.js';
 import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
@@ -270,6 +272,16 @@ function tripHtml(route: RouteListItem): string {
   `;
 }
 
+/** "De Suba a Chapinero - Centro": the zones the código says it runs between (`zonasDeRuta`). */
+function zonasHtml(code: string): string {
+  // The catalog's own códigos: a deep link draws this page before the route list exists.
+  const zonas = zonasDeRuta(code, (c) => getRouteServiceType(c) !== undefined);
+  if (!zonas) return '';
+  const chip = (zona: ZonaDeRuta) =>
+    `<span class="route-zona"><span class="route-zona-dot" style="background:${zona.color}"></span>${escapeHTML(zona.nombre)}</span>`;
+  return `<p class="route-hero-zonas">${zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`}</p>`;
+}
+
 function render(route: RouteListItem): string {
   const scheduleHtml = formatSchedule(route);
   const { html: cabecera, spans: cabeceraSpans } = cabeceraBlock(route, Boolean(scheduleHtml));
@@ -320,6 +332,7 @@ function render(route: RouteListItem): string {
               <span class="route-kind-tag">${escapeHTML(routeTypeLabel(route))}</span>
               <span>${escapeHTML(routeSystemLabel(route))}</span>
             </p>
+            ${zonasHtml(route.code)}
           </div>
         </div>
         ${rutero}

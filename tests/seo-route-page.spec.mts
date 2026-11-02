@@ -44,3 +44,17 @@ test('its page is titled and tagged for the TransMilenio service, and still list
   expect(page.body).toContain('<span class="tag">TRONCAL</span>');
   expect(page.body).toContain('Hacia Br. Las Palmitas');
 });
+
+test('a zonal page names the zones its código runs between', () => {
+  const c124 = { ...zonal, id: 'c124', codigo: 'C124', nombre: 'Bilbao' };
+  const catalogo = (c: string) => ['A124', 'C124'].includes(c);
+  // C124 is A124's way back: from Chapinero - Centro to Suba, not "Suba to Suba".
+  const { body } = renderRoute('C124', [c124], new Map(), undefined, null, catalogo);
+  expect(body).toContain(
+    '<p class="zonas">De <span class="zona"><i style="background:#26358C"></i>Chapinero - Centro</span>' +
+      ' a <span class="zona"><i style="background:#FCBD1B"></i>Suba</span></p>'
+  );
+  // Without the catalog to read the pair from, and on a troncal código, nothing.
+  expect(renderRoute('C124', [c124], new Map(), undefined).body).not.toContain('class="zonas"');
+  expect(renderRoute('7', [troncal], new Map(), undefined, null, () => true).body).not.toContain('class="zonas"');
+});

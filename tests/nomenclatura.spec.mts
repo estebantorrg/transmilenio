@@ -14,6 +14,7 @@ import {
   leerCodigoZonal,
   normalizarCorredor,
   zonaPorNumero,
+  zonasDeRuta,
 } from '../shared/nomenclatura.js';
 
 test.describe('zones and service codes', () => {
@@ -44,6 +45,26 @@ test.describe('zones and service codes', () => {
     for (const code of ['661', '10-4', 'E17', 'T11', 'SE10', 'TC30', 'Z13', 'A21']) {
       expect(leerCodigoZonal(code), code).toBeNull();
     }
+  });
+
+  test('a route page names the zones a código runs between', () => {
+    const catalogo = (...codigos: string[]) => (codigo: string) => codigos.includes(codigo);
+    const zonas = (code: string, existe: (codigo: string) => boolean) => {
+      const z = zonasDeRuta(code, existe);
+      return z && [z.origen.nombre, z.destino.nombre, z.dentro];
+    };
+    // The number names another zone: the manual's rule.
+    expect(zonas('A124', catalogo('A124', 'C124'))).toEqual(['Suba', 'Chapinero - Centro', false]);
+    // The letter is the number's own zone: the way back, from its pair's zone.
+    expect(zonas('C124', catalogo('A124', 'C124'))).toEqual(['Chapinero - Centro', 'Suba', false]);
+    expect(zonas('L800', catalogo('D800', 'L800'))).toEqual(['Engativá - CL 80', 'San Cristóbal - KR 10', false]);
+    // No pair: it stays inside, in the area its number names.
+    expect(zonas('H729', catalogo('H729'))).toEqual(['Usme', 'Usme', true]);
+    // Two pairs, or a código outside the rule: nothing.
+    expect(zonasDeRuta('C124', catalogo('A124', 'B124', 'C124'))).toBeNull();
+    expect(zonasDeRuta('B75', catalogo('B75'))).toBeNull();
+    expect(zonasDeRuta('AH605', catalogo('AH605'))).toBeNull();
+    expect(zonasDeRuta('F410', catalogo())?.origen.color).toBe(ZONAS.F.color);
   });
 
   test('zone colours are the official corridor colours', () => {

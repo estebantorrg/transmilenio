@@ -28,6 +28,18 @@ export interface ServicioZonal {
 
 export function leerCodigoZonal(code: string): ServicioZonal[] | null;
 
+export interface ZonaDeRuta {
+  letra: ZonaLetra;
+  /** The zone's name, or its area where the número names one (H: Usme, Ciudad Bolívar). */
+  nombre: string;
+  color: string;
+}
+
+export function zonasDeRuta(
+  code: string,
+  existe: (codigo: string) => boolean
+): { origen: ZonaDeRuta; destino: ZonaDeRuta; dentro: boolean } | null;
+
 export function leerCodigoParadero(code: string): { paradero: number; modulo: string; zona: number } | null;
 
 export const MAX_CARACTERES_NOMBRE: number;

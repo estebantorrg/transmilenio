@@ -95,6 +95,18 @@ async function openRoute(page: Page, code: string): Promise<void> {
   await page.locator('.route-page .timeline-stop').first().waitFor({ state: 'visible', timeout: 20_000 });
 }
 
+test.describe('the route page hero', () => {
+  test.describe.configure({ timeout: 180_000 });
+
+  test('names the zones a zonal código runs between, and nothing on a troncal one', async ({ page }) => {
+    // C124 is A124's way back, read from its pair: not "De Suba a Suba".
+    await openRoute(page, 'c124');
+    await expect(page.locator('.route-hero-zonas')).toHaveText('De Chapinero - Centro a Suba');
+    await openRoute(page, 'f19');
+    await expect(page.locator('.route-hero-zonas')).toHaveCount(0);
+  });
+});
+
 test.describe('the stop list on a route page', () => {
   test.describe.configure({ timeout: 180_000 });
 
