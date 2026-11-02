@@ -91,7 +91,7 @@ export interface RouteListItem {
   /** Parsed operating windows (§5.6.2). Absent = unknown → always operating. */
   serviceSpans?: ServiceSpan[];
   operator?: string;
-  /** Kilometres along the route's own trace (`traceKm`). */
+  /** Kilometres this direction runs, first stop to last (`stopsKm`, else `traceKm`). */
   length?: number;
   color?: string;
   geometry?: { paths: number[][][] };

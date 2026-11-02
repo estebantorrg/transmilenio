@@ -159,7 +159,18 @@ export function traceToGeometry(trace: number[][] | number[][][] | undefined): {
   return undefined;
 }
 
-/** Kilometres along a route's trace — what its ficha shows as "Longitud". */
+/**
+ * Kilometres from a direction's first stop to its last, by the operator's own
+ * chainage (`posicion`). Most zonal traces are the whole round trip, so the
+ * trace alone measured L800 → Gaviotas as 72.3 km when this direction is 35.7.
+ */
+export function stopsKm(stops: Array<{ posicion?: number }> | undefined): number | undefined {
+  const from = Number(stops?.[0]?.posicion);
+  const to = Number(stops?.at(-1)?.posicion);
+  return Number.isFinite(from) && Number.isFinite(to) && to > from ? (to - from) / 1000 : undefined;
+}
+
+/** Kilometres along a route's trace — "Longitud" where the stops give no chainage. */
 export function traceKm(geometry: RouteListItem['geometry']): number | undefined {
   if (!geometry) return undefined;
   let meters = 0;
@@ -283,6 +294,7 @@ export function buildCatalogRouteList(
         if ((!existing.stops || existing.stops.length === 0) && stops.length > 0) {
           existing.stops = stops;
           existing.geometry = traceGeometry;
+          existing.length = stopsKm(rawStops);
         } else if (!existing.geometry && !existing.stops?.length && traceGeometry) {
           existing.geometry = traceGeometry;
         }
@@ -307,6 +319,7 @@ export function buildCatalogRouteList(
         catalogNombre: route.nombre || '',
         geometry,
         stops,
+        length: stopsKm(rawStops),
       };
 
       seen.set(dedupKey, items.length);
@@ -314,11 +327,10 @@ export function buildCatalogRouteList(
     }
   }
 
-  // Measured once the merges above have settled which variant's trace each
-  // route carries. It used to be ArcGIS's `longitud_ruta_troncal`, a 0.9 MB
-  // download for 128 numbers, troncal only; the light trace's simplification
-  // shortens it by well under 1%.
-  for (const item of items) item.length = traceKm(item.geometry);
+  // The trace only where the stops gave no chainage, measured once the merges
+  // above have settled which variant's trace each route carries. It used to be
+  // ArcGIS's `longitud_ruta_troncal`, a 0.9 MB download for 128 numbers.
+  for (const item of items) item.length ??= traceKm(item.geometry);
 
   return items;
 }

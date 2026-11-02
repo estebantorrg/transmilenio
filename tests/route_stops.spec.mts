@@ -140,6 +140,15 @@ test.describe('the stop list on a route page', () => {
     await expect(parque.locator('.timeline-vagon')).toHaveText('Módulo B');
   });
 
+  test('a zonal route is as long as one direction, not as its round-trip trace', async ({ page }) => {
+    await openRoute(page, 'l800');
+    // L800's trace is the whole circuit, 72 km; towards Gaviotas it runs about 36.
+    const longitud = page.locator('.route-page .page-fact', { hasText: 'Longitud' }).locator('.page-fact-value');
+    const km = parseFloat((await longitud.textContent()) ?? '');
+    expect(km).toBeGreaterThan(30);
+    expect(km).toBeLessThan(42);
+  });
+
   test('a printed hito that names an estación opens it, and the estación lists the route back', async ({ page }) => {
     await page.goto('/ruta/b905/');
     await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: BOOT_TIMEOUT_MS });

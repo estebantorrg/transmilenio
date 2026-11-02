@@ -834,6 +834,7 @@ Every route variant ships `trazado` — the polyline it is actually driven along
   * **A tunnel's far end is not also a street walk.** With one mouth chosen as origin or destination, the other station used to be offered as an access candidate by its straight-line walk, and the tunnel arrival was then discarded as dominated — a trip ending at Las Aguas showed "walk 431 m" from Universidades instead of the 305 m tunnel. `findAccessNodes` drops a candidate that a nearer one reaches through a tunnel in no more metres.
   * A route no wagon carries keeps the merged stop: its half is not known, and is not guessed. Covered by `tests/planner-platforms.spec.ts` and `tests/route_stops.spec.mts`.
 
+* **A route's `Longitud` is one direction, first stop to last** (`stopsKm`, `data/routeCatalog.ts`), by the operator's `posicion` chainage. Most zonal traces are the whole round trip, so measuring the trace showed about double: L800 → Gaviotas read 72.3 km for a 35.7 km direction, and 776 of 1,245 directions read that way. The trace is measured only where the stops carry no chainage.
 * **Validated against a source that touches neither the catalog nor our geometry.** ArcGIS `consulta_rutas_troncales` publishes `longitud_ruta_troncal` — the official length of each troncal route. Over the 83 routes that match a catalog variant, measured against that published figure:
 
   | model | mean ratio | mean \|error\| |
