@@ -58,3 +58,13 @@ test('a zonal page names the zones its código runs between', () => {
   expect(renderRoute('C124', [c124], new Map(), undefined).body).not.toContain('class="zonas"');
   expect(renderRoute('7', [troncal], new Map(), undefined, null, () => true).body).not.toContain('class="zonas"');
 });
+
+test("an alimentador's printed rutero takes its portal's colour from the piece; the page keeps its own", () => {
+  const sentido = { destino: 'NEBRASKA', filas: [['AV. CARACAS', 0, 'Portal Usme']] as const };
+  const alimentador = { ...zonal, id: '3-13', codigo: '3-13', nombre: 'Nebraska', sistema: 'TransMilenio', tipoServicio: 'ALIMENTADOR_V', color: '#009944' };
+  const { body } = renderRoute('3-13', [alimentador], new Map(), { formato: 'digital', color: '#ff8525', sentidos: [sentido] });
+  expect(body).toContain('--tr-zona:#ff8525');
+  // A zonal route keeps its zone colour for the table, whatever the piece's shade.
+  const a = { ...zonal, id: 'a818', codigo: 'A818', nombre: 'Galerías' };
+  expect(renderRoute('A818', [a], new Map(), { formato: 'digital', color: '#0c3b96', sentidos: [sentido] }).body).not.toContain('--tr-zona:#0c3b96');
+});

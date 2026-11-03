@@ -12,6 +12,8 @@ export interface SentidoRutero {
 
 export interface RuteroTradicional {
   formato: 'tabla' | 'digital';
+  /** The colour the piece prints the código in (`#rrggbb`): an alimentador's portal line, which its rutero takes. */
+  color?: string;
   sentidos: SentidoRutero[];
 }
 

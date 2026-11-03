@@ -24,14 +24,14 @@
 
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
-import { getRouteAccentColor } from '../utils/routeColors';
+import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
 import { flagOn } from '../utils/flags';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
-import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type SentidoRutero } from '../../../shared/tabla_rutero.js';
+import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuteroTradicional, type SentidoRutero } from '../../../shared/tabla_rutero.js';
 import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
 import { api, type HorarioProgramadoResponse } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
@@ -237,11 +237,12 @@ function estacionHref(codigo: string): string | null {
  * electronic sign's layout (`formato: 'digital'`): the printed destino on the top
  * line, the printed "Hito/CORREDOR - …" strip scrolling under it.
  */
-function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero): string {
+function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero, color: string): string {
   const destino = sentido.destino;
   const sign = ruteroSvg({
     code: route.code,
     destination: destino,
+    zona: color,
     pasa: sentido.filas.map(([corredor, , hito]) => (corredor ? `${hito}/${corredor}` : hito)).join(' - '),
     uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
     label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
@@ -253,6 +254,15 @@ function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero): string {
     </figure>`;
 }
 
+/**
+ * The colour a route's ruteros are drawn in: its own accent, except an
+ * alimentador's, which the app draws green everywhere but whose bus and piece
+ * carry the line of the portal it feeds (`color` in the ruteros data).
+ */
+function ruteroColor(route: RouteListItem, ruta: RuteroTradicional): string {
+  return safeColor(isAlimentadorRoute(route) && ruta.color ? ruta.color : getRouteAccentColor(route));
+}
+
 function tablaRuteroSection(route: RouteListItem): string {
   const ruta = ruterosCargados()?.rutas[route.code];
   // The catalog's `nombre` is the service's destino ("Unicentro"); `destination`
@@ -261,11 +271,11 @@ function tablaRuteroSection(route: RouteListItem): string {
   const sentidos = byName.length ? byName : sentidosHacia(ruta, route.destination);
   if (!ruta || !sentidos.length) return '';
   ensureTablaRuteroStyle();
-  const color = safeColor(getRouteAccentColor(route));
+  const color = ruteroColor(route, ruta);
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
-      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0]) : ''}
+      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0], color) : ''}
       <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido, estacionHref })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'

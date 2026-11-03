@@ -72,6 +72,10 @@ for (const p of piezas) {
     if (!t.codigo) { sinCodigo.push({ archivo: p.archivo, destino: t.destino }); continue; }
     if (!routes[t.codigo]) { excluidos.set(t.codigo, p.archivo); continue; }
     const r = (porRuta[t.codigo] ??= { formato: t.formato ?? 'tabla', sentidos: [], fuentes: [], revisar: [] });
+    // The colour the piece prints its código in: the zone's for a zonal route, the
+    // portal's line for an alimentador (3-13 Usme orange, 17-3 Calle 26 tan), whose
+    // bus lights its panel in it. The app draws alimentadores green everywhere else.
+    if (/^#[0-9a-f]{6}$/i.test(t.colorCodigo ?? '')) r.color ??= t.colorCodigo;
     if (!r.fuentes.includes(p.archivo)) r.fuentes.push(p.archivo);
     // The same table printed on a plegable and a volante is one table.
     const key = JSON.stringify([t.destino, t.operacion ?? null, t.filas.map((f) => [f.corredor, f.hito])]);
@@ -238,7 +242,7 @@ for (const c of Object.keys(porRuta).sort()) {
     ...(s.operacion ? { operacion: s.operacion } : {}),
     filas: insertarFilas(s, r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, oscura(s, f) ? 1 : 0, hito(f.hito)]),
   }));
-  publicar[c] = { formato: r.formato, sentidos };
+  publicar[c] = { formato: r.formato, ...(r.color ? { color: r.color } : {}), sentidos };
 }
 const filasSinUsar = CORRECCIONES.filas.filter((x) => !filasUsadas.has(x));
 if (filasSinUsar.length) console.warn(`filas que no encontraron su lugar (${filasSinUsar.length}):\n${filasSinUsar.map((x) => `  ${JSON.stringify(x)}`).join('\n')}`);

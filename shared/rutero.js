@@ -455,12 +455,14 @@ function dotsPath(dots) {
  * `pasa` adds the zonal panel's second line — CONTENIDO NO VERIFICADO, behind a
  * flag (planA2 step 8): the barrios and corredores in the small mixed-case face,
  * scrolling right to left under the destino (`.rutero-pasa` in the page's CSS,
- * still for reduced motion). As photographs of zonal buses show it (C124, 818,
- * 149; Sebastián Ramírez / InfoSITP): a plain panel in one LED colour, no zone
- * colour anywhere — white on most, amber on some, so the white drawn here. What
- * the line says is each concessionaire's to set; the printed strip stands in.
+ * still for reduced motion). `zona` lights the panel in the route's zone colour,
+ * as photographs of zonal buses show it (A720, A818, A702, F918, C124, L149;
+ * Sebastián Ramírez, Christopher Moreno, B. Páez): the top line and the código's
+ * box, full height, lit in that colour; the second line runs on the dark panel
+ * beside the box. What the line says is each concessionaire's to set; the
+ * printed strip stands in.
  *
- * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, pasa?: string }} options
+ * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, zona?: string, pasa?: string }} options
  * @returns {string}
  */
 export function ruteroSvg(options) {
@@ -475,6 +477,13 @@ export function ruteroSvg(options) {
   const pasa = fold(options.pasa, SMALL);
   const height = pasa ? band + SMALL_ROWS + PANEL_PAD_ROWS : band;
   const pasaWidth = pasa.length * SMALL_ADVANCE;
+  const zona = /^#[0-9a-f]{6}$/i.test(options.zona ?? '') ? options.zona : null;
+  // The código's box ends one blank column after it; the second line starts there.
+  const codeBox = PANEL_PAD_COLUMNS + layout.code.length * CHAR_ADVANCE;
+  // Zone A's navy is the only zone colour photographed with white letters (A720,
+  // A818, A702); F's red, C's yellow and L's teal carry dark ones, unlit dots on
+  // the lit colour (F918, C124, L149). The cut sits between navy (luma 58) and red (73).
+  const oscuras = zona && [1, 3, 5].reduce((sum, i, k) => sum + parseInt(zona.slice(i, i + 2), 16) * [0.299, 0.587, 0.114][k], 0) >= 66;
   const dots = litDots([
     [layout.code, layout.codeAt],
     [layout.destination, layout.destinationAt],
@@ -494,17 +503,25 @@ export function ruteroSvg(options) {
     '<circle cx=".5" cy=".5" r=".3" fill="#161d26"/>' +
     '</pattern>' +
     `<path id="rt-l-${safeUid}" d="${dotsPath(dots)}" fill="none" stroke-linecap="round"/>` +
+    (zona
+      ? `<pattern id="rt-z-${safeUid}" width="1" height="1" patternUnits="userSpaceOnUse"><circle cx=".5" cy=".5" r=".42" fill="${zona}"/></pattern>`
+      : '') +
     (pasa
       ? `<path id="rt-p-${safeUid}" d="${dotsPath(smallDots(pasa, band))}" fill="none" stroke-linecap="round"/>` +
-        `<clipPath id="rt-c-${safeUid}"><rect y="${band}" width="${width}" height="${height - band}"/></clipPath>`
+        `<clipPath id="rt-c-${safeUid}"><rect x="${codeBox}" y="${band}" width="${width - codeBox}" height="${height - band}"/></clipPath>`
       : '') +
     '</defs>' +
     `<rect width="${width}" height="${height}" fill="#05080c"/>` +
     `<rect width="${width}" height="${height}" fill="url(#rt-o-${safeUid})"/>` +
-    `<g transform="translate(.5 .5)">${lit(`rt-l-${safeUid}`)}</g>` +
-    // It enters at the right edge and leaves past the left one, about seven of its characters a second.
+    (zona
+      ? `<rect width="${width}" height="${band}" fill="url(#rt-z-${safeUid})"/><rect width="${codeBox}" height="${height}" fill="url(#rt-z-${safeUid})"/>`
+      : '') +
+    (oscuras
+      ? `<g transform="translate(.5 .5)"><use href="#rt-l-${safeUid}" stroke="#05080c" stroke-width=".9"/></g>`
+      : `<g transform="translate(.5 .5)">${lit(`rt-l-${safeUid}`)}</g>`) +
+    // It enters at the right edge and leaves into the código's box, about seven of its characters a second.
     (pasa
-      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:-${pasaWidth}px;--rt-dur:${((width + pasaWidth) / 42).toFixed(1)}s">` +
+      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:${codeBox - pasaWidth}px;--rt-dur:${((width - codeBox + pasaWidth) / 42).toFixed(1)}s">` +
         `<g transform="translate(.5 .5)">${lit(`rt-p-${safeUid}`)}</g></g></g>`
       : '') +
     '</svg>'

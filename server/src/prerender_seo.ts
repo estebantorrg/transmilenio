@@ -845,7 +845,8 @@ ${items}
         .map((sentido) =>
           tablaRuteroHtml({
             codigo,
-            color: accent,
+            // An alimentador's rutero is its portal's line, as printed; the page keeps its own colour.
+            color: /ALIMENTADOR/.test(primary.tipoServicio ?? '') && impreso.color ? impreso.color : accent,
             formato: impreso.formato,
             sentido,
             estacionHref: (estacion) => {

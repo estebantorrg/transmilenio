@@ -11,10 +11,28 @@ import { normalizeRuteroText, ruteroSvg } from '../shared/rutero.js';
 const pasaPath = (svg: string) => /<path id="rt-p-[^"]*" d="([^"]*)"/.exec(svg)?.[1] ?? '';
 
 test.describe('the zonal panel', () => {
-  test('a plain panel in the troncal sign\'s white, no zone colour', () => {
-    const zonal = ruteroSvg({ code: 'C124', destination: 'Bilbao', uid: 'a', pasa: 'Porciúncula/AK 7' });
-    expect(zonal.match(/fill="#[0-9a-f]{6}"/gi)?.sort()).toEqual(['fill="#05080c"', 'fill="#161d26"']);
-    expect(zonal).toContain('stroke="#e9f6ff"');
+  test('the top line and the código box are lit in the zone colour', () => {
+    const zonal = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'a', pasa: 'Porciúncula/AK 7' });
+    expect(zonal).toContain('fill="#FCBD1B"');
+    expect(zonal.match(/fill="url\(#rt-z-a\)"/g)).toHaveLength(2);
+    // Without a zone, the plain panel the troncal sign has.
+    const plano = ruteroSvg({ code: 'F23', destination: 'Portal Américas', uid: 'b' });
+    expect(plano.match(/fill="#[0-9a-f]{6}"/gi)?.sort()).toEqual(['fill="#05080c"', 'fill="#161d26"']);
+  });
+
+  test('letters white on zone A\'s navy, dark on the other colours, as photographed', () => {
+    const oscuras = (zona: string) => ruteroSvg({ code: 'X1', destination: 'X', zona, uid: 'z' }).includes('stroke="#05080c" stroke-width=".9"');
+    expect(oscuras('#26358C')).toBe(false); // A720, A818, A702
+    expect(oscuras('#DC0814')).toBe(true); // F918
+    expect(oscuras('#FCBD1B')).toBe(true); // C124
+    expect(oscuras('#009A9D')).toBe(true); // L149
+  });
+
+  test('the second line runs beside the código box, not under it', () => {
+    const svg = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'g', pasa: 'Suba' });
+    // Panel padding 2 + four characters of 7 columns.
+    expect(svg).toContain('<rect x="30" y="13"');
+    expect(svg).toContain('stroke="#e9f6ff"');
   });
 
   test('the barrios scroll on a smaller second line under the destino', () => {
