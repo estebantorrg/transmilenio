@@ -22,6 +22,10 @@ const D1_TIMEOUT_MS = 15_000;
 // What a D1 outage may hold in memory on the 512 MB box; the oldest rows go first.
 export const MAX_PENDING_SIGHTINGS = 5000;
 export const MAX_REPORTED_BUSES = 200;
+// D1's free plan writes 100,000 rows a day, counted to 00:00 UTC. A client report
+// can be forged in bulk, so reports get half: a flood costs the day's client rows,
+// never the server's own.
+export const MAX_CLIENT_SIGHTINGS_PER_DAY = 50_000;
 
 // A client report is public input. Wider than the client's BOGOTA_BOUNDS, because
 // zonal routes reach Soacha, Funza and Chía; this only has to stop junk.
@@ -110,6 +114,23 @@ export function pickReportedBuses(ruta: string, buses: unknown): any[] {
     .map((bus) => ({ ...bus, ruta_extraida: ruta }));
 }
 
+/** How many of `n` rows still fit in today's (UTC) budget of `max`; those are used up. */
+export function createDailyBudget(max: number) {
+  let day = '';
+  let used = 0;
+  return (n: number, now: number): number => {
+    const today = new Date(now).toISOString().slice(0, 10);
+    if (today !== day) {
+      day = today;
+      used = 0;
+    }
+    const granted = Math.min(n, max - used);
+    used += granted;
+    return granted;
+  };
+}
+
+const clientRowBudget = createDailyBudget(MAX_CLIENT_SIGHTINGS_PER_DAY);
 const lastLogged = new Map<string, number>();
 // shortcut: a restart loses up to a minute of rows; add a SIGTERM flush if that ever matters.
 const pending: Sighting[] = [];
@@ -134,7 +155,9 @@ async function queryD1(url: string, token: string, sql: string, params: string[]
 /** Queue a poll's buses. Called from inside `/api/buses`, which must never fail, so it cannot throw. */
 export function logSightings(ruta: string, buses: any[], origen: Sighting['origen']): void {
   if (!process.env.BUS_LOG_D1_URL || !process.env.BUS_LOG_D1_TOKEN) return;
-  pending.push(...pickSightings(ruta, buses, Date.now(), lastLogged, origen));
+  const now = Date.now();
+  const rows = pickSightings(ruta, buses, now, lastLogged, origen);
+  pending.push(...(origen === 'client' ? rows.slice(0, clientRowBudget(rows.length, now)) : rows));
   capPending();
   if (pending.length > 0 && !flushTimer) {
     flushTimer = setTimeout(() => void flushSightings(), FLUSH_DELAY_MS);

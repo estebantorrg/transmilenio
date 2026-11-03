@@ -5,6 +5,7 @@
 
 import { expect, test } from '@playwright/test';
 import {
+  createDailyBudget,
   flushSightings,
   logSightings,
   MAX_REPORTED_BUSES,
@@ -90,6 +91,17 @@ test.describe('pickReportedBuses: a public endpoint', () => {
     expect(pickReportedBuses('1', 'nope')).toEqual([]);
     expect(pickReportedBuses('1', undefined)).toEqual([]);
     expect(pickReportedBuses('1', Array(MAX_REPORTED_BUSES + 5).fill(U1535))).toHaveLength(MAX_REPORTED_BUSES);
+  });
+});
+
+test.describe('client reports: a daily budget', () => {
+  test('grants what fits, then nothing until the UTC day turns', () => {
+    // 200 forged buses a request filled D1's 100,000 rows a day in about 20 minutes.
+    const take = createDailyBudget(10);
+    expect(take(6, NOW)).toBe(6);
+    expect(take(6, NOW + 1000)).toBe(4);
+    expect(take(1, NOW + 2000)).toBe(0);
+    expect(take(6, Date.UTC(2026, 9, 31))).toBe(6);
   });
 });
 
