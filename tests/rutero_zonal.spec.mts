@@ -67,6 +67,21 @@ test.describe('the zonal panel', () => {
     expect(ene.some(([, y]) => y === top - 2)).toBe(true);
   });
 
+  test('D, Q and B stand apart from O and 8 on the faces that draw them', () => {
+    const lit = (d: string) => new Set(d.match(/M[\d.]+ [\d.]+/g));
+    // One character as the destino (centred, so every one lands in the same cells), or alone on the strip.
+    const big = (ch: string) => lit(/<path id="rt-l-[^"]*" d="([^"]*)"/.exec(ruteroSvg({ code: 'X', destination: ch, uid: 'd' }))?.[1] ?? '');
+    const small = (ch: string) => lit(pasaPath(ruteroSvg({ code: 'X', destination: 'X', pasa: ch, uid: 'd' })));
+    const apart = (a: Set<string>, b: Set<string>) => [...a].filter((x) => !b.has(x)).length + [...b].filter((x) => !a.has(x)).length;
+    // Square-cornered copies of O and 8 were 2 and 3 dots off: MODELIA read MOOELIA, B918 read 8918.
+    expect(apart(big('D'), big('O'))).toBeGreaterThanOrEqual(6);
+    expect(apart(big('Q'), big('O'))).toBeGreaterThanOrEqual(6);
+    expect(apart(big('B'), big('8'))).toBeGreaterThanOrEqual(6);
+    expect(apart(small('D'), small('O'))).toBeGreaterThanOrEqual(6);
+    // The panels print 0 as a plain O (photographed): that pair is identical on purpose.
+    expect(apart(big('0'), big('O'))).toBe(0);
+  });
+
   test('the big face prints the degree sign, as 149\'s panel does', () => {
     expect(normalizeRuteroText('Est. Av. 1° de Mayo')).toBe('EST. AV. 1° DE MAYO');
   });
