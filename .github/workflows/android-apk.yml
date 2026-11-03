@@ -20,8 +20,18 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      # master_catalog.json is Git LFS (68 MB) and the mobile bundle is generated
+      # from it. Cached on the pointer's hash, as in tests.yml: `lfs: true` pulled it
+      # fresh on every tag, ~2.4 GB in October's 36 releases.
+      - name: Restore Git LFS cache
+        uses: actions/cache@v4
         with:
-          lfs: true # master_catalog.json (Git LFS) — the mobile bundle is generated from it
+          path: .git/lfs
+          key: lfs-${{ hashFiles('server/src/data/master_catalog.json') }}
+
+      - name: Fetch Git LFS objects
+        run: git lfs pull
 
       - name: Set up Node
         uses: actions/setup-node@v7
