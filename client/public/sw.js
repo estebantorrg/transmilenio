@@ -29,10 +29,18 @@ self.addEventListener('activate', (event) => {
 // are the previous builds; raise it if one build ever ships more files than this.
 const MAX_ASSETS = 40;
 const isBuildAsset = (req) => new URL(req.url).pathname.startsWith('/assets/');
+// Pages kept for offline use. Every route, station and shared `/viaje?…` link a
+// rider opened stayed until the next VERSION; the most recent ones are enough.
+const MAX_PAGES = 30;
+const isPage = (req) => {
+  const url = new URL(req.url);
+  return url.origin === self.location.origin && !url.pathname.startsWith('/api/') && !/\.\w+$/.test(url.pathname);
+};
 
-async function trimAssets(cache) {
-  const assets = (await cache.keys()).filter(isBuildAsset);
-  await Promise.all(assets.slice(0, Math.max(0, assets.length - MAX_ASSETS)).map((req) => cache.delete(req)));
+// The cache lists entries oldest first, and a re-`put` moves one to the end.
+async function trim(cache, keep, max) {
+  const entries = (await cache.keys()).filter(keep);
+  await Promise.all(entries.slice(0, Math.max(0, entries.length - max)).map((req) => cache.delete(req)));
 }
 
 async function cacheFirst(req) {
@@ -42,7 +50,7 @@ async function cacheFirst(req) {
   const res = await fetch(req);
   if (res.ok) {
     const stored = cache.put(req, res.clone());
-    if (isBuildAsset(req)) stored.then(() => trimAssets(cache)).catch(() => {});
+    if (isBuildAsset(req)) stored.then(() => trim(cache, isBuildAsset, MAX_ASSETS)).catch(() => {});
   }
   return res;
 }
@@ -51,7 +59,7 @@ async function networkFirst(req) {
   const cache = await caches.open(CACHE);
   try {
     const res = await fetch(req);
-    if (res.ok) cache.put(req, res.clone());
+    if (res.ok) cache.put(req, res.clone()).then(() => trim(cache, isPage, MAX_PAGES)).catch(() => {});
     return res;
   } catch {
     const hit = await cache.match(req);
