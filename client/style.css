@@ -6518,6 +6518,11 @@ body.native-app .route-detail-close:active {
   color: var(--text-tertiary);
 }
 
+/* The zonal sign over the printed rutero (flag `rutero-zonal`): room before the table. */
+.route-rutero-tradicional .rutero {
+  margin-bottom: 22px;
+}
+
 /* ── Paradas ──────────────────────────────────────────────────────────────
    The sidebar's timeline, given the room to read as a line diagram: numbered
    down the margin, its spine in the route's own colour. The 320 px cap the

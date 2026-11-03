@@ -11,10 +11,12 @@ import { normalizeRuteroText, ruteroSvg } from '../shared/rutero.js';
 const pasaPath = (svg: string) => /<path id="rt-p-[^"]*" d="([^"]*)"/.exec(svg)?.[1] ?? '';
 
 test.describe('the zonal panel', () => {
-  test('the top line and the código box are lit in the zone colour', () => {
+  test('the top line is lit in the zone colour, and only it', () => {
     const zonal = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'a', pasa: 'Porciúncula/AK 7' });
     expect(zonal).toContain('fill="#FCBD1B"');
-    expect(zonal.match(/fill="url\(#rt-z-a\)"/g)).toHaveLength(2);
+    // One band, the 13 rows of the top line: no box running down beside the second line.
+    expect(zonal.match(/fill="url\(#rt-z-a\)"/g)).toHaveLength(1);
+    expect(zonal).toMatch(/<rect width="\d+" height="13" fill="url\(#rt-z-a\)"\/>/);
     // Without a zone, the plain panel the troncal sign has.
     const plano = ruteroSvg({ code: 'F23', destination: 'Portal Américas', uid: 'b' });
     expect(plano.match(/fill="#[0-9a-f]{6}"/gi)?.sort()).toEqual(['fill="#05080c"', 'fill="#161d26"']);
@@ -28,10 +30,9 @@ test.describe('the zonal panel', () => {
     expect(oscuras('#009A9D')).toBe(true); // L149
   });
 
-  test('the second line runs beside the código box, not under it', () => {
+  test('the second line runs the full width under the top line', () => {
     const svg = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'g', pasa: 'Suba' });
-    // Panel padding 2 + four characters of 7 columns.
-    expect(svg).toContain('<rect x="30" y="13"');
+    expect(svg).toMatch(/<clipPath id="rt-c-g"><rect y="13" width="\d+" height="9"\/>/);
     expect(svg).toContain('stroke="#e9f6ff"');
   });
 
