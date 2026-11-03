@@ -198,6 +198,24 @@ function unirFragmentos(filas) {
   return out;
 }
 
+// A full-width band right under the destino ("DIRECTO NQS" on T163: the route
+// runs mostly along NQS) is not read — the same band lower down is, as a row
+// without a chip. `filas` in the corrections puts it back: a row without a chip
+// before the one whose hito is `antesDe`. Added here, after the review, so the
+// review page's row numbers stay those of the reading.
+const filasUsadas = new Set();
+function insertarFilas(s, filas) {
+  const out = [...filas];
+  for (const x of CORRECCIONES.filas) {
+    if (!s.copias.some((k) => k.pieza === x.pieza && k.tabla === x.tabla)) continue;
+    const at = out.findIndex((f) => f.hito === x.antesDe);
+    if (at < 0) continue;
+    out.splice(at, 0, { corredor: null, hito: x.es });
+    filasUsadas.add(x);
+  }
+  return out;
+}
+
 const publicar = {};
 for (const c of Object.keys(porRuta).sort()) {
   const r = porRuta[c];
@@ -211,10 +229,12 @@ for (const c of Object.keys(porRuta).sort()) {
     // reads SANTO DOMINGO, A520 EST. LAS NIEVES).
     destino: s.destinoDelCatalogo ? s.destino.normalize('NFC').replace(/\s+CICLOVÍA$/i, '') : s.destino,
     ...(s.operacion ? { operacion: s.operacion } : {}),
-    filas: (r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]),
+    filas: insertarFilas(s, r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]),
   }));
   publicar[c] = { formato: r.formato, sentidos };
 }
+const filasSinUsar = CORRECCIONES.filas.filter((x) => !filasUsadas.has(x));
+if (filasSinUsar.length) console.warn(`filas que no encontraron su lugar (${filasSinUsar.length}):\n${filasSinUsar.map((x) => `  ${JSON.stringify(x)}`).join('\n')}`);
 const SITE = join(HERE, '..', '..', 'server', 'src', 'data', 'ruteros_tradicionales.json');
 writeFileSync(SITE, JSON.stringify({
   fuente: 'Artes finales de las piezas TransMiZonal entregadas por TRANSMILENIO S.A. (radicado 2026-ER-47262, septiembre de 2026), leídas por scripts/ocr/ruteros.mjs',

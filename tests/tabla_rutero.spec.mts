@@ -131,6 +131,28 @@ test.describe('the drawing', () => {
     expect(html.match(/class="tr-corredor/g)).toHaveLength(2);
   });
 
+  test('one hito beside two chips is one cell, as the piece prints it', () => {
+    // D206: NORMANDÍA beside AV. ROJAS and CL 53.
+    const html = tablaRuteroHtml({
+      codigo: 'D206',
+      color: '#8064A9',
+      sentido: { destino: 'BACHUÉ', filas: [['AC 26', 0, 'CAN'], ['AV. ROJAS', 0, 'NORMANDÍA'], ['CL 53', 0, 'NORMANDÍA'], ['AV. C. CALI', 1, 'LA SERENA']] },
+    });
+    expect(html.match(/>NORMANDÍA</g)).toHaveLength(1);
+    expect(html).toContain('rowspan="2">NORMANDÍA<');
+    expect(html.match(/class="tr-corredor/g)).toHaveLength(4);
+  });
+
+  test('a DIRECTO band runs across the table, dark as printed', () => {
+    const html = tablaRuteroHtml({
+      codigo: 'T163',
+      color: '#1c6695',
+      sentido: { destino: 'CALLE 222', filas: [[null, 0, 'DIRECTO NQS'], ['AC 100', 0, 'CHICÓ NORTE'], [null, 0, 'ESTACIÓN AV. 1° DE MAYO']] },
+    });
+    expect(html).toContain('class="tr-hito tr-ancha tr-directo');
+    expect(html.match(/tr-directo/g)).toHaveLength(1);
+  });
+
   test('text is escaped', () => {
     const html = tablaRuteroHtml({ codigo: '1', color: '#000000', sentido: { destino: '<b>', filas: [['KR 1', 0, 'A&B']] } });
     expect(html).toContain('&lt;b&gt;');

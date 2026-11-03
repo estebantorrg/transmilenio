@@ -296,16 +296,26 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
       + `<p class="tr-franja">${pares}</p>${operacion}</figure>`;
   }
 
-  const body = agruparFilas(sentido.filas).map((run) => run.hitos.map((hito, i) => {
+  // One hito printed beside two chips is one cell on the piece too (D206's
+  // NORMANDÍA beside AV. ROJAS and CL 53): consecutive rows with the same hito share it.
+  const filas = agruparFilas(sentido.filas).flatMap((run) => run.hitos.map((hito, i) => ({ run, i, hito, span: 1 })));
+  for (let k = filas.length - 1; k > 0; k--) {
+    const [a, b] = [filas[k - 1], filas[k]];
+    if (a.run.corredor && b.run.corredor && a.hito === b.hito) { a.span += b.span; b.span = 0; }
+  }
+  const body = filas.map(({ run, i, hito, span }) => {
     // A row with no corredor runs across the whole table, as the print sets it
-    // (111's ESTACIÓN AV. 1° DE MAYO, the DIRECTO rows of the express stretches).
+    // (111's ESTACIÓN AV. 1° DE MAYO); a DIRECTO band — the stretch the route
+    // runs along, T163's DIRECTO NQS — is dark, as printed.
     const h = hitoHtml(hito);
-    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2"${h.title}>${h.html}</td></tr>`;
+    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha${/^DIRECTO\b/.test(hito) ? ' tr-directo' : ''} tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2"${h.title}>${h.html}</td></tr>`;
     const c = i > 0 ? null : corredorDicho(run.corredor, corredorHtml(run.corredor));
     const corredor = !c ? ''
       : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}${c.title}>${c.html}</th>`;
-    return `<tr>${corredor}<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}"${h.title}>${h.html}</td></tr>`;
-  }).join('')).join('');
+    const celda = !span ? ''
+      : `<td class="tr-hito tr-t${talla(hito, [9, 12, 15, 19])}"${span > 1 ? ` rowspan="${span}"` : ''}${h.title}>${h.html}</td>`;
+    return `<tr>${corredor}${celda}</tr>`;
+  }).join('');
   // The tab is a trapezoid with rounded shoulders; an SVG stretched to the box
   // draws it, its outline kept at one width by non-scaling-stroke.
   const pestana = '<svg viewBox="0 0 100 24" preserveAspectRatio="none" aria-hidden="true">'
@@ -313,7 +323,7 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
   return `<figure class="tabla-rutero" style="${style}" aria-label="${esc(label)}">`
     + `<div class="tr-pestana">${pestana}<span class="tr-codigo">${esc(codigo)}</span></div>`
     + `<div class="tr-cuerpo"><div class="tr-destino tr-t${talla(sentido.destino, [10, 13, 16, 20])}">${esc(sentido.destino)}</div>`
-    + `<table aria-label="${esc(label)}"><tbody>${body}</tbody></table></div>${operacion}</figure>`;
+    + `<table aria-label="${esc(label)}"><colgroup><col class="tr-col-chip"><col></colgroup><tbody>${body}</tbody></table></div>${operacion}</figure>`;
 }
 
 /**
@@ -397,6 +407,8 @@ export const TABLA_RUTERO_CSS = `
   text-align: center;
   vertical-align: middle;
 }
+/* The fixed layout takes its widths from the first row; a DIRECTO band there spans both columns (T163). */
+.tabla-rutero col.tr-col-chip { width: 30%; }
 .tabla-rutero .tr-corredor {
   width: 30%;
   background: #ffeb3d;
@@ -406,6 +418,7 @@ export const TABLA_RUTERO_CSS = `
 }
 .tabla-rutero .tr-corredor.tr-destacado { background: var(--tr-tinta-oscura); color: #fff; }
 .tabla-rutero .tr-hito.tr-ancha { background: #fff; }
+.tabla-rutero .tr-hito.tr-ancha.tr-directo { background: var(--tr-tinta-oscura); color: #fff; }
 .tabla-rutero .tr-chip-texto { display: block; white-space: nowrap; letter-spacing: -0.01em; }
 .tabla-rutero .tr-chip-texto.tr-t1 { font-size: 11cqi; }
 .tabla-rutero .tr-chip-texto.tr-t2 { font-size: 8.6cqi; }

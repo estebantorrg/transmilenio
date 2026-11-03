@@ -138,8 +138,13 @@ corregir y todo aviso aprobar (✓); el botón verde descarga el nuevo
 cambio dice pieza, tabla, celda y **lo que se leyó**: si una nueva lectura no
 coincide, el cambio deja de aplicarse y la celda vuelve a revisión.
 
-Noviembre de 2026: de 364 a **541 rutas** publicadas, 9 por decidir. Lo que salió
-de mirar los recortes, más allá de los avisos:
+Una fila que la lectura no vio no se corrige celda por celda: va en `filas` del
+mismo archivo (la banda `DIRECTO NQS` justo bajo el destino de T163, que más
+abajo en la tabla sí se lee), puesta antes de la fila cuyo hito es `antesDe`, al
+publicar. Se escribe a mano; la página no la edita.
+
+Noviembre de 2026: de 364 a **las 550 rutas** publicadas. Lo que salió de mirar
+los recortes, más allá de los avisos:
 
 - **"Limpia" no es "correcta".** `AV. IOMAYO` pasaba en 19 rutas: el normalizador
   acepta cualquier `AV. xxx`. Ahora solo pasan las avenidas del manual y las
