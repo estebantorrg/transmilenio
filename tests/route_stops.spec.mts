@@ -161,23 +161,32 @@ test.describe('the stop list on a route page', () => {
     expect(km).toBeLessThan(42);
   });
 
-  test('the map draws a zonal route one way, not its round-trip trace', async ({ page }) => {
-    await openRoute(page, 'l800');
-    // The highlighted line, in km: one path cut from the first stop to the last.
-    const drawnKm = () =>
-      page.evaluate(() => {
-        const paths: number[][][] | undefined = (window as any).__tmMap?.getSource('highlight-temp-source')?._data?.features?.[0]?.geometry.coordinates;
-        if (paths?.length !== 1) return null;
-        let m = 0;
-        for (let i = 1; i < paths[0].length; i++) {
-          const [[x0, y0], [x1, y1]] = [paths[0][i - 1], paths[0][i]];
+  /** The highlighted line on the map, in km, every path of it; null until it is drawn. */
+  const drawnKm = (page: Page) =>
+    page.evaluate(() => {
+      const paths: number[][][] | undefined = (window as any).__tmMap?.getSource('highlight-temp-source')?._data?.features?.[0]?.geometry.coordinates;
+      if (!paths?.length) return null;
+      let m = 0;
+      for (const path of paths) {
+        for (let i = 1; i < path.length; i++) {
+          const [[x0, y0], [x1, y1]] = [path[i - 1], path[i]];
           m += Math.hypot((x1 - x0) * 111320 * Math.cos((y0 * Math.PI) / 180), (y1 - y0) * 110540);
         }
-        return m / 1000;
-      });
+      }
+      return m / 1000;
+    });
+
+  test('the map draws a zonal route one way, not its round-trip trace', async ({ page }) => {
+    await openRoute(page, 'l800');
     // L800's trace is the whole 72 km circuit; towards Gaviotas it runs about 36.
-    await expect.poll(drawnKm, { timeout: 30_000 }).toBeGreaterThan(30);
-    expect(await drawnKm()).toBeLessThan(42);
+    await expect.poll(() => drawnKm(page), { timeout: 30_000 }).toBeGreaterThan(30);
+    expect(await drawnKm(page)).toBeLessThan(42);
+  });
+
+  test('an alimentador keeps its whole trazado on the map', async ({ page }) => {
+    await openRoute(page, '16-6');
+    // 14.4 km round trip; cut first stop to last it would be 7.4.
+    await expect.poll(() => drawnKm(page), { timeout: 30_000 }).toBeGreaterThan(12);
   });
 
   test('the printed rutero is drawn abbreviated and said spelled out', async ({ page }) => {

@@ -39,7 +39,7 @@ import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { initNativeBack } from './services/nativeBack';
 import { buildTraceIndex, traceSliceBetween } from './services/trace';
-import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
+import { getRouteAccentColor, getZonalRouteColor, isAlimentadorRoute } from './utils/routeColors';
 import { setCatalogIndexes } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
 import { formatDistance, haversineMeters, isWithinBogota, walkMinutes } from './utils/geo';
@@ -1112,7 +1112,8 @@ async function main(): Promise<void> {
       refreshRoutePage(route);
       // Most zonal trazados are the whole round trip: draw the direction on screen,
       // first stop to last (§5.6.3), and the whole trazado where its stops don't index onto it.
-      const index = route.type === 'zonal' ? buildTraceIndex(route.stops ?? [], route.geometry?.paths) : null;
+      // Alimentadores are typed zonal too, and keep their whole trazado (the maintainer's call).
+      const index = route.type === 'zonal' && !isAlimentadorRoute(route) ? buildTraceIndex(route.stops ?? [], route.geometry?.paths) : null;
       const sentido = index && traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
       highlightRoute(map, route.code, route.type, sentido ? { paths: [sentido] } : route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
