@@ -123,6 +123,36 @@ catálogo queda en `avisos`. No es ruido: F425 imprime una segunda franja de
 tarde que el catálogo no tiene, y TC14 un horario L-V / S / D-F donde el
 catálogo dice L-S / D-F.
 
+## Revisión a mano → `ruteros_correcciones.json`
+
+```
+node ruteros_consolidar.mjs           # aplica las correcciones, publica las limpias, escribe _ruteros/ver.html
+node ruteros_recortes.mjs             # recorta de cada pieza las tablas que faltan por revisar
+node ruteros_recortes.mjs --rutas 621,C160   # o las de estas rutas, limpias o no (auditorías)
+```
+
+`_ruteros/ver.html` (servido por `vite`: `/@fs/…/scripts/ocr/_ruteros/ver.html`)
+muestra cada tabla leída al lado de su recorte de la pieza. Toda celda se puede
+corregir y todo aviso aprobar (✓); el botón verde descarga el nuevo
+`ruteros_correcciones.json`, que va junto a este README y se versiona. Cada
+cambio dice pieza, tabla, celda y **lo que se leyó**: si una nueva lectura no
+coincide, el cambio deja de aplicarse y la celda vuelve a revisión.
+
+Noviembre de 2026: de 364 a **541 rutas** publicadas, 9 por decidir. Lo que salió
+de mirar los recortes, más allá de los avisos:
+
+- **"Limpia" no es "correcta".** `AV. IOMAYO` pasaba en 19 rutas: el normalizador
+  acepta cualquier `AV. xxx`. Ahora solo pasan las avenidas del manual y las
+  comprobadas (`avenidas`); el resto se marca.
+- **La franja digital lee "El" como `EI`** (25 rutas) y parte los hitos en el
+  punto de su abreviatura (`Pq` / `El Tunal`): las dos cosas se reparan al
+  publicar. También confunde `rn` y `m` (`Paloquernao`).
+- **Un destino ilegible se tomaba del catálogo**, y a veces del de su variante
+  dominical: ninguna pieza imprime `CICLOVÍA` en la banda, y se quita al publicar.
+  Esos 155 destinos siguen sin comprobar contra la pieza.
+- **Las calles con letra I** (`KR 18I`, `TV 77I`) se leían como número (`KR 181`).
+- Muestra al azar de 15 rutas limpias: 14 idénticas a la pieza.
+
 ---
 
 # Planos de estación → vagones y mobiliario

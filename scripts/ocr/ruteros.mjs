@@ -37,7 +37,9 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 import { ZONAS, leerCodigoZonal, normalizarCorredor } from '../../shared/nomenclatura.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ARTES = join(HERE, '..', '..', 'peticiones', 'Respuesta A', '09-2026_Artesfinales TransMiZonales');
+export const ARTES = join(HERE, '..', '..', 'peticiones', 'Respuesta A', '09-2026_Artesfinales TransMiZonales');
+// The file ruteros_recortes.mjs writes table n of a piece to, and the review page reads it from.
+export const recorteId = (archivo, n) => `${archivo.replace(/\.pdf$/i, '').replace(/[^A-Za-z0-9-]+/g, '_')}__${n}.png`;
 const OUT = join(HERE, '_ruteros');
 const SCALE = 6; // 612pt → 3672px; a 40×20pt chip becomes 240×120px
 // Each cell is OCR'd at these fractions of SCALE and the readings vote: the
@@ -148,7 +150,7 @@ function withChiplessRows(t, rows) {
 }
 
 /** Tables, their cells, and the schedule chips, all in page points (top-down). */
-function layout({ W, fills }) {
+export function layout({ W, fills }) {
   // Every size below is for a 612pt-wide plegable. Volantes are ~397pt wide and
   // draw the same table at about 0.65 of it (G528's chips are 26pt, not 40), so
   // the bounds scale with the page rather than being tuned twice.

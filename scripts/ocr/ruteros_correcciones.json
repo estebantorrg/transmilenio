@@ -1,0 +1,1291 @@
+{
+  "_léeme": "Correcciones a mano de la lectura de las artes (ruteros.mjs), aplicadas por ruteros_consolidar.mjs antes de decidir qué ruta está limpia. Se hacen en _ruteros/ver.html y se guardan aquí. cambios: pieza, tabla como la nombran los avisos (\"tabla 2\", \"digital 0\"), celda (\"destino\", o \"corredor\"/\"hito\" con su fila), lo que se leyó y lo que dice la pieza; si una nueva lectura no coincide con \"leido\", el cambio no se aplica y la celda vuelve a revisión. Con \"es\" igual a \"leido\", la lectura queda aprobada tal cual. todas: la misma lectura errada en cualquier pieza. aprobados: avisos de una ruta que se revisaron contra la pieza y están bien como están. avenidas: nombres de avenida comprobados en las piezas, además de los del manual.",
+  "cambios": [
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "DIRECTO",
+      "es": "DIRECTO AV. C. CALI"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "AV. C. CALI",
+      "es": "DIRECTO AV. C. CALI"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "KR 1M",
+      "es": "KR 111"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "1 NS MERCEDES",
+      "es": "LAS MERCEDES"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_117.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "AV.",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_LH 803.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "AV.",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_LH 803.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "MAYO",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 417.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 417.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "CL 26",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 417.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "Sur",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 417.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_N16.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "KROBE",
+      "es": "KR 13B E"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_N16.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "EST. AV. MAYO",
+      "es": "EST. AV. 1° MAYO"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante_WEB_L 823.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "",
+      "es": "KR 3"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 402.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "AM RiCAS",
+      "es": "AV. AMÉRICAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_H 638.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "JUAN PABLO 11",
+      "es": "JUAN PABLO II"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_H 638.pdf",
+      "tabla": "tabla 1",
+      "celda": "hito",
+      "fila": 0,
+      "leido": "JUAN PABLO 11",
+      "es": "JUAN PABLO II"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante H 625.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "POTOSÍ"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante WEB F425.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "AU.AR11MUA",
+      "es": "CIRCULAR TIMIZA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F425.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "AU.AR11MUA",
+      "es": "CIRCULAR TIMIZA"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante_WEB_L 808.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "ST.AV.",
+      "es": "EST. AV. 1° MAYO"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante_WEB_L 823.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "EST. BICENTENARIO"
+    },
+    {
+      "pieza": "P1_TransMiZolanes con conexión troncal/Volante_WEB_T27.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "EST. AV. DE MAYO",
+      "es": "EST. AV. 1 DE MAYO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_AF 427.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "CAII..AINIDA[IHA",
+      "es": "CALANDAIMA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_AG 520.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "BOSA SAN",
+      "es": "BOSA SAN DIEGO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_AH 606.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "SAN JOAQUÍN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_AL 809.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "RITA S.O.",
+      "es": "SANTA RITA S.O."
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BC 118.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "SU•RAUM",
+      "es": "SAN CRISTÓBAL NTE."
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BC 167.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "CUA6",
+      "es": "CHICÓ"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BC 917.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "VILLA ANDY",
+      "es": "VILLA CINDY"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BD 217.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "SABANAS DEL DORADO",
+      "es": "SABANA DEL DORADO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BD 237.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "ENGATIVÁ CNTRO",
+      "es": "ENGATIVÁ CENTRO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BD 909.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "DE",
+      "es": "VILLAS DE GRANADA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BF 401.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "ERRA BUENA",
+      "es": "TIERRA BUENA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BF 419.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "II\"ACÁ",
+      "es": "LIJACÁ"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BH 609.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "AZONMDOUA1.M",
+      "es": "ARBORIZADORA ALTA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BH 631.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "PARASO",
+      "es": "PARAÍSO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BH 907.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "NORTE",
+      "es": "TERMINAL NORTE"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BH 907.pdf",
+      "tabla": "tabla 3",
+      "celda": "destino",
+      "leido": "USME CNTRO",
+      "es": "USME CENTRO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BK 309.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "LUACA",
+      "es": "LIJACÁ"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BK 904.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "TERMINAL SALITRE"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BL 919.pdf",
+      "tabla": "tabla 2",
+      "celda": "destino",
+      "leido": "AUOVS",
+      "es": "GAVIOTAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BL 919.pdf",
+      "tabla": "tabla 3",
+      "celda": "destino",
+      "leido": "AUOVS",
+      "es": "GAVIOTAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CB 162.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "SAN CRISTÓBAL NTE"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CB 162.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "SI.LUKAFFANA",
+      "es": "SUBA GAITANA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CG 157.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "SUBA AORPAS",
+      "es": "SUBA CORPAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CH 116.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "FONTANAR DEL RÍO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CH 612.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "SAN JOAQUÍN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CK 102.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "SUBA",
+      "es": "SUBA FONTANAR"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CK 323.pdf",
+      "tabla": "digital 1",
+      "celda": "destino",
+      "leido": "EI RECODO",
+      "es": "El Recodo"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_DH 607.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "ARBORIZADORA ALTA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_DK 211.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "GRAN",
+      "es": "GRAN GRANADA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_FH 408.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "ERRA BUENA",
+      "es": "TIERRA BUENA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_FH 733.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "R\"S DE",
+      "es": "CERROS DE ORIENTE"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_GA 587.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "DE",
+      "es": "PARQUES DE BOGOTÁ"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_GK 576.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "CAN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_GL 533.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "DORA LILIANA",
+      "es": "DOÑA LILIANA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_GL 533.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "METROVIVIENDA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_HA 643.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "SAN JOAQUÍN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_KL 307.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "ELRECODO",
+      "es": "EL RECODO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_KL 812.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "TERMINAL SALITRE"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_LH 803.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "DORA UUANA",
+      "es": "DOÑA LILIANA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_AF 426.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "GALÁN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_BC 913.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "EST.",
+      "es": "EST. MAZURÉN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_BC 925.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "SR. NIU-A 127",
+      "es": "EST. NIZA-CL 127"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_DK 276.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "CAN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_FG 414.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "VILLA",
+      "es": "VILLA ALEXANDRA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_FG 511.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "PORTAL AMÉRICAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_FG 512.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "PORTAL AMÉRICAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_G 525.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "",
+      "es": "PORVENIR"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_G 525.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "",
+      "es": "BOSA ESTACIÓN"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_GF 546.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "NMUUÉNAS",
+      "es": "PORTAL AMÉRICAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_GH 543.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "ST.G.WTANDER",
+      "es": "EST. G.SANTANDER"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_H 639.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "ZOMDOUA1.M",
+      "es": "ARBORIZADORA ALTA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_HL 716.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "EST. AV. MAYO",
+      "es": "EST. AV. 1° MAYO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_HL 716.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "MOLINOS",
+      "es": "MOLINOS II"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_L 815.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "VILLA DEL CRRO",
+      "es": "VILLA DEL CERRO"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_E61.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "CALLE OO",
+      "es": "CALLE 100"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_SE14.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "D.TURBAY CU LTIVOS",
+      "es": "D.TURBAY CULTIVOS"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T12.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "CALLE OO",
+      "es": "CALLE 100"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T21.pdf",
+      "tabla": "tabla 0",
+      "celda": "destino",
+      "leido": "CLF. CORPAS-CONEJERA",
+      "es": "CLÍ. CORPAS-CONEJERA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "DIRECTO",
+      "es": "DIRECTO AV. C. CALI"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "AV. C. CALI",
+      "es": "DIRECTO AV. C. CALI"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CG 509.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "AV.",
+      "es": "AV. C. CALI"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_DK 211.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "",
+      "es": "AV. CL 26"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_DK 211.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "",
+      "es": "AV. CL 26"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BH 907.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "",
+      "es": "TV 5H"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_KL 810.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "",
+      "es": "KR 3"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_AD 203.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 2,
+      "leido": "",
+      "es": "UNICENTRO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_AG 018.pdf",
+      "tabla": "tabla 1",
+      "celda": "hito",
+      "fila": 1,
+      "leido": "",
+      "es": "CARABELAS"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_B 920.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 0,
+      "leido": "",
+      "es": "UNICENTRO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 402.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "AV.",
+      "es": "AV. C. CALI"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 409.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 409.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "",
+      "es": "CL 26 S"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_F 424.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "",
+      "es": "DG 9"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_HL 716.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "",
+      "es": "KR 1A"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_HL 716.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "",
+      "es": "KR 1A"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "un",
+      "es": "KR 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "",
+      "es": "KR 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 2",
+      "celda": "corredor",
+      "fila": 3,
+      "leido": "",
+      "es": "KR 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 3",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "",
+      "es": "KR 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 3",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "DIRECTO",
+      "es": "DIRECTO KR 10"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T13.pdf",
+      "tabla": "tabla 3",
+      "celda": "corredor",
+      "fila": 2,
+      "leido": "KR 10",
+      "es": "DIRECTO KR 10"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_18-11.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 2,
+      "leido": "",
+      "es": "UNICENTRO"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_18-11.pdf",
+      "tabla": "tabla 1",
+      "celda": "hito",
+      "fila": 1,
+      "leido": "",
+      "es": "UNICENTRO"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_10-12.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "VÍA",
+      "es": "VÍA QUIBA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_10-12.pdf",
+      "tabla": "tabla 0",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "QUIBA",
+      "es": "VÍA QUIBA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_10-12.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 0,
+      "leido": "VÍA",
+      "es": "VÍA QUIBA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Volante_WEB_10-12.pdf",
+      "tabla": "tabla 1",
+      "celda": "corredor",
+      "fila": 1,
+      "leido": "QUIBA",
+      "es": "VÍA QUIBA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_G 536.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "",
+      "es": "SENA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_621.pdf",
+      "tabla": "tabla 2",
+      "celda": "hito",
+      "fila": 2,
+      "leido": "1 NS FERIAS/TITÁN PLAZA",
+      "es": "LAS FERIAS/TITÁN PLAZA"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_C 160.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 0,
+      "leido": "LA CAMPIÑA 11",
+      "es": "LA CAMPIÑA II"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_C 160.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "SR. LA CAMPIRA",
+      "es": "EST. LA CAMPIÑA"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_731.pdf",
+      "tabla": "tabla 1",
+      "celda": "destino",
+      "leido": "SAN JOSÉ 1",
+      "es": "BOSA SAN JOSÉ"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_16-12.pdf",
+      "tabla": "digital 0",
+      "celda": "hito",
+      "fila": 0,
+      "leido": "Urb_ Batavia",
+      "es": "Urb. Batavia"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_CH 612.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "AURES 11",
+      "es": "AURES II"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_621.pdf",
+      "tabla": "tabla 0",
+      "celda": "hito",
+      "fila": 1,
+      "leido": "STA ISABEURESTREPO",
+      "es": "STA ISABEL/RESTREPO"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BK 326.pdf",
+      "tabla": "digital 0",
+      "celda": "corredor",
+      "fila": 5,
+      "leido": "",
+      "es": "CL 100"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_BK 326.pdf",
+      "tabla": "digital 0",
+      "celda": "hito",
+      "fila": 5,
+      "leido": "La FlorestaCL 100",
+      "es": "La Floresta"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Plegable_WEB_AK 305.pdf",
+      "tabla": "digital 1",
+      "celda": "hito",
+      "fila": 3,
+      "leido": "Salitre P laza",
+      "es": "Salitre Plaza"
+    },
+    {
+      "pieza": "P2_TransMiZonales nueva señalética/Volante_WEB_KF 333.pdf",
+      "tabla": "digital 1",
+      "celda": "hito",
+      "fila": 0,
+      "leido": "Z.l",
+      "es": "Z.I."
+    }
+  ],
+  "todas": [
+    {
+      "celda": "corredor",
+      "leido": "AV. VIQO",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. wao",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. V/QO",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. IOMAYO",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. MAYO",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. 10 Mayo",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. G. CORTES",
+      "es": "AV. G. CORTÉS"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. J.G.C",
+      "es": "AV. J. GAITÁN C."
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV.J.G.C",
+      "es": "AV. J. GAITÁN C."
+    },
+    {
+      "celda": "corredor",
+      "leido": "A\\/. J. Gaitán C.",
+      "es": "AV. J. GAITÁN C."
+    },
+    {
+      "celda": "corredor",
+      "leido": "Auto Llano",
+      "es": "AUTO LLANO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AUTOLLANO",
+      "es": "AUTO LLANO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "VÍA COTA",
+      "es": "VÍA COTA"
+    },
+    {
+      "celda": "corredor",
+      "leido": "VIA COTA",
+      "es": "VÍA COTA"
+    },
+    {
+      "celda": "corredor",
+      "leido": "Vía a Sumapaz",
+      "es": "VÍA A SUMAPAZ"
+    },
+    {
+      "celda": "corredor",
+      "leido": "KR 181",
+      "es": "KR 18I"
+    },
+    {
+      "celda": "corredor",
+      "leido": "TV 181",
+      "es": "TV 18I"
+    },
+    {
+      "celda": "corredor",
+      "leido": "TV181",
+      "es": "TV 18I"
+    },
+    {
+      "celda": "destino",
+      "leido": "EST. AV. DE MAYO",
+      "es": "EST. AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. IOMAMO",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. WA O",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. V,RAO",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. V/AO",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "KR 801",
+      "es": "KR 80I"
+    },
+    {
+      "celda": "corredor",
+      "leido": "TV 771",
+      "es": "TV 77I"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. WCIO",
+      "es": "AV. V/CIO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. 10 MAYO",
+      "es": "AV. 1° DE MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. J. GAITÁN",
+      "es": "AV. J. GAITÁN C."
+    },
+    {
+      "celda": "corredor",
+      "leido": "TV 781",
+      "es": "TV 78I"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. VILLÀS",
+      "es": "AV. VILLAS"
+    },
+    {
+      "celda": "corredor",
+      "leido": "V. C. Cali",
+      "es": "AV. C. CALI"
+    },
+    {
+      "celda": "hito",
+      "leido": "Gerrnania",
+      "es": "Germania"
+    },
+    {
+      "celda": "hito",
+      "leido": "Paloquernao",
+      "es": "Paloquemao"
+    },
+    {
+      "celda": "hito",
+      "leido": "Palerrno",
+      "es": "Palermo"
+    },
+    {
+      "celda": "hito",
+      "leido": "Tirniza",
+      "es": "Timiza"
+    },
+    {
+      "celda": "hito",
+      "leido": "Alarnos",
+      "es": "Alamos"
+    },
+    {
+      "celda": "hito",
+      "leido": "Bibi. Tintal",
+      "es": "Bibl. Tintal"
+    },
+    {
+      "celda": "hito",
+      "leido": "EST. 1 OMAYO",
+      "es": "EST. 1° MAYO"
+    },
+    {
+      "celda": "corredor",
+      "leido": "AV. GINES",
+      "es": "AV. GUAYACANES"
+    }
+  ],
+  "aprobados": {
+    "12": [
+      "destino \"FONTIBÓN S. PABLO\" casi igual a \"Fontibón San Pablo\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "142": [
+      "tabla 0: destino \"TEUSAQUILLO\" no se parece a ninguno del catálogo (Centro Internacional / Engativá)"
+    ],
+    "271": [
+      "tabla 0: destino \"GRAN GRANADA\" no se parece a ninguno del catálogo (Unir / Lomas)",
+      "tabla 1: destino \"GRAN GRANADA\" no se parece a ninguno del catálogo (Unir / Lomas)"
+    ],
+    "359": [
+      "tabla 0: destino \"GERMANIA\" no se parece a ninguno del catálogo (Centro / Calle 53 / Zona Industrial Alamos)",
+      "destino \"ZN. INDUSTRIAL ÁLAMOS\" casi igual a \"Zona Industrial Álamos\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "402": [
+      "tabla 0: destino \"AUTO NORTE-EST.TERMINAL\" no se parece a ninguno del catálogo (Mirandela / Engativà)",
+      "tabla 1: destino \"AUTO NORTE-EST.TERMINAL\" no se parece a ninguno del catálogo (Mirandela / Engativà)"
+    ],
+    "466": [
+      "tabla 1: destino \"SABANA DEL DORADO\" no se parece a ninguno del catálogo (Chico Norte Ciclovía / Engativà)"
+    ],
+    "579": [
+      "tabla 0: destino \"MARLY\" no se parece a ninguno del catálogo (El Recreo Ciclovía / Marly Ciclovía)"
+    ],
+    "661": [
+      "tabla 0: destino \"VERBENAL\" no se parece a ninguno del catálogo (San Martín de Loba / Terminal Norte)",
+      "tabla 1: destino \"PENÍNSULA\" no se parece a ninguno del catálogo (San Martín de Loba / Terminal Norte)"
+    ],
+    "669": [
+      "tabla 1: destino \"GALÁN\" no se parece a ninguno del catálogo (Gran Granada / Camelia)"
+    ],
+    "786": [
+      "tabla 0: destino \"DIANA TURBAY-PUENTES\" no se parece a ninguno del catálogo (Metrovivienda / Molino)"
+    ],
+    "H641": [
+      "destino \"SANTO DOMINGO P.M.\" casi igual a \"Santo Domingo\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "A809": [
+      "tabla 0: destino \"MARLY\" no se parece a ninguno del catálogo (Marly Ciclovía / Hsp. San Cristobal)"
+    ],
+    "B900": [
+      "tabla 0: destino \"EL CODITO\" no se parece a ninguno del catálogo (La Estrellita)"
+    ],
+    "B918": [
+      "tabla 2: destino \"LA RIVERA\" no se parece a ninguno del catálogo (Patio Bonito)",
+      "tabla 3: destino \"LA RIVERA\" no se parece a ninguno del catálogo (Patio Bonito)"
+    ],
+    "F918": [
+      "tabla 2: destino \"LA RIVERA\" no se parece a ninguno del catálogo (Patio Bonito)",
+      "tabla 3: destino \"LA RIVERA\" no se parece a ninguno del catálogo (Patio Bonito)"
+    ],
+    "B608": [
+      "tabla 0: destino \"CALLE 134\" no se parece a ninguno del catálogo (Chicó Navarra Ciclovía)"
+    ],
+    "H608": [
+      "tabla 0: destino \"CALLE 134\" no se parece a ninguno del catálogo (Chicó Navarra Ciclovía)"
+    ],
+    "B647": [
+      "tabla 0: destino \"CALLE 134\" no se parece a ninguno del catálogo (AC 134 - AK 9)",
+      "tabla 1: destino \"ALPES\" no se parece a ninguno del catálogo (Alpes Ciclovía)"
+    ],
+    "H647": [
+      "tabla 0: destino \"CALLE 134\" no se parece a ninguno del catálogo (AC 134 - AK 9)",
+      "tabla 1: destino \"ALPES\" no se parece a ninguno del catálogo (Alpes Ciclovía)"
+    ],
+    "B903": [
+      "tabla 0: destino \"TERMINAL NORTE\" no se parece a ninguno del catálogo (Verbenal)"
+    ],
+    "K903": [
+      "tabla 0: destino \"TERMINAL NORTE\" no se parece a ninguno del catálogo (Verbenal)"
+    ],
+    "B161": [
+      "tabla 1: destino \"LISBOA\" no se parece a ninguno del catálogo (Villa Gloria Ciclovía)"
+    ],
+    "C161": [
+      "tabla 1: destino \"LISBOA\" no se parece a ninguno del catálogo (Villa Gloria Ciclovía)"
+    ],
+    "C404": [
+      "tabla 1: destino \"PATIO BONITO\" no se parece a ninguno del catálogo (Tierra Buena)"
+    ],
+    "F404": [
+      "tabla 1: destino \"PATIO BONITO\" no se parece a ninguno del catálogo (Tierra Buena)"
+    ],
+    "D205": [
+      "tabla 1: destino \"LOMAS\" no se parece a ninguno del catálogo (Lomas Ciclovía)"
+    ],
+    "L205": [
+      "tabla 1: destino \"LOMAS\" no se parece a ninguno del catálogo (Lomas Ciclovía)"
+    ],
+    "A680": [
+      "destino \"LAS AGUAS\" casi igual a \"Las Aguas PM\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "H680": [
+      "destino \"ISLA DEL SOL\" casi igual a \"Isla del Sol AM\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "F718": [
+      "destino \"LA RIVERA\" casi igual a \"La Riviera\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "H811": [
+      "tabla 1: destino \"EST. RESTREPO\" no se parece a ninguno del catálogo (Restrepo Ciclovía)"
+    ],
+    "L811": [
+      "tabla 1: destino \"EST. RESTREPO\" no se parece a ninguno del catálogo (Restrepo Ciclovía)"
+    ],
+    "A002": [
+      "tabla 1: destino \"EST. MOVISTAR ARENA\" no se parece a ninguno del catálogo (San Luis Ciclovía / El Campin)"
+    ],
+    "B913": [
+      "tabla 1: destino \"AV. BOYACÁ\" no se parece a ninguno del catálogo (Veramonte)"
+    ],
+    "C913": [
+      "tabla 1: destino \"AV. BOYACÁ\" no se parece a ninguno del catálogo (Veramonte)"
+    ],
+    "F423": [
+      "destino \"FAVIDI A.M.\" casi igual a \"Favidi\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "F424": [
+      "destino \"FAVIDI P.M.\" casi igual a \"Favidi\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "H604": [
+      "tabla 1: destino \"SIERRA MORENA\" no se parece a ninguno del catálogo (Est. General Santander / Santo Domingo)"
+    ],
+    "K337": [
+      "destino \"PORTAL ELDORADO\" casi igual a \"Portal El Dorado\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "18-3": [
+      "tabla 0: destino \"AUTONORTE - EST. TERMINAL\" no se parece a ninguno del catálogo (Germania / Est. Terminal Norte / Alemania)"
+    ],
+    "C101": [
+      "tabla 0: destino \"EL PALMAR\" no se parece a ninguno del catálogo (Sabana del Dorado / Providencia Alta)"
+    ],
+    "C25": [
+      "tabla 1: destino \"SABANA DEL DORADO\" no se parece a ninguno del catálogo (Unicentro / Engativa Ciclovía / Portal Suba)"
+    ],
+    "E44": [
+      "tabla 0: destino \"MIRANDELA\" no se parece a ninguno del catálogo (Terminal Norte / El Uval Ciclovía)",
+      "tabla 1: destino \"MIRANDELA\" no se parece a ninguno del catálogo (Terminal Norte / El Uval Ciclovía)"
+    ],
+    "P500": [
+      "tabla 0: destino \"CENTRO ANDINO\" no se parece a ninguno del catálogo (Chicó / Aeropuerto)"
+    ],
+    "Z4B": [
+      "tabla 0: destino \"EST. TERMINAL\" no se parece a ninguno del catálogo (Terminal Norte Ciclovía / Terminal Salitre Ciclovía)"
+    ],
+    "18-11": [
+      "destino \"UNICERROS-AM\" casi igual a \"Unicerros\" del catálogo: ¿lectura errada o nombre distinto?",
+      "destino \"UNICERROS-PM\" casi igual a \"Unicerros\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "19-9": [
+      "destino \"BARRANCAS NORTE\" casi igual a \"Barancas Norte\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "T06": [
+      "tabla 0: destino \"LA SUREÑA\" no se parece a ninguno del catálogo (San Luis Ciclovía / Porciuncula Ciclovía)"
+    ],
+    "B118": [
+      "destino \"SAN CRISTÓBAL NTE.\" casi igual a \"San Cristóbal Norte\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "B162": [
+      "destino \"SAN CRISTÓBAL NTE\" casi igual a \"San Cristóbal Norte\" del catálogo: ¿lectura errada o nombre distinto?"
+    ],
+    "L809": [
+      "tabla 0: destino \"MARLY\" no se parece a ninguno del catálogo (Marly Ciclovía / Hsp. San Cristobal)"
+    ],
+    "A900": [
+      "tabla 0: destino \"EL CODITO\" no se parece a ninguno del catálogo (La Estrellita)"
+    ],
+    "F414": [
+      "tabla 0: destino \"HSP.\" no se parece a ninguno del catálogo (Hsp. Kennedy)"
+    ]
+  },
+  "avenidas": [
+    "AV. BOSA",
+    "AV. C/VLAR",
+    "AV. CAMINO PASQUILLA",
+    "AV. CHILE",
+    "AV. CIRCUNVALAR",
+    "AV. CL 26",
+    "AV. G. CORTÉS",
+    "AV. GUAYACANES",
+    "AV. LOS CERROS",
+    "AV. MUTIS",
+    "AV. ROJAS",
+    "AV. SUBA",
+    "AV. TINTAL",
+    "AV. VILLAS"
+  ]
+}
