@@ -8,6 +8,7 @@ import type { TrackingStatus } from '@shared/layers/buses';
 import type { LiveBusResult } from '@shared/services/api';
 import { closedWindowNotice } from '@shared/services/liveWindow';
 import { sentidosDeRuta } from '@shared/services/ruteros';
+import { tidy } from '@shared/ui/routeDetail';
 import { corredoresDe } from '../../../../shared/tabla_rutero.js';
 import { expandirCorredor } from '../../../../shared/nomenclatura.js';
 import { h, escapeHTML } from '../lib/dom';
@@ -59,7 +60,7 @@ export function liveChip(status: TrackingStatus | 'loading', result?: LiveBusRes
  * `antes`: the retired código(s) a search just matched this route by, shown as
  * "antes 39" so the result does not appear for no visible reason.
  */
-export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => void, antes: string[] = []): HTMLElement {
+export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => void, antes: string[] = [], lugar?: string): HTMLElement {
   const card = h('button', { class: 'route-card', type: 'button' });
   card.append(routeBadge(route, 'md'));
   const meta = h('div', { class: 'route-card-meta' });
@@ -67,12 +68,13 @@ export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => voi
     h('div', { class: 'route-card-name', text: route.name }),
     h('div', {
       class: 'route-card-sub',
-      html: `${antes.length ? `<span class="route-chip route-chip-antes">antes ${escapeHTML(antes.join(', '))}</span> ` : ''}<span class="route-chip">${escapeHTML(routeTypeLabel(route))}</span> ${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`,
+      // A route listed for a barrio says why it is here, where its ends would say nothing about it.
+      html: `${antes.length ? `<span class="route-chip route-chip-antes">antes ${escapeHTML(antes.join(', '))}</span> ` : ''}${lugar ? `por ${escapeHTML(tidy(lugar))}` : `<span class="route-chip">${escapeHTML(routeTypeLabel(route))}</span> ${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`}`,
     })
   );
   // The corredores its printed rutero names, the main one first, as the website's list shows them:
   // drawn as printed, said spelled out ("AC 63" is "AVENIDA CALLE 63").
-  const corredores = corredoresDe(sentidosDeRuta(route));
+  const corredores = lugar ? [] : corredoresDe(sentidosDeRuta(route));
   if (corredores.length) {
     meta.append(h('div', { class: 'route-card-via' }, [
       h('span', { 'aria-hidden': 'true', text: `por ${corredores.join(' · ')}` }),

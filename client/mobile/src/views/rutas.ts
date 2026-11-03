@@ -24,6 +24,7 @@ import { placeCard } from '../ui/pointRow';
 import { ICONS, routeCard } from '../ui/components';
 import { codigosAnteriores } from '../../../../shared/renumeraciones.js';
 import { loadRuteros, ruterosCargados } from '@shared/services/ruteros';
+import { loadHitos, rutasQuePasan } from '@shared/services/barrios';
 import type { View } from './types';
 
 type Filter = 'all' | 'troncal' | 'zonal' | 'alimentador' | 'facil' | 'fav';
@@ -158,20 +159,23 @@ export function createRutasView(): View {
   let shownRoutes = PAGE_SIZE;
   let shownPlaces = PLACE_LIMIT;
   let ruterosPedidos = false;
+  /** Route id → the place the query names that it passes, for the routes listed only for that. */
+  let lugares = new Map<string, string>();
 
   function matchedRoutes(): RouteListItem[] {
     const q = normalizePointText(query);
     const favorites = new Set(getFavorites());
-    const matched = state.routes.filter((r) => {
+    const base = state.routes.filter((r) => {
       if (lineFilter) {
         // Troncal corridor line (A–P) — TransMilenio only.
         if (r.type !== 'troncal' || !getRouteZoneLetters(r.code).includes(lineFilter)) return false;
       }
-      if (!matchesFilter(r, activeFilter, favorites)) return false;
-      if (!q) return true;
-      // The código it replaced is searchable too (shared/renumeraciones.js).
-      return normalizePointText(`${r.code} ${codigosAnteriores(r.code).join(' ')} ${r.name} ${r.origin} ${r.destination}`).includes(q);
+      return matchesFilter(r, activeFilter, favorites);
     });
+    // The código it replaced is searchable too (shared/renumeraciones.js).
+    const matched = q
+      ? base.filter((r) => normalizePointText(`${r.code} ${codigosAnteriores(r.code).join(' ')} ${r.name} ${r.origin} ${r.destination}`).includes(q))
+      : base;
     // Under a search, exact/prefix code hits outrank text matches (e.g. "7"
     // surfaces ruta 7 before 7-1 and before names containing a 7).
     const rank = (r: RouteListItem): number => {
@@ -189,7 +193,15 @@ export function createRutasView(): View {
       }
       return compareRouteListItems(a, b);
     });
-    return matched;
+    lugares = new Map();
+    // After them, the routes that only pass there (spec §5.4.2b, as on the website). Favoritas stay the rider's own list.
+    if (!q || activeFilter === 'fav') return matched;
+    loadHitos(() => {
+      if (query.trim()) render();
+    });
+    const yaEstan = new Set(matched);
+    lugares = rutasQuePasan(base.filter((r) => !yaEstan.has(r)), query);
+    return [...matched, ...base.filter((r) => lugares.has(r.id)).sort(compareRouteListItems)];
   }
 
   function scopeLabel(s: Scope): string {
@@ -385,10 +397,12 @@ export function createRutasView(): View {
       return;
     }
 
-    if (preview.length > 0) {
+    // A list of nothing but passing routes has its own title, and a bare "Rutas" over it would say nothing.
+    const directas = routes.length - lugares.size;
+    if (preview.length > 0 && directas > 0) {
       list.append(h('div', { class: 'search-places-title' }, [
         document.createTextNode('Rutas'),
-        h('span', { class: 'search-places-count', text: String(routes.length) }),
+        h('span', { class: 'search-places-count', text: String(directas) }),
       ]));
     }
     // The rows' "por …" corredores come from the printed ruteros: drawn again once they are in.
@@ -399,12 +413,28 @@ export function createRutasView(): View {
         if (loaded) render();
       });
     }
-    const visible = routes.slice(0, shownRoutes);
-    for (const route of visible) {
+    // Above the places, a barrio's passing routes are a preview: it can list hundreds.
+    const tope = preview.length > 0 ? directas + PLACE_PREVIEW : Infinity;
+    const visible = routes.slice(0, Math.min(shownRoutes, tope));
+    visible.forEach((route, i) => {
+      const lugar = lugares.get(route.id);
+      if (lugar && i === directas) {
+        list.append(h('div', { class: 'search-places-title' }, [
+          document.createTextNode(`Rutas que pasan por ${q}`),
+          h('span', { class: 'search-places-count', text: String(lugares.size) }),
+        ]));
+      }
       const antes = q ? codigosAnteriores(route.code).filter((a) => normalizePointText(a).includes(normalizePointText(q))) : [];
-      list.append(routeCard(route, openRouteSheet, antes));
-    }
-    if (routes.length > visible.length) {
+      list.append(routeCard(route, openRouteSheet, antes, lugar));
+    });
+    if (visible.length === tope && tope < routes.length) {
+      const all = h('button', { class: 'list-more', type: 'button', text: `Ver las ${lugares.size} rutas` });
+      all.addEventListener('click', () => {
+        scope = 'routes';
+        render();
+      });
+      list.append(all);
+    } else if (routes.length > visible.length) {
       const more = h('button', { class: 'list-more', type: 'button', text: `Ver más (${routes.length - visible.length} restantes)` });
       more.addEventListener('click', () => {
         shownRoutes += PAGE_SIZE;

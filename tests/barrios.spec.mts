@@ -2,6 +2,7 @@
  * Reading a typed barrio against a place's name (shared/barrios.js): word starts,
  * any order, accents and dots ignored, abbreviations both ways.
  */
+import fs from 'node:fs';
 import { test, expect } from '@playwright/test';
 import { coincideBarrio, palabrasBarrio, textoBarrio } from '../shared/barrios.js';
 import { expandirHito } from '../shared/nomenclatura.js';
@@ -39,4 +40,12 @@ test('what no sign prints is ignored, and a query too short names no place', () 
 test('expanding every hito twice gives the same text, so the regexes hold no state', () => {
   expect(expandirHito('Hsp. S. Bolívar')).toBe('Hospital Simón Bolívar');
   expect(expandirHito('Hsp. S. Bolívar')).toBe('Hospital Simón Bolívar');
+});
+
+test('the app\'s search lists the routes that pass a barrio by the website\'s rule', () => {
+  for (const file of ['client/src/ui/sidebar.ts', 'client/mobile/src/views/rutas.ts']) {
+    const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+    expect(source, file).toContain('rutasQuePasan(');
+    expect(source, file).toContain('Rutas que pasan por ');
+  }
 });
