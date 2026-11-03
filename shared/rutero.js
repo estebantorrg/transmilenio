@@ -200,8 +200,8 @@ const COMBINING_TILDE = 0x303;
  * destino ("Suba - CL 145B" on a C124). 5×7 capitals and lowercase, one more row
  * for descenders, on the same dot pitch as the big face. Each glyph is its 8
  * rows top first, two hex digits a row, bit 4 the left column. Drawn here, not
- * traced: no photograph of the panel resolves its dots. The ñ's tilde is a bar
- * over a blank row, as on the big face's Ñ: a wave sat on the n's stem and
+ * traced: no photograph of the panel resolves its dots. The tilde of ñ and Ñ is a
+ * bar over a blank row, as on the big face's Ñ: a wave sat on the n's stem and
  * stretched it to cap height, so "Nariño" read "NariÑo". D is cut away on the right
  * for the same reason: square-cornered O was 2 dots from O.
  */
@@ -216,7 +216,7 @@ const SMALL = {
   5: '1f101e0101110e00', 6: '0608101e11110e00', 7: '1f01020408080800', 8: '0e11110e11110e00', 9: '0e11110f01020c00',
   A: '0e11111f11111100', B: '1e11111e11111e00', C: '0e11101010110e00', D: '1c12111111121c00', E: '1f10101e10101f00',
   F: '1f10101e10101000', G: '0e11101711110f00', H: '1111111f11111100', I: '0e04040404040e00', J: '0702020202120c00',
-  K: '1112141814121100', L: '1010101010101f00', M: '111b151511111100', N: '1111191513111100', Ñ: '0d12111915131100',
+  K: '1112141814121100', L: '1010101010101f00', M: '111b151511111100', N: '1111191513111100', Ñ: '0e00111915131100',
   O: '0e11111111110e00', P: '1e11111e10101000', Q: '0e11111115120d00', R: '1e11111e14121100', S: '0f10100e01011e00',
   T: '1f04040404040400', U: '1111111111110e00', V: '11111111110a0400', W: '1111111515150a00', X: '11110a040a111100',
   Y: '1111110a04040400', Z: '1f01020408101f00',

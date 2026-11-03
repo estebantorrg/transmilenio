@@ -65,6 +65,10 @@ test.describe('the zonal panel', () => {
     expect(ene.filter(([, y]) => y >= top)).toEqual(dots('n'));
     expect(ene.some(([, y]) => y === top - 1)).toBe(false);
     expect(ene.some(([, y]) => y === top - 2)).toBe(true);
+    // The capital wears the same tilde, over its own N.
+    const tilde = (ch: string) => dots(ch).filter(([, y]) => y < top);
+    expect(tilde('Ñ')).toEqual(tilde('ñ'));
+    expect(dots('Ñ').filter(([, y]) => y >= top)).not.toEqual(dots('n'));
   });
 
   test('D, Q and B stand apart from O and 8 on the faces that draw them', () => {
