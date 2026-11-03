@@ -141,6 +141,13 @@ test.describe('the API surface', () => {
     }
   });
 
+  test('the API index names every route the router serves', async ({ request }) => {
+    // It was a hand-kept list, and it drifted eleven endpoints behind, then seven.
+    const { endpoints } = await (await request.get('/api')).json();
+    const routes = [...ROUTES.matchAll(/router\.(get|post)\('([^']+)'/g)].map(([, verb, route]) => `${verb.toUpperCase()} /api${route}`);
+    expect([...endpoints].sort()).toEqual(routes.sort());
+  });
+
   test('the arrivals board also has a ceiling for everyone', () => {
     // Its budget counts boards, and one board is up to 48 live lookups: a script
     // walking stop codes at 60 boards a minute was ~2,900 of them. Read as text,

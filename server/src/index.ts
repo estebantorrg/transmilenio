@@ -131,35 +131,13 @@ app.use(express.static(seoDir, {
   },
 }));
 
-// Root API test path. Keep this list in step with routes/api.ts AND with the
-// contract in spec §5.5.1 — it had silently drifted eleven endpoints behind.
+// The API's index (spec §5.5.1), read off the router: a hand-kept list drifted
+// behind it twice.
+const apiEndpoints = apiRoutes.stack.flatMap((layer) =>
+  layer.route ? [`${layer.route.stack[0].method.toUpperCase()} /api${layer.route.path}`] : []
+);
 app.get('/api', (_req, res) => {
-  res.json({
-    name: 'Transmilenio API Proxy',
-    version: '2.0.0',
-    endpoints: [
-      'GET /api/health',
-      'GET /api/troncal/stations',
-      'GET /api/troncal/corridors',
-      'GET /api/troncal/master-catalog',
-      'GET /api/troncal/route/:code',
-      'GET /api/zonal/stops',
-      'GET /api/zonal/stop-routes',
-      'GET /api/cable/stations',
-      'GET /api/cable/trazado',
-      'GET /api/recarga-points',
-      'GET /api/personalizacion-points',
-      'GET /api/station-demand',
-      'GET /api/transmibici',
-      'POST /api/buses',
-      'POST /api/stop-arrivals',
-      'POST /api/card/read',
-      'GET /api/geoip',
-      'GET /api/novedades',
-      'GET /api/geocode',
-      'GET /api/walking-route',
-    ],
-  });
+  res.json({ name: 'Transmilenio API Proxy', version: '2.0.0', endpoints: apiEndpoints });
 });
 
 // Unknown API routes must return structured JSON, not the SPA shell.

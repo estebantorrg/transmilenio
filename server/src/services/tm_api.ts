@@ -403,14 +403,8 @@ export async function loadCatalogFromDisk(): Promise<void> {
       fs.stat(CATALOG_FILE),
     ]);
     const parsed = JSON.parse(raw);
-    
-    // Support both the legacy flat format and the current wrapped format
-    if (parsed.stations && typeof parsed.stations === 'object') {
-      masterCatalog = parsed;
-    } else {
-      console.log('[TM API] Legacy flat catalog detected. Migrating to wrapped format...');
-      masterCatalog = { stations: parsed, routes: {} };
-    }
+    if (!parsed?.stations || typeof parsed.stations !== 'object') throw new Error('not a catalog: no stations');
+    masterCatalog = parsed;
 
     // Prefer the catalog's own sync timestamp; fall back to file mtime for
     // legacy catalogs written before syncedAt existed.
