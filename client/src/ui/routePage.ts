@@ -25,9 +25,9 @@
 import type { RouteListItem } from '../types/transmilenio';
 import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
-import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
+import { carriesRutero, RUTERO_ZONAL_NOTA, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
-import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
+import { zonasDeRuta, zonasFrase, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, pasaDe, sentidosHacia, tablaRuteroHtml, type RuteroTradicional, type SentidoRutero } from '../../../shared/tabla_rutero.js';
@@ -244,12 +244,11 @@ function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero, color: st
     zona: color,
     pasa: pasaDe(sentido),
     uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
-    label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
   });
   return `
     <figure class="rutero route-page-rutero">
       <div class="rutero-frame">${sign}</div>
-      <figcaption class="rutero-caption">Rutero electrónico · dibujo sin verificar: el texto sale del plegable, y cada operador programa el suyo</figcaption>
+      <figcaption class="rutero-caption">${RUTERO_ZONAL_NOTA}</figcaption>
     </figure>`;
 }
 
@@ -313,7 +312,7 @@ function zonasHtml(code: string): string {
   if (!zonas) return '';
   const chip = (zona: ZonaDeRuta) =>
     `<span class="route-zona"><span class="route-zona-dot" style="background:${zona.color}"></span>${escapeHTML(zona.nombre)}</span>`;
-  return `<p class="route-hero-zonas">${zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`}</p>`;
+  return `<p class="route-hero-zonas">${zonasFrase(zonas, chip)}</p>`;
 }
 
 function render(route: RouteListItem): string {

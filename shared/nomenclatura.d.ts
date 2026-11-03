@@ -40,6 +40,9 @@ export function zonasDeRuta(
   existe: (codigo: string) => boolean
 ): { origen: ZonaDeRuta; destino: ZonaDeRuta; dentro: boolean } | null;
 
+/** "De … a …" / "Dentro de …", each zone drawn by `chip`. */
+export function zonasFrase(zonas: { origen: ZonaDeRuta; destino: ZonaDeRuta; dentro: boolean }, chip: (zona: ZonaDeRuta) => string): string;
+
 export function leerCodigoParadero(code: string): { paradero: number; modulo: string; zona: number } | null;
 
 export const MAX_CARACTERES_NOMBRE: number;

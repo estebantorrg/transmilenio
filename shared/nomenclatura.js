@@ -111,6 +111,17 @@ export function zonasDeRuta(code, existe) {
 }
 
 /**
+ * "De Suba a Chapinero - Centro", or "Dentro de Usme": the sentence each surface
+ * sets under a zonal route's title, each zone drawn by its own `chip`.
+ *
+ * @param {{ origen: ZonaDeRuta, destino: ZonaDeRuta, dentro: boolean }} zonas
+ * @param {(zona: ZonaDeRuta) => string} chip
+ */
+export function zonasFrase(zonas, chip) {
+  return zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`;
+}
+
+/**
  * A paradero's cenefa código: three digits for the paradero within its zone,
  * a letter for the módulo (A–E), two digits for the zone where it stands.
  * `078A12` → paradero 78, módulo A, zone 12. The zone here is the numeric

@@ -18,6 +18,7 @@ import {
   normalizarCorredor,
   zonaPorNumero,
   zonasDeRuta,
+  zonasFrase,
 } from '../shared/nomenclatura.js';
 
 test.describe('zones and service codes', () => {
@@ -70,9 +71,18 @@ test.describe('zones and service codes', () => {
     expect(zonasDeRuta('F410', catalogo())?.origen.color).toBe(ZONAS.F.color);
   });
 
-  test('the website, its prerender and the app all read the zones from zonasDeRuta', () => {
+  test('the zones are said in one sentence: "De … a …", or "Dentro de …"', () => {
+    const catalogo = (...codigos: string[]) => (codigo: string) => codigos.includes(codigo);
+    const nombre = (zona: { nombre: string }) => `[${zona.nombre}]`;
+    expect(zonasFrase(zonasDeRuta('C124', catalogo('A124', 'C124'))!, nombre)).toBe('De [Chapinero - Centro] a [Suba]');
+    expect(zonasFrase(zonasDeRuta('H729', catalogo('H729'))!, nombre)).toBe('Dentro de [Usme]');
+  });
+
+  test('the website, its prerender and the app all read the zones from zonasDeRuta, and say them with zonasFrase', () => {
     for (const file of ['client/src/ui/routePage.ts', 'server/src/prerender_seo.ts', 'client/mobile/src/ui/detailSheets.ts']) {
-      expect(fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), file).toContain('zonasDeRuta(');
+      const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+      expect(source, file).toContain('zonasDeRuta(');
+      expect(source, file).toContain('zonasFrase(');
     }
   });
 

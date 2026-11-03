@@ -51,7 +51,7 @@ function openDetailSheet(options: Parameters<typeof openSheet>[0]): import('./sh
 export { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
 import { WEB_ORIGIN } from '../../../../shared/viaje_link.js';
 import { slugify } from '../../../../shared/slug.js';
-import { zonasDeRuta, type ZonaDeRuta } from '../../../../shared/nomenclatura.js';
+import { zonasDeRuta, zonasFrase, type ZonaDeRuta } from '../../../../shared/nomenclatura.js';
 import { getRouteServiceType } from '@shared/utils/routeType';
 
 /** "De Suba a Chapinero - Centro": the zones the código runs between, as the website's route page says it. */
@@ -59,7 +59,7 @@ function zonasHtml(code: string): string {
   const zonas = zonasDeRuta(code, (c) => getRouteServiceType(c) !== undefined);
   if (!zonas) return '';
   const chip = (zona: ZonaDeRuta) => `<span class="rd-zona"><i style="background:${zona.color}"></i>${escapeHTML(zona.nombre)}</span>`;
-  return zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`;
+  return zonasFrase(zonas, chip);
 }
 
 /** Share a route via the native share sheet, Web Share, or clipboard fallback. */

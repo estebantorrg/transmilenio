@@ -12,6 +12,7 @@ export declare const GLYPH_COLUMNS: number;
 export declare const GLYPH_ROWS: number;
 export declare const CHAR_ADVANCE: number;
 export declare const PANEL_CHARS: number;
+export declare const RUTERO_ZONAL_NOTA: string;
 export declare const PANEL_PAD_ROWS: number;
 export declare const PANEL_PAD_COLUMNS: number;
 
@@ -55,7 +56,7 @@ export interface RuteroOptions {
   panelChars?: number;
   /** Unique suffix for the SVG's internal ids — one per sign on the page. */
   uid?: string;
-  /** Overrides the generated `aria-label`. */
+  /** Overrides the generated `aria-label` (with `zona`, it says the drawing is unverified). */
   label?: string;
   /** The panel's colour (`#rrggbb`): the top line and the código's box are lit in it. */
   zona?: string;

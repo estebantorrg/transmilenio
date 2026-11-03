@@ -31,7 +31,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
-import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
+import { carriesRutero, PANEL_CHARS, RUTERO_ZONAL_NOTA, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, pasaDe, rutasQueLleganA, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
 import { slugify } from '../../shared/slug.js';
@@ -49,7 +49,7 @@ import { PASO_NOTA, cadaPico, pasoTexto, programadoHtml, resumenFrecuencia, sent
 import { horarioProgramado, type HorarioProgramado } from './services/horario_programado.js';
 import { ZONAL_PAGES } from './seo_zonal.js';
 import { ORIGIN, escapeHtml, swap, withHead } from './seo_head.js';
-import { zonasDeRuta, type ZonaDeRuta } from '../../shared/nomenclatura.js';
+import { zonasDeRuta, zonasFrase, type ZonaDeRuta } from '../../shared/nomenclatura.js';
 import { APP_DESCARGA_CSS, APP_DESCRIPTION, APP_DOWNLOAD_PATH, APP_PATH, APP_TITLE, appPageHtml } from '../../shared/app_descarga.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -719,7 +719,7 @@ function zonasHtml(codigo: string, existe?: (codigo: string) => boolean): string
   const zonas = existe ? zonasDeRuta(codigo, existe) : null;
   if (!zonas) return '';
   const chip = (zona: ZonaDeRuta) => `<span class="zona"><i style="background:${zona.color}"></i>${escapeHtml(zona.nombre)}</span>`;
-  return `\n    <p class="zonas">${zonas.dentro ? `Dentro de ${chip(zonas.destino)}` : `De ${chip(zonas.origen)} a ${chip(zonas.destino)}`}</p>`;
+  return `\n    <p class="zonas">${zonasFrase(zonas, chip)}</p>`;
 }
 
 export function renderRoute(
@@ -858,9 +858,8 @@ ${items}
             zona: colorImpreso,
             pasa: pasaDe(sentido),
             uid: `z${slugify(codigo)}-${i}`,
-            label: `Rutero electrónico de la ruta ${codigo} hacia ${sentido.destino}, dibujo sin verificar`,
           })}</div>
-<figcaption>Rutero electrónico · dibujo sin verificar: el texto sale del plegable, y cada operador programa el suyo</figcaption>
+<figcaption>${RUTERO_ZONAL_NOTA}</figcaption>
 </figure>`
         )
         .join('\n')

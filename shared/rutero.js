@@ -105,6 +105,8 @@ export const GLYPH_ROWS = 11;
 export const CHAR_ADVANCE = GLYPH_COLUMNS + 1;
 /** Characters a real panel fits before it has to be widened. */
 export const PANEL_CHARS = 20;
+/** The zonal panel's caption, wherever it is drawn: the text is the printed piece's, the panel each operator's. */
+export const RUTERO_ZONAL_NOTA = 'Rutero electrónico · dibujo sin verificar: el texto sale del plegable, y cada operador programa el suyo';
 /** Dark dot rows above and below the text, as the panels show them. */
 export const PANEL_PAD_ROWS = 1;
 /** Dark dot columns at each end of the panel. */
@@ -477,7 +479,9 @@ export function ruteroSvg(options) {
   const layout = ruteroLayout(options.code, options.destination, options.panelChars);
   const label =
     options.label ||
-    `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`;
+    (options.zona
+      ? `Rutero electrónico de la ruta ${options.code} hacia ${options.destination}, dibujo sin verificar`
+      : `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`);
   const safeUid = String(options.uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
   const width = layout.columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
   // The top line's band; the second line, when there is one, runs under it.

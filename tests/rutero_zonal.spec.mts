@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
-import { normalizeRuteroText, ruteroSvg } from '../shared/rutero.js';
+import fs from 'node:fs';
+import { normalizeRuteroText, RUTERO_ZONAL_NOTA, ruteroSvg } from '../shared/rutero.js';
 
 /**
  * The zonal LED sign (planA2 step 8), on every route whose piece prints the
@@ -84,6 +85,17 @@ test.describe('the zonal panel', () => {
     expect(apart(small('D'), small('O'))).toBeGreaterThanOrEqual(6);
     // The panels print 0 as a plain O (photographed): that pair is identical on purpose.
     expect(apart(big('0'), big('O'))).toBe(0);
+  });
+
+  test('the zonal panel says it is an unverified drawing, in one caption for every surface', () => {
+    expect(ruteroSvg({ code: 'A818', destination: 'GALERÍAS', zona: '#26358C', uid: 'n' })).toContain('aria-label="Rutero electrónico de la ruta A818 hacia GALERÍAS, dibujo sin verificar"');
+    // The troncal sign keeps its plain label.
+    expect(ruteroSvg({ code: 'F23', destination: 'Portal Américas', uid: 'n' })).toContain('aria-label="Rutero: F23 PORTAL AMERICAS"');
+    for (const file of ['client/src/ui/routePage.ts', 'server/src/prerender_seo.ts']) {
+      const source = fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+      expect(source, file).toContain('${RUTERO_ZONAL_NOTA}');
+      expect(source, file).not.toContain(RUTERO_ZONAL_NOTA);
+    }
   });
 
   test('the big face prints the degree sign, as 149\'s panel does', () => {
