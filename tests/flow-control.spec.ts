@@ -141,6 +141,15 @@ test.describe('the API surface', () => {
     }
   });
 
+  test('the arrivals board also has a ceiling for everyone', () => {
+    // Its budget counts boards, and one board is up to 48 live lookups: a script
+    // walking stop codes at 60 boards a minute was ~2,900 of them. Read as text,
+    // because stop_arrivals.ts reaches tm_api.ts, which this runner cannot load.
+    const ARRIVALS = fs.readFileSync(path.resolve(__dirname, '..', 'server/src/services/stop_arrivals.ts'), 'utf8');
+    expect(ARRIVALS).toContain('if (fanOutsInFlight.size >= MAX_FANOUTS_IN_FLIGHT)');
+    expect(Number(/const MAX_FANOUTS_IN_FLIGHT = (\d+);/.exec(ARRIVALS)?.[1])).toBeLessThanOrEqual(4);
+  });
+
   test('who a request counts against is never read from a header the caller types', () => {
     // `/api/geoip` used to take the leftmost X-Forwarded-For entry as the client:
     // a lookup of any address, for anyone. `req.ip` under `trust proxy` is the

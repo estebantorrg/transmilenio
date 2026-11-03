@@ -106,6 +106,11 @@ const RESULT_CACHE_TTL_MS = 30_000;
 // never freed — one per stop code ever queried (~7500 possible) on a 512 MB
 // instance (spec §5.1.3). Bound it, evicting the oldest computation.
 const RESULT_CACHE_MAX = 200;
+// Boards being computed at once, across every client. The per-client budget
+// counts boards, and each is up to MAX_FANOUT_ROUTES live lookups, so a script
+// walking stop codes turned its 60 boards a minute into ~2,900 lookups. Past
+// this the endpoint answers 503 and the board says "no disponible".
+const MAX_FANOUTS_IN_FLIGHT = 3;
 
 function parseCoordenada(coordenada: string | undefined): [number, number] | null {
   if (!coordenada || typeof coordenada !== 'string' || !coordenada.includes(',')) return null;
@@ -331,7 +336,8 @@ function cacheResult(key: string, catalogAt: number, result: StopArrivalsResult)
  * concurrency-bounded and capped by a hard overall deadline. When the deadline
  * hits, whatever ETAs are ready are returned (a PARTIAL result) rather than
  * failing the popup — the rest resolve on the next open via the result cache.
- * Rejects only when routes serve the stop and not one of them answered.
+ * Rejects only when routes serve the stop and not one of them answered, or
+ * when MAX_FANOUTS_IN_FLIGHT other boards are already being computed.
  */
 export function computeStopArrivals(stopCode: string): Promise<StopArrivalsResult> {
   const code = String(stopCode || '').trim();
@@ -348,6 +354,9 @@ export function computeStopArrivals(stopCode: string): Promise<StopArrivalsResul
   // opening the same popup a second apart used to run it twice. They share it.
   let pending = fanOutsInFlight.get(cacheKey);
   if (!pending) {
+    if (fanOutsInFlight.size >= MAX_FANOUTS_IN_FLIGHT) {
+      return Promise.reject(new Error(`${code}: ${fanOutsInFlight.size} boards already being computed`));
+    }
     pending = fanOut(code, cacheKey, catalogAt).finally(() => fanOutsInFlight.delete(cacheKey));
     fanOutsInFlight.set(cacheKey, pending);
   }
