@@ -841,6 +841,7 @@ Every route variant ships `trazado` — the polyline it is actually driven along
   * A route no wagon carries keeps the merged stop: its half is not known, and is not guessed. Covered by `tests/planner-platforms.spec.ts` and `tests/route_stops.spec.mts`.
 
 * **A route's `Longitud` is one direction, first stop to last** (`stopsKm`, `data/routeCatalog.ts`), by the operator's `posicion` chainage. Most zonal traces are the whole round trip, so measuring the trace showed about double: L800 → Gaviotas read 72.3 km for a 35.7 km direction, and 776 of 1,245 directions read that way. The trace is measured only where the stops carry no chainage.
+* **The map draws a zonal route one way too** (`main.ts` → `highlightRoute`). The selected zonal route's line is its trazado cut at the first and last stop's projections (`buildTraceIndex` + `traceSliceBetween`, the planner's own slicer), so A818 no longer shows its way back beside the paradas. Where the stops don't index onto the trace (120 of 945 zonal directions, 2026-11-03) the whole trazado is drawn. Only on the map: `route.geometry` stays whole for the planner and guidance.
 * **Validated against a source that touches neither the catalog nor our geometry.** ArcGIS `consulta_rutas_troncales` publishes `longitud_ruta_troncal` — the official length of each troncal route. Over the 83 routes that match a catalog variant, measured against that published figure:
 
   | model | mean ratio | mean \|error\| |

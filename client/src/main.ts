@@ -38,6 +38,7 @@ import { initNovedades } from './ui/novedadesPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { initNativeBack } from './services/nativeBack';
+import { buildTraceIndex, traceSliceBetween } from './services/trace';
 import { getRouteAccentColor, getZonalRouteColor } from './utils/routeColors';
 import { setCatalogIndexes } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
@@ -1109,7 +1110,11 @@ async function main(): Promise<void> {
       // The paradas and the full trace land here, after selection — a route page
       // opened from a search result would otherwise sit on "Cargando paradas…".
       refreshRoutePage(route);
-      highlightRoute(map, route.code, route.type, route.geometry, getRouteAccentColor(route));
+      // Most zonal trazados are the whole round trip: draw the direction on screen,
+      // first stop to last (§5.6.3), and the whole trazado where its stops don't index onto it.
+      const index = route.type === 'zonal' ? buildTraceIndex(route.stops ?? [], route.geometry?.paths) : null;
+      const sentido = index && traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
+      highlightRoute(map, route.code, route.type, sentido ? { paths: [sentido] } : route.geometry, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
       route.liveNameCandidates = getLiveNameCandidates(route);
       let buses: BusesModule;
