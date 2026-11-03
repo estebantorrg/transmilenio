@@ -27,7 +27,8 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
-import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
+import { ZONAS, leerCodigoZonal, zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
+import { flagOn } from '../utils/flags';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml } from '../../../shared/tabla_rutero.js';
@@ -229,6 +230,28 @@ function estacionHref(codigo: string): string | null {
  * routes TRANSMILENIO's artwork doesn't cover yet, and when no printed destino
  * matches the catalog's: nothing here picks a sentido by guess.
  */
+/**
+ * The zonal LED sign — held back behind the `rutero-zonal` flag (planA2 step 8),
+ * CONTENIDO NO VERIFICADO: drawn from the ITS annexes, not a photograph, and only
+ * for routes whose piece prints the electronic sign's layout (`formato: 'digital'`).
+ */
+function ruteroZonalHtml(route: RouteListItem, destino: string): string {
+  const servicio = leerCodigoZonal(route.code)?.[0];
+  if (!servicio) return '';
+  const sign = ruteroSvg({
+    code: route.code,
+    destination: destino,
+    zona: ZONAS[servicio.destino].color,
+    uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
+    label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
+  });
+  return `
+    <figure class="rutero route-page-rutero">
+      <div class="rutero-frame">${sign}</div>
+      <figcaption class="rutero-caption">Rutero electrónico · dibujo sin verificar, hecho con los anexos técnicos y no con una foto</figcaption>
+    </figure>`;
+}
+
 function tablaRuteroSection(route: RouteListItem): string {
   const ruta = ruterosCargados()?.rutas[route.code];
   // The catalog's `nombre` is the service's destino ("Unicentro"); `destination`
@@ -241,6 +264,7 @@ function tablaRuteroSection(route: RouteListItem): string {
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
+      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0].destino) : ''}
       <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido, estacionHref })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'

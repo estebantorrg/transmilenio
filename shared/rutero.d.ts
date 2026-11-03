@@ -57,6 +57,8 @@ export interface RuteroOptions {
   uid?: string;
   /** Overrides the generated `aria-label`. */
   label?: string;
+  /** The zonal panel, in this destination-zone colour (`#rrggbb`). Unverified: see `ruteroSvg`. */
+  zona?: string;
 }
 
 /**

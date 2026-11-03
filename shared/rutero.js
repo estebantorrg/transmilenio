@@ -417,7 +417,14 @@ function dotsPath(dots) {
  * bounding box, not each dot, and at the sizes this renders the falloff is not
  * separable from a flat halo anyway.
  *
- * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string }} options
+ * `zona` draws the zonal panel instead — CONTENIDO NO VERIFICADO, behind a flag
+ * (planA2 step 8): the ITS annexes (Fase III/V RF016) and the manual's
+ * "Contraste / Señalética 2020" describe an RGB panel with the destination
+ * zone's colour in a top strip and behind the código, and the manual allows
+ * amber LEDs. No zonal panel has been photographed for this app, and TRANSMILENIO
+ * says each concessionaire sets the content: this is the documents, not a bus.
+ *
+ * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, zona?: string }} options
  * @returns {string}
  */
 export function ruteroSvg(options) {
@@ -428,10 +435,17 @@ export function ruteroSvg(options) {
   const safeUid = String(options.uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
   const width = layout.columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
   const height = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
-  const dots = litDots([
-    [layout.code, layout.codeAt],
-    [layout.destination, layout.destinationAt],
-  ]);
+  const zona = /^#[0-9a-f]{6}$/i.test(options.zona ?? '') ? options.zona : null;
+  const codeDots = litDots([[layout.code, layout.codeAt]]);
+  const destinationDots = litDots([[layout.destination, layout.destinationAt]]);
+  // The zonal panel lights its destino amber and its código white on the zone
+  // colour (amber on orange vanished); the troncal sign is one white lattice.
+  const dots = zona ? destinationDots : [...codeDots, ...destinationDots];
+  // The código's box ends one blank column after it, where the destination may begin.
+  const codeBox = PANEL_PAD_COLUMNS + layout.code.length * CHAR_ADVANCE;
+  const [bloom, core] = zona ? ['#ff9f1a', '#ffd27a'] : ['#9ed2ef', '#e9f6ff'];
+  // On a light zone colour (C yellow, K beige) a white código fades out; it goes dark there.
+  const codeInk = zona && [1, 3, 5].reduce((sum, i, k) => sum + parseInt(zona.slice(i, i + 2), 16) * [0.299, 0.587, 0.114][k], 0) > 170 ? '#111' : '#fff';
 
   return (
     `<svg class="rutero-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" ` +
@@ -444,12 +458,16 @@ export function ruteroSvg(options) {
     '</defs>' +
     `<rect width="${width}" height="${height}" fill="#05080c"/>` +
     `<rect width="${width}" height="${height}" fill="url(#rt-o-${safeUid})"/>` +
+    (zona
+      ? `<rect width="${codeBox}" height="${height}" fill="${zona}"/><rect width="${width}" height="${PANEL_PAD_ROWS}" fill="${zona}"/>`
+      : '') +
     // Both layers are the same path at two stroke widths. The bloom stays under
     // one pitch wide: strokes are two dots, and a wider halo fuses the pair into
     // a bar instead of the two LEDs the sign shows.
     '<g transform="translate(.5 .5)">' +
-    `<use href="#rt-l-${safeUid}" stroke="#9ed2ef" stroke-opacity=".26" stroke-width="1.32"/>` +
-    `<use href="#rt-l-${safeUid}" stroke="#e9f6ff" stroke-width=".66"/>` +
+    `<use href="#rt-l-${safeUid}" stroke="${bloom}" stroke-opacity=".26" stroke-width="1.32"/>` +
+    `<use href="#rt-l-${safeUid}" stroke="${core}" stroke-width=".66"/>` +
+    (zona ? `<path d="${dotsPath(codeDots)}" fill="none" stroke-linecap="round" stroke="${codeInk}" stroke-width=".66"/>` : '') +
     '</g>' +
     '</svg>'
   );
