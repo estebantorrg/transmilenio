@@ -33,6 +33,7 @@ repeated here.
 | `client/public/models/bus.glb`, `client/public/models/bus_lod.glb` | 3D bus model, re-pivoted for the map | **Satyr** — "Busscar - Urbanuss Pluss S5 (Padrão Colômbia)", a *Cities: Skylines* asset published on the Steam Workshop (item 2012382772, 2 March 2020; [author's profile](https://steamcommunity.com/id/Satyr7)) | **None stated.** The Workshop page gives no license or reuse permission, and the item has since been taken down. Credited here; used without an explicit license. |
 | `client/public/fonts/inter-latin-var.woff2` | Inter typeface (latin subset) | The Inter Project Authors (Rasmus Andersson) | [SIL Open Font License 1.1](https://openfontlicense.org) |
 | `client/public/fonts/sora-latin-var.woff2` | Sora typeface (latin subset) | The Sora Project Authors | [SIL Open Font License 1.1](https://openfontlicense.org) |
+| `client/public/fonts/roboto-condensed-latin-700.woff2` | Roboto Condensed Bold (latin subset, from Google Fonts) | The Roboto Condensed Project Authors | [SIL Open Font License 1.1](https://openfontlicense.org) |
 | `client/public/draco/*` | Draco mesh decoder | Google LLC | [Apache License 2.0](https://github.com/google/draco/blob/main/LICENSE) |
 
 ## Referenced, not shipped

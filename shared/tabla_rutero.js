@@ -354,11 +354,18 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
  *
  * Proportions are the artwork's (a plegable table is 162.7 pt wide = 100cqi):
  * tab and destino band 20cqi, rows 15cqi, chip column 30%. The face is a heavy
- * condensed sans — the system's own when it has one (Roboto Condensed on
- * Android, Bahnschrift on Windows, Avenir Next Condensed on Apple); nothing is
- * downloaded for it.
+ * condensed sans: Roboto Condensed Bold, the system's own where it is installed
+ * (Android), else our 21 KB latin copy (OFL, `client/public/fonts`), so the
+ * labels fit their cells without being shrunk.
  */
 export const TABLA_RUTERO_CSS = `
+@font-face {
+  font-family: 'Roboto Condensed';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local('Roboto Condensed Bold'), local('RobotoCondensed-Bold'), url('/fonts/roboto-condensed-latin-700.woff2') format('woff2');
+}
 .tabla-rutero {
   --tr-tinta-oscura: #2c2e35;
   --tr-regla: max(1.5px, 0.8cqi);

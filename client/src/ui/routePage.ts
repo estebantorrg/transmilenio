@@ -503,6 +503,8 @@ function wire(el: HTMLElement, route: RouteListItem): void {
     // After layout, so the cells have their widths.
     requestAnimationFrame(() => ajustarTablasRutero(el));
   }
+  // And again once the table's face is in: measured on a fallback, labels shrink that then fit.
+  void document.fonts.load("700 1em 'Roboto Condensed'").then(() => ajustarTablasRutero(el));
 
   el.querySelector('.live-status-refresh')?.addEventListener('click', () => {
     document.querySelectorAll('.live-status-refresh').forEach((btn) => btn.classList.add('spinning'));

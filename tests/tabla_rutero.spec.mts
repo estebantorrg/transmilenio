@@ -5,7 +5,7 @@
 
 import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
-import { HITOS_DE_ESTACION, agruparFilas, corredoresDe, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
+import { HITOS_DE_ESTACION, TABLA_RUTERO_CSS, agruparFilas, corredoresDe, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
 
 test.describe('consecutive rows on one corredor are one cell', () => {
   test('260 prints AV. BOYACÁ once beside MODELIA and NORMANDÍA', () => {
@@ -238,4 +238,12 @@ test('the app ships the printed ruteros and lists each route\'s corredores as th
   for (const file of ['client/src/ui/sidebar.ts', 'client/mobile/src/ui/components.ts']) {
     expect(read(file), file).toContain('corredoresDe(sentidosDeRuta(route))');
   }
+});
+
+test('the table\'s face is the system\'s Roboto Condensed Bold, else our own copy', () => {
+  const src = /src: ([^;]+);/.exec(TABLA_RUTERO_CSS)?.[1] ?? '';
+  expect(src).toMatch(/^local\('Roboto Condensed Bold'\)/);
+  const url = /url\('(\/fonts\/[^']+\.woff2)'\)/.exec(src)?.[1];
+  // Served from client/public: a missing file would fall back silently.
+  expect(fs.statSync(new URL(`../client/public${url}`, import.meta.url)).size).toBeGreaterThan(10_000);
 });
