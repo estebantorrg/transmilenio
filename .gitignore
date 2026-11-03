@@ -48,3 +48,5 @@ playwright/.local-browsers/
 scripts/gtfs/
 # wrangler dev local state (a Worker run locally writes it beside wrangler.toml)
 .wrangler/
+# ponytail plugin skills, installed locally, not part of the repo
+.agents/skills/ponytail*/
