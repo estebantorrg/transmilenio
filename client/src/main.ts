@@ -38,7 +38,6 @@ import { initNovedades } from './ui/novedadesPage';
 import { dismissOverlayPage, initPageShell, isOverlayPageOpen, overlayPageClosed } from './ui/pageShell';
 import { parseRoutePathname, parseStationPathname } from './ui/routeDetail';
 import { initNativeBack } from './services/nativeBack';
-import { buildTraceIndex, traceSliceBetween } from './services/trace';
 import { getRouteAccentColor, getZonalRouteColor, isAlimentadorRoute } from './utils/routeColors';
 import { setCatalogIndexes } from './utils/routeType';
 import { clearLegacyExactLocation, getSessionExactLocation, setSessionExactLocation } from './utils/sessionLocation';
@@ -359,6 +358,13 @@ function getRouterModule(): Promise<RouterModule> {
   return routerModulePromise;
 }
 
+// The planner's trace slicer, fetched at boot beside the planner rather than parsed in the main bundle.
+// shortcut: a route drawn before it lands is drawn whole; import it statically if that is ever seen.
+let trace: typeof import('./services/trace') | null = null;
+void import('./services/trace')
+  .then((module) => (trace = module))
+  .catch((error) => console.error('[Map] Trace slicer failed to load; routes are drawn whole:', error));
+
 /**
  * The line the map draws for a route, selected or compared (§5.6.3): a zonal route
  * one way, first stop to last, since most of their trazados are the whole round trip.
@@ -366,9 +372,9 @@ function getRouterModule(): Promise<RouterModule> {
  */
 function lineaDibujada(route: RouteListItem): number[][][] | undefined {
   const paths = route.geometry?.paths;
-  if (!paths || route.type !== 'zonal' || isAlimentadorRoute(route)) return paths;
-  const index = buildTraceIndex(route.stops ?? [], paths);
-  const line = index && traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
+  if (!trace || !paths || route.type !== 'zonal' || isAlimentadorRoute(route)) return paths;
+  const index = trace.buildTraceIndex(route.stops ?? [], paths);
+  const line = index && trace.traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
   return line ? [line] : paths;
 }
 

@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
 import { abordajeEn, plataformasDe, vagonTexto } from '../shared/route_stop.js';
 import { platformStation, stationPlatform } from '../shared/station_platforms.js';
@@ -181,6 +182,12 @@ test.describe('the stop list on a route page', () => {
     // L800's trace is the whole 72 km circuit; towards Gaviotas it runs about 36.
     await expect.poll(() => drawnKm(page), { timeout: 30_000 }).toBeGreaterThan(30);
     expect(await drawnKm(page)).toBeLessThan(42);
+  });
+
+  test('the slicer stays out of the main bundle, fetched at boot instead', () => {
+    const main = fs.readFileSync(new URL('../client/src/main.ts', import.meta.url), 'utf8');
+    expect(main).not.toMatch(/^import [^;]+ from '\.\/services\/trace';/m);
+    expect(main).toContain("import('./services/trace')");
   });
 
   test('an alimentador keeps its whole trazado on the map', async ({ page }) => {
