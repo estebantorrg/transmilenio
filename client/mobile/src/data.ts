@@ -35,6 +35,9 @@ import personalizacionAssetUrl from './generated/personalizacion_points.json?url
 import transmibiciAssetUrl from './generated/transmibici.json?url';
 import demandAssetUrl from './generated/station_demand.json?url';
 import calibrationAssetUrl from './generated/planner_calibration.json?url';
+import ruterosAssetUrl from './generated/ruteros_tradicionales.json?url';
+import { leerRuterosDe } from '@shared/services/ruteros';
+import type { RuterosTradicionales } from '../../../shared/tabla_rutero.js';
 
 const CATALOG_KEY = 'catalog:v1';
 
@@ -46,6 +49,9 @@ async function loadBundledJson<T>(url: string): Promise<T> {
   if (!res.ok) throw new Error(`bundled asset ${url} → ${res.status}`);
   return res.json() as Promise<T>;
 }
+
+// The printed ruteros (the "por …" corredores, the barrio search): bundled in the app, our API on the website.
+if (state.native) leerRuterosDe(async () => ({ success: true, ...(await loadBundledJson<RuterosTradicionales>(ruterosAssetUrl)) }));
 
 /** Catalog: bundled asset in the app, our API on the website. */
 function fetchCatalogResponse(): Promise<MasterCatalogResponse> {

@@ -7,6 +7,9 @@ import type { RouteListItem } from '@shared/types/transmilenio';
 import type { TrackingStatus } from '@shared/layers/buses';
 import type { LiveBusResult } from '@shared/services/api';
 import { closedWindowNotice } from '@shared/services/liveWindow';
+import { sentidosDeRuta } from '@shared/services/ruteros';
+import { corredoresDe } from '../../../../shared/tabla_rutero.js';
+import { expandirCorredor } from '../../../../shared/nomenclatura.js';
 import { h, escapeHTML } from '../lib/dom';
 import { needsDarkText } from '../lib/format';
 
@@ -67,6 +70,15 @@ export function routeCard(route: RouteListItem, onTap: (r: RouteListItem) => voi
       html: `${antes.length ? `<span class="route-chip route-chip-antes">antes ${escapeHTML(antes.join(', '))}</span> ` : ''}<span class="route-chip">${escapeHTML(routeTypeLabel(route))}</span> ${escapeHTML(route.origin)} <span class="arrow">→</span> ${escapeHTML(route.destination)}`,
     })
   );
+  // The corredores its printed rutero names, the main one first, as the website's list shows them:
+  // drawn as printed, said spelled out ("AC 63" is "AVENIDA CALLE 63").
+  const corredores = corredoresDe(sentidosDeRuta(route));
+  if (corredores.length) {
+    meta.append(h('div', { class: 'route-card-via' }, [
+      h('span', { 'aria-hidden': 'true', text: `por ${corredores.join(' · ')}` }),
+      h('span', { class: 'sr-only', text: `por ${corredores.map(expandirCorredor).join(', ')}` }),
+    ]));
+  }
   card.append(meta);
   card.append(h('span', { class: 'route-card-chev', html: '›' }));
   card.addEventListener('click', () => onTap(route));

@@ -15,6 +15,7 @@
  *   transmibici.json             ← server/src/data/transmibici.json             (spec §5.3 bike parking)
  *   station_demand.json          ← server/src/data/station_demand.json          (spec §5.8 Salidas demand)
  *   planner_calibration.json     ← server/src/data/planner_calibration.json     (spec §5.6.5 planner calibration)
+ *   ruteros_tradicionales.json   ← server/src/data/ruteros_tradicionales.json   (spec §5.5.5 printed ruteros)
  *   voice_index.json             ← catalog routes, geometry stripped            (spec §5.9 voice)
  *   voice_stops.json             ← stop → routes, for "¿qué me sirve aquí?"     (spec §5.9 voice)
  *   voice/<CODE>.json            ← per-route stops + trazado                    (spec §5.9 voice)
@@ -52,6 +53,7 @@ const STATIC_DATASETS = [
   'transmibici.json',
   'station_demand.json',
   'planner_calibration.json',
+  'ruteros_tradicionales.json',
 ];
 
 // ─── Voice assets (spec §5.9) ─────────────────────────────

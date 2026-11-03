@@ -23,6 +23,7 @@ import { openRouteSheet } from '../ui/detailSheets';
 import { placeCard } from '../ui/pointRow';
 import { ICONS, routeCard } from '../ui/components';
 import { codigosAnteriores } from '../../../../shared/renumeraciones.js';
+import { loadRuteros, ruterosCargados } from '@shared/services/ruteros';
 import type { View } from './types';
 
 type Filter = 'all' | 'troncal' | 'zonal' | 'alimentador' | 'facil' | 'fav';
@@ -156,6 +157,7 @@ export function createRutasView(): View {
   /** How many route rows are currently rendered ("Ver más" grows it). */
   let shownRoutes = PAGE_SIZE;
   let shownPlaces = PLACE_LIMIT;
+  let ruterosPedidos = false;
 
   function matchedRoutes(): RouteListItem[] {
     const q = normalizePointText(query);
@@ -388,6 +390,14 @@ export function createRutasView(): View {
         document.createTextNode('Rutas'),
         h('span', { class: 'search-places-count', text: String(routes.length) }),
       ]));
+    }
+    // The rows' "por …" corredores come from the printed ruteros: drawn again once they are in.
+    if (!ruterosCargados() && !ruterosPedidos) {
+      ruterosPedidos = true;
+      void loadRuteros().then((loaded) => {
+        ruterosPedidos = Boolean(loaded);
+        if (loaded) render();
+      });
     }
     const visible = routes.slice(0, shownRoutes);
     for (const route of visible) {

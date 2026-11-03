@@ -3,6 +3,7 @@
  * plegable on the route page. Pure logic: no page, no network.
  */
 
+import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
 import { HITOS_DE_ESTACION, agruparFilas, corredoresDe, estacionDeHito, rutasQueLleganA, sentidosHacia, tablaRuteroHtml, type RuteroTradicional } from '../shared/tabla_rutero.js';
 
@@ -227,4 +228,14 @@ test.describe('a hito that names an estación', () => {
     const { data } = await res.json();
     expect(Object.keys(HITOS_DE_ESTACION).filter((codigo) => !data.stations[codigo]?.estacion)).toEqual([]);
   });
+});
+
+test('the app ships the printed ruteros and lists each route\'s corredores as the website does', () => {
+  const read = (file: string) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+  // The APK makes no calls to our API: the data rides in it, read through the one loader.
+  expect(read('server/src/bundle_mobile_data.ts')).toContain("'ruteros_tradicionales.json'");
+  expect(read('client/mobile/src/data.ts')).toContain('leerRuterosDe(');
+  for (const file of ['client/src/ui/sidebar.ts', 'client/mobile/src/ui/components.ts']) {
+    expect(read(file), file).toContain('corredoresDe(sentidosDeRuta(route))');
+  }
 });

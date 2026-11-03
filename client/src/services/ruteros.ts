@@ -2,17 +2,22 @@
 
 import { sentidosHacia, type RuterosTradicionales, type SentidoRutero } from '../../../shared/tabla_rutero.js';
 import type { RouteListItem } from '../types/transmilenio';
-import { api } from './api';
+import { api, type RuterosTradicionalesResponse } from './api';
 
 let promise: Promise<RuterosTradicionales | null> | null = null;
 let cargados: RuterosTradicionales | null = null;
+let leer = (): Promise<RuterosTradicionalesResponse> => api.getRuterosTradicionales();
 
 export const ruterosCargados = (): RuterosTradicionales | null => cargados;
 
+/** Where they are read from: our API, or the copy bundled in the APK (`client/mobile/src/data.ts`). */
+export function leerRuterosDe(fuente: () => Promise<RuterosTradicionalesResponse>): void {
+  leer = fuente;
+}
+
 /** Fetched once per session; `null` if the fetch fails. */
 export function loadRuteros(): Promise<RuterosTradicionales | null> {
-  promise ??= api
-    .getRuterosTradicionales()
+  promise ??= leer()
     .then((res) => (cargados = res.success && res.rutas ? { fuente: res.fuente, rutas: res.rutas } : null))
     .catch(() => null)
     // A failed fetch is not the answer for the session: a page opened a minute
