@@ -420,6 +420,10 @@ input { font-family: inherit; }
 .rd-titles { flex: 1; min-width: 0; }
 .rd-name { font-family: var(--font-head); font-weight: 700; font-size: 18px; line-height: 1.2; }
 .rd-od { font-size: 13px; color: var(--muted); margin-top: 3px; }
+/* The zones the código runs between (`zonasDeRuta`): a dot, not a fill, since C and K are too pale for white text. */
+.rd-zonas { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.rd-zona { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid var(--border-2); border-radius: 999px; font-weight: 600; color: var(--text); }
+.rd-zona i { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18); flex: none; }
 .star-btn { width: 42px; height: 42px; border-radius: 12px; background: var(--surface-3); border: 1px solid var(--border); color: var(--muted); display: grid; place-items: center; flex: none; }
 .star-btn svg { width: 21px; height: 21px; }
 .star-btn.on { color: var(--amber); border-color: rgba(251, 191, 36, 0.4); }

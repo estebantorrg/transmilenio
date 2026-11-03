@@ -4,6 +4,7 @@
  * to radicado 2026-ER-47262. Pure logic: no page, no network.
  */
 
+import fs from 'node:fs';
 import { expect, test } from '@playwright/test';
 import {
   ABREVIATURAS,
@@ -67,6 +68,12 @@ test.describe('zones and service codes', () => {
     expect(zonasDeRuta('B75', catalogo('B75'))).toBeNull();
     expect(zonasDeRuta('AH605', catalogo('AH605'))).toBeNull();
     expect(zonasDeRuta('F410', catalogo())?.origen.color).toBe(ZONAS.F.color);
+  });
+
+  test('the website, its prerender and the app all read the zones from zonasDeRuta', () => {
+    for (const file of ['client/src/ui/routePage.ts', 'server/src/prerender_seo.ts', 'client/mobile/src/ui/detailSheets.ts']) {
+      expect(fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8'), file).toContain('zonasDeRuta(');
+    }
   });
 
   test('zone colours are the official corridor colours', () => {
