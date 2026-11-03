@@ -171,6 +171,25 @@ test.describe('a hito that names an estación', () => {
     expect(estacionDeHito('TERMINAL NORTE')).toBe('TM0031');
   });
 
+  test('every printed EST. hito the maintainer has matched links, spelled as the pieces print it', () => {
+    const pares: Record<string, string> = {
+      'EST. UNIVERSIDADES': 'TM0122',
+      'EST. PEPE SIERRA': 'TM0020',
+      'EST. GRATAMIRA': 'TM0041',
+      'EST. SANTA ISABEL': 'TM0089',
+      'EST. ALQUERÍA': 'TM0094',
+      'EST. BIBL. TINTAL': 'TM0085',
+      'EST. SALITRE-EL GRECO': 'TM0130',
+      'EST. TIEMPO MALOKA': 'TM0131',
+      'EST. AV. 1° DE MAYO': 'TM0143',
+      'EST. AV. 1° MAYO': 'TM0143',
+      'EST. 1° MAYO': 'TM0143',
+      // Names two; Toberín is the one that is an estación by that name.
+      'EST. CARDIO INFANTIL-EST- TOBERÍN': 'TM0028',
+    };
+    for (const [hito, codigo] of Object.entries(pares)) expect(estacionDeHito(hito), hito).toBe(codigo);
+  });
+
   test('a barrio, a market or the bus terminal is no estación', () => {
     for (const hito of ['RESTREPO', 'VENECIA', 'PORTALES DEL NORTE', 'P. MERCADO QUIRIGUA', 'TERMINAL', 'TERMINAL SALITRE', 'EST. PROFAMILIA']) {
       expect(estacionDeHito(hito), hito).toBeNull();

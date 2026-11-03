@@ -50,17 +50,21 @@ function fold(value) {
  *
  * Where a name fits two estaciones the corredor beside it decides: `EST. CL 100`
  * and `EST. CALLE 1 OO` run on AUTO NORTE, so TM0018 and not Suba Calle 100;
- * `Est. AV. 10 Mayo` runs on AK 10, so Av. Primero de Mayo.
+ * `Est. AV. 10 Mayo` runs on AK 10, so Av. Primero de Mayo. Where a hito names
+ * two, `EST. CARDIO INFANTIL-EST- TOBERÍN`, it links to the one that is an
+ * estación by that name, Toberín (maintainer's word).
  */
 export const HITOS_DE_ESTACION = {
   TM0005: ['EST CALLE 57'],
   TM0016: ['EST CALLE 85', 'EST CL 85'],
   TM0018: ['EST CALLE 1 OO', 'EST CALLE 100', 'EST CL 100'],
   TM0019: ['EST CALLE 106'],
-  TM0028: ['EST TOBERIN'],
+  TM0020: ['EST PEPE SIERRA'],
+  TM0028: ['EST TOBERIN', 'EST CARDIO INFANTIL EST TOBERIN'],
   TM0029: ['PORTAL NORTE'],
   TM0030: ['EST CALLE 187'],
   TM0031: ['TERMINAL NORTE'],
+  TM0041: ['EST GRATAMIRA'],
   TM0042: ['EST 21 ANGELES'],
   TM0043: ['EST TV 91'],
   TM0044: ['EST LA CAMPINA'],
@@ -72,8 +76,11 @@ export const HITOS_DE_ESTACION = {
   TM0077: ['EST PUENTE ARANDA'],
   TM0083: ['EST BANDERAS'],
   TM0084: ['EST TV 86'],
+  TM0085: ['EST BIBL TINTAL'],
   TM0087: ['PORTAL AMERICAS'],
   TM0088: ['EST COMUNEROS'],
+  TM0089: ['EST SANTA ISABEL'],
+  TM0094: ['EST ALQUERIA'],
   TM0095: ['EST VENECIA'],
   TM0097: ['EST MADELENA'],
   TM0099: ['PORTAL SUR', 'PORTAL DEL SUR'],
@@ -82,6 +89,9 @@ export const HITOS_DE_ESTACION = {
   TM0118: ['PORTAL USME', 'PORTAL DE USME'],
   TM0119: ['PORTAL TUNAL'],
   TM0121: ['ESTACION LAS AGUAS'],
+  TM0122: ['EST UNIVERSIDADES'],
+  TM0130: ['EST SALITRE EL GRECO'],
+  TM0131: ['EST TIEMPO MALOKA'],
   TM0132: ['EST AV ROJAS'],
   TM0133: ['EST NORMANDIA', 'EST NORMAINIA'],
   TM0134: ['EST MODELIA'],
@@ -89,7 +99,7 @@ export const HITOS_DE_ESTACION = {
   TM0137: ['EST LAS NIEVES'],
   TM0140: ['EST SAN BERNARDO'],
   TM0142: ['EST CIUDAD JARDIN'],
-  TM0143: ['ESTACION AV 1 DE MAYO', 'EST AV 10 MAYO'],
+  TM0143: ['ESTACION AV 1 DE MAYO', 'EST AV 1 DE MAYO', 'EST AV 1 MAYO', 'EST 1 MAYO', 'EST AV 10 MAYO'],
   TM0144: ['EST COUNTRY SUR'],
   TM0145: ['PORTAL 20 DE JULIO', 'PORTAL 20 JULIO', 'P 20 DE JULIO'],
   TM90008: ['EST DANUBIO'],
