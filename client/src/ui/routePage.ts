@@ -492,19 +492,23 @@ function wire(el: HTMLElement, route: RouteListItem): void {
     });
   }
 
+  // Fitted now, and again once the table's face is in: measured on a fallback, labels shrink that
+  // then fit. Asked only once the table is drawn, since its stylesheet is what declares the face.
+  const ajustar = (root: HTMLElement) => {
+    ajustarTablasRutero(root);
+    void document.fonts.load("700 1em 'Roboto Condensed'").then(() => ajustarTablasRutero(root));
+  };
   if (!ruterosCargados()) {
     void loadRuteros().then(() => {
       const slot = el.querySelector<HTMLElement>('.route-rutero-slot');
       if (!slot || openRoute !== route) return;
       slot.innerHTML = tablaRuteroSection(route);
-      ajustarTablasRutero(slot);
+      ajustar(slot);
     });
   } else {
     // After layout, so the cells have their widths.
-    requestAnimationFrame(() => ajustarTablasRutero(el));
+    requestAnimationFrame(() => ajustar(el));
   }
-  // And again once the table's face is in: measured on a fallback, labels shrink that then fit.
-  void document.fonts.load("700 1em 'Roboto Condensed'").then(() => ajustarTablasRutero(el));
 
   el.querySelector('.live-status-refresh')?.addEventListener('click', () => {
     document.querySelectorAll('.live-status-refresh').forEach((btn) => btn.classList.add('spinning'));

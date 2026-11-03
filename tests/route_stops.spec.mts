@@ -189,6 +189,36 @@ test.describe('the stop list on a route page', () => {
     await expect.poll(() => drawnKm(page), { timeout: 30_000 }).toBeGreaterThan(12);
   });
 
+  test('the printed table fits its labels to the face it ends up in, on the first page of a visit', async ({ page }) => {
+    // The race: the printed ruteros land after the page's last redraw, and the face after them.
+    await page.route(/\/api\/ruteros-tradicionales/, async (route) => {
+      await new Promise((ok) => setTimeout(ok, 20_000));
+      await route.continue();
+    });
+    await page.route(/roboto-condensed/, async (route) => {
+      await new Promise((ok) => setTimeout(ok, 5_000));
+      await route.continue();
+    });
+    await openRoute(page, 'a410');
+    await page.locator('.route-page .tabla-rutero').first().waitFor({ state: 'visible', timeout: 60_000 });
+    await page.evaluate(() => document.fonts.load("700 1em 'Roboto Condensed'"));
+    // Labels shrunk for a wider fallback face and left so once the condensed one arrived: they fit at full size.
+    const sobranAchicadas = () =>
+      page.evaluate(() =>
+        [...document.querySelectorAll<HTMLElement>('.route-page .tabla-rutero :is(.tr-chip-texto, .tr-destino, .tr-codigo)')]
+          .filter((el) => {
+            const size = el.style.fontSize;
+            if (!size) return false;
+            el.style.fontSize = '';
+            const fits = el.scrollWidth <= el.clientWidth + 1;
+            el.style.fontSize = size;
+            return fits;
+          })
+          .map((el) => el.textContent)
+      );
+    await expect.poll(sobranAchicadas, { timeout: 20_000 }).toEqual([]);
+  });
+
   test('the printed rutero is drawn abbreviated and said spelled out', async ({ page }) => {
     await openRoute(page, 'a410');
     const lourdes = page.locator('.route-page .tabla-rutero td[title="PARQUE LOURDES"]');
