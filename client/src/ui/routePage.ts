@@ -30,7 +30,7 @@ import { codigosActuales, codigosAnteriores } from '../../../shared/renumeracion
 import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
-import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuteroTradicional, type SentidoRutero } from '../../../shared/tabla_rutero.js';
+import { ajustarTablasRutero, ensureTablaRuteroStyle, pasaDe, sentidosHacia, tablaRuteroHtml, type RuteroTradicional, type SentidoRutero } from '../../../shared/tabla_rutero.js';
 import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
 import { api, type HorarioProgramadoResponse } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
@@ -242,7 +242,7 @@ function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero, color: st
     code: route.code,
     destination: destino,
     zona: color,
-    pasa: sentido.filas.map(([corredor, , hito]) => (corredor ? `${hito}/${corredor}` : hito)).join(' - '),
+    pasa: pasaDe(sentido),
     uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
     label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
   });

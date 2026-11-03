@@ -32,7 +32,7 @@ import path from 'node:path';
 import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
 import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
-import { TABLA_RUTERO_CSS, rutasQueLleganA, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
+import { TABLA_RUTERO_CSS, pasaDe, rutasQueLleganA, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
 import { slugify } from '../../shared/slug.js';
 import { hubHtml, withHub } from './seo_hub.js';
@@ -539,6 +539,11 @@ box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 10px 26px rgba(0,0,0,.55)}
 #seo-prerender .rutero-svg{display:block;width:100%;height:auto;border-radius:3px}
 #seo-prerender .rutero figcaption{margin:9px 0 0;font-size:.72rem;letter-spacing:.06em;
 text-transform:uppercase;color:rgba(255,255,255,.38)}
+/* The zonal panel's second line scrolls right to left, as on the bus (client/style.css);
+   still for anyone who asks for less motion. */
+@keyframes rutero-pasa{from{transform:translateX(var(--rt-desde))}to{transform:translateX(var(--rt-hasta))}}
+#seo-prerender .rutero-pasa{animation:rutero-pasa var(--rt-dur) linear infinite}
+@media (prefers-reduced-motion:reduce){#seo-prerender .rutero-pasa{animation:none}}
 #seo-prerender .chip{display:inline-block;min-width:52px;text-align:center;padding:2px 8px;border-radius:7px;
 font-size:.82rem;font-weight:700;margin-right:8px}
 @media (max-width:560px){
@@ -837,16 +842,38 @@ ${items}
   // palette the app and the social cards use, so one código is never two colours
   // across the three surfaces (`stopTagColor`, §5.4.3).
   const accent = stopTagColor(codigo, primary.color, isZonalService(primary.sistema, primary.tipoServicio));
+  // An alimentador's ruteros are its portal's line, as printed; the page keeps its own colour.
+  const colorImpreso = /ALIMENTADOR/.test(primary.tipoServicio ?? '') && impreso?.color ? impreso.color : accent;
+
+  // The zonal LED sign, by the app's rule (`ruteroZonalHtml`, client/src/ui/routePage.ts):
+  // only where the piece prints the electronic layout, and captioned as unverified.
+  // One per printed sentido, like the tables under it.
+  const zonales = impreso?.formato === 'digital'
+    ? impreso.sentidos
+        .map(
+          (sentido, i) => `<figure class="rutero">
+<div class="rutero-frame">${ruteroSvg({
+            code: codigo,
+            destination: sentido.destino,
+            zona: colorImpreso,
+            pasa: pasaDe(sentido),
+            uid: `z${slugify(codigo)}-${i}`,
+            label: `Rutero electrónico de la ruta ${codigo} hacia ${sentido.destino}, dibujo sin verificar`,
+          })}</div>
+<figcaption>Rutero electrónico · dibujo sin verificar: el texto sale del plegable, y cada operador programa el suyo</figcaption>
+</figure>`
+        )
+        .join('\n')
+    : '';
 
   // The rutero as the paradero's piece prints it (shared/tabla_rutero.js), every
   // sentido the piece carries: this page describes the route whole.
   const tablas = impreso
-    ? `<div class="tabla-ruteros">${impreso.sentidos
+    ? `${zonales}<div class="tabla-ruteros">${impreso.sentidos
         .map((sentido) =>
           tablaRuteroHtml({
             codigo,
-            // An alimentador's rutero is its portal's line, as printed; the page keeps its own colour.
-            color: /ALIMENTADOR/.test(primary.tipoServicio ?? '') && impreso.color ? impreso.color : accent,
+            color: colorImpreso,
             formato: impreso.formato,
             sentido,
             estacionHref: (estacion) => {

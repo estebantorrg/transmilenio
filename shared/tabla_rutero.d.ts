@@ -41,6 +41,9 @@ export declare function agruparFilas(filas: ReadonlyArray<FilaRutero>): GrupoCor
 /** The corredores the sentidos print, the main one first, each once, at most `max`. */
 export declare function corredoresDe(sentidos: ReadonlyArray<SentidoRutero>, max?: number): string[];
 
+/** The zonal LED sign's second line: "Hito/CORREDOR - …", as the digital piece prints it. */
+export declare function pasaDe(sentido: SentidoRutero): string;
+
 /** The sentidos headed for `destino`; empty when none matches. */
 export declare function sentidosHacia(ruta: RuteroTradicional | null | undefined, destino: unknown): SentidoRutero[];
 

@@ -162,6 +162,16 @@ export function corredoresDe(sentidos, max = 3) {
 }
 
 /**
+ * The zonal LED sign's second line, as the digital piece prints its strip:
+ * "Hito/CORREDOR - …", a row without a corredor as its hito alone.
+ *
+ * @param {{ filas: ReadonlyArray<readonly [string | null, number, string]> }} sentido
+ */
+export function pasaDe(sentido) {
+  return sentido.filas.map(([corredor, , hito]) => (corredor ? `${hito}/${corredor}` : hito)).join(' - ');
+}
+
+/**
  * The sentidos of `ruta` headed for `destino` (the catalog's destination for
  * the route on screen). Matched on the folded name, or one name containing the
  * other (`BOSA SAN JOSÉ CICLOVÍA` for `Bosa San José`). Nothing is guessed: no

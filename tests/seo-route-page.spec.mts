@@ -68,3 +68,22 @@ test("an alimentador's printed rutero takes its portal's colour from the piece; 
   const a = { ...zonal, id: 'a818', codigo: 'A818', nombre: 'Galerías' };
   expect(renderRoute('A818', [a], new Map(), { formato: 'digital', color: '#0c3b96', sentidos: [sentido] }).body).not.toContain('--tr-zona:#0c3b96');
 });
+
+test('a digital piece gets the zonal LED sign, as the app draws it; a printed table alone gets none', () => {
+  const sentido = { destino: 'GALERÍAS', filas: [['CL 1 S', 0, 'Est. Nariño'], [null, 0, 'Teusaquillo']] as const };
+  const a = { ...zonal, id: 'a818', codigo: 'A818', nombre: 'Galerías' };
+  const { body } = renderRoute('A818', [a], new Map(), { formato: 'digital', color: '#0c3b96', sentidos: [sentido] });
+  // Zone A's colour, the printed destino on top, the printed strip scrolling under it.
+  expect(body).toContain('fill="#26358C"');
+  expect(body).toContain('aria-label="Rutero electrónico de la ruta A818 hacia GALERÍAS, dibujo sin verificar"');
+  expect(body).toContain('class="rutero-pasa"');
+  expect(body).toContain('Rutero electrónico · dibujo sin verificar');
+  // Above the printed table, with the animation and its reduced-motion stop in the page's own stylesheet.
+  expect(body.indexOf('rutero-pasa"')).toBeLessThan(body.indexOf('class="tabla-ruteros"'));
+  expect(body).toContain('@keyframes rutero-pasa');
+  expect(body).toMatch(/prefers-reduced-motion:reduce\)\{#seo-prerender \.rutero-pasa\{animation:none\}/);
+  // An alimentador's sign is its portal's line, as its piece prints the código.
+  const alimentador = { ...zonal, id: '3-13', codigo: '3-13', nombre: 'Nebraska', sistema: 'TransMilenio', tipoServicio: 'ALIMENTADOR_V', color: '#009944' };
+  expect(renderRoute('3-13', [alimentador], new Map(), { formato: 'digital', color: '#ff8525', sentidos: [sentido] }).body).toContain('fill="#ff8525"');
+  expect(renderRoute('A818', [a], new Map(), { formato: 'tabla', sentidos: [sentido] }).body).not.toContain('Rutero electrónico');
+});
