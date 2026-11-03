@@ -21,6 +21,17 @@ test.describe('the zonal panel', () => {
     expect(troncal).toContain('stroke="#e9f6ff"');
   });
 
+  test('the barrios scroll on a second line under the destino', () => {
+    const one = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'e' });
+    const two = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'f', pasa: 'Porciúncula/AK 7 - San Fernando/AC 72' });
+    expect(one).not.toContain('rutero-pasa');
+    expect(two).toContain('class="rutero-pasa"');
+    expect(two).toContain('clip-path="url(#rt-c-f)"');
+    // Two lines of the 11-row font, three pad rows: 2 × 11 + 3.
+    expect(two).toMatch(/viewBox="0 0 \d+ 25"/);
+    expect(one).toMatch(/viewBox="0 0 \d+ 13"/);
+  });
+
   test('a colour that is not a plain hex is ignored, not written into the SVG', () => {
     const svg = ruteroSvg({ code: 'H629', destination: 'X', zona: '"/><script>', uid: 'c' });
     expect(svg).not.toContain('<script>');

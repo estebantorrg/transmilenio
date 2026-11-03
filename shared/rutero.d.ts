@@ -59,6 +59,8 @@ export interface RuteroOptions {
   label?: string;
   /** The zonal panel, in this destination-zone colour (`#rrggbb`). Unverified: see `ruteroSvg`. */
   zona?: string;
+  /** A second line scrolling under the destino: the hitos and corredores ("PORCIUNCULA/AK 7 - …"). */
+  pasa?: string;
 }
 
 /**

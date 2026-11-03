@@ -6495,6 +6495,21 @@ body.native-app .route-detail-close:active {
   border-radius: 3px;
 }
 
+/* The zonal panel's second line (shared/rutero.js `pasa`): the barrios scroll right
+   to left under the destino, as on the bus; still for anyone who asks for less motion. */
+@keyframes rutero-pasa {
+  from { transform: translateX(var(--rt-desde)); }
+  to { transform: translateX(var(--rt-hasta)); }
+}
+
+.rutero-pasa {
+  animation: rutero-pasa var(--rt-dur) linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rutero-pasa { animation: none; }
+}
+
 .rutero-caption {
   margin: 9px 0 0;
   font-size: var(--font-size-xs);

@@ -423,8 +423,11 @@ function dotsPath(dots) {
  * zone's colour in a top strip and behind the código, and the manual allows
  * amber LEDs. No zonal panel has been photographed for this app, and TRANSMILENIO
  * says each concessionaire sets the content: this is the documents, not a bus.
+ * `pasa` adds the second line those panels run under the destino: the barrios
+ * and corredores ("PORCIUNCULA/AK 7 - SAN FERNANDO/AC 72 …"), scrolling right
+ * to left (`.rutero-pasa` in the page's CSS, still for reduced motion).
  *
- * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, zona?: string }} options
+ * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, zona?: string, pasa?: string }} options
  * @returns {string}
  */
 export function ruteroSvg(options) {
@@ -434,7 +437,12 @@ export function ruteroSvg(options) {
     `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`;
   const safeUid = String(options.uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
   const width = layout.columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
-  const height = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
+  const pasa = normalizeRuteroText(options.pasa).trim();
+  // The top line's band; the scrolling line, when there is one, runs under it.
+  const band = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
+  const height = pasa ? band + GLYPH_ROWS + PANEL_PAD_ROWS : band;
+  const pasaWidth = pasa.length * CHAR_ADVANCE;
+  const pasaDots = litDots([[pasa, 0]]).map(([x, y]) => [x, y + band - PANEL_PAD_ROWS]);
   const zona = /^#[0-9a-f]{6}$/i.test(options.zona ?? '') ? options.zona : null;
   const codeDots = litDots([[layout.code, layout.codeAt]]);
   const destinationDots = litDots([[layout.destination, layout.destinationAt]]);
@@ -455,11 +463,15 @@ export function ruteroSvg(options) {
     '<circle cx=".5" cy=".5" r=".3" fill="#161d26"/>' +
     '</pattern>' +
     `<path id="rt-l-${safeUid}" d="${dotsPath(dots)}" fill="none" stroke-linecap="round"/>` +
+    (pasa
+      ? `<path id="rt-p-${safeUid}" d="${dotsPath(pasaDots)}" fill="none" stroke-linecap="round"/>` +
+        `<clipPath id="rt-c-${safeUid}"><rect y="${band}" width="${width}" height="${height - band}"/></clipPath>`
+      : '') +
     '</defs>' +
     `<rect width="${width}" height="${height}" fill="#05080c"/>` +
     `<rect width="${width}" height="${height}" fill="url(#rt-o-${safeUid})"/>` +
     (zona
-      ? `<rect width="${codeBox}" height="${height}" fill="${zona}"/><rect width="${width}" height="${PANEL_PAD_ROWS}" fill="${zona}"/>`
+      ? `<rect width="${codeBox}" height="${band}" fill="${zona}"/><rect width="${width}" height="${PANEL_PAD_ROWS}" fill="${zona}"/>`
       : '') +
     // Both layers are the same path at two stroke widths. The bloom stays under
     // one pitch wide: strokes are two dots, and a wider halo fuses the pair into
@@ -469,6 +481,11 @@ export function ruteroSvg(options) {
     `<use href="#rt-l-${safeUid}" stroke="${core}" stroke-width=".66"/>` +
     (zona ? `<path d="${dotsPath(codeDots)}" fill="none" stroke-linecap="round" stroke="${codeInk}" stroke-width=".66"/>` : '') +
     '</g>' +
+    // It enters at the right edge and leaves past the left one, about six characters a second.
+    (pasa
+      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:-${pasaWidth}px;--rt-dur:${((width + pasaWidth) / (6 * CHAR_ADVANCE)).toFixed(1)}s">` +
+        `<g transform="translate(.5 .5)"><use href="#rt-p-${safeUid}" stroke="${bloom}" stroke-opacity=".26" stroke-width="1.32"/><use href="#rt-p-${safeUid}" stroke="${core}" stroke-width=".66"/></g></g></g>`
+      : '') +
     '</svg>'
   );
 }

@@ -31,7 +31,7 @@ import { ZONAS, leerCodigoZonal, zonasDeRuta, type ZonaDeRuta } from '../../../s
 import { flagOn } from '../utils/flags';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
-import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml } from '../../../shared/tabla_rutero.js';
+import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type SentidoRutero } from '../../../shared/tabla_rutero.js';
 import { PASO_NOTA, pasoTexto, programadoHtml, resumenFrecuencia, sentidoDe } from '../../../shared/horario_programado.js';
 import { api, type HorarioProgramadoResponse } from '../services/api';
 import { cabeceraDe, cabeceraHorario, circularSinServicio, diasSinServicio, esCircular, type HorariosCabeceraData } from '../services/cabecera';
@@ -233,15 +233,18 @@ function estacionHref(codigo: string): string | null {
 /**
  * The zonal LED sign — held back behind the `rutero-zonal` flag (planA2 step 8),
  * CONTENIDO NO VERIFICADO: drawn from the ITS annexes, not a photograph, and only
- * for routes whose piece prints the electronic sign's layout (`formato: 'digital'`).
+ * for routes whose piece prints the electronic sign's layout (`formato: 'digital'`):
+ * its destino on the top line, its "Hito/CORREDOR - …" strip scrolling under it.
  */
-function ruteroZonalHtml(route: RouteListItem, destino: string): string {
+function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero): string {
   const servicio = leerCodigoZonal(route.code)?.[0];
   if (!servicio) return '';
+  const destino = sentido.destino;
   const sign = ruteroSvg({
     code: route.code,
     destination: destino,
     zona: ZONAS[servicio.destino].color,
+    pasa: sentido.filas.map(([corredor, , hito]) => (corredor ? `${hito}/${corredor}` : hito)).join(' - '),
     uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
     label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
   });
@@ -264,7 +267,7 @@ function tablaRuteroSection(route: RouteListItem): string {
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
-      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0].destino) : ''}
+      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0]) : ''}
       <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido, estacionHref })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'
