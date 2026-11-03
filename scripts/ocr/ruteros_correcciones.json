@@ -1,5 +1,5 @@
 {
-  "_léeme": "Correcciones a mano de la lectura de las artes (ruteros.mjs), aplicadas por ruteros_consolidar.mjs antes de decidir qué ruta está limpia. Se hacen en _ruteros/ver.html y se guardan aquí. cambios: pieza, tabla como la nombran los avisos (\"tabla 2\", \"digital 0\"), celda (\"destino\", o \"corredor\"/\"hito\" con su fila), lo que se leyó y lo que dice la pieza; si una nueva lectura no coincide con \"leido\", el cambio no se aplica y la celda vuelve a revisión. Con \"es\" igual a \"leido\", la lectura queda aprobada tal cual. todas: la misma lectura errada en cualquier pieza. aprobados: avisos de una ruta que se revisaron contra la pieza y están bien como están. avenidas: nombres de avenida comprobados en las piezas, además de los del manual. filas: una fila sin chip que la lectura no vio (la banda \"DIRECTO NQS\" bajo el destino), puesta antes de la fila cuyo hito es antesDe; se añade al publicar y se edita aquí, no en ver.html.",
+  "_léeme": "Correcciones a mano de la lectura de las artes (ruteros.mjs), aplicadas por ruteros_consolidar.mjs antes de decidir qué ruta está limpia. Se hacen en _ruteros/ver.html y se guardan aquí. cambios: pieza, tabla como la nombran los avisos (\"tabla 2\", \"digital 0\"), celda (\"destino\", o \"corredor\"/\"hito\" con su fila), lo que se leyó y lo que dice la pieza; si una nueva lectura no coincide con \"leido\", el cambio no se aplica y la celda vuelve a revisión. Con \"es\" igual a \"leido\", la lectura queda aprobada tal cual. todas: la misma lectura errada en cualquier pieza. aprobados: avisos de una ruta que se revisaron contra la pieza y están bien como están. avenidas: nombres de avenida comprobados en las piezas, además de los del manual. filas: una fila sin chip que la lectura no vio (la banda \"DIRECTO NQS\" bajo el destino), puesta antes de la fila cuyo hito es antesDe; se añade al publicar y se edita aquí, no en ver.html. bandas: filas sin chip que la pieza imprime oscuras (las bandas DIRECTO); las demás se dibujan blancas. Comprobadas una por una: 330 \"LA ESTRELLITA\" imprime la suya blanca.",
   "cambios": [
     {
       "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_94.pdf",
@@ -1151,13 +1151,52 @@
       "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T163.pdf",
       "tabla": "tabla 1",
       "antesDe": "CHICÓ NORTE",
-      "es": "DIRECTO NQS"
+      "es": "DIRECTO NQS",
+      "oscura": true
     },
     {
       "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_18-3.pdf",
       "tabla": "tabla 0",
       "antesDe": "TIBABITA",
-      "es": "DIRECTO AK 7"
+      "es": "DIRECTO AK 7",
+      "oscura": true
+    }
+  ],
+  "bandas": [
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_330.pdf",
+      "tabla": "tabla 2",
+      "hito": "DIRECTO AV. BOYACÁ"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T12.pdf",
+      "tabla": "tabla 0",
+      "hito": "DIRECTO AK 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T25.pdf",
+      "tabla": "tabla 0",
+      "hito": "DIRECTO AK 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T26.pdf",
+      "tabla": "tabla 0",
+      "hito": "DIRECTO AV. NQS"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T26.pdf",
+      "tabla": "tabla 1",
+      "hito": "DIRECTO AV. NOS"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_18-3.pdf",
+      "tabla": "tabla 1",
+      "hito": "DIRECTO AK 7"
+    },
+    {
+      "pieza": "P3_TransMiZonales antigua señalética/Plegable_WEB_T163.pdf",
+      "tabla": "tabla 0",
+      "hito": "DIRECTO NQS"
     }
   ],
   "aprobados": {

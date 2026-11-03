@@ -1,6 +1,6 @@
 /** Types for `tabla_rutero.js` (plain ESM shared by client and prerender; see `rutero.d.ts`). */
 
-/** `[corredor | null, destacado 0/1, hito]` — one printed row. */
+/** `[corredor | null, destacado 0/1, hito]` — one printed row. `destacado` is the dark chip, or, on a row without one, a dark band. */
 export type FilaRutero = readonly [string | null, number, string];
 
 export interface SentidoRutero {

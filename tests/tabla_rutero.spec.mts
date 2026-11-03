@@ -143,14 +143,15 @@ test.describe('the drawing', () => {
     expect(html.match(/class="tr-corredor/g)).toHaveLength(4);
   });
 
-  test('a DIRECTO band runs across the table, dark as printed', () => {
+  test('a band runs across the table, dark only where the piece prints it dark', () => {
     const html = tablaRuteroHtml({
-      codigo: 'T163',
+      codigo: '330',
       color: '#1c6695',
-      sentido: { destino: 'CALLE 222', filas: [[null, 0, 'DIRECTO NQS'], ['AC 100', 0, 'CHICÓ NORTE'], [null, 0, 'ESTACIÓN AV. 1° DE MAYO']] },
+      // 330 prints the same band dark toward El Uval and white toward La Estrellita: the flag says which.
+      sentido: { destino: 'EL UVAL', filas: [[null, 1, 'DIRECTO AV. BOYACÁ'], ['AV. BOYACÁ', 0, 'MEISSEN'], [null, 0, 'DIRECTO AV. BOYACÁ']] },
     });
-    expect(html).toContain('class="tr-hito tr-ancha tr-directo');
-    expect(html.match(/tr-directo/g)).toHaveLength(1);
+    expect(html).toContain('class="tr-hito tr-ancha tr-oscura');
+    expect(html.match(/tr-oscura/g)).toHaveLength(1);
   });
 
   test('text is escaped', () => {

@@ -305,10 +305,10 @@ export function tablaRuteroHtml({ codigo, color, formato = 'tabla', sentido, est
   }
   const body = filas.map(({ run, i, hito, span }) => {
     // A row with no corredor runs across the whole table, as the print sets it
-    // (111's ESTACIÓN AV. 1° DE MAYO); a DIRECTO band — the stretch the route
-    // runs along, T163's DIRECTO NQS — is dark, as printed.
+    // (111's ESTACIÓN AV. 1° DE MAYO). Dark where the piece prints it dark — the
+    // DIRECTO bands, the stretch the route runs along — flagged as a dark chip is.
     const h = hitoHtml(hito);
-    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha${/^DIRECTO\b/.test(hito) ? ' tr-directo' : ''} tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2"${h.title}>${h.html}</td></tr>`;
+    if (!run.corredor) return `<tr><td class="tr-hito tr-ancha${run.destacado ? ' tr-oscura' : ''} tr-t${talla(hito, [16, 20, 25, 30])}" colspan="2"${h.title}>${h.html}</td></tr>`;
     const c = i > 0 ? null : corredorDicho(run.corredor, corredorHtml(run.corredor));
     const corredor = !c ? ''
       : `<th scope="row" class="tr-corredor${run.destacado ? ' tr-destacado' : ''}"${run.hitos.length > 1 ? ` rowspan="${run.hitos.length}"` : ''}${c.title}>${c.html}</th>`;
@@ -418,7 +418,7 @@ export const TABLA_RUTERO_CSS = `
 }
 .tabla-rutero .tr-corredor.tr-destacado { background: var(--tr-tinta-oscura); color: #fff; }
 .tabla-rutero .tr-hito.tr-ancha { background: #fff; }
-.tabla-rutero .tr-hito.tr-ancha.tr-directo { background: var(--tr-tinta-oscura); color: #fff; }
+.tabla-rutero .tr-hito.tr-ancha.tr-oscura { background: var(--tr-tinta-oscura); color: #fff; }
 .tabla-rutero .tr-chip-texto { display: block; white-space: nowrap; letter-spacing: -0.01em; }
 .tabla-rutero .tr-chip-texto.tr-t1 { font-size: 11cqi; }
 .tabla-rutero .tr-chip-texto.tr-t2 { font-size: 8.6cqi; }

@@ -295,26 +295,7 @@ export function addJourneyLayer(map: maplibregl.Map): void {
   });
 }
 
-/**
- * Per-segment color palette for distinct tramos.
- * Each ride segment gets a unique vibrant color from this palette.
- */
-const TRAMO_COLORS = [
-  '#FF6B6B', // coral red
-  '#4ECDC4', // teal
-  '#FFD93D', // golden yellow
-  '#6C5CE7', // purple
-  '#00B894', // mint green
-  '#FD79A8', // pink
-  '#0984E3', // blue
-  '#E17055', // burnt orange
-  '#00CEC9', // cyan
-  '#A29BFE', // lavender
-];
-
-/**
- * Returns the hex color for a route code, or picks from tramo palette.
- */
+/** The hex colour a route is drawn in: its línea's, as everywhere else in the app. */
 function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal' | 'cable'): string {
   if (routeCode === 'walking') return '#38BDF8';
   if (routeType === 'cable') return '#F97316'; // TransMiCable orange
@@ -327,33 +308,13 @@ function getRouteColorHex(routeCode: string, routeType?: 'troncal' | 'zonal' | '
 }
 
 /**
- * Assigns distinct colors to each ride segment, using route accent color
- * but falling back to palette if multiple segments share the same route color.
+ * Each step's colour: a ride in its route's own colour, a walk in sky blue.
+ * Two rides on one línea (H75 then H15) stay the same orange, as their buses
+ * are: a stand-in colour for the second made H15 coral, a colour no H route
+ * has. Where one ends and the next begins, the transfer marker says so.
  */
 export function assignSegmentColors(plan: JourneyPlan): string[] {
-  const colors: string[] = [];
-  const usedColors = new Set<string>();
-  let paletteIdx = 0;
-
-  for (const step of plan.steps) {
-    if (step.type === 'walk') {
-      colors.push('#38BDF8');
-      continue;
-    }
-
-    let color = getRouteColorHex(step.routeCode || '', step.routeType);
-
-    // If this color is already used by a previous ride segment, pick from palette
-    if (usedColors.has(color)) {
-      color = TRAMO_COLORS[paletteIdx % TRAMO_COLORS.length];
-      paletteIdx++;
-    }
-
-    usedColors.add(color);
-    colors.push(color);
-  }
-
-  return colors;
+  return plan.steps.map((step) => (step.type === 'walk' ? '#38BDF8' : getRouteColorHex(step.routeCode || '', step.routeType)));
 }
 
 /**

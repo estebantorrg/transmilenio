@@ -210,11 +210,18 @@ function insertarFilas(s, filas) {
     if (!s.copias.some((k) => k.pieza === x.pieza && k.tabla === x.tabla)) continue;
     const at = out.findIndex((f) => f.hito === x.antesDe);
     if (at < 0) continue;
-    out.splice(at, 0, { corredor: null, hito: x.es });
+    out.splice(at, 0, { corredor: null, hito: x.es, destacado: Boolean(x.oscura) });
     filasUsadas.add(x);
   }
   return out;
 }
+
+// Whether the piece prints a chip-less row dark. The word doesn't say: 330's
+// DIRECTO AV. BOYACÁ is dark toward El Uval and white toward La Estrellita. The
+// reading has no fill for these rows, so `bandas` lists the dark ones, each seen
+// on its piece; the flag is the one a dark chip uses.
+const oscura = (s, f) => f.destacado
+  || (f.corredor === null && CORRECCIONES.bandas.some((b) => b.hito === f.hito && s.copias.some((k) => k.pieza === b.pieza && k.tabla === b.tabla)));
 
 const publicar = {};
 for (const c of Object.keys(porRuta).sort()) {
@@ -229,7 +236,7 @@ for (const c of Object.keys(porRuta).sort()) {
     // reads SANTO DOMINGO, A520 EST. LAS NIEVES).
     destino: s.destinoDelCatalogo ? s.destino.normalize('NFC').replace(/\s+CICLOVÍA$/i, '') : s.destino,
     ...(s.operacion ? { operacion: s.operacion } : {}),
-    filas: insertarFilas(s, r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, f.destacado ? 1 : 0, hito(f.hito)]),
+    filas: insertarFilas(s, r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, oscura(s, f) ? 1 : 0, hito(f.hito)]),
   }));
   publicar[c] = { formato: r.formato, sentidos };
 }
