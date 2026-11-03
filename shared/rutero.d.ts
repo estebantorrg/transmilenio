@@ -57,9 +57,7 @@ export interface RuteroOptions {
   uid?: string;
   /** Overrides the generated `aria-label`. */
   label?: string;
-  /** The zonal panel, in this destination-zone colour (`#rrggbb`). Unverified: see `ruteroSvg`. */
-  zona?: string;
-  /** A second line scrolling under the destino: the hitos and corredores ("PORCIUNCULA/AK 7 - …"). */
+  /** The zonal panel's second line, small and mixed case, scrolling under the destino ("Porciúncula/AK 7 - …"). Unverified: see `ruteroSvg`. */
   pasa?: string;
 }
 

@@ -27,7 +27,7 @@ import { escapeHTML, safeColor } from '../utils/html';
 import { getRouteAccentColor } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
-import { ZONAS, leerCodigoZonal, zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
+import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
 import { flagOn } from '../utils/flags';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
@@ -232,18 +232,16 @@ function estacionHref(codigo: string): string | null {
  */
 /**
  * The zonal LED sign — held back behind the `rutero-zonal` flag (planA2 step 8),
- * CONTENIDO NO VERIFICADO: drawn from the ITS annexes, not a photograph, and only
- * for routes whose piece prints the electronic sign's layout (`formato: 'digital'`):
- * its destino on the top line, its "Hito/CORREDOR - …" strip scrolling under it.
+ * CONTENIDO NO VERIFICADO: shaped after photographs of zonal buses, but what each
+ * panel says is its operator's to set. Only for routes whose piece prints the
+ * electronic sign's layout (`formato: 'digital'`): the printed destino on the top
+ * line, the printed "Hito/CORREDOR - …" strip scrolling under it.
  */
 function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero): string {
-  const servicio = leerCodigoZonal(route.code)?.[0];
-  if (!servicio) return '';
   const destino = sentido.destino;
   const sign = ruteroSvg({
     code: route.code,
     destination: destino,
-    zona: ZONAS[servicio.destino].color,
     pasa: sentido.filas.map(([corredor, , hito]) => (corredor ? `${hito}/${corredor}` : hito)).join(' - '),
     uid: `z${route.id.replace(/[^A-Za-z0-9]/g, '')}`,
     label: `Rutero electrónico de la ruta ${route.code} hacia ${destino}, dibujo sin verificar`,
@@ -251,7 +249,7 @@ function ruteroZonalHtml(route: RouteListItem, sentido: SentidoRutero): string {
   return `
     <figure class="rutero route-page-rutero">
       <div class="rutero-frame">${sign}</div>
-      <figcaption class="rutero-caption">Rutero electrónico · dibujo sin verificar, hecho con los anexos técnicos y no con una foto</figcaption>
+      <figcaption class="rutero-caption">Rutero electrónico · dibujo sin verificar: el texto sale del plegable, y cada operador programa el suyo</figcaption>
     </figure>`;
 }
 

@@ -181,6 +181,7 @@ const GLYPHS = {
   "'": ['.##...', '.##...', '.##...', '......', '......', '......', '......', '......', '......', '......', '......'],
   '+': ['......', '......', '......', '..##..', '..##..', '######', '######', '..##..', '..##..', '......', '......'],
   '&': ['.###..', '##.##.', '##.##.', '.###..', '.###..', '##.###', '##.###', '##..##', '##.###', '######', '.###.#'],
+  '°': ['.###..', '##.##.', '##.##.', '.###..', '......', '......', '......', '......', '......', '......', '......'],
 };
 
 /** Anything with no glyph prints as the panel's blank cell rather than as tofu. */
@@ -188,6 +189,36 @@ const FALLBACK = ' ';
 
 /** U+0303. The one combining mark the fold below keeps, because Ñ is a letter. */
 const COMBINING_TILDE = 0x303;
+
+/**
+ * The second line's face: the small mixed-case line zonal panels run under the
+ * destino ("Suba - CL 145B" on a C124). 5×7 capitals and lowercase, one more row
+ * for descenders, on the same dot pitch as the big face. Each glyph is its 8
+ * rows top first, two hex digits a row, bit 4 the left column. Drawn here, not
+ * traced: no photograph of the panel resolves its dots.
+ */
+const SMALL_COLUMNS = 5;
+const SMALL_ROWS = 8;
+const SMALL_ADVANCE = SMALL_COLUMNS + 1;
+const SMALL = {
+  ' ': '0000000000000000', '.': '00000000000c0c00', ',': '000000000c0c0408', '-': '0000000e00000000',
+  '/': '0001020408100000', '°': '0c12120c00000000', '(': '0204080808040200', ')': '0804020202040800',
+  '&': '0c12140815120d00', "'": '0404080000000000', ':': '000c0c000c0c0000',
+  0: '0e11131519110e00', 1: '040c040404040e00', 2: '0e11010204081f00', 3: '1f02040201110e00', 4: '02060a121f020200',
+  5: '1f101e0101110e00', 6: '0608101e11110e00', 7: '1f01020408080800', 8: '0e11110e11110e00', 9: '0e11110f01020c00',
+  A: '0e11111f11111100', B: '1e11111e11111e00', C: '0e11101010110e00', D: '1e11111111111e00', E: '1f10101e10101f00',
+  F: '1f10101e10101000', G: '0e11101711110f00', H: '1111111f11111100', I: '0e04040404040e00', J: '0702020202120c00',
+  K: '1112141814121100', L: '1010101010101f00', M: '111b151511111100', N: '1111191513111100', Ñ: '0d12111915131100',
+  O: '0e11111111110e00', P: '1e11111e10101000', Q: '0e11111115120d00', R: '1e11111e14121100', S: '0f10100e01011e00',
+  T: '1f04040404040400', U: '1111111111110e00', V: '11111111110a0400', W: '1111111515150a00', X: '11110a040a111100',
+  Y: '1111110a04040400', Z: '1f01020408101f00',
+  a: '00000e010f110f00', b: '1010161911111e00', c: '00000e1010110e00', d: '01010d1311110f00', e: '00000e111f100e00',
+  f: '0609081c08080800', g: '00000f11110f010e', h: '1010161911111100', i: '04000c0404040e00', j: '020006020202120c',
+  k: '1010121418141200', l: '0c04040404040e00', m: '00001a1515111100', n: '0000161911111100', ñ: '0d12161911111100',
+  o: '00000e1111110e00', p: '00001e11111e1010', q: '00000f11110f0101', r: '0000161910101000', s: '00000f100e011e00',
+  t: '08081c0808090600', u: '0000111111130d00', v: '00001111110a0400', w: '0000111115150a00', x: '0000110a040a1100',
+  y: '00001111110f010e', z: '00001f0204081f00',
+};
 
 /**
  * The catalog `tipoServicio` values whose buses carry this sign.
@@ -228,6 +259,11 @@ export function carriesRutero(tipoServicio) {
  * @returns {string}
  */
 export function normalizeRuteroText(value) {
+  return fold(String(value ?? '').toUpperCase(), GLYPHS);
+}
+
+/** Accents dropped (Ñ kept), every character the face lacks a blank cell, spaces collapsed. */
+function fold(value, glyphs) {
   return String(value ?? '')
     .normalize('NFD')
     // Drop every combining mark except the tilde that makes an Ñ: on these
@@ -236,9 +272,8 @@ export function normalizeRuteroText(value) {
       mark.codePointAt(0) === COMBINING_TILDE && /[Nn]/.test(whole[offset - 1] || '') ? mark : ''
     )
     .normalize('NFC')
-    .toUpperCase()
     .split('')
-    .map((ch) => (Object.prototype.hasOwnProperty.call(GLYPHS, ch) ? ch : FALLBACK))
+    .map((ch) => (Object.prototype.hasOwnProperty.call(glyphs, ch) ? ch : FALLBACK))
     .join('')
     // After the fold, not before: a character with no glyph becomes a blank
     // cell, and "PORTAL AMÉRICAS · MUÑOZ" would otherwise light a hole where the
@@ -417,17 +452,15 @@ function dotsPath(dots) {
  * bounding box, not each dot, and at the sizes this renders the falloff is not
  * separable from a flat halo anyway.
  *
- * `zona` draws the zonal panel instead — CONTENIDO NO VERIFICADO, behind a flag
- * (planA2 step 8): the ITS annexes (Fase III/V RF016) and the manual's
- * "Contraste / Señalética 2020" describe an RGB panel with the destination
- * zone's colour in a top strip and behind the código, and the manual allows
- * amber LEDs. No zonal panel has been photographed for this app, and TRANSMILENIO
- * says each concessionaire sets the content: this is the documents, not a bus.
- * `pasa` adds the second line those panels run under the destino: the barrios
- * and corredores ("PORCIUNCULA/AK 7 - SAN FERNANDO/AC 72 …"), scrolling right
- * to left (`.rutero-pasa` in the page's CSS, still for reduced motion).
+ * `pasa` adds the zonal panel's second line — CONTENIDO NO VERIFICADO, behind a
+ * flag (planA2 step 8): the barrios and corredores in the small mixed-case face,
+ * scrolling right to left under the destino (`.rutero-pasa` in the page's CSS,
+ * still for reduced motion). As photographs of zonal buses show it (C124, 818,
+ * 149; Sebastián Ramírez / InfoSITP): a plain panel in one LED colour, no zone
+ * colour anywhere — white on most, amber on some, so the white drawn here. What
+ * the line says is each concessionaire's to set; the printed strip stands in.
  *
- * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, zona?: string, pasa?: string }} options
+ * @param {{ code: string, destination: string, panelChars?: number, uid?: string, label?: string, pasa?: string }} options
  * @returns {string}
  */
 export function ruteroSvg(options) {
@@ -437,23 +470,21 @@ export function ruteroSvg(options) {
     `Rutero: ${[layout.code, layout.destination].filter(Boolean).join(' ')}`;
   const safeUid = String(options.uid || 'rutero').replace(/[^A-Za-z0-9_-]/g, '');
   const width = layout.columns * CHAR_ADVANCE - 1 + PANEL_PAD_COLUMNS * 2;
-  const pasa = normalizeRuteroText(options.pasa).trim();
-  // The top line's band; the scrolling line, when there is one, runs under it.
+  // The top line's band; the second line, when there is one, runs under it.
   const band = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
-  const height = pasa ? band + GLYPH_ROWS + PANEL_PAD_ROWS : band;
-  const pasaWidth = pasa.length * CHAR_ADVANCE;
-  const pasaDots = litDots([[pasa, 0]]).map(([x, y]) => [x, y + band - PANEL_PAD_ROWS]);
-  const zona = /^#[0-9a-f]{6}$/i.test(options.zona ?? '') ? options.zona : null;
-  const codeDots = litDots([[layout.code, layout.codeAt]]);
-  const destinationDots = litDots([[layout.destination, layout.destinationAt]]);
-  // The zonal panel lights its destino amber and its código white on the zone
-  // colour (amber on orange vanished); the troncal sign is one white lattice.
-  const dots = zona ? destinationDots : [...codeDots, ...destinationDots];
-  // The código's box ends one blank column after it, where the destination may begin.
-  const codeBox = PANEL_PAD_COLUMNS + layout.code.length * CHAR_ADVANCE;
-  const [bloom, core] = zona ? ['#ff9f1a', '#ffd27a'] : ['#9ed2ef', '#e9f6ff'];
-  // On a light zone colour (C yellow, K beige) a white código fades out; it goes dark there.
-  const codeInk = zona && [1, 3, 5].reduce((sum, i, k) => sum + parseInt(zona.slice(i, i + 2), 16) * [0.299, 0.587, 0.114][k], 0) > 170 ? '#111' : '#fff';
+  const pasa = fold(options.pasa, SMALL);
+  const height = pasa ? band + SMALL_ROWS + PANEL_PAD_ROWS : band;
+  const pasaWidth = pasa.length * SMALL_ADVANCE;
+  const dots = litDots([
+    [layout.code, layout.codeAt],
+    [layout.destination, layout.destinationAt],
+  ]);
+  // Both layers are the same path at two stroke widths. The bloom stays under
+  // one pitch wide: strokes are two dots, and a wider halo fuses the pair into
+  // a bar instead of the two LEDs the sign shows.
+  const lit = (id) =>
+    `<use href="#${id}" stroke="#9ed2ef" stroke-opacity=".26" stroke-width="1.32"/>` +
+    `<use href="#${id}" stroke="#e9f6ff" stroke-width=".66"/>`;
 
   return (
     `<svg class="rutero-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="xMidYMid meet" ` +
@@ -464,28 +495,38 @@ export function ruteroSvg(options) {
     '</pattern>' +
     `<path id="rt-l-${safeUid}" d="${dotsPath(dots)}" fill="none" stroke-linecap="round"/>` +
     (pasa
-      ? `<path id="rt-p-${safeUid}" d="${dotsPath(pasaDots)}" fill="none" stroke-linecap="round"/>` +
+      ? `<path id="rt-p-${safeUid}" d="${dotsPath(smallDots(pasa, band))}" fill="none" stroke-linecap="round"/>` +
         `<clipPath id="rt-c-${safeUid}"><rect y="${band}" width="${width}" height="${height - band}"/></clipPath>`
       : '') +
     '</defs>' +
     `<rect width="${width}" height="${height}" fill="#05080c"/>` +
     `<rect width="${width}" height="${height}" fill="url(#rt-o-${safeUid})"/>` +
-    (zona
-      ? `<rect width="${codeBox}" height="${band}" fill="${zona}"/><rect width="${width}" height="${PANEL_PAD_ROWS}" fill="${zona}"/>`
-      : '') +
-    // Both layers are the same path at two stroke widths. The bloom stays under
-    // one pitch wide: strokes are two dots, and a wider halo fuses the pair into
-    // a bar instead of the two LEDs the sign shows.
-    '<g transform="translate(.5 .5)">' +
-    `<use href="#rt-l-${safeUid}" stroke="${bloom}" stroke-opacity=".26" stroke-width="1.32"/>` +
-    `<use href="#rt-l-${safeUid}" stroke="${core}" stroke-width=".66"/>` +
-    (zona ? `<path d="${dotsPath(codeDots)}" fill="none" stroke-linecap="round" stroke="${codeInk}" stroke-width=".66"/>` : '') +
-    '</g>' +
-    // It enters at the right edge and leaves past the left one, about six characters a second.
+    `<g transform="translate(.5 .5)">${lit(`rt-l-${safeUid}`)}</g>` +
+    // It enters at the right edge and leaves past the left one, about seven of its characters a second.
     (pasa
-      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:-${pasaWidth}px;--rt-dur:${((width + pasaWidth) / (6 * CHAR_ADVANCE)).toFixed(1)}s">` +
-        `<g transform="translate(.5 .5)"><use href="#rt-p-${safeUid}" stroke="${bloom}" stroke-opacity=".26" stroke-width="1.32"/><use href="#rt-p-${safeUid}" stroke="${core}" stroke-width=".66"/></g></g></g>`
+      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:-${pasaWidth}px;--rt-dur:${((width + pasaWidth) / 42).toFixed(1)}s">` +
+        `<g transform="translate(.5 .5)">${lit(`rt-p-${safeUid}`)}</g></g></g>`
       : '') +
     '</svg>'
   );
+}
+
+/**
+ * The small face's lit dots for `text`, from column 0, its top row at `top`.
+ *
+ * @param {string} text
+ * @param {number} top
+ * @returns {Array<[number, number]>}
+ */
+function smallDots(text, top) {
+  /** @type {Array<[number, number]>} */
+  const dots = [];
+  [...text].forEach((ch, i) => {
+    const hex = SMALL[ch] ?? SMALL[FALLBACK];
+    for (let row = 0; row < SMALL_ROWS; row++) {
+      const bits = parseInt(hex.slice(row * 2, row * 2 + 2), 16);
+      for (let col = 0; col < SMALL_COLUMNS; col++) if (bits & (16 >> col)) dots.push([i * SMALL_ADVANCE + col, top + row]);
+    }
+  });
+  return dots;
 }

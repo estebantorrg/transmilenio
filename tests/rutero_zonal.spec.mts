@@ -1,41 +1,43 @@
 import { test, expect, type Page } from '@playwright/test';
-import { ruteroSvg } from '../shared/rutero.js';
+import { normalizeRuteroText, ruteroSvg } from '../shared/rutero.js';
 
 /**
  * The zonal LED sign (planA2 step 8): built, unverified, and held back behind
- * the `rutero-zonal` flag. Drawn from the ITS annexes — zone colour in a top
- * strip and behind the código, amber LEDs — not from a photograph.
+ * the `rutero-zonal` flag. Shaped after photographs of zonal buses (C124, 818,
+ * 149): a plain panel in one LED colour, código and destino on top, and a small
+ * mixed-case line under them scrolling right to left.
  */
 
+const pasaPath = (svg: string) => /<path id="rt-p-[^"]*" d="([^"]*)"/.exec(svg)?.[1] ?? '';
+
 test.describe('the zonal panel', () => {
-  test('carries the zone colour and amber LEDs; the troncal sign is unchanged', () => {
-    const zonal = ruteroSvg({ code: 'H629', destination: 'Arborizadora Alta', zona: '#F18500', uid: 'a' });
-    expect(zonal.match(/fill="#F18500"/g)).toHaveLength(2);
-    expect(zonal).toContain('stroke="#ffd27a"');
-    // The código is lit white on the zone colour (amber on orange could not be read),
-    // and dark on a light one, where white would fade: C is yellow.
-    expect(zonal).toContain('stroke="#fff"');
-    expect(ruteroSvg({ code: 'C118', destination: 'Suba', zona: '#FCBD1B', uid: 'd' })).toContain('stroke="#111"');
-    const troncal = ruteroSvg({ code: 'F23', destination: 'Portal Américas', uid: 'b' });
-    expect(troncal).not.toContain('#ffd27a');
-    expect(troncal).toContain('stroke="#e9f6ff"');
+  test('a plain panel in the troncal sign\'s white, no zone colour', () => {
+    const zonal = ruteroSvg({ code: 'C124', destination: 'Bilbao', uid: 'a', pasa: 'Porciúncula/AK 7' });
+    expect(zonal.match(/fill="#[0-9a-f]{6}"/gi)?.sort()).toEqual(['fill="#05080c"', 'fill="#161d26"']);
+    expect(zonal).toContain('stroke="#e9f6ff"');
   });
 
-  test('the barrios scroll on a second line under the destino', () => {
-    const one = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'e' });
-    const two = ruteroSvg({ code: 'C124', destination: 'Bilbao', zona: '#FCBD1B', uid: 'f', pasa: 'Porciúncula/AK 7 - San Fernando/AC 72' });
+  test('the barrios scroll on a smaller second line under the destino', () => {
+    const one = ruteroSvg({ code: 'C124', destination: 'Bilbao', uid: 'e' });
+    const two = ruteroSvg({ code: 'C124', destination: 'Bilbao', uid: 'f', pasa: 'Porciúncula/AK 7 - San Fernando/AC 72' });
     expect(one).not.toContain('rutero-pasa');
     expect(two).toContain('class="rutero-pasa"');
     expect(two).toContain('clip-path="url(#rt-c-f)"');
-    // Two lines of the 11-row font, three pad rows: 2 × 11 + 3.
-    expect(two).toMatch(/viewBox="0 0 \d+ 25"/);
+    // The 11-row line and the 8-row small face, three pad rows: 11 + 8 + 3.
+    expect(two).toMatch(/viewBox="0 0 \d+ 22"/);
     expect(one).toMatch(/viewBox="0 0 \d+ 13"/);
   });
 
-  test('a colour that is not a plain hex is ignored, not written into the SVG', () => {
-    const svg = ruteroSvg({ code: 'H629', destination: 'X', zona: '"/><script>', uid: 'c' });
-    expect(svg).not.toContain('<script>');
-    expect(svg).toContain('stroke="#e9f6ff"');
+  test('the small face has every letter, both cases, and the digits', () => {
+    for (const ch of 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZabcdefghijklmnñopqrstuvwxyz0123456789./-°') {
+      expect(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: ch })), ch).toMatch(/^M/);
+    }
+    // Accents are dropped, as the big face drops them; the letter stays lit.
+    expect(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: 'ú' }))).toBe(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: 'u' })));
+  });
+
+  test('the big face prints the degree sign, as 149\'s panel does', () => {
+    expect(normalizeRuteroText('Est. Av. 1° de Mayo')).toBe('EST. AV. 1° DE MAYO');
   });
 });
 
