@@ -56,6 +56,17 @@ test.describe('the zonal panel', () => {
     expect(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: 'ú' }))).toBe(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: 'u' })));
   });
 
+  test('the small ñ is an n under a tilde that does not touch it, so it never reads as Ñ', () => {
+    // Dots as "x y" pairs, from the one lit path the small line draws.
+    const dots = (ch: string) => [...pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: ch })).matchAll(/M([\d.]+) ([\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])]);
+    const top = Math.min(...dots('n').map(([, y]) => y)); // the n's x-height
+    const ene = dots('ñ');
+    // The n itself, unchanged; above it a blank row, then the tilde.
+    expect(ene.filter(([, y]) => y >= top)).toEqual(dots('n'));
+    expect(ene.some(([, y]) => y === top - 1)).toBe(false);
+    expect(ene.some(([, y]) => y === top - 2)).toBe(true);
+  });
+
   test('the big face prints the degree sign, as 149\'s panel does', () => {
     expect(normalizeRuteroText('Est. Av. 1° de Mayo')).toBe('EST. AV. 1° DE MAYO');
   });
