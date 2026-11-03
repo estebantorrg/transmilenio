@@ -104,6 +104,8 @@ test.describe('on the route page', () => {
     expect(body.credit).toContain('CC BY 4.0');
     expect(body.sentidos.map((s: SentidoHorario) => s.destino).sort()).toEqual(['Bosa San José', 'Palermo']);
     expect((await request.get('/api/horario-programado/G47')).status()).toBe(404);
+    // A property every object has is not a código.
+    expect((await request.get('/api/horario-programado/constructor')).status()).toBe(404);
   });
 
   test('a zonal route says how often it comes, and when each paradero sees its first and last bus', async ({ page }) => {

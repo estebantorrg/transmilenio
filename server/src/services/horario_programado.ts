@@ -41,6 +41,9 @@ function load(): GtfsZonalFile | null {
 /** A zonal código's scheduled service, or null when the feed has none for it. */
 export function horarioProgramado(codigo: string): HorarioProgramado | null {
   const data = load();
-  const sentidos = data?.rutas[String(codigo ?? '').trim().toUpperCase()] ?? data?.rutas[String(codigo ?? '').trim()];
+  // Own keys only: `constructor` is a property of every object, and it is not a route.
+  const own = (key: string) => (data && Object.hasOwn(data.rutas, key) ? data.rutas[key] : undefined);
+  const text = String(codigo ?? '').trim();
+  const sentidos = own(text.toUpperCase()) ?? own(text);
   return data && sentidos ? { feed: data._meta.feed, credit: data._meta.credit, sentidos } : null;
 }
