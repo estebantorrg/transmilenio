@@ -198,8 +198,9 @@ test.describe('the stop list on a route page', () => {
 
   test('the printed table fits its labels to the face it ends up in, on the first page of a visit', async ({ page }) => {
     // The race: the printed ruteros land after the page's last redraw, and the face after them.
+    // Late, but inside the client's 15 s timeout for this request (`getRuterosTradicionales`): past it, no table at all.
     await page.route(/\/api\/ruteros-tradicionales/, async (route) => {
-      await new Promise((ok) => setTimeout(ok, 20_000));
+      await new Promise((ok) => setTimeout(ok, 12_000));
       await route.continue();
     });
     await page.route(/roboto-condensed/, async (route) => {
