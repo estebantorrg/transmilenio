@@ -452,8 +452,8 @@ function dotsPath(dots) {
  * bounding box, not each dot, and at the sizes this renders the falloff is not
  * separable from a flat halo anyway.
  *
- * `pasa` adds the zonal panel's second line — CONTENIDO NO VERIFICADO, behind a
- * flag (planA2 step 8): the barrios and corredores in the small mixed-case face,
+ * `pasa` adds the zonal panel's second line — CONTENIDO NO VERIFICADO, said so
+ * in the page's caption: the barrios and corredores in the small mixed-case face,
  * scrolling right to left under the destino (`.rutero-pasa` in the page's CSS,
  * still for reduced motion). `zona` lights the panel in the route's zone colour,
  * as photographs of zonal buses show it (A720, A818, A702, F918, C124, L149;

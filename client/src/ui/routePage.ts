@@ -28,7 +28,6 @@ import { getRouteAccentColor, isAlimentadorRoute } from '../utils/routeColors';
 import { carriesRutero, ruteroSvg } from '../../../shared/rutero.js';
 import { codigosActuales, codigosAnteriores } from '../../../shared/renumeraciones.js';
 import { zonasDeRuta, type ZonaDeRuta } from '../../../shared/nomenclatura.js';
-import { flagOn } from '../utils/flags';
 import { getRouteServiceType } from '../utils/routeType';
 import { horarioRuta, resumenRuta } from '../../../shared/resumen.js';
 import { ajustarTablasRutero, ensureTablaRuteroStyle, sentidosHacia, tablaRuteroHtml, type RuteroTradicional, type SentidoRutero } from '../../../shared/tabla_rutero.js';
@@ -231,8 +230,8 @@ function estacionHref(codigo: string): string | null {
  * matches the catalog's: nothing here picks a sentido by guess.
  */
 /**
- * The zonal LED sign — held back behind the `rutero-zonal` flag (planA2 step 8),
- * CONTENIDO NO VERIFICADO: shaped after photographs of zonal buses, but what each
+ * The zonal LED sign — CONTENIDO NO VERIFICADO, and its caption says so: shaped
+ * after photographs of zonal buses, but what each
  * panel says is its operator's to set. Only for routes whose piece prints the
  * electronic sign's layout (`formato: 'digital'`): the printed destino on the top
  * line, the printed "Hito/CORREDOR - …" strip scrolling under it.
@@ -275,7 +274,7 @@ function tablaRuteroSection(route: RouteListItem): string {
   return `
     <section class="page-section route-rutero-tradicional" aria-labelledby="rutero-h">
       <h2 class="page-section-title" id="rutero-h">Por dónde va</h2>
-      ${ruta.formato === 'digital' && flagOn('rutero-zonal') ? ruteroZonalHtml(route, sentidos[0], color) : ''}
+      ${ruta.formato === 'digital' ? ruteroZonalHtml(route, sentidos[0], color) : ''}
       <div class="tabla-ruteros">${sentidos.map((sentido) => tablaRuteroHtml({ codigo: route.code, color, formato: ruta.formato, sentido, estacionHref })).join('')}</div>
       <p class="page-note">${ruta.formato === 'digital'
         ? 'Como lo imprime TRANSMILENIO en el plegable de la ruta: cada barrio que atiende, seguido en amarillo del corredor por el que pasa.'

@@ -2,10 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import { normalizeRuteroText, ruteroSvg } from '../shared/rutero.js';
 
 /**
- * The zonal LED sign (planA2 step 8): built, unverified, and held back behind
- * the `rutero-zonal` flag. Shaped after photographs of zonal buses (C124, 818,
- * 149): a plain panel in one LED colour, código and destino on top, and a small
- * mixed-case line under them scrolling right to left.
+ * The zonal LED sign (planA2 step 8), on every route whose piece prints the
+ * electronic layout, captioned as unverified. Shaped after photographs of zonal
+ * buses: lit in the route's colour, código and destino on top, and a small
+ * mixed-case line beside the código's box scrolling right to left.
  */
 
 const pasaPath = (svg: string) => /<path id="rt-p-[^"]*" d="([^"]*)"/.exec(svg)?.[1] ?? '';
@@ -72,12 +72,12 @@ async function openTabla(page: Page, path: string): Promise<void> {
 test.describe('on the route page', () => {
   test.describe.configure({ timeout: 180_000 });
 
-  test('it is off by default and on with ?flag=rutero-zonal', async ({ page }) => {
-    // H629 prints its rutero in the digital format.
+  test('a route whose piece is digital shows it to everyone; a printed table alone gets none', async ({ page }) => {
+    // H629 prints its rutero in the digital format, A410 as a table.
     await openTabla(page, '/ruta/h629/');
-    await expect(page.locator('.route-rutero-tradicional .rutero-svg')).toHaveCount(0);
-    await openTabla(page, '/ruta/h629/?flag=rutero-zonal');
     await expect(page.locator('.route-rutero-tradicional .rutero-svg')).toHaveCount(1);
     await expect(page.locator('.route-rutero-tradicional .rutero-caption')).toContainText('sin verificar');
+    await openTabla(page, '/ruta/a410/');
+    await expect(page.locator('.route-rutero-tradicional .rutero-svg')).toHaveCount(0);
   });
 });
