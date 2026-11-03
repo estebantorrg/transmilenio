@@ -359,6 +359,19 @@ function getRouterModule(): Promise<RouterModule> {
   return routerModulePromise;
 }
 
+/**
+ * The line the map draws for a route, selected or compared (§5.6.3): a zonal route
+ * one way, first stop to last, since most of their trazados are the whole round trip.
+ * Alimentadores (typed zonal too) and a trazado its stops don't index onto are drawn whole.
+ */
+function lineaDibujada(route: RouteListItem): number[][][] | undefined {
+  const paths = route.geometry?.paths;
+  if (!paths || route.type !== 'zonal' || isAlimentadorRoute(route)) return paths;
+  const index = buildTraceIndex(route.stops ?? [], paths);
+  const line = index && traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
+  return line ? [line] : paths;
+}
+
 // ─── Nearby Stations (geolocation) ────────────────────────
 
 // Shared draggable "you are here" marker, placed by both the footer "Estaciones
@@ -1110,12 +1123,8 @@ async function main(): Promise<void> {
       // The paradas and the full trace land here, after selection — a route page
       // opened from a search result would otherwise sit on "Cargando paradas…".
       refreshRoutePage(route);
-      // Most zonal trazados are the whole round trip: draw the direction on screen,
-      // first stop to last (§5.6.3), and the whole trazado where its stops don't index onto it.
-      // Alimentadores are typed zonal too, and keep their whole trazado (the maintainer's call).
-      const index = route.type === 'zonal' && !isAlimentadorRoute(route) ? buildTraceIndex(route.stops ?? [], route.geometry?.paths) : null;
-      const sentido = index && traceSliceBetween(index, 0, (route.stops?.length ?? 0) - 1);
-      highlightRoute(map, route.code, route.type, sentido ? { paths: [sentido] } : route.geometry, getRouteAccentColor(route));
+      const paths = lineaDibujada(route);
+      highlightRoute(map, route.code, route.type, paths && { paths }, getRouteAccentColor(route));
       updateSelectedRouteStops(map, route.stops, route.type);
       route.liveNameCandidates = getLiveNameCandidates(route);
       let buses: BusesModule;
@@ -1167,7 +1176,8 @@ async function main(): Promise<void> {
     onPointSelect: focusNearbyPoint,
     onRouteOpenPage: (route: RouteListItem) => openRoutePage(route),
     onCompareToggle: (route: RouteListItem) => {
-      toggleCompared(map, route);
+      const paths = lineaDibujada(route);
+      toggleCompared(map, { id: route.id, code: route.code, geometry: paths && { paths } });
       // Added from the list, with nothing selected: show what is being compared.
       if (!activeRouteId && isCompared(route.id)) fitToTraces(map, comparedRoutes().map((r) => r.paths));
     },

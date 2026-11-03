@@ -58,6 +58,30 @@ test('a kept route is named in the legend on the map, while others are picked, a
   await expect(compare).toHaveText('Comparar con otra ruta');
 });
 
+test('a compared zonal route is drawn one way, as the selected one is', async ({ page }) => {
+  await page.goto('/#/r/L800');
+  await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: 180_000 });
+  const compare = page.locator('#route-detail-compare');
+  await expect(compare).toBeEnabled({ timeout: 60_000 });
+  await compare.click();
+  const comparedKm = () =>
+    page.evaluate(() => {
+      const paths: number[][][] | undefined = (window as any).__tmMap?.getSource('compare-routes')?._data?.features?.[0]?.geometry.coordinates;
+      if (!paths?.length) return null;
+      let m = 0;
+      for (const path of paths) {
+        for (let i = 1; i < path.length; i++) {
+          const [[x0, y0], [x1, y1]] = [path[i - 1], path[i]];
+          m += Math.hypot((x1 - x0) * 111320 * Math.cos((y0 * Math.PI) / 180), (y1 - y0) * 110540);
+        }
+      }
+      return m / 1000;
+    });
+  // L800's trace is the whole 72 km circuit; towards Gaviotas it runs about 36.
+  await expect.poll(comparedKm, { timeout: 30_000 }).toBeGreaterThan(30);
+  expect(await comparedKm()).toBeLessThan(42);
+});
+
 test('a route row adds it to the comparison without opening it, and fades the network', async ({ page }) => {
   await page.goto('/');
   await page.locator('#loading-overlay').waitFor({ state: 'detached', timeout: 180_000 });
