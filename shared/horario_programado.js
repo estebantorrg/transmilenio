@@ -9,6 +9,7 @@
  */
 
 import { escapeHtml } from './plano.js';
+import { sentidosHacia } from './tabla_rutero.js';
 
 /** Day types in the order a rider reads them, and how a column names each. */
 export const DIAS = [
@@ -39,8 +40,26 @@ export function destinoDe(nombre) {
  */
 export function sentidoDe(sentidos, nombre) {
   if (!sentidos || /ciclov/i.test(String(nombre ?? '').normalize('NFC'))) return null;
-  const destino = destinoDe(nombre);
-  return sentidos.find((s) => s.destino === destino) ?? null;
+  // A holiday variant has its own trips or none: the week's table is not its own, as for Ciclovía.
+  if (/\sfestivo\s*$/i.test(String(nombre))) return sentidos.find((s) => s.destino === destinoDe(nombre)) ?? null;
+  return propio(sentidos, nombre);
+}
+
+/**
+ * The GTFS direction a catalog variant names, by the rule the printed tables are
+ * matched by (`sentidosHacia`): accents, articles and abbreviations — the GTFS
+ * spells "Porta Sur", "Altos del Zuque", "Catalina II" where the catalog does
+ * not — but not its last step, spelling, which put the PM schedule on H680's AM
+ * page. A Ciclovía variant names its weekday direction. The GTFS files some
+ * Sundays apart under a second spelling ("Peninsula", Sundays only, beside
+ * "Península"): the exact name first, then the one of them `util` keeps. One or none.
+ */
+function propio(sentidos, nombre, util = () => true) {
+  const hallados = sentidosHacia({ sentidos: sentidos ?? [] }, nombre, false);
+  const exacto = hallados.find((s) => s.destino === destinoDe(nombre) && util(s));
+  if (exacto) return exacto;
+  const utiles = hallados.filter(util);
+  return utiles.length === 1 ? utiles[0] : null;
 }
 
 /** Minutes after midnight (past 1440 = after midnight) → "5:12 a. m.", spaced as `shared/resumen.js` writes it. */
@@ -78,18 +97,23 @@ export const PASO_NOTA = 'Junto a cada parada, su primer y último bus de lunes 
 
 /**
  * "¿Cada cuánto pasa el A153?" — the question a search for the route's
- * frequency asks, answered from its busiest direction on weekdays, in the
- * `{ pregunta, respuesta }` shape of `shared/resumen.js`.
+ * frequency asks, answered on weekdays in the `{ pregunta, respuesta }` shape of
+ * `shared/resumen.js`. Given `nombre`, from that direction only, or not at all:
+ * the first direction with a rush hour put "Hacia Mirandela" on Engativá's page,
+ * a quarter of the pages naming the other direction. Without it, the first.
  */
-export function resumenFrecuencia(codigo, sentidos) {
-  const sentido = (sentidos ?? []).find((s) => cadaPico(s));
-  if (!sentido) return null;
+export function resumenFrecuencia(codigo, sentidos, nombre) {
+  // A holiday variant's weekday frequency is its direction's ("Sena NQS Festivo" → "Sena NQS").
+  const base = String(nombre ?? '').replace(/\s+festivo\s*$/i, '');
+  const sentido = nombre === undefined ? (sentidos ?? []).find((s) => cadaPico(s)) : propio(sentidos, base, (s) => Boolean(cadaPico(s)));
+  if (!sentido || !cadaPico(sentido)) return null;
   const d = sentido.dias.LV;
   return {
     pregunta: `¿Cada cuánto pasa el ${codigo}?`,
     // No closing period: the hour already ends in one ("p. m.").
     respuesta:
-      `Hacia ${sentido.destino}, de lunes a viernes en hora pico, el ${codigo} pasa ${cadaPico(sentido)}, según el horario programado de TRANSMILENIO; ` +
+      // The page's own name for its direction, not the GTFS's spelling of it ("Porta Sur").
+      `Hacia ${nombre === undefined ? sentido.destino : destinoDe(base)}, de lunes a viernes en hora pico, el ${codigo} pasa ${cadaPico(sentido)}, según el horario programado de TRANSMILENIO; ` +
       `su primer bus sale a las ${hora(d.primera)} y el último a las ${hora(d.ultima)}`,
   };
 }

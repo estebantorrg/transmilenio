@@ -332,7 +332,7 @@ function render(route: RouteListItem): string {
   const resumenes = resumenesHtml([
     resumenRuta(route.code, (route.stops ?? []).map((stop) => tidy(stop.nombre))),
     horarioRuta(route.code, route.schedule),
-    resumenFrecuencia(route.code, programado?.sentidos),
+    resumenFrecuencia(route.code, programado?.sentidos, route.name),
   ]);
 
   const facts = factsHtml([

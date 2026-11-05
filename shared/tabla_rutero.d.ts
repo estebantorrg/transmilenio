@@ -47,7 +47,7 @@ export declare function corredoresDe(sentidos: ReadonlyArray<SentidoRutero>, max
 export declare function pasaDe(sentido: SentidoRutero): string;
 
 /** The sentidos headed for `destino`; empty when none matches. */
-export declare function sentidosHacia(ruta: RuteroTradicional | null | undefined, destino: unknown): SentidoRutero[];
+export declare function sentidosHacia(ruta: RuteroTradicional | null | undefined, destino: unknown, ortografia?: boolean): SentidoRutero[];
 
 export declare function tablaRuteroHtml(options: { codigo: string; color: string; formato?: 'tabla' | 'digital'; sentido: SentidoRutero; estacionHref?: (codigo: string) => string | null }): string;
 

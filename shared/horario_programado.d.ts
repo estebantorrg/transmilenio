@@ -44,6 +44,8 @@ export declare function cadaPico(sentidos: SentidoHorario | SentidoHorario[] | n
 export declare const PASO_NOTA: string;
 export declare function resumenFrecuencia(
   codigo: string,
-  sentidos: SentidoHorario[] | null | undefined
+  sentidos: SentidoHorario[] | null | undefined,
+  /** The direction on screen (a catalog variant's nombre): its frequency or none. Omitted, the first direction's. */
+  nombre?: string
 ): { pregunta: string; respuesta: string } | null;
 export declare function programadoHtml(sentido: SentidoHorario | null, nombreParada?: (codigo: string) => string): string;

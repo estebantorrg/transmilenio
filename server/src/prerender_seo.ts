@@ -895,7 +895,9 @@ ${items}
     { label: 'Horario', value: horarios.split(' · ')[0] || null },
   ]);
 
-  const frecuencia = resumenFrecuencia(codigo, programado?.sentidos);
+  // The direction the page opens on, as the bundle's page says it; this page is
+  // about the código, so the other direction's when that one has none.
+  const frecuencia = resumenFrecuencia(codigo, programado?.sentidos, primary.nombre) ?? resumenFrecuencia(codigo, programado?.sentidos);
   const resumen = [ruta, hora, frecuencia].map(resumenHtml).filter(Boolean).join('\n');
 
   const body = `${PRERENDER_STYLE}

@@ -87,6 +87,31 @@ test.describe('how a schedule is worded', () => {
     expect(r.respuesta.endsWith('10:15 p. m.')).toBe(true);
     expect(resumenFrecuencia('X1', [])).toBeNull();
   });
+
+  test('on a direction\'s page, that direction\'s frequency or none', () => {
+    const hacia = (nombre: string, sentidos = [palermo, bosa]) => resumenFrecuencia('731', sentidos, nombre)?.respuesta.match(/^Hacia (.*?), .* pasa (cada [^,]*),/)?.slice(1);
+    // The first direction with a rush hour put "Hacia Mirandela" on 402 Engativá's page.
+    expect(hacia('Bosa San José')).toEqual(['Bosa San José', 'cada 9–11 min']);
+    // Its Sunday and holiday variants run the same direction.
+    expect(hacia('Bosa San José Ciclovía')).toEqual(['Bosa San José', 'cada 9–11 min']);
+    expect(hacia('Bosa San José Festivo')).toEqual(['Bosa San José', 'cada 9–11 min']);
+    // A direction the schedule lacks says nothing rather than the other one's.
+    expect(hacia('Portal Suba')).toBeUndefined();
+    // The GTFS files some Sundays apart under a second spelling: the weekday one answers.
+    const domingos: SentidoHorario = { destino: 'Bosa San Jose', paradas: [], dias: { DF: dia({}) } };
+    expect(hacia('Bosa San Jose Ciclovía', [palermo, domingos, bosa])).toEqual(['Bosa San Jose', 'cada 9–11 min']);
+    // Its spelling of the place is the GTFS's; the page says its own.
+    expect(hacia('Portal Sur', [{ ...palermo, destino: 'Porta Sur' }])).toEqual(['Portal Sur', 'cada 7–10 min']);
+  });
+
+  test('a direction is not another a letter away', () => {
+    const am = { ...palermo, destino: 'Isla del Sol PM' };
+    expect(sentidoDe([am], 'Isla del Sol AM')).toBeNull();
+    expect(sentidoDe([{ ...palermo, destino: 'Porta Sur' }], 'Portal Sur')?.destino).toBe('Porta Sur');
+    // A holiday variant has its own trips or no table: not the whole week's.
+    expect(sentidoDe([palermo], 'Palermo Festivo')).toBeNull();
+    expect(sentidoDe([palermo, { ...palermo, destino: 'Palermo Festivo' }], 'Palermo Festivo')?.destino).toBe('Palermo Festivo');
+  });
 });
 
 test.describe('on the route page', () => {

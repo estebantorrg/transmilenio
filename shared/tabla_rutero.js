@@ -180,7 +180,7 @@ export function pasaDe(sentido) {
  * @param {{ sentidos: ReadonlyArray<{ destino: string }> } | null | undefined} ruta
  * @param {unknown} destino
  */
-export function sentidosHacia(ruta, destino) {
+export function sentidosHacia(ruta, destino, ortografia = true) {
   // A Ciclovía variant runs to the same place on Sundays: it gets that direction's table.
   const want = fold(destino).replace(/ CICLOVIA$/, '');
   if (!ruta || !want) return [];
@@ -204,6 +204,8 @@ export function sentidosHacia(ruta, destino) {
     return abrevia(got, want) || abrevia(want, got);
   });
   if (abreviados.length && abreviados.every((s) => fold(s.destino) === fold(abreviados[0].destino))) return abreviados;
+  // Without the spelling step for a schedule: "Isla del Sol AM" is a letter from "Isla del Sol PM".
+  if (!ortografia) return [];
   // Last, spelling: the catalog and the print disagree on articles, spaces and
   // a letter or two (`Sabana de Dorado` / `SABANA DEL DORADO`, `Bellaflor`,
   // `Barancas Norte`, `Fontibon San Pablo` / `FONTIBÓN S. PABLO`). Compared
