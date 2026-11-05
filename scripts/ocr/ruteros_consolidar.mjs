@@ -227,6 +227,18 @@ function insertarFilas(s, filas) {
 const oscura = (s, f) => f.destacado
   || (f.corredor === null && CORRECCIONES.bandas.some((b) => b.hito === f.hito && s.copias.some((k) => k.pieza === b.pieza && k.tabla === b.tabla)));
 
+// A printed destino that names another place than the catalog's direction (402
+// prints SABANA DEL DORADO for the catalog's Engativá) is tied to it by hand in
+// `hacia`, after checking the table's hitos against that direction's stops.
+const haciaUsados = new Set();
+const hacia = (codigo, destino) => {
+  const nombre = CORRECCIONES.hacia?.[codigo]?.[destino];
+  if (!nombre) return undefined;
+  haciaUsados.add(`${codigo}|${destino}`);
+  if (!(routes[codigo] ?? []).some((v) => v.nombre === nombre)) console.warn(`hacia: ${codigo} no tiene el sentido "${nombre}" en el catálogo`);
+  return nombre;
+};
+
 const publicar = {};
 for (const c of Object.keys(porRuta).sort()) {
   const r = porRuta[c];
@@ -239,11 +251,14 @@ for (const c of Object.keys(porRuta).sort()) {
     // came from its Sunday variant: no piece prints "CICLOVÍA" in its band (621
     // reads SANTO DOMINGO, A520 EST. LAS NIEVES).
     destino: s.destinoDelCatalogo ? s.destino.normalize('NFC').replace(/\s+CICLOVÍA$/i, '') : s.destino,
+    ...(hacia(c, s.destino) ? { hacia: hacia(c, s.destino) } : {}),
     ...(s.operacion ? { operacion: s.operacion } : {}),
     filas: insertarFilas(s, r.formato === 'digital' ? unirFragmentos(s.filas) : s.filas).map((f) => [f.corredor, oscura(s, f) ? 1 : 0, hito(f.hito)]),
   }));
   publicar[c] = { formato: r.formato, ...(r.color ? { color: r.color } : {}), sentidos };
 }
+const haciaSinUsar = Object.entries(CORRECCIONES.hacia ?? {}).flatMap(([c, m]) => Object.keys(m).filter((d) => !haciaUsados.has(`${c}|${d}`)).map((d) => `${c} "${d}"`));
+if (haciaSinUsar.length) console.warn(`hacia sin tabla publicada: ${haciaSinUsar.join(', ')}`);
 const filasSinUsar = CORRECCIONES.filas.filter((x) => !filasUsadas.has(x));
 if (filasSinUsar.length) console.warn(`filas que no encontraron su lugar (${filasSinUsar.length}):\n${filasSinUsar.map((x) => `  ${JSON.stringify(x)}`).join('\n')}`);
 const SITE = join(HERE, '..', '..', 'server', 'src', 'data', 'ruteros_tradicionales.json');

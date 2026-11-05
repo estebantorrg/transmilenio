@@ -80,6 +80,18 @@ test.describe('the sentido on screen', () => {
     expect(hacia(impreso('SANTA RITA'), 'Sur')).toEqual([]);
   });
 
+  test('a table tied to its direction by hand goes there, whatever its printed name', () => {
+    // 402 prints SABANA DEL DORADO for the catalog's Engativá, checked against its stops.
+    const r402: RuteroTradicional = { formato: 'tabla', sentidos: [
+      { destino: 'AUTO NORTE-EST.TERMINAL', hacia: 'Mirandela', filas: [] },
+      { destino: 'SABANA DEL DORADO', hacia: 'Engativá', filas: [] },
+    ] };
+    expect(sentidosHacia(r402, 'Engativá').map((s) => s.destino)).toEqual(['SABANA DEL DORADO']);
+    expect(sentidosHacia(r402, 'Mirandela').map((s) => s.destino)).toEqual(['AUTO NORTE-EST.TERMINAL']);
+    // The link is to that direction only: the printed name still matches nothing else.
+    expect(sentidosHacia(r402, 'Suba')).toEqual([]);
+  });
+
   test('guesses nothing: another direction gets no table', () => {
     expect(sentidosHacia(ruta, 'Portal Tunal')).toEqual([]);
     const calles: RuteroTradicional = { formato: 'tabla', sentidos: [{ destino: 'CALLE 222', filas: [] }] };

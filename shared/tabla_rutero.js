@@ -184,6 +184,9 @@ export function sentidosHacia(ruta, destino) {
   // A Ciclovía variant runs to the same place on Sundays: it gets that direction's table.
   const want = fold(destino).replace(/ CICLOVIA$/, '');
   if (!ruta || !want) return [];
+  // A table tied to its direction by hand, checked against the stops (`hacia` in the corrections).
+  const ligados = ruta.sentidos.filter((s) => s.hacia && fold(s.hacia) === want);
+  if (ligados.length) return ligados;
   const exact = ruta.sentidos.filter((s) => fold(s.destino) === want);
   if (exact.length) return exact;
   const padded = (s) => ` ${s} `;

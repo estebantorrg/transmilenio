@@ -5,6 +5,8 @@ export type FilaRutero = readonly [string | null, number, string];
 
 export interface SentidoRutero {
   destino: string;
+  /** The catalog direction this table belongs to, set by hand where the printed destino names a different place (402 SABANA DEL DORADO → `Engativá`). */
+  hacia?: string;
   /** Set when the table only runs on some days, e.g. `domingos y festivos`. */
   operacion?: string;
   filas: ReadonlyArray<FilaRutero>;
