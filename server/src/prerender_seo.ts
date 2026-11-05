@@ -30,7 +30,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { prepareFont, prepareWordmark, readableOn, renderRouteCard, renderStationCard, type LonLat } from './seo_og.js';
-import { stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
+import { ALIMENTADOR_COLOR, stopTagColor, TRONCAL_COLORS } from './services/route_colors.js';
 import { carriesRutero, PANEL_CHARS, RUTERO_ZONAL_NOTA, ruteroLayout, ruteroSvg } from '../../shared/rutero.js';
 import { TABLA_RUTERO_CSS, pasaDe, rutasQueLleganA, tablaRuteroHtml, type RuteroTradicional, type RuterosTradicionales } from '../../shared/tabla_rutero.js';
 import { STATION_PLATFORMS, platformsOf, platformStation } from '../../shared/station_platforms.js';
@@ -840,10 +840,13 @@ ${items}
   // The route's own colour carries the page (spec §5.5.5): the plate, the rail
   // under the masthead, the spine of every stop list. Resolved through the same
   // palette the app and the social cards use, so one código is never two colours
-  // across the three surfaces (`stopTagColor`, §5.4.3).
-  const accent = stopTagColor(codigo, primary.color, isZonalService(primary.sistema, primary.tipoServicio));
+  // across the three surfaces (`stopTagColor`, §5.4.3). An alimentador is green
+  // whatever its código, as the app's `getRouteAccentColor` has it: H728 or K338
+  // would otherwise take their zone's colour from the letter.
+  const alimentador = /ALIMENTADOR/.test(primary.tipoServicio ?? '');
+  const accent = alimentador ? ALIMENTADOR_COLOR : stopTagColor(codigo, primary.color, isZonalService(primary.sistema, primary.tipoServicio));
   // An alimentador's ruteros are its portal's line, as printed; the page keeps its own colour.
-  const colorImpreso = /ALIMENTADOR/.test(primary.tipoServicio ?? '') && impreso?.color ? impreso.color : accent;
+  const colorImpreso = alimentador && impreso?.color ? impreso.color : accent;
 
   // The zonal LED sign, by the app's rule (`ruteroZonalHtml`, client/src/ui/routePage.ts):
   // only where the piece prints the electronic layout, and captioned as unverified.

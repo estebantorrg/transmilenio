@@ -12,9 +12,9 @@
  * the same network).
  */
 
-import { TRONCAL_COLORS, getStopTagColor } from '../../../shared/route_colors.js';
+import { ALIMENTADOR_COLOR, TRONCAL_COLORS, getStopTagColor } from '../../../shared/route_colors.js';
 
-export { TRONCAL_COLORS };
+export { ALIMENTADOR_COLOR, TRONCAL_COLORS };
 
 /** The chip colour for a service, given its código, catalog colour and network. */
 export function stopTagColor(code: string, catalogColor: string | null | undefined, zonal: boolean): string {
