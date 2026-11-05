@@ -67,6 +67,19 @@ test.describe('the sentido on screen', () => {
     expect(sentidosHacia(ruta, 'Providencia Alta').map((s) => s.destino)).toEqual(['PROVIDENCIA ALTA']);
   });
 
+  test('reads the print\'s abbreviations, and a Ciclovía variant as its weekday direction', () => {
+    const impreso = (...destinos: string[]): RuteroTradicional => ({ formato: 'tabla', sentidos: destinos.map((destino) => ({ destino, filas: [] })) });
+    const hacia = (ruta: RuteroTradicional, nombre: string) => sentidosHacia(ruta, nombre).map((s) => s.destino);
+    expect(hacia(impreso('EST. G.SANTANDER', 'ARABIA'), 'Est. General Santander')).toEqual(['EST. G.SANTANDER']);
+    expect(hacia(impreso('BALMORAL NTE.'), 'Balmoral Norte')).toEqual(['BALMORAL NTE.']);
+    expect(hacia(impreso('PORTAL 80', 'ENGATIVÁ CENTRO'), 'Portal Calle 80')).toEqual(['PORTAL 80']);
+    expect(hacia(impreso('EST. AV. 1° MAYO'), 'Estación Av. 1 de Mayo')).toEqual(['EST. AV. 1° MAYO']);
+    expect(hacia(ruta, 'Providencia Alta Ciclovía')).toEqual(['PROVIDENCIA ALTA']);
+    // A number is only itself, and one letter alone stands for nothing.
+    expect(hacia(impreso('CL 12 SUR'), 'Calle 127 Sur')).toEqual([]);
+    expect(hacia(impreso('SANTA RITA'), 'Sur')).toEqual([]);
+  });
+
   test('guesses nothing: another direction gets no table', () => {
     expect(sentidosHacia(ruta, 'Portal Tunal')).toEqual([]);
     const calles: RuteroTradicional = { formato: 'tabla', sentidos: [{ destino: 'CALLE 222', filas: [] }] };

@@ -181,7 +181,8 @@ export function pasaDe(sentido) {
  * @param {unknown} destino
  */
 export function sentidosHacia(ruta, destino) {
-  const want = fold(destino);
+  // A Ciclovía variant runs to the same place on Sundays: it gets that direction's table.
+  const want = fold(destino).replace(/ CICLOVIA$/, '');
   if (!ruta || !want) return [];
   const exact = ruta.sentidos.filter((s) => fold(s.destino) === want);
   if (exact.length) return exact;
@@ -191,13 +192,22 @@ export function sentidosHacia(ruta, destino) {
     return got && (padded(got).includes(padded(want)) || padded(want).includes(padded(got)));
   });
   if (contained.length) return contained;
+  // Then the print's abbreviations: each word of one name stands, in order, for a
+  // word of the other — EST. for Estación, NTE. for Norte, G. for General, BIBL.
+  // for Biblioteca — past the words the print leaves out (`PORTAL 80` for `Portal
+  // Calle 80`, `EST. AV. 1° MAYO` for `Estación Av. 1 de Mayo`). One sentido only.
+  const abreviados = ruta.sentidos.filter((s) => {
+    const got = fold(s.destino);
+    return abrevia(got, want) || abrevia(want, got);
+  });
+  if (abreviados.length && abreviados.every((s) => fold(s.destino) === fold(abreviados[0].destino))) return abreviados;
   // Last, spelling: the catalog and the print disagree on articles, spaces and
   // a letter or two (`Sabana de Dorado` / `SABANA DEL DORADO`, `Bellaflor`,
   // `Barancas Norte`, `Fontibon San Pablo` / `FONTIBÓN S. PABLO`). Compared
   // without articles or spaces, within ~15% of the length — `CALLE 197` is
   // still not `CALLE 222` — and only a single closest sentido counts.
   const key = (v) => fold(v).split(' ').filter((w) => !STOPWORDS.has(w)).join('');
-  const wantKey = key(destino);
+  const wantKey = key(want);
   const scored = ruta.sentidos
     .map((s) => ({ s, d: distance(wantKey, key(s.destino)) }))
     .sort((a, b) => a.d - b.d);
@@ -207,6 +217,31 @@ export function sentidosHacia(ruta, destino) {
 }
 
 const STOPWORDS = new Set(['DE', 'DEL', 'EL', 'LA', 'LOS', 'LAS', 'Y']);
+
+/**
+ * Whether every word of `corto` abbreviates, in order, a word of `largo`: the same
+ * first letter and its letters in order (`NTE` in `NORTE`), a number only itself
+ * (`CALLE 12` is not `CALLE 127`). Two words at least: a lone letter stands for anything.
+ */
+function abrevia(corto, largo) {
+  const a = corto.split(' ');
+  const b = largo.split(' ');
+  if (a.length < 2 || a.length > b.length) return false;
+  let j = 0;
+  for (const w of a) {
+    while (j < b.length && !abreviatura(w, b[j])) j++;
+    if (j++ === b.length) return false;
+  }
+  return true;
+}
+
+function abreviatura(w, palabra) {
+  if (/\d/.test(w) || /\d/.test(palabra)) return w === palabra;
+  if (w[0] !== palabra[0]) return false;
+  let k = 0;
+  for (const ch of palabra) if (ch === w[k]) k++;
+  return k === w.length;
+}
 
 /** Levenshtein distance. */
 function distance(a, b) {
