@@ -93,6 +93,14 @@ test.describe('the zonal panel', () => {
     expect(apart(big('0'), big('O'))).toBe(0);
   });
 
+  test('M\'s notch narrows into a V, so it never reads as a lowercase m', () => {
+    const d = /<path id="rt-l-[^"]*" d="([^"]*)"/.exec(ruteroSvg({ code: '', destination: 'M', uid: 'm' }))?.[1] ?? '';
+    const perRow = new Map<number, number>();
+    for (const [, y] of d.matchAll(/M[\d.]+ ([\d.]+)/g)) perRow.set(Number(y), (perRow.get(Number(y)) ?? 0) + 1);
+    // Lit dots on its top four rows: a 2-dot notch over a solid block was 4, 6, 6, 6 and read "PORTAL USmE".
+    expect([...perRow.keys()].sort((a, b) => a - b).slice(0, 4).map((y) => perRow.get(y))).toEqual([2, 4, 6, 6]);
+  });
+
   test('the zonal panel says it is an unverified drawing, in one caption for every surface', () => {
     expect(ruteroSvg({ code: 'A818', destination: 'GALERÍAS', zona: '#26358C', uid: 'n' })).toContain('aria-label="Rutero electrónico de la ruta A818 hacia GALERÍAS, dibujo sin verificar"');
     // The troncal sign keeps its plain label.

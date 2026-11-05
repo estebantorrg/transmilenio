@@ -77,7 +77,8 @@
  *
  * ── Still drawn, not traced ───────────────────────────────────────────────
  *
- * H, C, T and M are transcribed off the reference photograph. The rest of the
+ * H, C and T are transcribed off the reference photograph, and M was, squeezed
+ * from its 7 columns to 6 until it read as a lowercase m (see the table). The rest of the
  * table is drawn to match their construction — 2-dot stems, 2-row bars, corners
  * cut by one on the round caps — because one promotional message does not
  * contain the alphabet. If a photograph of a route display ever resolves at this
@@ -118,8 +119,8 @@ export const PANEL_PAD_COLUMNS = 2;
  *
  * Every stem is 2 columns and every bar 2 rows, because that is what the sign
  * does — see `H` below, which is transcribed dot-for-dot off the reference
- * photograph, and `C`, `T` and `M`, which are transcribed as far as a 6-column
- * box allows. The real face is *proportional* (`H` 6 columns, `M` 7, `l` 2), and
+ * photograph, and `C` and `T`, which are transcribed as far as a 6-column box
+ * allows. The real face is *proportional* (`H` 6 columns, `M` 7, `l` 2), and
  * a 6-wide box is the dominant cap width; `M` and `W` are the two letters it
  * compresses.
  */
@@ -147,7 +148,9 @@ const GLYPHS = {
   // fills: M high (the shoulders meeting near the top), W low, N a two-step
   // diagonal crossing at mid-height. The sign itself draws M and W 7 columns
   // wide and has room for a true vertex; this is the nearest 6-wide reading.
-  M: ['##..##', '######', '######', '######', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##'],
+  // M's stems start one dot thin, so the notch narrows 4, 2, 0 into its vertex:
+  // a 2-dot notch over a solid block read as two humps, "PORTAL USmE".
+  M: ['#....#', '##..##', '######', '######', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##'],
   N: ['##..##', '###.##', '###.##', '###.##', '###.##', '######', '##.###', '##.###', '##.###', '##.###', '##..##'],
   'Ñ': ['.####.', '......', '##..##', '###.##', '###.##', '######', '######', '##.###', '##.###', '##..##', '##..##'],
   O: ['.####.', '######', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '######', '.####.'],
