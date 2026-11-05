@@ -17,8 +17,8 @@ test.describe('the zonal panel', () => {
     expect(zonal).toContain('fill="#FCBD1B"');
     // One shape for both, so no dot is drawn twice where the band and the box meet.
     expect(zonal.match(/fill="url\(#rt-z-a\)"/g)).toHaveLength(1);
-    // Down the box (2 pad + 4 characters of 7 = 30 columns) to the panel's foot (22 rows).
-    expect(zonal).toMatch(/<path d="M0 0H\d+V13H30V22H0Z" fill="url\(#rt-z-a\)"\/>/);
+    // Down the box (2 pad + 4 characters of 7 = 30 columns) to the panel's foot (21 rows).
+    expect(zonal).toMatch(/<path d="M0 0H\d+V13H30V21H0Z" fill="url\(#rt-z-a\)"\/>/);
     // Without a zone, the plain panel the troncal sign has.
     const plano = ruteroSvg({ code: 'F23', destination: 'Portal Américas', uid: 'b' });
     expect(plano.match(/fill="#[0-9a-f]{6}"/gi)?.sort()).toEqual(['fill="#05080c"', 'fill="#161d26"']);
@@ -44,9 +44,15 @@ test.describe('the zonal panel', () => {
     expect(one).not.toContain('rutero-pasa');
     expect(two).toContain('class="rutero-pasa"');
     expect(two).toContain('clip-path="url(#rt-c-f)"');
-    // The 11-row line and the 8-row small face, three pad rows: 11 + 8 + 3.
-    expect(two).toMatch(/viewBox="0 0 \d+ 22"/);
+    // The 11-row line and the 7-row small face, three pad rows: 11 + 7 + 3.
+    expect(two).toMatch(/viewBox="0 0 \d+ 21"/);
     expect(one).toMatch(/viewBox="0 0 \d+ 13"/);
+  });
+
+  test('the small capitals are 5 rows, 45% of the destino\'s 11, as photographed (40–45%)', () => {
+    const rows = (d: string) => new Set([...d.matchAll(/M[\d.]+ ([\d.]+)/g)].map((m) => m[1])).size;
+    expect(rows(pasaPath(ruteroSvg({ code: 'C1', destination: 'X', pasa: 'HEMBRA' })))).toBe(5);
+    expect(rows(/<path id="rt-l-[^"]*" d="([^"]*)"/.exec(ruteroSvg({ code: 'H', destination: 'H' }))?.[1] ?? '')).toBe(11);
   });
 
   test('the small face has every letter, both cases, and the digits', () => {

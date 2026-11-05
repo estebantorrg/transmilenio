@@ -199,36 +199,53 @@ const COMBINING_TILDE = 0x303;
 
 /**
  * The second line's face: the small mixed-case line zonal panels run under the
- * destino ("Suba - CL 145B" on a C124). 5×7 capitals and lowercase, one more row
- * for descenders, on the same dot pitch as the big face. Each glyph is its 8
- * rows top first, two hex digits a row, bit 4 the left column. Drawn here, not
- * traced: no photograph of the panel resolves its dots. The tilde of ñ and Ñ is a
- * bar over a blank row, as on the big face's Ñ: a wave sat on the n's stem and
- * stretched it to cap height, so "Nariño" read "NariÑo". D is cut away on the right
- * for the same reason: square-cornered O was 2 dots from O.
+ * destino ("Suba - CL 145B" on a C124). Capitals 5 rows tall, on the same dot
+ * pitch as the big face: in photographs the line is 40–45% of the destino's
+ * height, and 5 of the big face's 11 rows is 45% (a 5×7 face drew it at 64%).
+ * Lowercase stands 4 rows, with one row under the baseline for descenders and one
+ * above the capitals for the tilde. Widths are the glyph's own, 1 to 5 columns,
+ * as on the panels: M and W need 5, and i and l take one.
+ *
+ * Each glyph is its 7 rows, top first, joined by `|`: the tilde row, five rows of
+ * capital, the descender row; an empty row is dark. Drawn here, not traced: no
+ * photograph of the panel resolves its dots. The tilde of ñ and Ñ is a bar over a
+ * blank row, as on the big face's Ñ: a wave sat on the n's stem and stretched it to
+ * cap height, so "Nariño" read "NariÑo". D is narrower than O for the same reason:
+ * the two must stay apart by more than a corner.
  */
-const SMALL_COLUMNS = 5;
-const SMALL_ROWS = 8;
-const SMALL_ADVANCE = SMALL_COLUMNS + 1;
-const SMALL = {
-  ' ': '0000000000000000', '.': '00000000000c0c00', ',': '000000000c0c0408', '-': '0000000e00000000',
-  '/': '0001020408100000', '°': '0c12120c00000000', '(': '0204080808040200', ')': '0804020202040800',
-  '&': '0c12140815120d00', "'": '0404080000000000', ':': '000c0c000c0c0000',
-  0: '0e11131519110e00', 1: '040c040404040e00', 2: '0e11010204081f00', 3: '1f02040201110e00', 4: '02060a121f020200',
-  5: '1f101e0101110e00', 6: '0608101e11110e00', 7: '1f01020408080800', 8: '0e11110e11110e00', 9: '0e11110f01020c00',
-  A: '0e11111f11111100', B: '1e11111e11111e00', C: '0e11101010110e00', D: '1c12111111121c00', E: '1f10101e10101f00',
-  F: '1f10101e10101000', G: '0e11101711110f00', H: '1111111f11111100', I: '0e04040404040e00', J: '0702020202120c00',
-  K: '1112141814121100', L: '1010101010101f00', M: '111b151511111100', N: '1111191513111100', Ñ: '0e00111915131100',
-  O: '0e11111111110e00', P: '1e11111e10101000', Q: '0e11111115120d00', R: '1e11111e14121100', S: '0f10100e01011e00',
-  T: '1f04040404040400', U: '1111111111110e00', V: '11111111110a0400', W: '1111111515150a00', X: '11110a040a111100',
-  Y: '1111110a04040400', Z: '1f01020408101f00',
-  a: '00000e010f110f00', b: '1010161911111e00', c: '00000e1010110e00', d: '01010d1311110f00', e: '00000e111f100e00',
-  f: '0609081c08080800', g: '00000f11110f010e', h: '1010161911111100', i: '04000c0404040e00', j: '020006020202120c',
-  k: '1010121418141200', l: '0c04040404040e00', m: '00001a1515111100', n: '0000161911111100', ñ: '0e00161911111100',
-  o: '00000e1111110e00', p: '00001e11111e1010', q: '00000f11110f0101', r: '0000161910101000', s: '00000f100e011e00',
-  t: '08081c0808090600', u: '0000111111130d00', v: '00001111110a0400', w: '0000111115150a00', x: '0000110a040a1100',
-  y: '00001111110f010e', z: '00001f0204081f00',
-};
+const SMALL_ROWS = 7;
+const SMALL = Object.fromEntries(
+  Object.entries({
+    ' ': '|..|||||', '.': '|||||#|', ',': '|||||.#|#.', '-': '|||###|||', ':': '||#||#||', "'": '|#|#||||',
+    '/': '|..#|..#|.#.|#..|#..|', '°': '|.#.|#.#|.#.|||', '(': '|.#|#.|#.|#.|.#|', ')': '|#.|.#|.#|.#|#.|',
+    '&': '|.#..|#.#.|.#..|#.##|.#.#|',
+    0: '|.##.|#..#|#..#|#..#|.##.|', 1: '|.#.|##.|.#.|.#.|###|', 2: '|.##.|#..#|..#.|.#..|####|',
+    3: '|###.|...#|.##.|...#|###.|', 4: '|#..#|#..#|####|...#|...#|', 5: '|####|#...|###.|...#|###.|',
+    6: '|.##.|#...|###.|#..#|.##.|', 7: '|####|...#|..#.|.#..|.#..|', 8: '|.##.|#..#|.##.|#..#|.##.|',
+    9: '|.##.|#..#|.###|...#|.##.|',
+    A: '|.##.|#..#|####|#..#|#..#|', B: '|###.|#..#|###.|#..#|###.|', C: '|.###|#...|#...|#...|.###|',
+    D: '|##.|#.#|#.#|#.#|##.|', E: '|###|#..|##.|#..|###|', F: '|###|#..|##.|#..|#..|',
+    G: '|.###|#...|#.##|#..#|.###|', H: '|#..#|#..#|####|#..#|#..#|', I: '|###|.#.|.#.|.#.|###|',
+    J: '|..##|...#|...#|#..#|.##.|', K: '|#..#|#.#.|##..|#.#.|#..#|', L: '|#..|#..|#..|#..|###|',
+    M: '|#...#|##.##|#.#.#|#...#|#...#|', N: '|#..#|##.#|#.##|#..#|#..#|', Ñ: '.##.||#..#|##.#|#.##|#..#|',
+    O: '|.##.|#..#|#..#|#..#|.##.|', P: '|###.|#..#|###.|#...|#...|', Q: '|.##.|#..#|#..#|#.#.|.#.#|',
+    R: '|###.|#..#|###.|#.#.|#..#|', S: '|.###|#...|.##.|...#|###.|', T: '|###|.#.|.#.|.#.|.#.|',
+    U: '|#..#|#..#|#..#|#..#|.##.|', V: '|#...#|#...#|.#.#.|.#.#.|..#..|', W: '|#...#|#...#|#.#.#|##.##|#...#|',
+    X: '|#.#|#.#|.#.|#.#|#.#|', Y: '|#.#|#.#|.#.|.#.|.#.|', Z: '|####|...#|.##.|#...|####|',
+    a: '||.###|#..#|#.##|.#.#|', b: '|#...|###.|#..#|#..#|###.|', c: '||.##|#..|#..|.##|',
+    d: '|...#|.###|#..#|#..#|.###|', e: '||.##.|####|#...|.###|', f: '|.##|.#.|###|.#.|.#.|',
+    g: '||.###|#..#|.###|...#|.##.', h: '|#...|###.|#..#|#..#|#..#|', i: '|#||#|#|#|', j: '|.#||.#|.#|.#|#.',
+    k: '|#..|#..|#.#|##.|#.#|', l: '|#|#|#|#|#|', m: '||####.|#.#.#|#.#.#|#.#.#|', n: '||###.|#..#|#..#|#..#|',
+    ñ: '.##.||###.|#..#|#..#|#..#|', o: '||.##.|#..#|#..#|.##.|', p: '||###.|#..#|###.|#...|#...',
+    q: '||.###|#..#|.###|...#|...#', r: '||#.#|##.|#..|#..|', s: '||.###|##..|..##|###.|',
+    t: '|.#.|###|.#.|.#.|..#|', u: '||#..#|#..#|#..#|.###|', v: '||#.#|#.#|#.#|.#.|',
+    w: '||#...#|#.#.#|#.#.#|.#.#.|', x: '||#..#|.##.|.##.|#..#|', y: '||#..#|#..#|.###|...#|.##.',
+    z: '||####|..#.|.#..|####|',
+  }).map(([ch, drawn]) => {
+    const rows = drawn.split('|');
+    return [ch, { rows, width: Math.max(...rows.map((row) => row.length)) }];
+  })
+);
 
 /**
  * The catalog `tipoServicio` values whose buses carry this sign.
@@ -488,7 +505,8 @@ export function ruteroSvg(options) {
   const band = GLYPH_ROWS + PANEL_PAD_ROWS * 2;
   const pasa = fold(options.pasa, SMALL);
   const height = pasa ? band + SMALL_ROWS + PANEL_PAD_ROWS : band;
-  const pasaWidth = pasa.length * SMALL_ADVANCE;
+  const strip = smallDots(pasa, band);
+  const pasaWidth = strip.width;
   const zona = /^#[0-9a-f]{6}$/i.test(options.zona ?? '') ? options.zona : null;
   // The código's box ends one blank column after it; the second line starts there.
   const codeBox = PANEL_PAD_COLUMNS + layout.code.length * CHAR_ADVANCE;
@@ -519,7 +537,7 @@ export function ruteroSvg(options) {
       ? `<pattern id="rt-z-${safeUid}" width="1" height="1" patternUnits="userSpaceOnUse"><circle cx=".5" cy=".5" r=".42" fill="${zona}"/></pattern>`
       : '') +
     (pasa
-      ? `<path id="rt-p-${safeUid}" d="${dotsPath(smallDots(pasa, band))}" fill="none" stroke-linecap="round"/>` +
+      ? `<path id="rt-p-${safeUid}" d="${dotsPath(strip.dots)}" fill="none" stroke-linecap="round"/>` +
         `<clipPath id="rt-c-${safeUid}"><rect x="${codeBox}" y="${band}" width="${width - codeBox}" height="${height - band}"/></clipPath>`
       : '') +
     '</defs>' +
@@ -533,9 +551,10 @@ export function ruteroSvg(options) {
     (oscuras
       ? `<g transform="translate(.5 .5)"><use href="#rt-l-${safeUid}" stroke="#05080c" stroke-width=".9"/></g>`
       : `<g transform="translate(.5 .5)">${lit(`rt-l-${safeUid}`)}</g>`) +
-    // It enters at the right edge and leaves into the código's box, about seven of its characters a second.
+    // It enters at the right edge and leaves into the código's box, about seven of
+    // its characters a second (30 columns: the strips average 4.2 columns a character).
     (pasa
-      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:${codeBox - pasaWidth}px;--rt-dur:${((width - codeBox + pasaWidth) / 42).toFixed(1)}s">` +
+      ? `<g clip-path="url(#rt-c-${safeUid})"><g class="rutero-pasa" style="--rt-desde:${width}px;--rt-hasta:${codeBox - pasaWidth}px;--rt-dur:${((width - codeBox + pasaWidth) / 30).toFixed(1)}s">` +
         `<g transform="translate(.5 .5)">${lit(`rt-p-${safeUid}`)}</g></g></g>`
       : '') +
     '</svg>'
@@ -543,21 +562,23 @@ export function ruteroSvg(options) {
 }
 
 /**
- * The small face's lit dots for `text`, from column 0, its top row at `top`.
+ * The small face's lit dots for `text`, from column 0, its top row at `top`, and
+ * the columns the text takes: each glyph its own width and one blank column.
  *
  * @param {string} text
  * @param {number} top
- * @returns {Array<[number, number]>}
+ * @returns {{ dots: Array<[number, number]>, width: number }}
  */
 function smallDots(text, top) {
   /** @type {Array<[number, number]>} */
   const dots = [];
-  [...text].forEach((ch, i) => {
-    const hex = SMALL[ch] ?? SMALL[FALLBACK];
-    for (let row = 0; row < SMALL_ROWS; row++) {
-      const bits = parseInt(hex.slice(row * 2, row * 2 + 2), 16);
-      for (let col = 0; col < SMALL_COLUMNS; col++) if (bits & (16 >> col)) dots.push([i * SMALL_ADVANCE + col, top + row]);
-    }
-  });
-  return dots;
+  let x = 0;
+  for (const ch of text) {
+    const glyph = SMALL[ch] ?? SMALL[FALLBACK];
+    glyph.rows.forEach((row, y) => {
+      for (let col = 0; col < row.length; col++) if (row[col] === '#') dots.push([x + col, top + y]);
+    });
+    x += glyph.width + 1;
+  }
+  return { dots, width: x };
 }
