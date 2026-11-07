@@ -843,7 +843,8 @@ export function initPlanner(
   api.getPlannerCalibration()
     .then((response) => {
       if (response.success && response.speeds && response.headways) {
-        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways, troncal: response.troncal });
+        // Passed whole: copying fields by hand silently drops any section added later.
+        setPlannerCalibration(response);
         // A deep link plans before this lands; those cards ran on the constants.
         if (calculatedPlans.length) calculateRoute();
       }

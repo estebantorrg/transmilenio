@@ -137,11 +137,16 @@ export interface RegistryStation {
  * (TRANSMILENIO's answer to petición B), which `troncal_stations.json` keys by
  * catalog código; stations the register files under a newer node (Portal Usme,
  * the Soacha extension…) are matched to the nearest register station within
- * `maxMeters`. A street stop is its cenefa, without the feed's `_TM` suffix.
+ * `maxMeters`. Past both, a station whose feed id is the number of a catalog
+ * `TM…` código is that station: the newest ones (Danubio 90008, Calle 53 – UMB
+ * 90012) sit 360 m from their register point or outside the register, and on
+ * every 9000x station checked the two agree. A street stop is its cenefa,
+ * without the feed's `_TM` suffix.
  */
 export function stopCodeResolver(
   stops: Array<Record<string, string>>,
   registry: Record<string, RegistryStation>,
+  catalogCodes: Set<string> = new Set(),
   maxMeters = 250
 ): Map<string, string> {
   const byNodo = new Map(Object.entries(registry).map(([code, s]) => [String(Number(s.nodo)), code]));
@@ -163,6 +168,7 @@ export function stopCodeResolver(
         }
       }
     }
+    if (!code && catalogCodes.has(`TM${Number(id)}`)) code = `TM${Number(id)}`;
     stationCode.set(id, code);
     return code;
   };

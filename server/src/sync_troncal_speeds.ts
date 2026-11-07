@@ -62,7 +62,8 @@ async function main(): Promise<void> {
     if (routeIds.has(t.route_id)) tripDays.set(t.trip_id, services.get(t.service_id) ?? []);
   }
   const stops = await readTable(file, entries, 'stops.txt');
-  const codeOf = stopCodeResolver(stops, registry);
+  const catalogCodes = new Set(Object.values(catalog.routes).flat().flatMap((v) => (v.stops ?? []).map((s) => s.codigo)));
+  const codeOf = stopCodeResolver(stops, registry, catalogCodes);
   const where = new Map(stops.map((s) => [s.stop_id, [Number(s.stop_lat), Number(s.stop_lon)] as const]));
   console.log(`[troncal] ${routeIds.size} troncal/dual routes, ${tripDays.size} trips, ${codeOf.size} stops with a catalog código`);
 

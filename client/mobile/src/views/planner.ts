@@ -82,7 +82,8 @@ function ensureRouter(): void {
   fetchPlannerCalibration()
     .then((response) => {
       if (response.success && response.speeds && response.headways) {
-        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways, troncal: response.troncal });
+        // Passed whole: copying fields by hand silently drops any section added later.
+        setPlannerCalibration(response);
       }
     })
     .catch((err) => console.warn('[planner] calibration unavailable, keeping constants:', err));

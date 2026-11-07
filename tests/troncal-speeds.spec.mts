@@ -94,6 +94,20 @@ test.describe('stopCodeResolver', () => {
     expect(codes.has('61003')).toBe(false);
   });
 
+  test('a station neither the node nor the distance places is its TM código, when the catalog has it', () => {
+    const stops = [
+      // Danubio: 360 m from its register point, past the 250 m reach.
+      stop('90008', { location_type: '1', stop_lat: '4.546884', stop_lon: '-74.121011' }),
+      stop('61010', { parent_station: '90008', stop_code: 'D010' }),
+      // A new node the catalog has no TM código for stays unfiled.
+      stop('90099', { location_type: '1', stop_lat: '4.80000', stop_lon: '-74.00000' }),
+      stop('61011', { parent_station: '90099', stop_code: 'D011' }),
+    ];
+    const codes = stopCodeResolver(stops, { ...registry, TM90008: { nodo: '9005', lat: 4.543651, lon: -74.120897 } }, new Set(['TM90008']));
+    expect(codes.get('61010')).toBe('TM90008');
+    expect(codes.has('61011')).toBe(false);
+  });
+
   test('a street stop is its cenefa, without the feed suffix', () => {
     const codes = stopCodeResolver([stop('49841', { stop_code: '080A01_TM' }), stop('49842', { stop_code: 'BD-039A' })], registry);
     expect(codes.get('49841')).toBe('080A01');
