@@ -65,7 +65,7 @@ interface ZipEntry {
   localOffset: number;
 }
 
-async function readZipDirectory(file: string): Promise<Map<string, ZipEntry>> {
+export async function readZipDirectory(file: string): Promise<Map<string, ZipEntry>> {
   const fd = await open(file, 'r');
   try {
     const { size } = await fd.stat();
@@ -146,7 +146,7 @@ function splitCsv(line: string): string[] {
   return out;
 }
 
-async function readTable(file: string, entries: Map<string, ZipEntry>, name: string): Promise<Array<Record<string, string>>> {
+export async function readTable(file: string, entries: Map<string, ZipEntry>, name: string): Promise<Array<Record<string, string>>> {
   const rows: Array<Record<string, string>> = [];
   let header: string[] | null = null;
   for await (const line of lines(await entryStream(file, entries, name))) {
@@ -172,7 +172,7 @@ async function newestBuild(): Promise<{ url: string; date: string }> {
   return builds[0];
 }
 
-async function download(url: string, to: string): Promise<void> {
+export async function download(url: string, to: string): Promise<void> {
   const res = await fetch(url);
   if (!res.ok || !res.body) throw new Error(`GTFS download HTTP ${res.status}`);
   await pipeline(Readable.fromWeb(res.body as any), createWriteStream(to));

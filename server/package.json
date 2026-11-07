@@ -18,6 +18,7 @@
     "sync:transmibici": "tsx src/sync_transmibici.ts",
     "sync:stations": "tsx src/sync_troncal_stations.ts",
     "sync:gtfs": "tsx src/sync_gtfs.ts",
+    "sync:gtfs-rt": "tsx src/sync_gtfs_rt.ts",
     "bundle:mobile": "tsx src/bundle_mobile_data.ts",
     "seo:prerender": "tsx src/prerender_seo.ts"
   },

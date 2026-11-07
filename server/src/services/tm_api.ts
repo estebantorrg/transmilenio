@@ -18,6 +18,7 @@ import { isIdRefused, nextProxyUuid, OFFICIAL_APP_HEADERS } from './official_app
 import { forgetLiveName, recallLiveName, rememberLiveName } from '../../../shared/live_name_memo.js';
 import { traceToPaths } from '../../../shared/eta_geometry.js';
 import { createSharedWindow } from './flow_control.js';
+import { fetchOfficialLiveBuses } from './gtfs_rt.js';
 import {
   buildLiveNameCandidates,
   createLiveRequestContext,
@@ -1355,8 +1356,9 @@ function runLiveStrategy(
  *  decide how much to trust an empty result: `direct`/`co-relay` egress from a
  *  known Colombian IP (an empty list is genuinely "no buses"), whereas a free
  *  `public-co-proxy` empty is low-confidence (the proxy may have returned a
- *  silent/garbage body that merely parses to empty). */
-export type LiveBusSource = 'direct' | 'co-relay' | 'public-co-proxy';
+ *  silent/garbage body that merely parses to empty). `gtfs-rt`, the official
+ *  feed (§5.2.8), only ever answers with buses. */
+export type LiveBusSource = 'gtfs-rt' | 'direct' | 'co-relay' | 'public-co-proxy';
 
 export interface LiveBusesResult {
   buses: any[];
@@ -1440,6 +1442,13 @@ async function runLiveCascade(
   }
 
   const routeCode = primaryContext.routeCode;
+
+  // 0. TRANSMILENIO's open GTFS-Realtime feed (§5.2.8): no geofence, no install
+  // id, the whole fleet in one shared file. Empty when it is stale or silent
+  // about this route, and then the tiers below answer as before.
+  const official = await fetchOfficialLiveBuses(routeCode, routeType, [nombre, ...nombreCandidates], catalogRouteVariants(routeCode));
+  if (official.length > 0) return { buses: official, source: 'gtfs-rt' };
+
   const memoKey = `${routeType}:${routeCode}`;
   const remember = (context: LiveRequestContext) => rememberLiveName(memoKey, context.candidateName);
 
