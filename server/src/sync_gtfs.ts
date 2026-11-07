@@ -105,7 +105,7 @@ export async function readZipDirectory(file: string): Promise<Map<string, ZipEnt
   }
 }
 
-async function entryStream(file: string, entries: Map<string, ZipEntry>, name: string): Promise<Readable> {
+export async function entryStream(file: string, entries: Map<string, ZipEntry>, name: string): Promise<Readable> {
   const entry = entries.get(name);
   if (!entry) throw new Error(`GTFS: ${name} missing from the zip`);
   const fd = await open(file, 'r');
@@ -118,7 +118,7 @@ async function entryStream(file: string, entries: Map<string, ZipEntry>, name: s
   return entry.method === 8 ? raw.pipe(zlib.createInflateRaw()) : raw;
 }
 
-async function* lines(stream: Readable): AsyncGenerator<string> {
+export async function* lines(stream: Readable): AsyncGenerator<string> {
   for await (const line of createInterface({ input: stream, crlfDelay: Infinity })) yield line;
 }
 

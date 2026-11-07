@@ -82,7 +82,7 @@ function ensureRouter(): void {
   fetchPlannerCalibration()
     .then((response) => {
       if (response.success && response.speeds && response.headways) {
-        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways });
+        setPlannerCalibration({ version: response.version ?? 1, speeds: response.speeds, headways: response.headways, troncal: response.troncal });
       }
     })
     .catch((err) => console.warn('[planner] calibration unavailable, keeping constants:', err));

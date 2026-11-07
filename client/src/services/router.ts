@@ -28,6 +28,7 @@ import {
   LIVE_ZONAL_M_PER_MIN,
   rideSpeedMpm,
   SPEED_CAP_M_PER_MIN,
+  troncalHourFactor,
 } from '../../../shared/calibration.js';
 import type { CalibrationDayType, PreparedCalibration } from '../../../shared/calibration.js';
 import { getCalibration, onCalibrationChange, setPlannerCalibration } from './calibrationStore';
@@ -44,14 +45,14 @@ export interface GraphEdge {
   routeIdx: number;   // dense route index (WALKING_ROUTE_IDX for walks)
   type: 'troncal' | 'zonal' | 'walking' | 'cable';
   distance: number;
-  /** Minutes at the cost model's constants (§5.6.3) — what troncal, cable and
-   *  walking edges always charge. */
+  /** Minutes at the cost model's constants (§5.6.3) — what cable and walking
+   *  edges always charge, and bus edges when no calibration is loaded. */
   time: number;
   /**
-   * Zonal edges: the ride's minutes at a speed factor of 1 — the stretch's
-   * measured commercial speed where the calibration has it, `time` otherwise
-   * (§5.6.5). Every search scales it by its day type and hour, so it is never
-   * charged raw; read it through `rideEdgeTime`.
+   * Bus edges: the ride's minutes at a speed factor of 1 — the zonal stretch's
+   * measured commercial speed, or the troncal stretch's scheduled one, where the
+   * calibration has it (§5.6.5). Every search scales it by its day type and
+   * hour, so it is never charged raw; read it through `rideEdgeTime`.
    */
   rideTime: number;
   /** Zonal edges: `rideTime` on a bad-traffic day (§5.6.5). Shown as a range, never searched on. */
@@ -295,7 +296,9 @@ let traceIndexById = new Map<string, TraceIndex>();
 let routeHeadwaysByIdx: Array<Record<CalibrationDayType, Float64Array> | undefined> = [];
 // Fastest zonal ride in the graph at factor 1 (m/min) — scales into the A* bound.
 let maxZonalRideSpeed = 0;
-// Fastest troncal/cable ride in the graph (m/min). Both bounds are what the
+// Fastest troncal ride in the graph at factor 1 (m/min), likewise.
+let maxTroncalRideSpeed = 0;
+// Fastest cable ride in the graph (m/min). These bounds are what the
 // remaining-cost estimate is built from: the old one assumed the troncal cruise
 // everywhere, but no edge reaches it once its dwell is counted, and a bound that
 // claims speeds the graph does not have explores states it did not need to.
@@ -331,11 +334,15 @@ const CABLE_DWELL_MINUTES = 0.4;
 // GPS measurement of a stretch exists, the edge runs at that stretch's commercial
 // speed; and every zonal edge, measured or not, is scaled by the hour and day
 // type of the trip, because a SITP bus is markedly slower in the weekday evening
-// peak than at its daytime median and much faster late at night. The constants
-// stay the model for troncal edges and for the zonal stretches the measurement
-// does not cover — their implied 15.2 km/h matches the measured daytime median,
-// so the two agree where they meet. Troncal keeps the known ~8% optimism against
-// the published 26–27 km/h: the measurement covers the zonal fleet only.
+// peak than at its daytime median and much faster late at night. The zonal
+// constants stay the model for the stretches the measurement does not cover —
+// their implied 15.2 km/h matches the measured daytime median.
+//
+// Troncal edges run on the published schedule since 2026-11-07 (`troncal` in the
+// calibration, built from the GTFS by `sync:troncal-speeds`): the troncal
+// constants below implied 28–31 km/h a ride, against 16–22 km/h followed live on
+// a weekday morning — and the schedule matched those buses to ~10 %. The
+// constants remain only for a graph with no calibration loaded.
 const TRONCAL_SPEED_M_PER_MINUTE = 570; // 34 km/h along the trace
 const TRONCAL_DWELL_MINUTES = 0.5;
 const ZONAL_SPEED_M_PER_MINUTE = 333;   // 20 km/h along the trace
@@ -864,7 +871,7 @@ export function initRouter(routes: RouteListItem[], cableStations?: CableStation
   maxFixedRideSpeed = 0;
   for (const edges of adjacency) {
     for (const edge of edges) {
-      if (edge.type === 'zonal' || edge.type === 'walking' || edge.time <= 0) continue;
+      if (edge.type !== 'cable' || edge.time <= 0) continue;
       const speed = edge.distance / edge.time;
       if (speed > maxFixedRideSpeed) maxFixedRideSpeed = speed;
     }
@@ -1020,6 +1027,10 @@ interface ScheduleContext {
   zonalInvFactor: number;
   /** Fastest zonal speed any edge reaches in this slot (m/min): the zonal-mode A* bound. */
   zonalMaxSpeed: number;
+  /** Troncal edges charge `rideTime × troncalInvFactor` — 1 without a calibration. */
+  troncalInvFactor: number;
+  /** Fastest troncal speed any edge reaches in this slot (m/min). */
+  troncalMaxSpeed: number;
   /** routeIdx → expected boarding wait in this slot (`NaN` = not resolved yet). */
   boardWaits: Float64Array;
 }
@@ -1041,6 +1052,7 @@ function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleCo
   const dayType = dayTypeFor(dayOfWeek(clock.plan.year, clock.plan.month, clock.plan.day), clock.festivos[1]);
   const hour = Math.floor(clock.departMinute / 60) % 24;
   const factor = hourFactor(getCalibration(), dayType, hour);
+  const troncalFactor = troncalHourFactor(getCalibration(), dayType, hour);
   return {
     clock,
     intervals: new Array(routeKeySpan),
@@ -1055,6 +1067,8 @@ function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleCo
       SPEED_CAP_M_PER_MIN,
       Math.max(ZONAL_SPEED_M_PER_MINUTE, maxZonalRideSpeed * factor)
     ),
+    troncalInvFactor: 1 / troncalFactor,
+    troncalMaxSpeed: Math.min(SPEED_CAP_M_PER_MIN, maxTroncalRideSpeed * troncalFactor),
     boardWaits: new Float64Array(routeKeySpan).fill(NaN),
   };
 }
@@ -1065,22 +1079,39 @@ function createScheduleContext(departAt: PlanTime, enforce: boolean): ScheduleCo
 onCalibrationChange(() => {
   if (adjacency.length === 0) return;
   const measured = applyCalibration();
-  console.log(`[Router] Calibration ${getCalibration() ? 'applied' : 'cleared'}: ${measured} zonal edges on measured speeds`);
+  console.log(`[Router] Calibration ${getCalibration() ? 'applied' : 'cleared'}: ${measured} zonal edges on measured speeds, ${scheduledTroncalEdges} troncal on scheduled ones`);
 });
 
+// How many troncal edges the last `applyCalibration` put on a scheduled stretch speed.
+let scheduledTroncalEdges = 0;
+
 /**
- * Costs every zonal edge at factor 1 from the loaded calibration — or back to the
+ * Costs every bus edge at factor 1 from the loaded calibration — or back to the
  * constants without one — and resolves each route's headways. Returns how many
  * zonal edges run on a measured speed.
+ *
+ * A troncal edge takes its stretch's scheduled speed, and one the schedule does
+ * not cover the median scheduled stretch: the constant it falls back to without a
+ * calibration is ~1.5× the speed the troncal actually makes on a weekday (§5.6.5).
  */
 function applyCalibration(): number {
   const loaded: PreparedCalibration | null = getCalibration();
   routeHeadwaysByIdx = rawRoutesList.map((route) => loaded?.headways.get(route.code));
   let measured = 0;
   let fastest = 0;
+  let fastestTroncal = 0;
+  scheduledTroncalEdges = 0;
   for (let nodeIdx = 0; nodeIdx < adjacency.length; nodeIdx++) {
     const fromCode = stopList[nodeIdx].codigo;
     for (const edge of adjacency[nodeIdx]) {
+      if (edge.type === 'troncal') {
+        const scheduled = loaded?.troncalPairSpeed.get(`${fromCode}>${edge.to}`);
+        if (scheduled !== undefined) scheduledTroncalEdges++;
+        const speed = scheduled ?? loaded?.troncalDefault;
+        edge.rideTime = speed ? edge.distance / clampSpeedMpm(speed) : edge.time;
+        if (edge.rideTime > 0) fastestTroncal = Math.max(fastestTroncal, edge.distance / edge.rideTime);
+        continue;
+      }
       if (edge.type !== 'zonal') continue;
       const key = `${fromCode}>${edge.to}`;
       const speed = loaded?.pairSpeed.get(key);
@@ -1096,12 +1127,15 @@ function applyCalibration(): number {
     }
   }
   maxZonalRideSpeed = fastest;
+  maxTroncalRideSpeed = fastestTroncal;
   return measured;
 }
 
 /** Minutes one graph edge charges in this search's calibration slot (§5.6.5). */
 function rideEdgeTime(edge: GraphEdge, schedule: ScheduleContext): number {
-  return edge.type === 'zonal' ? Math.max(edge.rideTime * schedule.zonalInvFactor, edge.minTime) : edge.time;
+  if (edge.type === 'zonal') return Math.max(edge.rideTime * schedule.zonalInvFactor, edge.minTime);
+  if (edge.type === 'troncal') return Math.max(edge.rideTime * schedule.troncalInvFactor, edge.minTime);
+  return edge.time;
 }
 
 /** Minutes a bad-traffic day adds to one edge in this search's slot; 0 off zonal. */
@@ -1769,8 +1803,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
   // and no troncal edge reaches the cruise speed once its dwell is counted.
   const heuristicSpeed = mode === 'zonal'
     ? schedule.zonalMaxSpeed
-    : Math.min(TRONCAL_SPEED_M_PER_MINUTE, Math.max(schedule.zonalMaxSpeed, maxFixedRideSpeed));
+    : Math.min(SPEED_CAP_M_PER_MIN, Math.max(schedule.zonalMaxSpeed, schedule.troncalMaxSpeed, maxFixedRideSpeed));
   const zonalInvFactor = schedule.zonalInvFactor;
+  const troncalInvFactor = schedule.troncalInvFactor;
   const minEgressPrimary = walkPrimary > 0 ? Math.min(...destByIdx.values()) * walkPrimary : 0;
   const heuristicCache = new Float64Array(stopList.length).fill(NaN);
   const remainingBound = (nodeIdx: number): number => {
@@ -1872,7 +1907,9 @@ function findRoutesCore(params: RouteSearchParams): JourneyPlan[] {
       }
 
       // `rideEdgeTime`, inlined: this line runs on every relaxation.
-      let edgeTime = edge.type === 'zonal' ? Math.max(edge.rideTime * zonalInvFactor, edge.minTime) : edge.time;
+      let edgeTime = edge.type === 'zonal' ? Math.max(edge.rideTime * zonalInvFactor, edge.minTime)
+        : edge.type === 'troncal' ? Math.max(edge.rideTime * troncalInvFactor, edge.minTime)
+        : edge.time;
       let edgeCost;
       let isTransfer = false;
 

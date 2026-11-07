@@ -264,6 +264,8 @@ const output = {
     `velocidad comercial por tramo ${first} a ${last} y programación de despachos INTERVALOS RUTAS URBANAS.`,
   speeds: { factor, pairs, slow },
   headways,
+  // Built from the GTFS schedule by `npm run sync:troncal-speeds` (server/), not here.
+  ...(existsSync(OUT) && { troncal: JSON.parse(readFileSync(OUT, 'utf8')).troncal }),
 };
 writeFileSync(OUT, JSON.stringify(output) + '\n');
 

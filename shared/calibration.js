@@ -76,7 +76,25 @@ export function prepareCalibration(data) {
     headways.set(code, { H: hourTable(byDay?.H), S: hourTable(byDay?.S), F: hourTable(byDay?.F) });
   }
 
-  return { factor, pairSpeed, pairSlow, slowDefault, headways };
+  // The troncal's stretches come from the published schedule (`troncal`), not the
+  // zonal GPS measurement: its own map, its own hourly profile, and the median
+  // stretch for the few the schedule does not cover.
+  const troncalFactor = {};
+  for (const dayType of DAY_TYPES) {
+    const table = hourTable(data.troncal?.factor?.[dayType]);
+    for (let h = 0; h < HOURS; h++) if (!(table[h] > 0)) table[h] = 1;
+    troncalFactor[dayType] = table;
+  }
+  const troncalPairSpeed = new Map();
+  for (const [from, next] of Object.entries(data.troncal?.pairs ?? {})) {
+    for (const [to, kmh] of Object.entries(next ?? {})) {
+      if (kmh > 0) troncalPairSpeed.set(`${from}>${to}`, (Number(kmh) * 1000) / 60);
+    }
+  }
+  const troncalSpeeds = [...troncalPairSpeed.values()].sort((a, b) => a - b);
+  const troncalDefault = troncalSpeeds.length ? troncalSpeeds[troncalSpeeds.length >> 1] : null;
+
+  return { factor, pairSpeed, pairSlow, slowDefault, headways, troncalFactor, troncalPairSpeed, troncalDefault };
 }
 
 /** `H`/`S`/`F` for a date. Sunday and festivos share one programme. */
@@ -89,6 +107,13 @@ export function dayTypeFor(weekday, festivo) {
 /** The citywide multiplier on a stretch's base speed at that day type and hour. */
 export function hourFactor(prepared, dayType, hour) {
   const table = prepared?.factor?.[dayType];
+  const value = table ? table[((hour % HOURS) + HOURS) % HOURS] : 1;
+  return value > 0 ? value : 1;
+}
+
+/** The troncal-wide multiplier on a stretch's scheduled base speed at that day type and hour. */
+export function troncalHourFactor(prepared, dayType, hour) {
+  const table = prepared?.troncalFactor?.[dayType];
   const value = table ? table[((hour % HOURS) + HOURS) % HOURS] : 1;
   return value > 0 ? value : 1;
 }

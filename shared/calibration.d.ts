@@ -10,6 +10,13 @@ export interface PlannerCalibrationData {
     slow?: Record<string, Record<string, number>>;
   };
   headways?: Record<string, Partial<Record<CalibrationDayType, number[]>>>;
+  /** Troncal and dual stretches from the published GTFS schedule (`sync:troncal-speeds`). */
+  troncal?: {
+    source?: string;
+    /** from → to → base speed, km/h. */
+    pairs?: Record<string, Record<string, number>>;
+    factor?: Partial<Record<CalibrationDayType, number[]>>;
+  };
 }
 
 export interface PreparedCalibration {
@@ -21,6 +28,11 @@ export interface PreparedCalibration {
   /** Median of `pairSlow`, for zonal stretches it does not cover; null = no slow data. */
   slowDefault: number | null;
   headways: Map<string, Record<CalibrationDayType, Float64Array>>;
+  troncalFactor: Record<CalibrationDayType, Float64Array>;
+  /** `from>to` stop códigos → scheduled base speed of a troncal/dual stretch, m/min. */
+  troncalPairSpeed: Map<string, number>;
+  /** Median of `troncalPairSpeed`, for troncal stretches the schedule does not cover; null = none loaded. */
+  troncalDefault: number | null;
 }
 
 export const SPEED_CAP_M_PER_MIN: number;
@@ -33,6 +45,7 @@ export const DAY_TYPES: CalibrationDayType[];
 export function prepareCalibration(data: PlannerCalibrationData | null | undefined): PreparedCalibration | null;
 export function dayTypeFor(weekday: number, festivo: boolean): CalibrationDayType;
 export function hourFactor(prepared: PreparedCalibration | null, dayType: CalibrationDayType, hour: number): number;
+export function troncalHourFactor(prepared: PreparedCalibration | null, dayType: CalibrationDayType, hour: number): number;
 export function clampSpeedMpm(mpm: number): number;
 export function pairSpeedMpm(prepared: PreparedCalibration | null, fromCode: string, toCode: string): number | null;
 export function medianPairSpeedMpm(prepared: PreparedCalibration | null, stopCodes: string[]): number | null;

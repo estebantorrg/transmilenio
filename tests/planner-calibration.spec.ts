@@ -205,3 +205,66 @@ test.describe('bad-traffic range', () => {
     expect(plan.slowTrafficExtra).toBe(Math.round(minutes));
   });
 });
+
+test.describe('scheduled troncal speeds', () => {
+  // The same four points as stations of a troncal line: A→D is one ride either way.
+  const troncal = (id: string): RouteListItem => ({
+    ...line(id),
+    type: 'troncal',
+    stops: STOPS.map((nombre, i) => ({ nombre, codigo: `T${nombre}`, coordinate: coordOf(i), kind: 'station' as const })),
+  });
+  /** What the troncal constants charge: 570 m/min plus half a minute a leg. */
+  const TRONCAL_CONSTANT = RIDE_METRES / 570 + 0.5 * LEGS;
+  const scheduled = (kmh: number) => ({ TA: { TB: kmh }, TB: { TC: kmh }, TC: { TD: kmh } });
+  const withTroncal = (pairs: Record<string, Record<string, number>>, factorH = flat(1), zonal: Record<string, Record<string, number>> = {}) => ({
+    ...calibration({ pairs: zonal }),
+    troncal: { pairs, factor: { H: factorH, S: flat(1), F: flat(1) } },
+  });
+
+  // Each test builds its own graph: a describe-level beforeEach is not scoped by every runner.
+  const onTroncal = () => initRouter([troncal('tr')]);
+
+  test('no calibration leaves the troncal constants as they were', () => {
+    onTroncal();
+    expect(ride().minutes).toBeCloseTo(TRONCAL_CONSTANT, 3);
+  });
+
+  test('a scheduled stretch is charged at its own speed, dwell included', () => {
+    onTroncal();
+    setPlannerCalibration(withTroncal(scheduled(18)));
+    expect(ride().minutes).toBeCloseTo(RIDE_METRES / ((18 * 1000) / 60), 3);
+    expect(ride().minutes).toBeGreaterThan(TRONCAL_CONSTANT);
+  });
+
+  test('a stretch the schedule misses takes the median scheduled stretch, not the constant', () => {
+    onTroncal();
+    setPlannerCalibration(withTroncal({ TX: { TY: 15 }, TY: { TZ: 18 }, TZ: { TW: 21 } }));
+    expect(ride().minutes).toBeCloseTo(RIDE_METRES / ((18 * 1000) / 60), 3);
+  });
+
+  test('the troncal follows its own hourly profile, not the zonal one', () => {
+    onTroncal();
+    const factorH = flat(1).map((_, h) => (h === 17 ? 0.8 : 1));
+    setPlannerCalibration(withTroncal(scheduled(20), factorH));
+    const midday = RIDE_METRES / ((20 * 1000) / 60);
+    expect(ride({ ...FRIDAY, minute: 12 * 60 }).minutes).toBeCloseTo(midday, 3);
+    expect(ride({ ...FRIDAY, minute: 17 * 60 }).minutes).toBeCloseTo(midday / 0.8, 3);
+    // A zonal rush hour does not slow the busway.
+    setPlannerCalibration({ ...withTroncal(scheduled(20)), speeds: { ...calibration({}).speeds, factor: { H: factorH, S: flat(1), F: flat(1) } } });
+    expect(ride({ ...FRIDAY, minute: 17 * 60 }).minutes).toBeCloseTo(midday, 3);
+  });
+
+  test('zonal measurements never price a troncal edge', () => {
+    onTroncal();
+    setPlannerCalibration(withTroncal(scheduled(18), flat(1), { TA: { TB: 8 }, TB: { TC: 8 }, TC: { TD: 8 } }));
+    expect(ride().minutes).toBeCloseTo(RIDE_METRES / ((18 * 1000) / 60), 3);
+  });
+
+  test('a late-night profile faster than the cruise is held to it, and the plan is still found', () => {
+    onTroncal();
+    setPlannerCalibration(withTroncal(scheduled(30), flat(1.5)));
+    const { minutes, plan } = ride();
+    expect(plan.steps.some((s) => s.type === 'ride')).toBe(true);
+    expect(minutes).toBeCloseTo(RIDE_METRES / 570, 3);
+  });
+});
